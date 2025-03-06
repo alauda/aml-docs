@@ -1,0 +1,14 @@
+{
+  "devDependencies": {
+    "@alauda/doom": "^0.13.2",
+    "typescript": "^5.7.3"
+  },
+  "scripts": {
+    "dev": "doom dev",
+    "build": "doom build",
+    "serve": "doom serve",
+    "translate": "doom translate",
+    "export": "doom export"
+  },
+  "packageManager": "yarn@4.6.0"
+}
