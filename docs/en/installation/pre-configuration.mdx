@@ -1,0 +1,68 @@
+---
+weight: 15
+---
+
+# Pre-configuration
+
+## GitLab Configuration
+
+### Disable expiration dates for access tokens
+
+If GitLab is running v17.0 or greater, we need to **disable** expiration dates for access tokens.
+
+:::warning
+
+If expiration date for access token keeps enabled, we have to refresh admin token manually at least yearly, or Alauda AI may stop functionally.
+
+:::
+
+To **disable** expiration dates for new access tokens:
+
+1. On the left sidebar, at the bottom, select **Admin**.
+2. Select **Settings > General**.
+3. Expand **Account and limit**.
+4. **Uncheck** the **Personal / Project / Group access token expiration** checkbox.
+5. Select **Save changes**.
+
+### Generate new token
+
+To **generate** impersonation token for admin:
+
+1. On the left sidebar, at the bottom, select **Admin**.
+2. Select **Overview > Users**.
+3. Select the admin user (Administrator for example).
+4. On the top navigation bar, select **Impersonation Tokens**.
+5. Select **Add new token**.
+6. In the popup form:
+   1. Input a **Token name** for AML (`aml-root`, for example).
+   2. Remove **Expiration Date** (select "x" icon to remove expiration date).
+   3. Check **ALL** scopes (especially **api** scope) for **Select scopes**.
+7. Select **Create impersonation token**.
+8. **Save** the newly generated token under **Your new impersonation token**, we need to use it later.
+
+:::warning
+
+Make sure you save the newly generate token - you won't be able to access it again.
+
+:::
+
+### Create kubernetes secret for admin token
+
+Then we create secret for gitlab admin token named **aml-gitlab-admin-token** under **cpaas-system** namespace:
+
+```bash
+# Please replace ${TOKEN} with real token saved previously
+kubectl \
+  create secret generic \
+  aml-gitlab-admin-token \   # [!code callout]
+  --from-literal="password=${TOKEN}" \   # [!code callout]
+  -n cpaas-system   # [!code callout]
+```
+
+<Callouts>
+
+1. Create a gitlab admin token secret named **aml-gitlab-admin-token**
+2. The token is saved under **password** key, please replace `${TOKEN}` with the real token saved previously.
+3. The secret is created under **cpaas-system** namespace.
+
+</Callouts>
