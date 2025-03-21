@@ -2,12 +2,18 @@
 weight: 10
 ---
 
-
 # Installation
+
+## Hardware requirements
+
+- At least two nodes with 16 cores and 32 GB of memory in total.
+- Additional resources for runtime serving are determined by the actual business scale: 10x7B-sized LLM inference instances at the same time, requires at least 10 GPUs and corresponding CPU, memory, disk storage, and object storage.
+- 200G free disk space for each worker node.
 
 ## Prerequisites
 
-- Istio 1.20 or better
-- GitLab v15 or better (Self Hosted)
+You must meet the following requirements before you can install Alauda AI on your ACP cluster:
 
-<Overview />
+- **Cluster administrator access to your ACP cluster**
+- **Service Mesh with Istio 1.20 (or better)**
+- **Gitlab (Self-Hosted) v15 or better**

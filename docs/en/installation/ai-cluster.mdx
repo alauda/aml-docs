@@ -1,0 +1,191 @@
+---
+weight: 30
+---
+
+# Alauda AI Cluster Components
+
+## Downloading
+
+The following operator bundle packages require to be downloaded before installation:
+
+1. `Alauda AI Cluster`: For managing Alauda AI cluster components.
+2. `KServeless`: For managing `KServe` and `Knative Serving` components.
+
+:::info
+Those two operator bundle packages can be retrieved from Alauda Cloud.
+
+Please contact Consumer Support for more information.
+:::
+
+## Uploading
+
+We need to upload both `Alauda AI Cluster` and `KServeless` to the destination cluster.
+
+<Steps>
+
+### Downloading the violet tool
+
+First, we need to download the `violet` tool if not present on the machine.
+
+In **Platform Management** of ACP console:
+
+1. Click **Marketplace / Upload Packages**.
+2. Click **Download Packaging and Listing Tool**.
+3. Locate the right OS / CPU architecture under **Execution Environment**.
+4. Click **Download** to download the `violet` tool.
+5. Run `chmod +x ${PATH_TO_THE_VIOLET_TOOL}` to make the tool executable.
+
+### Uploading package
+
+Then, run the following command to upload both `Alauda AI Cluster` and `Alauda AI Cluster` operator packages to the destination cluster.
+
+```bash
+export PLATFORM_ADDRESS=https://platform-address  # [!code callout]
+export PLATFORM_ADMIN_USER=<admin>  # [!code callout]
+export PLATFORM_ADMIN_PASSWORD=<admin-password>  # [!code callout]
+export CLUSTER=<cluster-name>  #[!code callout]
+
+export AI_CLUSTER_OPERATOR_NAME=<path to the alauda ai cluster package tarball>  #[!code callout]
+export KSERVELESS_OPERATOR_PKG_NAME=<path to the kserveless package tarball>  #[!code callout]
+
+# Push **Alauda AI Cluster** operator package to destination cluster
+violet push \
+    ${AI_CLUSTER_OPERATOR_NAME} \
+    --platform-address=${PLATFORM_ADDRESS} \
+    --platform-username=${PLATFORM_ADMIN_USER} \
+    --platform-password=${PLATFORM_ADMIN_PASSWORD} \
+    --clusters=${CLUSTER}
+
+# Push **KServeless** operator package to destination cluster
+violet push \
+    ${KSERVELESS_OPERATOR_PKG_NAME} \
+    --platform-address=${PLATFORM_ADDRESS} \
+    --platform-username=${PLATFORM_ADMIN_USER} \
+    --platform-password=${PLATFORM_ADMIN_PASSWORD} \
+    --clusters=${CLUSTER}
+```
+
+<Callouts>
+
+1. `${PLATFORM_ADDRESS}` is your ACP platform address.
+2. `${PLATFORM_ADMIN_USER}` is the username of the ACP platform admin.
+3. `${PLATFORM_ADMIN_PASSWORD}` is the password of the ACP platform admin.
+4. `${CLUSTER}` is the name of the cluster to install the Alauda AI components into.
+5. `${AI_CLUSTER_OPERATOR_NAME}` is the path to the Alauda AI Cluster Operator package tarball.
+6. `${KSERVELESS_OPERATOR_PKG_NAME}` is the path to the KServeless Operator package tarball.
+
+</Callouts>
+
+</Steps>
+
+## Install the Alauda AI Cluster Operator
+
+<Steps>
+
+### Procedure
+
+In **Platform Management** of ACP console:
+
+1. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install the Alauda AI Cluster Operator.
+2. Click **Marketplace / Operator Hub**.
+3. Select **Alauda AI Cluster**, then click **Install**.
+
+    **Install Alauda AI Cluster** window will popup.
+
+4. Then in the **Install Alauda AI Cluster** window.
+5. Leave **Channel** unchanged.
+6. Check whether the **Version** matches the **Alauda AI Cluster** version you want to install.
+7. Leave **Installation Location** unchanged, it should be `aml-operator` by default.
+8. Select **Manual** for **Upgrade Strategy**.
+9. Click **Install**.
+
+### Verification
+
+Confirm that the **Alauda AI Cluster** tile shows one of the following states:
+
+- `Installing`: installation is in progress; wait for this to change to `Installed`.
+- `Installed`: installation is complete.
+
+</Steps>
+
+## Creating Alauda AI Cluster Instance
+
+Once Alauda AI Cluster Operator is installed, you can create an Alauda AI Cluster instance.
+
+### Procedure
+
+In **Platform Management** of ACP console:
+
+1. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install the Alauda AI Cluster Operator.
+2. Click **Marketplace / Operator Hub**.
+3. Select **Alauda AI Cluster**, then **Click**.
+4. In the **Alauda AI Cluster** page, click **All Instances** from the tab.
+5. Click **Create Instance**.
+
+    **Select Instance Type** window will pop up.
+
+6. Locate the **AmlCluster** tile in **Select Instance Type** window, then click **Create Instance**.
+
+    **Create AmlCluster** form will show up.
+
+7. Keep `default` unchanged for **Name**.
+8. Select **Deploy Flavor** from dropdown:
+   1. `single-node` for non HA deployments.
+   2. `ha-cluster` for HA cluster deployments (**Recommended** for production).
+9.  Select **Managed** for **Knative Serving Mode**.
+10. Select **Managed** for **KServe Mode**.
+11. Input a valid domain for **Domain** field.
+
+    :::info
+    This domain is used by ingress gateway for exposing model serving services.
+    Most likely, you will want to use a wildcard name, like *.example.com.
+
+    You can specify the following certificate types by updating the **Domain Certificate Type** field:
+
+    - `Provided`
+    - `SelfSigned`
+    - `ACPDefaultIngress`
+
+    By default, the configuration uses `SelfSigned` certificate type for securing ingress traffic to your cluster, the certificate is
+    stored in the `knative-serving-cert` secret that is specified in the **Domain Certificate Secret** field.
+
+    To use certificate provided by your own, store the certificate secret in the `istio-system` namespace, then update the value of the
+    **Domain Certificate Secret** field, and change the value of the **Domain Certificate Secret** field to `Provided`.
+    :::
+
+12. Under **Gitlab** section:
+    1.  Type the URL of self-hosted Gitlab for **Base URL**.
+    2.  Type `cpaas-system` fro **Admin Token Secret Namespace**.
+    3.  Type `aml-gitlab-admin-token` for **Admin Token Secret Name**.
+13. Under **MySQL** section:
+    1.  Type the *address* of MySQL instance in the **Host** field.
+    2.  Type the *port* for MySQL instance in **Port** field (Default: `3306`).
+    3.  Type the *user* to connect to the MySQL instance in the **Username** field.
+    4.  Type the *database* to be used for **Alauda AI** in the the **Database** field (Default: `aml`).
+    5.  Select the namespace of the password secret for the *user* in the the **Password Secret Namespace** field.
+    6.  Type the name of the password secret for the *user* in the the **Password Secret Name** field.
+
+    :::info
+    **About MySQL user privileges**
+
+    - The *user* for the MySQL instance should have DDL privileges.
+    - It's recommended to create the *database* and grants *user* access to the *database*.
+    - If *database* is not created, then the *user* requires `CREATE DATABASE` privileges to create the *database*.
+    :::
+
+14. Review above configurations and then click **Create**.
+
+### Verification
+
+Check the status field from the `AMLCluster` resource which named `default`:
+
+    ```bash
+    kubectl get amlcluster default
+    ```
+
+    Should returns `Ready`:
+
+    ```
+    NAME      READY   REASON
+    default   True    Succeeded
+    ```
