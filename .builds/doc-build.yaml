@@ -109,7 +109,7 @@ spec:
             - xonsh
             - /apps/modify_build_config.xsh
             args:
-            - --base=machinelearning
+            - --base=ai
             - --branch=$(params.branch)
     - name: build-online-docs
       runAfter:
@@ -245,6 +245,6 @@ spec:
             - xonsh
             - /apps/upload_doc_artifacts.xsh
             args:
-            - --base=machinelearning
+            - --base=ai
             - --branch=$(params.branch)
             - --commit=$(params.commit)
