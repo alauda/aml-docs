@@ -1,0 +1,200 @@
+---
+weight: 30
+sourceSHA: 6971f48f8f876ff748c87935cbf0cc4056ce338e0c53e45ecf97659d5b0906df
+---
+
+# Alauda AI 集群组件
+
+## 下载
+
+在安装之前，需要下载以下操作员包：
+
+1. `Alauda AI 集群`：用于管理 Alauda AI 集群组件。
+2. `KServeless`：用于管理 `KServe` 和 `Knative Serving` 组件。
+
+:::info
+这两个操作员包可以从灵雀云获取。
+
+有关更多信息，请联系客户支持。
+:::
+
+## 上传
+
+我们需要将 `Alauda AI 集群` 和 `KServeless` 上传到目标集群。
+
+<Steps>
+  ### 下载 violet 工具
+
+  首先，如果机器上不存在，则需要下载 `violet` 工具。
+
+  在 ACP 控制台的 **平台管理** 中：
+
+  1. 点击 **市场 / 上传包**。
+  2. 点击 **下载打包和列表工具**。
+  3. 在 **执行环境** 下找到正确的操作系统/CPU 架构。
+  4. 点击 **下载** 下载 `violet` 工具。
+  5. 运行 `chmod +x ${PATH_TO_THE_VIOLET_TOOL}` 使工具可执行。
+
+  ### 上传包
+
+  然后，运行以下命令将 `Alauda AI 集群` 和 `KServeless` 操作员包上传到目标集群。
+
+  ```bash
+  export PLATFORM_ADDRESS=https://platform-address  # [!code callout]
+  export PLATFORM_ADMIN_USER=<admin>  # [!code callout]
+  export PLATFORM_ADMIN_PASSWORD=<admin-password>  # [!code callout]
+  export CLUSTER=<cluster-name>  #[!code callout]
+
+  export AI_CLUSTER_OPERATOR_NAME=<path to the alauda ai cluster package tarball>  #[!code callout]
+  export KSERVELESS_OPERATOR_PKG_NAME=<path to the kserveless package tarball>  #[!code callout]
+
+  # 将 **Alauda AI 集群** 操作员包推送到目标集群
+  violet push \
+      ${AI_CLUSTER_OPERATOR_NAME} \
+      --platform-address=${PLATFORM_ADDRESS} \
+      --platform-username=${PLATFORM_ADMIN_USER} \
+      --platform-password=${PLATFORM_ADMIN_PASSWORD} \
+      --clusters=${CLUSTER}
+
+  # 将 **KServeless** 操作员包推送到目标集群
+  violet push \
+      ${KSERVELESS_OPERATOR_PKG_NAME} \
+      --platform-address=${PLATFORM_ADDRESS} \
+      --platform-username=${PLATFORM_ADMIN_USER} \
+      --platform-password=${PLATFORM_ADMIN_PASSWORD} \
+      --clusters=${CLUSTER}
+  ```
+
+  <Callouts>
+    1. `${PLATFORM_ADDRESS}` 是您的 ACP 平台地址。
+    2. `${PLATFORM_ADMIN_USER}` 是 ACP 平台管理员的用户名。
+    3. `${PLATFORM_ADMIN_PASSWORD}` 是 ACP 平台管理员的密码。
+    4. `${CLUSTER}` 是要安装 Alauda AI 组件的集群名称。
+    5. `${AI_CLUSTER_OPERATOR_NAME}` 是 Alauda AI 集群操作员包 tarball 的路径。
+    6. `${KSERVELESS_OPERATOR_PKG_NAME}` 是 KServeless 操作员包 tarball 的路径。
+  </Callouts>
+</Steps>
+
+## 安装 Alauda AI 集群操作员
+
+<Steps>
+  ### 程序
+
+  在 ACP 控制台的 **平台管理** 中：
+
+  1. 在控制台顶部，从 **集群** 下拉列表中选择您希望安装 Alauda AI 集群操作员的目标集群。
+
+  2. 点击 **市场 / 操作员中心**。
+
+  3. 选择 **Alauda AI 集群**，然后点击 **安装**。
+
+     **安装 Alauda AI 集群** 窗口会弹出。
+
+  4. 然后在 **安装 Alauda AI 集群** 窗口中。
+
+  5. 保持 **通道** 不变。
+
+  6. 检查 **版本** 是否与您要安装的 **Alauda AI 集群** 版本匹配。
+
+  7. 保持 **安装位置** 不变，默认应为 `aml-operator`。
+
+  8. 对于 **升级策略** 选择 **手动**。
+
+  9. 点击 **安装**。
+
+  ### 验证
+
+  确认 **Alauda AI 集群** 瓦片显示以下状态之一：
+
+  - `Installing`：安装正在进行中；等待其变为 `Installed`。
+  - `Installed`：安装已完成。
+</Steps>
+
+## 创建 Alauda AI 集群实例
+
+一旦安装了 Alauda AI 集群操作员，您就可以创建一个 Alauda AI 集群实例。
+
+### 程序
+
+在 ACP 控制台的 **平台管理** 中：
+
+1. 在控制台顶部，从 **集群** 下拉列表中选择您希望安装 Alauda AI 集群操作员的目标集群。
+
+2. 点击 **市场 / 操作员中心**。
+
+3. 选择 **Alauda AI 集群**，然后 **点击**。
+
+4. 在 **Alauda AI 集群** 页面，点击标签中的 **所有实例**。
+
+5. 点击 **创建实例**。
+
+   **选择实例类型** 窗口会弹出。
+
+6. 在 **选择实例类型** 窗口中找到 **AmlCluster** 瓦片，然后点击 **创建实例**。
+
+   **创建 AmlCluster** 表单将显示。
+
+7. 对于 **名称** 保持 `default` 不变。
+
+8. 从下拉列表中选择 **部署风味**：
+   1. `single-node` 适用于非 HA 部署。
+   2. `ha-cluster` 适用于 HA 集群部署（**建议**用于生产环境）。
+
+9. 对于 **Knative Serving 模式** 选择 **Managed**。
+
+10. 对于 **KServe 模式** 选择 **Managed**。
+
+11. 在 **域名** 字段输入有效的域名。
+
+    :::info
+    此域名由入口网关用于暴露模型服务。您可能会想使用通配符名称，例如 \*.example.com。
+
+    您可以通过更新 **域名证书类型** 字段来指定以下证书类型：
+
+    - `Provided`
+    - `SelfSigned`
+    - `ACPDefaultIngress`
+
+    默认情况下，配置使用 `SelfSigned` 证书类型来保护进件流量，证书存储在 **域名证书密钥** 字段中指定的 `knative-serving-cert` 秘密中。
+
+    要使用您自己的证书，请将证书密钥存储在 `istio-system` 命名空间中，然后更新 **域名证书密钥** 字段的值，并将 **域名证书密钥** 字段的值更改为 `Provided`。
+    :::
+
+12. 在 **Gitlab** 部分：
+    1. 在 **基础 URL** 中输入自托管 Gitlab 的 URL。
+    2. 在 **管理员令牌密钥命名空间** 中输入 `cpaas-system`。
+    3. 在 **管理员令牌密钥名称** 中输入 `aml-gitlab-admin-token`。
+
+13. 在 **MySQL** 部分：
+
+    1. 在 **主机** 字段中输入 MySQL 实例的 *地址*。
+    2. 在 **端口** 字段中输入 MySQL 实例的 *端口*（默认：`3306`）。
+    3. 在 **用户名** 字段中输入用于连接 MySQL 实例的 *用户*。
+    4. 在 **数据库** 字段中输入用于 **Alauda AI** 的 *数据库*（默认：`aml`）。
+    5. 在 **密码密钥命名空间** 字段中选择 *用户* 的密码密钥命名空间。
+    6. 在 **密码密钥名称** 字段中输入 *用户* 的密码密钥名称。
+
+    :::info
+    **关于 MySQL 用户权限**
+
+    - MySQL 实例的 *用户* 应具有 DDL 权限。
+    - 建议创建 *数据库* 并授予 *用户* 对 *数据库* 的访问权限。
+    - 如果 *数据库* 尚未创建，则 *用户* 需要 `CREATE DATABASE` 权限来创建 *数据库*。
+      :::
+
+14. 审核上述配置，然后点击 **创建**。
+
+### 验证
+
+检查名为 `default` 的 `AMLCluster` 资源的状态字段：
+
+```bash
+kubectl get amlcluster default
+```
+
+应返回 `Ready`：
+
+```
+NAME      READY   REASON
+default   True    Succeeded
+```
