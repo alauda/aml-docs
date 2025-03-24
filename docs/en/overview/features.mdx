@@ -3,32 +3,49 @@ weight: 20
 sourceSHA: 2ffcc54470ceb1699921d7a92b18563f60ee056e8ea380196d48400e5d732f6b
 ---
 
-:::tip
-
-List all functional modules under the parent module and provide a brief introduction, allowing users to quickly understand all features under this module.
-
-You can visit the [Features Overview Example](https://product-doc-guide.alauda.cn/template/features_overview/example.html) to see a sample of the corresponding documentation.
-
 :::
 
 # Features Overview
 
-## Category 1
+## Model Repository
 
-- Feature 1
+- Model Repository Creation & Deletion
 
-  A brief introduction to Feature 1.
+  Supports creating 'private' type model repositories, and users can delete these repositories. Only administrators can create 'shared' type model repositories, and only administrators can delete them.
 
-- Feature 2
+- Model Version Management
 
-  A brief introduction to Feature 2.
+  Supports version control for models, including creating Tags and branches. It also allows submitting Commits to modify files in existing branches.
 
-## Category 2
+## Inference Services
 
-- Feature 1
+- Custom Inference Service Deployment
 
-  A brief introduction to Feature 1.
+  Enables deploying any model from the model repository as an inference service by customizing parameters.
 
-- Feature 2
+- Template-Based Inference Service Deployment
 
-  A brief introduction to Feature 2.
+  Users can define inference service templates and use them to create inference services.
+
+- Dynamic Scaling of Inference Services
+
+  Supports automatic scaling of replicas based on traffic volume. Allows Serverless configuration to reduce replicas to 0 during idle periods (releasing GPU resources) and automatically scale up when traffic resumes.
+
+- Inference Runtimes
+
+  Pre-installed with common inference runtimes: `vllm-cpu`, `vllm-gpu`, `mlserver-cpu`, `mlserver-gpu`, etc. Also supports custom third-party runtimes.
+
+- Inference Experience
+
+  After deployment, users can experience inference services via the UI. Currently supports experiencing for three categories: 'Text Generation', 'Text Classification', and 'Image Generation'.
+
+- Inference Service Observability
+
+  Provides monitoring and log viewing, including:  
+  - Resource monitoring  
+  - Computing power monitoring  
+  - Business metric monitoring (e.g., tokens).
+
+- Batch Operations for Inference Services
+
+  Enables bulk operations for managing multiple inference services, including 'Batch Start', 'Batch Stop', and 'Batch Delete.
