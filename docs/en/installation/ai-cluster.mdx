@@ -37,7 +37,7 @@ In **Platform Management** of ACP console:
 
 ### Uploading package
 
-Then, run the following command to upload both `Alauda AI Cluster` and `Alauda AI Cluster` operator packages to the destination cluster.
+Then, run the following command to upload both `Alauda AI Cluster` and `KServeless` operator packages to the destination cluster.
 
 ```bash
 export PLATFORM_ADDRESS=https://platform-address  # [!code callout]
@@ -179,13 +179,13 @@ In **Platform Management** of ACP console:
 
 Check the status field from the `AMLCluster` resource which named `default`:
 
-    ```bash
-    kubectl get amlcluster default
-    ```
+```bash
+kubectl get amlcluster default
+```
 
-    Should returns `Ready`:
+Should returns `Ready`:
 
-    ```
-    NAME      READY   REASON
-    default   True    Succeeded
-    ```
+```
+NAME      READY   REASON
+default   True    Succeeded
+```
