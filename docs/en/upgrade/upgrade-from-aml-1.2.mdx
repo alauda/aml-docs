@@ -84,25 +84,7 @@ Please save the generated `/tmp/aml-values.yaml` file for later use.
 
 We need to create a secret for GitLab admin token, which is required to run **Alauda AI Cluster**.
 
-Run the following command:
-
-```bash
-GITLAB_ADMIN_TOKEN=$(yq -r .global.gitToken < /tmp/aml-values.yaml)  # [!code callout]
-
-# [!code callout:3]
-kubectl create secret generic aml-gitlab-admin-token \
-  --from-literal="password=${GITLAB_ADMIN_TOKEN}" \
-  -n cpaas-system
-```
-
-<Callouts>
-
-1. Retrieve the GitLab admin token from the AML 1.2 values file.
-2. Create a GitLab admin token secret named **aml-gitlab-admin-token**
-3. The token is saved under **password** key.
-4. The secret is created under **cpaas-system** namespace.
-
-</Callouts>
+Please follow instructions described in [Pre-Configuration](../installation//pre-configuration.mdx#gitlab-configuration).
 
 ### Creating MySQL Secret
 
