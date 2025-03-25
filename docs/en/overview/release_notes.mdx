@@ -1,39 +1,85 @@
----
-weight: 40
-i18n:
-  title:
-    en: Release Notes
-sourceSHA: 5c6c24ac29b19764d02d88d43635e98fda9465590462e895d47bfcd81703629c
-title: Release Notes
----
-
-:::tip
-
-You can visit the [Release Notes Example](https://product-doc-guide.alauda.cn/template/release_notes/example.html) to see an example of the corresponding document.
-
-:::
-
 # Release Notes
 
-## \<Minor Version Number: For example, 2.0.0 >
+## 4.0.0
 
 ### New and Optimized Features
 
-#### \<Feature Name>
+#### Shared Model Permission Restriction
 
-A brief introduction to the new or optimized feature.
+The model repository currently supports two model types: **Shared Models** and **Private Models**. In the original design, users could perform certain management actions on shared models, posing potential permission risks.
+In this release, the functionality and permissions for Private Models remain unchanged, supporting full management operations. The **permissions for Shared Models are restricted and optimized** as follows:
+    Permission Restriction: All users can only use shared models. The ability to create, edit, or delete shared models is no longer supported.
+    Creation Flow Adjustment: The visibility parameter is removed from the "Create Model" flow. All newly created models default to Private Models.
+    Feature Removal: 
+        The following features are removed for Shared Models:
+            Edit Tags button
+            Edit Description button
+            Create Tag button
+            Delete button
+            File Management Tab
+            Version Management Tab
+
+
+#### New Template Publishing for Inference Services
+Previously, creating inference services required manual configuration of numerous interdependent parameters. This complexity often led to errors, reducing the success rate and impacting user experience.
+In this release, the **Template Publishing** capability is introduced, enabling users to encapsulate verified configurations as templates and rapidly publish inference services based on them.
+Benefits include:
+    Users can create custom templates, reusing verified best practices.
+    Auto-population of parameter configurations reduces repetitive input and dependency errors.
+    Lowers the barrier to publishing large model inference services, improving success rates and efficiency.
+
+
+#### Multi-GPU Support on a Single Node for Inference Runtime
+Previously, inference services deployed on a single node only supported **single-GPU** mode due to resource scheduling limitations. This restricted large model inference scenarios and underutilized GPU resources.
+With this upgrade, **multi-GPU scheduling** within a single node is now supported. A single inference service can automatically allocate multiple GPUs on the same machine, enabling larger model inference, better resource utilization, and enhanced service capability.
+
+
+#### "Business Monitoring" for Inference Services
+Inference services previously only displayed basic information. To enhance observability and enable users to quickly detect issues, monitor service health in real-time, and optimize or adjust resources proactively, the following new feature is introduced:
+**Monitoring Dashboard**
+    Added as a new tab in inference services, covering three dimensions:
+        Resource Monitoring: CPU usage (cores), CPU utilization (%), Memory usage (GiB), Memory utilization (%)
+        Compute Monitoring: GPU usage (cores), GPU utilization (%), GPU memory usage (GiB), GPU memory utilization (%)
+        Other Metrics: Response Time, Traffic (inbound/outbound data volume), QPS (Queries Per Second), Total Calls, Token Throughput (/s)
+
+
+#### Inference Runtime Expansion
+To enhance AML inference runtime support, the following new runtimes are added in this version:
+    vllm-cuda-11.8
+    vllm-cpu
+
+
+#### Dedicated "Platform Management View"
+Previously, platform management features (including Namespace management and credential management) were mixed with business functionalities in a single view, causing confusion due to mixed permission levels.
+In this release:
+    Platform management functions are separated into an independent view, visible and operable by Administrators only.
+    Admins can freely switch between "Management View" and "Business View" via top navigation.
+    Regular users can only access the Business View, with no access to platform management features.
+
+
+#### Auto-Configuration of GitLab Token for Namespace Onboarding
+Previously, when onboarding a namespace, users had to manually configure a GitLab Token to authorize repository access.
+This release optimizes the GitLab authorization process by implementing **automatic GitLab Token configuration**:
+    For each newly onboarded namespace, the platform automatically configures the GitLab Token.
+    No manual operation or GitLab authorization management is required by users.
+    Continuous access to GitLab is ensured for all managed namespaces.
+
+
 
 ### Deprecated Features
 
-#### \<Feature Name>
+#### Downgrade of α Features to S2 Stage
 
-A brief introduction to the deprecated feature. It is advisable to explain the reason for deprecation and the alternatives.
+During AML platform iterations, some modules were released as **α features** for exploratory validation of designs and user needs.
+However, due to rapid changes in large model development scenarios and evolving user requirements, some α features have design flaws or limited applicability. These features will be **re-evaluated** and **downgraded to S2 stage** for future planning.
+The following features are downgraded:
+    Dataset: Dataset Repository, Data Labeling
+    Model Optimization: Task Templates, Model Fine-tuning, Pre-training
+    Agents: Application Repository, Dify
+    Advanced Features: Notebook, Storage Volumes, MLFlow, Tensorboard, Workflow, Workflow Tasks, Scheduled Tasks, AutoML
+    Model: Build Inference API Image
 
-### Upcoming Deprecated Features
 
-#### \<Feature Name>
-
-A brief introduction to the features that will be deprecated soon. It is advisable to explain the reason for deprecation and the alternatives.
 
 ### Fixed Issues
 
