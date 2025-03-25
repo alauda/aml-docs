@@ -8,7 +8,7 @@ weight: 5
 
 ### Disable expiration dates for access tokens
 
-If GitLab is running v17.0 or greater, we need to **disable** expiration dates for access tokens.
+If GitLab is running `v17.0` or greater, we need to **disable** expiration dates for access tokens.
 
 :::warning
 
@@ -51,12 +51,12 @@ Make sure you save the newly generate token - you won't be able to access it aga
 Then we create secret for gitlab admin token named **aml-gitlab-admin-token** under **cpaas-system** namespace:
 
 ```bash
+# [!code highlight]
 # Please replace ${TOKEN} with real token saved previously
-kubectl \
-  create secret generic \
-  aml-gitlab-admin-token \   # [!code callout]
-  --from-literal="password=${TOKEN}" \   # [!code callout]
-  -n cpaas-system   # [!code callout]
+# [!code callout:3]
+kubectl create secret generic aml-gitlab-admin-token \
+  --from-literal="password=${TOKEN}" \
+  -n cpaas-system
 ```
 
 <Callouts>

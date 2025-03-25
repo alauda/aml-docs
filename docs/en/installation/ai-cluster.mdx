@@ -43,11 +43,12 @@ Then, run the following command to upload both `Alauda AI Cluster` and `KServele
 export PLATFORM_ADDRESS=https://platform-address  # [!code callout]
 export PLATFORM_ADMIN_USER=<admin>  # [!code callout]
 export PLATFORM_ADMIN_PASSWORD=<admin-password>  # [!code callout]
-export CLUSTER=<cluster-name>  #[!code callout]
+export CLUSTER=<cluster-name>  # [!code callout]
 
-export AI_CLUSTER_OPERATOR_NAME=<path to the alauda ai cluster package tarball>  #[!code callout]
-export KSERVELESS_OPERATOR_PKG_NAME=<path to the kserveless package tarball>  #[!code callout]
+export AI_CLUSTER_OPERATOR_NAME=<path to the alauda ai cluster package tarball>  # [!code callout]
+export KSERVELESS_OPERATOR_PKG_NAME=<path to the kserveless package tarball>  # [!code callout]
 
+# [!code highlight]
 # Push **Alauda AI Cluster** operator package to destination cluster
 violet push \
     ${AI_CLUSTER_OPERATOR_NAME} \
@@ -56,6 +57,7 @@ violet push \
     --platform-password=${PLATFORM_ADMIN_PASSWORD} \
     --clusters=${CLUSTER}
 
+# [!code highlight]
 # Push **KServeless** operator package to destination cluster
 violet push \
     ${KSERVELESS_OPERATOR_PKG_NAME} \
