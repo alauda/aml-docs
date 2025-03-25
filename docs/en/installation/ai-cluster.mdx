@@ -37,16 +37,35 @@ In **Platform Management** of ACP console:
 
 ### Uploading package
 
-Then, run the following command to upload both `Alauda AI Cluster` and `KServeless` operator packages to the destination cluster.
+Save the following script in `uploading-ai-cluster-packages.sh` first, then read the comments below to update environment variables for configuration in that script.
 
-```bash
+```bash title=uploading-ai-cluster-packages.sh
+#!/usr/bin/env bash
 export PLATFORM_ADDRESS=https://platform-address  # [!code callout]
 export PLATFORM_ADMIN_USER=<admin>  # [!code callout]
 export PLATFORM_ADMIN_PASSWORD=<admin-password>  # [!code callout]
 export CLUSTER=<cluster-name>  # [!code callout]
 
-export AI_CLUSTER_OPERATOR_NAME=<path to the alauda ai cluster package tarball>  # [!code callout]
-export KSERVELESS_OPERATOR_PKG_NAME=<path to the kserveless package tarball>  # [!code callout]
+export AI_CLUSTER_OPERATOR_NAME=<path-to-aml-operator-tarball>  # [!code callout]
+export KSERVELESS_OPERATOR_PKG_NAME=<path-to-kserveless-operator-tarball>  # [!code callout]
+
+VIOLET_EXTRA_ARGS=()
+IS_EXTERNAL_REGISTRY=
+
+# If the image registry type of destination cluster is not platform built-in (external private or public repository).
+# Additional configuration is required (uncomment following line):
+# IS_EXTERNAL_REGISTRY=true
+if [[ "${IS_EXTERNAL_REGISTRY}" == "true" ]]; then
+    REGISTRY_URL=<external-registry-url>  # [!code callout]
+    REGISTRY_USERNAME=<registry-username>  # [!code callout]
+    REGISTRY_PASSWORD=<registry-password>  # [!code callout]
+
+    VIOLET_EXTRA_ARGS+=(
+        --dst-repo "${REGISTRY_ADDRESS}"
+        --username "${REGISTRY_USERNAME}"
+        --password "${REGISTRY_PASSWORD}"
+    )
+fi
 
 # [!code highlight]
 # Push **Alauda AI Cluster** operator package to destination cluster
@@ -55,7 +74,8 @@ violet push \
     --platform-address=${PLATFORM_ADDRESS} \
     --platform-username=${PLATFORM_ADMIN_USER} \
     --platform-password=${PLATFORM_ADMIN_PASSWORD} \
-    --clusters=${CLUSTER}
+    --clusters=${CLUSTER} \
+    ${VIOLET_EXTRA_ARGS[@]}
 
 # [!code highlight]
 # Push **KServeless** operator package to destination cluster
@@ -64,7 +84,8 @@ violet push \
     --platform-address=${PLATFORM_ADDRESS} \
     --platform-username=${PLATFORM_ADMIN_USER} \
     --platform-password=${PLATFORM_ADMIN_PASSWORD} \
-    --clusters=${CLUSTER}
+    --clusters=${CLUSTER} \
+    ${VIOLET_EXTRA_ARGS[@]}
 ```
 
 <Callouts>
@@ -75,8 +96,13 @@ violet push \
 4. `${CLUSTER}` is the name of the cluster to install the Alauda AI components into.
 5. `${AI_CLUSTER_OPERATOR_NAME}` is the path to the Alauda AI Cluster Operator package tarball.
 6. `${KSERVELESS_OPERATOR_PKG_NAME}` is the path to the KServeless Operator package tarball.
+7. `${REGISTRY_ADDRESS}` is the address of the external registry.
+8. `${REGISTRY_USERNAME}` is the username of the external registry.
+9. `${REGISTRY_PASSWORD}` is the password of the external registry.
 
 </Callouts>
+
+After configuration, execute the script file using `bash ./uploading-ai-cluster-packages.sh` to upload both `Alauda AI Cluster` and `KServeless` operator packages to the destination cluster.
 
 </Steps>
 
