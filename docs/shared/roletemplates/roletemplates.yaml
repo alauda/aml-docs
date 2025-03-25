@@ -4,877 +4,593 @@ items:
   kind: RoleTemplate
   metadata:
     annotations:
-      auth.cpaas.io/role.id: "4"
+      auth.cpaas.io/role.id: "7"
       cpaas.io/creator: system
-      cpaas.io/description: 负责给命名空间添加成员以及设置角色。
-      cpaas.io/description.en: Responsible for adding members to the namespace and
-        setting roles.
-      cpaas.io/display-name: 命名空间管理员
-      cpaas.io/display-name.en: Namespace Administrator
-      helm.sh/chart-version: v3.18.0-beta.5.gd1c1c910
-      helm.sh/original-name: namespace-admin-system
-    creationTimestamp: "2024-07-01T08:26:24Z"
+      cpaas.io/description: 负责该命名空间下模型管理、应用管理、服务管理
+      cpaas.io/description.en: Responsible for managing config in namespace level.
+      cpaas.io/display-name: AML 命名空间 Editor
+      cpaas.io/display-name.en: AML Namespace Editor
+      helm.sh/chart-version: v1.3.1-rc.35.gf744c5bf
+      helm.sh/original-name: aml-namespace-editor
+    creationTimestamp: "2025-03-25T02:34:57Z"
     generation: 1
     labels:
       auth.cpaas.io/creator.email: ""
       auth.cpaas.io/roletemplate.level: namespace
-      auth.cpaas.io/roletemplate.official: "true"
-      helm.sh/chart-name: auth-manager
-      helm.sh/release-name: auth-manager
+      auth.cpaas.io/roletemplate.official: "false"
+      helm.sh/chart-name: aml-global
+      helm.sh/release-name: aml-global
       helm.sh/release-namespace: cpaas-system
-    name: namespace-admin-system
-    resourceVersion: "4959"
-    uid: 68ad2a34-d03d-47b1-bc90-f16b635f8fc4
+    name: aml-namespace-editor
+    resourceVersion: "488933"
+    uid: abb8cb0b-c59f-4b19-85a7-cd3eab96fe19
   spec:
-    rules:
-    - functionResourceRef: platform-manage-usersmanage
-      verbs:
-      - get
-    - functionResourceRef: platform-manage-usergroupsmanage
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: platform-manage-rolesmanage
+    customRules:
+    - apiGroup: kubeflow.org
+      resources:
+      - poddefaults
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: platform-manage-userbindings
-      verbs:
-      - '*'
-    - functionResourceRef: platform-manage-projectmanage
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: project-manage-projectmembers
-      verbs:
-      - get
-    - functionResourceRef: platform-manage-projectbinding
+    - apiGroup: kubeflow.org
+      resources:
+      - notebooks
+      - notebooks/finalizers
+      - poddefaults
       verbs:
       - get
       - list
-      - watch
-    - functionResourceRef: platform-manage-productlist
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: platform-manage-featuregates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: platform-manage-portal
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: views-projectview
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: views-devops-userview
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: views-dataservices-userview
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: views-asm-userview
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: views-acp-userview
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-clusters
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-regions
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-nodesmanage
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-domains
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-loadbalance
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-persistentvolumes
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-storageclasses
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: aiops-notificationsmanage
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: aiops-logs
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: aiops-alerts
-      verbs:
-      - '*'
-    - functionResourceRef: aiops-alerttemplate
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: aiops-events
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-app
-      verbs:
-      - '*'
-    - functionResourceRef: acp-oamapp
-      verbs:
-      - '*'
-    - functionResourceRef: acp-virtualmachine
-      verbs:
-      - '*'
-    - functionResourceRef: acp-virtualmachineimagetemplates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-loadbalance-use
-      verbs:
-      - '*'
-    - functionResourceRef: acp-rules
-      verbs:
-      - '*'
-    - functionResourceRef: acp-openshiftroutes
-      verbs:
-      - '*'
-    - functionResourceRef: acp-networkpolicies
-      verbs:
-      - '*'
-    - functionResourceRef: acp-subnet
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-configmap
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-namespaceoverviews
-      verbs:
-      - '*'
-    - functionResourceRef: acp-namespace-resource-ratio
-      verbs:
-      - '*'
-    - functionResourceRef: acp-alertsquery
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-namespaces
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-resourcequotas
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-limitranges
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-k8sresource
-      verbs:
-      - '*'
-    - functionResourceRef: acp-user-configmap
-      verbs:
-      - '*'
-    - functionResourceRef: acp-user-secret
-      verbs:
-      - '*'
-    - functionResourceRef: acp-podsexec
-      verbs:
-      - '*'
-    - functionResourceRef: acp-rootexec
-      verbs:
-      - '*'
-    - functionResourceRef: acp-podslog
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-appmarket
-      verbs:
-      - '*'
-    - functionResourceRef: acp-apphelm
-      verbs:
-      - '*'
-    - functionResourceRef: acp-batchaction
-      verbs:
-      - '*'
-    - functionResourceRef: acp-imagewhitelist
-      verbs:
-      - '*'
-    - functionResourceRef: acp-autoscalers
-      verbs:
-      - '*'
-    - functionResourceRef: acp-namespaceaudits
-      verbs:
-      - '*'
-    - functionResourceRef: acp-serviceaccounts
-      verbs:
-      - '*'
-    - functionResourceRef: acp-nodegroups
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-volumesnapshot
-      verbs:
-      - '*'
-    - functionResourceRef: acp-cosi
-      verbs:
-      - '*'
-    - functionResourceRef: acp-vpa
-      verbs:
-      - '*'
-    - functionResourceRef: devops-devopstools
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-toolbindings
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-toolresource
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-artifactpromotions
-      verbs:
-      - '*'
-    - functionResourceRef: devops-artifactpromotionruns
-      verbs:
-      - '*'
-    - functionResourceRef: devops-artifactpromotionapprovals
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-clusterpromotionpolicies
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-clusterpipelinetasktemplates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-clusterpipelinetemplates
-      verbs:
-      - '*'
-    - functionResourceRef: devops-pipelinetasktemplates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-pipelinetemplates
-      verbs:
-      - '*'
-    - functionResourceRef: devops-pipelinetemplatesyncs
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-clusterpipelinetemplatesyncs
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-pipelineconfigs
-      verbs:
-      - '*'
-    - functionResourceRef: devops-pipelines
-      verbs:
-      - '*'
-    - functionResourceRef: devops-templaterenders
-      verbs:
-      - '*'
-    - functionResourceRef: devops-policies
-      verbs:
-      - '*'
-    - functionResourceRef: devops-policyruns
-      verbs:
-      - '*'
-    - functionResourceRef: devops-builds-ns
-      verbs:
-      - '*'
-    - functionResourceRef: devops-buildruns-ns
-      verbs:
-      - '*'
-    - functionResourceRef: devops-tekton
-      verbs:
-      - '*'
-    - functionResourceRef: devops-clusterstages
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-deliveries
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-deliveryruns
-      verbs:
-      - '*'
-    - functionResourceRef: devops-stages
-      verbs:
-      - '*'
-    - functionResourceRef: devops-stageruns
-      verbs:
-      - get
-      - list
-      - watch
-      - patch
-    - functionResourceRef: devops-integrationclasses
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-integrations
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-virtualartifacts
-      verbs:
-      - get
-      - list
-      - watch
-      - patch
       - create
       - delete
-    - functionResourceRef: devops-virtualartifactsfiles
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-virtualrepositories
-      verbs:
-      - get
-      - list
-    - functionResourceRef: devops-projects
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-gitrepositories
-      verbs:
+    - apiGroup: serving.knative.dev
+      resources:
       - '*'
-    - functionResourceRef: devops-gitbranches
       verbs:
-      - get
-      - list
-      - watch
+      - create
+      - update
       - patch
-    - functionResourceRef: devops-gitcommits
-      verbs:
+      - delete
+    - apiGroup: networking.internal.knative.dev
+      resources:
       - '*'
-    - functionResourceRef: devops-gitrepositorytags
-      verbs:
-      - '*'
-    - functionResourceRef: devops-codequalities
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: devops-secret
-      verbs:
+    - apiGroup: autoscaling.internal.knative.dev
+      resources:
       - '*'
-    - functionResourceRef: devops-projectsettings
-      verbs:
-      - '*'
-    - functionResourceRef: devops-virtualissuebranches
-      verbs:
-      - '*'
-    - functionResourceRef: devops-virtualissues
-      verbs:
-      - '*'
-    - functionResourceRef: devops-virtualusers
-      verbs:
-      - '*'
-    - functionResourceRef: devops-testplans
-      verbs:
-      - '*'
-    - functionResourceRef: devops-testmodules
-      verbs:
-      - '*'
-    - functionResourceRef: devops-testcases
-      verbs:
-      - '*'
-    - functionResourceRef: devops-testcaseexecutions
-      verbs:
-      - '*'
-    - functionResourceRef: devops-versionschemes
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: devops-versionstreams
-      verbs:
+    - apiGroup: caching.internal.knative.dev
+      resources:
       - '*'
-    - functionResourceRef: devops-versionrequests
-      verbs:
-      - '*'
-    - functionResourceRef: devops-clustergitsources
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: devops-gitsources
-      verbs:
-      - '*'
-    - functionResourceRef: devops-variables
-      verbs:
-      - '*'
-    - functionResourceRef: devops-clustertemplates
+    - apiGroup: kubeflow.org
+      resources:
+      - experiments
+      - trials
+      - suggestions
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: devops-virtualartifactuploads
-      verbs:
-      - '*'
-    - functionResourceRef: devops-storageplugins
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-clusterpolicies
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-gateways
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-serviceentries
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-virtualservices
-      verbs:
-      - '*'
-    - functionResourceRef: asm-envoyfilters
-      verbs:
-      - '*'
-    - functionResourceRef: asm-asmloadbalancers
-      verbs:
-      - '*'
-    - functionResourceRef: asm-appconfigs
-      verbs:
-      - '*'
-    - functionResourceRef: asm-routerules
-      verbs:
-      - '*'
-    - functionResourceRef: asm-apiattributes
-      verbs:
-      - '*'
-    - functionResourceRef: asm-istioproxyupdatetasks
-      verbs:
-      - '*'
-    - functionResourceRef: asm-istiocanaryupdates
-      verbs:
-      - '*'
-    - functionResourceRef: asm-canaryevents
-      verbs:
-      - '*'
-    - functionResourceRef: asm-policies
-      verbs:
-      - '*'
-    - functionResourceRef: asm-gatewaygroups
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-jwtpolicies
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-ingressgateways
-      verbs:
-      - '*'
-    - functionResourceRef: asm-errorchecks
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-clusterconfig
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-domains
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-envoyfiltertemplates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-envoyfiltertemplatesyncs
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-gatewaydeploys
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-gatewayprojectbindings
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-envoyfilterbindings
-      verbs:
-      - '*'
-    - functionResourceRef: asm-connectionpools
-      verbs:
-      - '*'
-    - functionResourceRef: asm-manualgrayevents
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-manualgrayreleases
-      verbs:
-      - '*'
-    - functionResourceRef: asm-microservices
-      verbs:
-      - '*'
-    - functionResourceRef: asm-microservicepolicies
-      verbs:
-      - '*'
-    - functionResourceRef: asm-whitelists
-      verbs:
-      - '*'
-    - functionResourceRef: asm-outlierdetections
-      verbs:
-      - '*'
-    - functionResourceRef: asm-servicemeshs
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-casemonitors
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-asmk8sresource
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-authorizationpolicy
-      verbs:
-      - '*'
-    - functionResourceRef: asm-istiosecurity
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-istioauthentication
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-istiorbac
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-istioconfig
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-istionetworking
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-canarydeliveries
-      verbs:
-      - '*'
-    - functionResourceRef: asm-canarytemplates
-      verbs:
-      - '*'
-    - functionResourceRef: asm-wasmmoduletemplates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-wasmmoduleinstalls
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-wasmmoduledeployments
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: aiops-alerthistories
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-servicemeshgroups
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-isolatepods
-      verbs:
-      - '*'
-    - functionResourceRef: asm-globalratelimiters
-      verbs:
-      - '*'
-    - functionResourceRef: asm-sidecarbypasses
-      verbs:
-      - '*'
-    - functionResourceRef: asm-serviceregistries
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-mysql
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-mysqluser
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-mysqlrestore
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-mysql-mgr
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-mysqlmgr-backup-restore
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-redis
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-redisbackup
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-redisfailover
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-redisuser
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-kafka
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-kafka-tools
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-kafkatopic
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-kafkauser
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-mongo
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-mongo-backup-restore
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-postgresql
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-rabbitmq
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-rocketmq
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-mysql-para-template
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-alertcenter
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-inspection
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-inspectionjob
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-backupstorage
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-paramdefinition
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-paramtemplate-system
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-paramtemplate-project
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-imageversions
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-backupstat
-      verbs:
-      - get
-      - list
-      - watch
+      - create
       - delete
       - deletecollection
-    - functionResourceRef: platform-manage-accesstokeninfoes
+      - patch
+      - update
+    - apiGroup: serving.kserve.io
+      resources:
+      - inferenceservices
+      - trainedmodels
+      - servingruntimes
       verbs:
       - get
       - list
       - watch
+      - create
       - delete
       - deletecollection
-    - functionResourceRef: acp-operator-backed
+      - patch
+      - update
+    - apiGroup: serving.knative.dev
+      resources:
+      - services
+      - services/status
+      - routes
+      - routes/status
+      - configurations
+      - configurations/status
+      - revisions
+      - revisions/status
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: '*'
+      resources:
+      - pods/attach
+      - pods/exec
+      - pods/portforward
+      - pods/proxy
+      - secrets
+      - services/proxy
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: '*'
+      resources:
+      - nodes
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: '*'
+      resources:
+      - serviceaccounts
+      verbs:
+      - impersonate
+    - apiGroup: '*'
+      resources:
+      - pods
+      - pods/attach
+      - pods/exec
+      - pods/portforward
+      - pods/proxy
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: '*'
+      resources:
+      - configmaps
+      - endpoints
+      - persistentvolumeclaims
+      - replicationcontrollers
+      - replicationcontrollers/scale
+      - secrets
+      - serviceaccounts
+      - services
+      - services/proxy
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: apps
+      resources:
+      - daemonsets
+      - deployments
+      - deployments/rollback
+      - deployments/scale
+      - replicasets
+      - replicasets/scale
+      - statefulsets
+      - statefulsets/scale
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: autoscaling
+      resources:
+      - horizontalpodautoscalers
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: batch
+      resources:
+      - cronjobs
+      - jobs
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: extensions
+      resources:
+      - daemonsets
+      - deployments
+      - deployments/rollback
+      - deployments/scale
+      - ingresses
+      - networkpolicies
+      - replicasets
+      - replicasets/scale
+      - replicationcontrollers/scale
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: policy
+      resources:
+      - poddisruptionbudgets
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: networking.k8s.io
+      resources:
+      - ingresses
+      - networkpolicies
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: scheduling.volcano.sh
+      resources:
+      - podgroups
+      verbs:
+      - list
+      - get
+      - create
+      - delete
+      - patch
+      - update
+    - apiGroup: batch.volcano.sh
+      resources:
+      - jobs
+      verbs:
+      - list
+      - get
+      - create
+      - delete
+      - patch
+      - update
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - pipelines
+      - pipelines/versions
+      verbs:
+      - create
+      - delete
+      - update
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - experiments
+      verbs:
+      - archive
+      - create
+      - delete
+      - unarchive
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - runs
+      verbs:
+      - archive
+      - create
+      - delete
+      - retry
+      - terminate
+      - unarchive
+      - reportMetrics
+      - readArtifact
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - jobs
+      verbs:
+      - create
+      - delete
+      - disable
+      - enable
+    - apiGroup: istio.io
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: networking.istio.io
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: kubeflow.org
+      resources:
+      - scheduledworkflows
       verbs:
       - '*'
-    - functionResourceRef: platform-manage-commonconfigs
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-namespace-resource-manage
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: product-management
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-crd
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-provider-networks
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-vlan
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-localstorage
+    - apiGroup: argoproj.io
+      resources:
+      - cronworkflows
+      - cronworkflows/finalizers
+      - workflows
+      - workflows/finalizers
+      - workfloweventbindings
+      - workflowtemplates
       verbs:
       - '*'
-    - functionResourceRef: acp-builtinstorage
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - pipelines
+      - pipelines/versions
+      - experiments
+      - jobs
+      verbs:
+      - get
+      - list
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - runs
+      verbs:
+      - get
+      - list
+      - readArtifact
+    - apiGroup: kubeflow.org
+      resources:
+      - viewers
+      verbs:
+      - create
+      - get
+      - delete
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - visualizations
+      verbs:
+      - create
+    - apiGroup: kubeflow.org
+      resources:
+      - mpijobs
+      - tfjobs
+      - pytorchjobs
+      - mxjobs
+      - xgboostjobs
+      verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+    - apiGroup: kubeflow.org
+      resources:
+      - mpijobs/status
+      - tfjobs/status
+      - pytorchjobs/status
+      - mxjobs/status
+      - xgboostjobs/status
+      verbs:
+      - get
+    - apiGroup: kubeflow.org
+      resources:
+      - notebooks
+      - notebooks/finalizers
+      - poddefaults
+      verbs:
+      - get
+      - list
+    - apiGroup: storage.k8s.io
+      resources:
+      - storageclasses
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: acp-interconnectionsubnets
+    - apiGroup: '*'
+      resources:
+      - configmaps
+      - endpoints
+      - persistentvolumeclaims
+      - persistentvolumeclaims/status
+      - pods
+      - replicationcontrollers
+      - replicationcontrollers/scale
+      - serviceaccounts
+      - services
+      - services/status
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: infrastructure-moduleinfo
+    - apiGroup: '*'
+      resources:
+      - bindings
+      - events
+      - limitranges
+      - namespaces/status
+      - pods/log
+      - pods/status
+      - replicationcontrollers/status
+      - resourcequotas
+      - resourcequotas/status
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: acp-metallb
+    - apiGroup: '*'
+      resources:
+      - namespaces
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: aiops-monitoring-metrics
+    - apiGroup: apps
+      resources:
+      - controllerrevisions
+      - daemonsets
+      - daemonsets/status
+      - deployments
+      - deployments/scale
+      - deployments/status
+      - replicasets
+      - replicasets/scale
+      - replicasets/status
+      - statefulsets
+      - statefulsets/scale
+      - statefulsets/status
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: aiops-monitoring-dashboard
-      verbs:
-      - '*'
-    - functionResourceRef: aiops-audits
-      verbs:
-      - get
-      - list
-    - functionResourceRef: acp-gatewayapi
-      verbs:
-      - '*'
-    - functionResourceRef: acp-gatewayapigatewayclass
+    - apiGroup: autoscaling
+      resources:
+      - horizontalpodautoscalers
+      - horizontalpodautoscalers/status
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: acp-ingressclass
+    - apiGroup: batch
+      resources:
+      - cronjobs
+      - cronjobs/status
+      - jobs
+      - jobs/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: extensions
+      resources:
+      - daemonsets
+      - daemonsets/status
+      - deployments
+      - deployments/scale
+      - deployments/status
+      - ingresses
+      - ingresses/status
+      - networkpolicies
+      - replicasets
+      - replicasets/scale
+      - replicasets/status
+      - replicationcontrollers/scale
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: policy
+      resources:
+      - poddisruptionbudgets
+      - poddisruptionbudgets/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: kubeflow.org
+      resources:
+      - mpijobs
+      - tfjobs
+      - pytorchjobs
+      - mxjobs
+      - xgboostjobs
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: kubeflow.org
+      resources:
+      - notebooks
+      - notebooks/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: tensorboard.kubeflow.org
+      resources:
+      - tensorboards
+      - tensorboards/finalizers
+      verbs:
+      - get
+      - list
+    - apiGroup: kubeflow.org
+      resources:
+      - notebooks
+      - notebooks/status
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: tensorboard.kubeflow.org
+      resources:
+      - tensorboards
+      - tensorboards/finalizers
+      verbs:
+      - get
+      - list
+      - create
+      - delete
+    - apiGroup: '*'
+      resources:
+      - persistentvolumeclaims
+      verbs:
+      - create
+      - delete
+      - get
+      - list
+      - watch
+      - update
+      - patch
+    rules:
+    - functionResourceRef: aml-clusterservingruntimes
       verbs:
       - get
       - list
@@ -883,1925 +599,952 @@ items:
   kind: RoleTemplate
   metadata:
     annotations:
-      auth.cpaas.io/role.id: "5"
+      auth.cpaas.io/role.id: "8"
       cpaas.io/creator: system
-      cpaas.io/description: 负责在该命名空间下开发、部署以及维护应用。
-      cpaas.io/description.en: Responsible for developing, deploying and maintaining
-        applications in this namespace.
-      cpaas.io/display-name: 开发人员
-      cpaas.io/display-name.en: Developers
-      helm.sh/chart-version: v3.18.0-beta.5.gd1c1c910
-      helm.sh/original-name: namespace-developer-system
-    creationTimestamp: "2024-07-01T08:26:24Z"
+      cpaas.io/description: 负责命名空间配置管理
+      cpaas.io/description.en: Responsible for managing config in namespace level.
+      cpaas.io/display-name: AML 命名空间 Owner
+      cpaas.io/display-name.en: AML Namespace Owner
+      helm.sh/chart-version: v1.3.1-rc.35.gf744c5bf
+      helm.sh/original-name: aml-namespace-owner
+    creationTimestamp: "2025-03-25T02:34:57Z"
     generation: 1
     labels:
       auth.cpaas.io/creator.email: ""
       auth.cpaas.io/roletemplate.level: namespace
-      auth.cpaas.io/roletemplate.official: "true"
-      helm.sh/chart-name: auth-manager
-      helm.sh/release-name: auth-manager
+      auth.cpaas.io/roletemplate.official: "false"
+      helm.sh/chart-name: aml-global
+      helm.sh/release-name: aml-global
       helm.sh/release-namespace: cpaas-system
-    name: namespace-developer-system
-    resourceVersion: "4960"
-    uid: 261821d5-0f24-408a-abf7-9829c22c722e
+    name: aml-namespace-owner
+    resourceVersion: "488937"
+    uid: ee1eac41-51c4-40b9-8084-ab4c672c7532
   spec:
-    rules:
-    - functionResourceRef: platform-manage-usersmanage
-      verbs:
-      - get
-    - functionResourceRef: platform-manage-usergroupsmanage
-      verbs:
-      - get
-      - list
-    - functionResourceRef: platform-manage-rolesmanage
+    customRules:
+    - apiGroup: kubeflow.org
+      resources:
+      - poddefaults
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: platform-manage-userbindings
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: platform-manage-projectmanage
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: project-manage-projectmembers
-      verbs:
-      - get
-    - functionResourceRef: platform-manage-projectbinding
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: platform-manage-productlist
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: platform-manage-featuregates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: platform-manage-portal
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: views-devops-userview
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: views-dataservices-userview
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: views-asm-userview
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: views-acp-userview
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-clusters
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-regions
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-nodesmanage
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-domains
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-loadbalance
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-persistentvolumes
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-storageclasses
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: aiops-notificationsmanage
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: aiops-logs
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: aiops-alerts
+    - apiGroup: serving.knative.dev
+      resources:
+      - '*'
       verbs:
       - '*'
-    - functionResourceRef: aiops-alerttemplate
+    - apiGroup: kubeflow.org
+      resources:
+      - notebooks
+      - notebooks/finalizers
+      - poddefaults
       verbs:
       - get
       - list
-      - watch
-    - functionResourceRef: aiops-events
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-app
-      verbs:
-      - '*'
-    - functionResourceRef: acp-oamapp
-      verbs:
-      - '*'
-    - functionResourceRef: acp-virtualmachine
-      verbs:
-      - '*'
-    - functionResourceRef: acp-virtualmachineimagetemplates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-loadbalance-use
-      verbs:
-      - '*'
-    - functionResourceRef: acp-rules
-      verbs:
-      - '*'
-    - functionResourceRef: acp-openshiftroutes
-      verbs:
-      - '*'
-    - functionResourceRef: acp-networkpolicies
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-subnet
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-configmap
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-namespaceoverviews
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-alertsquery
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-namespaces
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-resourcequotas
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-limitranges
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-k8sresource
-      verbs:
-      - '*'
-    - functionResourceRef: acp-user-configmap
-      verbs:
-      - '*'
-    - functionResourceRef: acp-user-secret
-      verbs:
-      - '*'
-    - functionResourceRef: acp-podsexec
-      verbs:
-      - '*'
-    - functionResourceRef: acp-rootexec
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-podslog
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-appmarket
-      verbs:
-      - '*'
-    - functionResourceRef: acp-apphelm
-      verbs:
-      - '*'
-    - functionResourceRef: acp-batchaction
-      verbs:
-      - '*'
-    - functionResourceRef: acp-imagewhitelist
-      verbs:
-      - '*'
-    - functionResourceRef: acp-autoscalers
-      verbs:
-      - '*'
-    - functionResourceRef: acp-namespaceaudits
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-serviceaccounts
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-nodegroups
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-volumesnapshot
-      verbs:
-      - '*'
-    - functionResourceRef: acp-cosi
-      verbs:
-      - '*'
-    - functionResourceRef: acp-vpa
-      verbs:
-      - '*'
-    - functionResourceRef: devops-devopstools
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-toolbindings
-      verbs:
-      - '*'
-    - functionResourceRef: devops-toolresource
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-clusterpipelinetasktemplates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-artifactpromotions
-      verbs:
-      - '*'
-    - functionResourceRef: devops-artifactpromotionruns
-      verbs:
-      - '*'
-    - functionResourceRef: devops-artifactpromotionapprovals
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-clusterpromotionpolicies
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-clusterpipelinetemplates
-      verbs:
-      - '*'
-    - functionResourceRef: devops-pipelinetasktemplates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-pipelinetemplates
-      verbs:
-      - '*'
-    - functionResourceRef: devops-pipelineconfigs
-      verbs:
-      - '*'
-    - functionResourceRef: devops-pipelines
-      verbs:
-      - '*'
-    - functionResourceRef: devops-templaterenders
-      verbs:
-      - '*'
-    - functionResourceRef: devops-policies
-      verbs:
-      - '*'
-    - functionResourceRef: devops-policyruns
-      verbs:
-      - '*'
-    - functionResourceRef: devops-builds-ns
-      verbs:
-      - '*'
-    - functionResourceRef: devops-buildruns-ns
-      verbs:
-      - '*'
-    - functionResourceRef: devops-tekton
-      verbs:
-      - '*'
-    - functionResourceRef: devops-clusterstages
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-deliveries
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-deliveryruns
-      verbs:
-      - '*'
-    - functionResourceRef: devops-stages
-      verbs:
-      - '*'
-    - functionResourceRef: devops-stageruns
-      verbs:
-      - get
-      - list
-      - watch
-      - patch
-    - functionResourceRef: devops-integrationclasses
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-integrations
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-virtualartifacts
-      verbs:
-      - get
-      - list
-      - watch
       - create
-      - patch
-    - functionResourceRef: devops-virtualartifactsfiles
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-virtualrepositories
-      verbs:
-      - get
-      - list
-    - functionResourceRef: devops-secret
-      verbs:
+      - delete
+    - apiGroup: serving.knative.dev
+      resources:
       - '*'
-    - functionResourceRef: devops-environments
       verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-virtualissuebranches
-      verbs:
-      - '*'
-    - functionResourceRef: devops-virtualissues
-      verbs:
-      - '*'
-    - functionResourceRef: devops-virtualusers
-      verbs:
-      - '*'
-    - functionResourceRef: devops-projects
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-gitrepositories
-      verbs:
-      - '*'
-    - functionResourceRef: devops-gitbranches
-      verbs:
-      - get
-      - list
-      - watch
-      - patch
-    - functionResourceRef: devops-gitcommits
-      verbs:
-      - '*'
-    - functionResourceRef: devops-gitrepositorytags
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-codequalities
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-testplans
-      verbs:
-      - '*'
-    - functionResourceRef: devops-testmodules
-      verbs:
-      - '*'
-    - functionResourceRef: devops-testcases
-      verbs:
-      - '*'
-    - functionResourceRef: devops-testcaseexecutions
-      verbs:
-      - '*'
-    - functionResourceRef: devops-versionschemes
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-versionstreams
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-versionrequests
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-clustergitsources
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-gitsources
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-variables
-      verbs:
-      - '*'
-    - functionResourceRef: devops-clustertemplates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-virtualartifactuploads
-      verbs:
-      - '*'
-    - functionResourceRef: devops-storageplugins
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-clusterpolicies
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-gateways
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-serviceentries
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-virtualservices
-      verbs:
-      - '*'
-    - functionResourceRef: asm-envoyfilters
-      verbs:
-      - '*'
-    - functionResourceRef: asm-asmloadbalancers
-      verbs:
-      - '*'
-    - functionResourceRef: asm-apiattributes
-      verbs:
-      - '*'
-    - functionResourceRef: asm-gatewaygroups
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-jwtpolicies
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-ingressgateways
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-istioproxyupdatetasks
-      verbs:
-      - '*'
-    - functionResourceRef: asm-istiocanaryupdates
-      verbs:
-      - '*'
-    - functionResourceRef: asm-canaryevents
-      verbs:
-      - '*'
-    - functionResourceRef: asm-appconfigs
-      verbs:
-      - '*'
-    - functionResourceRef: asm-routerules
-      verbs:
-      - '*'
-    - functionResourceRef: asm-policies
-      verbs:
-      - '*'
-    - functionResourceRef: asm-errorchecks
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-clusterconfig
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-domains
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-envoyfiltertemplates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-envoyfiltertemplatesyncs
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-gatewaydeploys
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-gatewayprojectbindings
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-envoyfilterbindings
-      verbs:
-      - '*'
-    - functionResourceRef: asm-connectionpools
-      verbs:
-      - '*'
-    - functionResourceRef: asm-manualgrayevents
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-manualgrayreleases
-      verbs:
-      - '*'
-    - functionResourceRef: asm-microservices
-      verbs:
-      - '*'
-    - functionResourceRef: asm-microservicepolicies
-      verbs:
-      - '*'
-    - functionResourceRef: asm-whitelists
-      verbs:
-      - '*'
-    - functionResourceRef: asm-outlierdetections
-      verbs:
-      - '*'
-    - functionResourceRef: asm-servicemeshs
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-casemonitors
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-asmk8sresource
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-wasmmoduletemplates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-wasmmoduleinstalls
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-wasmmoduledeployments
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-authorizationpolicy
-      verbs:
-      - '*'
-    - functionResourceRef: asm-istiosecurity
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-istioauthentication
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-istiorbac
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-istioconfig
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-istionetworking
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-canarydeliveries
-      verbs:
-      - '*'
-    - functionResourceRef: asm-canarytemplates
-      verbs:
-      - '*'
-    - functionResourceRef: asm-isolatepods
-      verbs:
-      - '*'
-    - functionResourceRef: asm-globalratelimiters
-      verbs:
-      - '*'
-    - functionResourceRef: asm-sidecarbypasses
-      verbs:
-      - '*'
-    - functionResourceRef: asm-serviceregistries
-      verbs:
-      - '*'
-    - functionResourceRef: aiops-alerthistories
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-mysql
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-mysqluser
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-mysqlrestore
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-mysql-mgr
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-mysqlmgr-backup-restore
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-redis
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-redisbackup
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-redisfailover
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-redisuser
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-kafka
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-kafka-tools
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-kafkatopic
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-kafkauser
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-mongo
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-mongo-backup-restore
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-postgresql
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-rabbitmq
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-rocketmq
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-mysql-para-template
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-alertcenter
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-inspection
-      verbs:
-      - get
-      - list
-      - watch
       - create
       - update
+      - patch
       - delete
-    - functionResourceRef: acp-middleware-inspectionjob
+    - apiGroup: istio.io
+      resources:
+      - '*'
       verbs:
       - get
       - list
       - watch
       - create
       - delete
-    - functionResourceRef: acp-middleware-backupstorage
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-backupstat
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-paramdefinition
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-paramtemplate-system
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-paramtemplate-project
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-imageversions
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: platform-manage-accesstokeninfoes
-      verbs:
-      - get
-      - list
-      - watch
-      - delete
       - deletecollection
-    - functionResourceRef: acp-operator-backed
-      verbs:
+      - patch
+      - update
+    - apiGroup: networking.istio.io
+      resources:
       - '*'
-    - functionResourceRef: asm-servicemeshgroups
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: platform-manage-commonconfigs
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-namespace-resource-manage
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: product-management
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-crd
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-provider-networks
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-vlan
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-localstorage
-      verbs:
-      - '*'
-    - functionResourceRef: acp-builtinstorage
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-interconnectionsubnets
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-moduleinfo
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-metallb
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: aiops-monitoring-metrics
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: aiops-monitoring-dashboard
-      verbs:
-      - '*'
-    - functionResourceRef: aiops-audits
-      verbs:
-      - get
-      - list
-    - functionResourceRef: acp-gatewayapi
-      verbs:
-      - '*'
-    - functionResourceRef: acp-gatewayapigatewayclass
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-ingressclass
-      verbs:
-      - get
-      - list
-      - watch
-- apiVersion: auth.alauda.io/v1beta1
-  kind: RoleTemplate
-  metadata:
-    annotations:
-      auth.cpaas.io/role.id: "1"
-      cpaas.io/creator: system
-      cpaas.io/description: 具备平台所有业务及资源的全部权限。
-      cpaas.io/description.en: Have full authority for all business and resources
-        of the platform
-      cpaas.io/display-name: 平台管理员
-      cpaas.io/display-name.en: Platform Administrator
-      helm.sh/chart-version: v3.18.0-beta.5.gd1c1c910
-      helm.sh/original-name: platform-admin-system
-    creationTimestamp: "2024-07-01T08:26:24Z"
-    generation: 1
-    labels:
-      auth.cpaas.io/creator.email: ""
-      auth.cpaas.io/roletemplate.level: platform
-      auth.cpaas.io/roletemplate.official: "true"
-      helm.sh/chart-name: auth-manager
-      helm.sh/release-name: auth-manager
-      helm.sh/release-namespace: cpaas-system
-    name: platform-admin-system
-    resourceVersion: "4961"
-    uid: 8fea10a4-db53-401b-9a1f-5344e9760fa4
-  spec:
-    rules:
-    - functionResourceRef: '*'
-      verbs:
-      - '*'
-- apiVersion: auth.alauda.io/v1beta1
-  kind: RoleTemplate
-  metadata:
-    annotations:
-      auth.cpaas.io/role.id: "2"
-      cpaas.io/creator: system
-      cpaas.io/description: 负责整个平台的审计工作，可查看平台所有资源与操作记录，没有查看外的其他操作权限。
-      cpaas.io/description.en: Responsible for the audit work of the whole platform,
-        you can view all resources and operation records of the platform, without
-        any other operation privileges.
-      cpaas.io/display-name: 平台审计人员
-      cpaas.io/display-name.en: Platform auditors
-      helm.sh/chart-version: v3.18.0-beta.5.gd1c1c910
-      helm.sh/original-name: platform-auditor-system
-    creationTimestamp: "2024-07-01T08:26:24Z"
-    generation: 1
-    labels:
-      auth.cpaas.io/creator.email: ""
-      auth.cpaas.io/roletemplate.level: platform
-      auth.cpaas.io/roletemplate.official: "true"
-      helm.sh/chart-name: auth-manager
-      helm.sh/release-name: auth-manager
-      helm.sh/release-namespace: cpaas-system
-    name: platform-auditor-system
-    resourceVersion: "4962"
-    uid: 4529aa70-d220-4c03-b13e-dfffbe3d7238
-  spec:
-    rules:
-    - functionResourceRef: '*'
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: platform-manage-accesstokeninfoes
-      verbs:
-      - get
-      - list
-      - watch
-      - delete
-      - deletecollection
-    - functionResourceRef: acp-middleware-inspectionjob
       verbs:
       - get
       - list
       - watch
       - create
-    - functionResourceRef: acp-middleware-backupstorage
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: kubeflow.org
+      resources:
+      - experiments
+      - trials
+      - suggestions
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: acp-middleware-backupstat
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: serving.kserve.io
+      resources:
+      - inferenceservices
+      - trainedmodels
+      - servingruntimes
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: asm-manualgrayevents
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: serving.knative.dev
+      resources:
+      - services
+      - services/status
+      - routes
+      - routes/status
+      - configurations
+      - configurations/status
+      - revisions
+      - revisions/status
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: asm-manualgrayreleases
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: '*'
+      resources:
+      - pods/attach
+      - pods/exec
+      - pods/portforward
+      - pods/proxy
+      - secrets
+      - services/proxy
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: acp-app-package-management
+    - apiGroup: '*'
+      resources:
+      - nodes
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: aiops-monitoring-dashboard
+    - apiGroup: '*'
+      resources:
+      - serviceaccounts
       verbs:
-      - get
+      - impersonate
+    - apiGroup: '*'
+      resources:
+      - pods
+      - pods/attach
+      - pods/exec
+      - pods/portforward
+      - pods/proxy
+      verbs:
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: '*'
+      resources:
+      - configmaps
+      - endpoints
+      - persistentvolumeclaims
+      - replicationcontrollers
+      - replicationcontrollers/scale
+      - secrets
+      - serviceaccounts
+      - services
+      - services/proxy
+      verbs:
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: apps
+      resources:
+      - daemonsets
+      - deployments
+      - deployments/rollback
+      - deployments/scale
+      - replicasets
+      - replicasets/scale
+      - statefulsets
+      - statefulsets/scale
+      verbs:
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: autoscaling
+      resources:
+      - horizontalpodautoscalers
+      verbs:
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: batch
+      resources:
+      - cronjobs
+      - jobs
+      verbs:
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: extensions
+      resources:
+      - daemonsets
+      - deployments
+      - deployments/rollback
+      - deployments/scale
+      - ingresses
+      - networkpolicies
+      - replicasets
+      - replicasets/scale
+      - replicationcontrollers/scale
+      verbs:
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: policy
+      resources:
+      - poddisruptionbudgets
+      verbs:
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: networking.k8s.io
+      resources:
+      - ingresses
+      - networkpolicies
+      verbs:
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: scheduling.volcano.sh
+      resources:
+      - podgroups
+      verbs:
       - list
-      - watch
-    - functionResourceRef: aiops-costs
-      verbs:
       - get
+      - create
+      - delete
+      - patch
+      - update
+    - apiGroup: batch.volcano.sh
+      resources:
+      - jobs
+      verbs:
       - list
-      - watch
-    - functionResourceRef: acp-gatewayapi
-      verbs:
       - get
-      - list
-      - watch
-    - functionResourceRef: acp-gatewayapigatewayclass
+      - create
+      - delete
+      - patch
+      - update
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - pipelines
+      - pipelines/versions
       verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-ingressclass
+      - create
+      - delete
+      - update
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - experiments
       verbs:
-      - get
-      - list
-      - watch
-- apiVersion: auth.alauda.io/v1beta1
-  kind: RoleTemplate
-  metadata:
-    annotations:
-      auth.cpaas.io/role.id: "3"
-      cpaas.io/creator: system
-      cpaas.io/description: 负责绑定/解绑命名空间管理员，以及管理命名空间配额。
-      cpaas.io/description.en: Responsible for binding/unbinding namespace administrators
-        and managing namespace quotas.
-      cpaas.io/display-name: 项目管理员
-      cpaas.io/display-name.en: Project Manager
-      helm.sh/chart-version: v3.18.0-beta.5.gd1c1c910
-      helm.sh/original-name: project-admin-system
-    creationTimestamp: "2024-07-01T08:26:24Z"
-    generation: 1
-    labels:
-      auth.cpaas.io/creator.email: ""
-      auth.cpaas.io/roletemplate.level: project
-      auth.cpaas.io/roletemplate.official: "true"
-      helm.sh/chart-name: auth-manager
-      helm.sh/release-name: auth-manager
-      helm.sh/release-namespace: cpaas-system
-    name: project-admin-system
-    resourceVersion: "4964"
-    uid: 13418110-83a8-475d-afc9-04d65cafa963
-  spec:
-    rules:
-    - functionResourceRef: platform-manage-usersmanage
+      - archive
+      - create
+      - delete
+      - unarchive
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - runs
       verbs:
-      - get
-    - functionResourceRef: platform-manage-usergroupsmanage
+      - archive
+      - create
+      - delete
+      - retry
+      - terminate
+      - unarchive
+      - reportMetrics
+      - readArtifact
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - jobs
       verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: platform-manage-rolesmanage
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: platform-manage-userbindings
+      - create
+      - delete
+      - disable
+      - enable
+    - apiGroup: kubeflow.org
+      resources:
+      - scheduledworkflows
       verbs:
       - '*'
-    - functionResourceRef: platform-manage-projectmanage
+    - apiGroup: argoproj.io
+      resources:
+      - cronworkflows
+      - cronworkflows/finalizers
+      - workflows
+      - workflows/finalizers
+      - workfloweventbindings
+      - workflowtemplates
       verbs:
+      - '*'
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - pipelines
+      - pipelines/versions
+      - experiments
+      - jobs
+      verbs:
+      - get
+      - list
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - runs
+      verbs:
+      - get
+      - list
+      - readArtifact
+    - apiGroup: kubeflow.org
+      resources:
+      - viewers
+      verbs:
+      - create
+      - get
+      - delete
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - visualizations
+      verbs:
+      - create
+    - apiGroup: kubeflow.org
+      resources:
+      - mpijobs
+      - tfjobs
+      - pytorchjobs
+      - mxjobs
+      - xgboostjobs
+      verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+    - apiGroup: kubeflow.org
+      resources:
+      - mpijobs/status
+      - tfjobs/status
+      - pytorchjobs/status
+      - mxjobs/status
+      - xgboostjobs/status
+      verbs:
+      - get
+    - apiGroup: kubeflow.org
+      resources:
+      - notebooks
+      - notebooks/finalizers
+      - poddefaults
+      verbs:
+      - get
+      - list
+    - apiGroup: storage.k8s.io
+      resources:
+      - storageclasses
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: serving.knative.dev
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: networking.internal.knative.dev
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: autoscaling.internal.knative.dev
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: caching.internal.knative.dev
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: kubeflow.org
+      resources:
+      - experiments
+      - trials
+      - suggestions
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: serving.kserve.io
+      resources:
+      - inferenceservices
+      - trainedmodels
+      - servingruntimes
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: serving.knative.dev
+      resources:
+      - services
+      - services/status
+      - routes
+      - routes/status
+      - configurations
+      - configurations/status
+      - revisions
+      - revisions/status
+      verbs:
+      - get
+      - list
+    - apiGroup: '*'
+      resources:
+      - configmaps
+      - endpoints
+      - persistentvolumeclaims
+      - persistentvolumeclaims/status
+      - pods
+      - replicationcontrollers
+      - replicationcontrollers/scale
+      - serviceaccounts
+      - services
+      - services/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: '*'
+      resources:
+      - bindings
+      - events
+      - limitranges
+      - namespaces/status
+      - pods/log
+      - pods/status
+      - replicationcontrollers/status
+      - resourcequotas
+      - resourcequotas/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: '*'
+      resources:
+      - namespaces
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: apps
+      resources:
+      - controllerrevisions
+      - daemonsets
+      - daemonsets/status
+      - deployments
+      - deployments/scale
+      - deployments/status
+      - replicasets
+      - replicasets/scale
+      - replicasets/status
+      - statefulsets
+      - statefulsets/scale
+      - statefulsets/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: autoscaling
+      resources:
+      - horizontalpodautoscalers
+      - horizontalpodautoscalers/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: batch
+      resources:
+      - cronjobs
+      - cronjobs/status
+      - jobs
+      - jobs/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: extensions
+      resources:
+      - daemonsets
+      - daemonsets/status
+      - deployments
+      - deployments/scale
+      - deployments/status
+      - ingresses
+      - ingresses/status
+      - networkpolicies
+      - replicasets
+      - replicasets/scale
+      - replicasets/status
+      - replicationcontrollers/scale
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: policy
+      resources:
+      - poddisruptionbudgets
+      - poddisruptionbudgets/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: networking.k8s.io
+      resources:
+      - ingresses
+      - ingresses/status
+      - networkpolicies
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: kubeflow.org
+      resources:
+      - mpijobs
+      - tfjobs
+      - pytorchjobs
+      - mxjobs
+      - xgboostjobs
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: kubeflow.org
+      resources:
+      - notebooks
+      - notebooks/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: tensorboard.kubeflow.org
+      resources:
+      - tensorboards
+      - tensorboards/finalizers
+      verbs:
+      - get
+      - list
+    - apiGroup: kubeflow.org
+      resources:
+      - notebooks
+      - notebooks/status
+      verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - deletecollection
+      - patch
+      - update
+    - apiGroup: tensorboard.kubeflow.org
+      resources:
+      - tensorboards
+      - tensorboards/finalizers
+      verbs:
+      - get
+      - list
+      - create
+      - delete
+    - apiGroup: '*'
+      resources:
+      - persistentvolumeclaims
+      verbs:
+      - create
+      - delete
       - get
       - list
       - watch
       - update
       - patch
-    - functionResourceRef: project-manage-projectmembers
-      verbs:
-      - '*'
-    - functionResourceRef: platform-manage-projectbinding
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: platform-manage-productlist
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: platform-manage-featuregates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: platform-manage-portal
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: views-projectview
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: views-devops-userview
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: views-dataservices-userview
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: views-devops-manageview
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: views-asm-userview
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: views-acp-userview
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: views-cec-userview
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-clusters
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-regions
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-nodesmanage
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-domains
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-loadbalance
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-persistentvolumes
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-storageclasses
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: aiops-notificationsmanage
-      verbs:
-      - '*'
-    - functionResourceRef: aiops-logs
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: aiops-alerts
-      verbs:
-      - '*'
-    - functionResourceRef: aiops-alerttemplate
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: aiops-events
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-app
-      verbs:
-      - '*'
-    - functionResourceRef: acp-oamapp
-      verbs:
-      - '*'
-    - functionResourceRef: acp-virtualmachine
-      verbs:
-      - '*'
-    - functionResourceRef: acp-virtualmachineimagetemplates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-nodegroups
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-loadbalance-use
-      verbs:
-      - '*'
-    - functionResourceRef: acp-rules
-      verbs:
-      - '*'
-    - functionResourceRef: acp-openshiftroutes
-      verbs:
-      - '*'
-    - functionResourceRef: acp-networkpolicies
-      verbs:
-      - '*'
-    - functionResourceRef: acp-subnet
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-configmap
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-namespaceoverviews
-      verbs:
-      - '*'
-    - functionResourceRef: acp-namespace-resource-ratio
-      verbs:
-      - '*'
-    - functionResourceRef: acp-alertsquery
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-namespaces
-      verbs:
-      - '*'
-    - functionResourceRef: acp-resourcequotas
-      verbs:
-      - '*'
-    - functionResourceRef: acp-limitranges
-      verbs:
-      - '*'
-    - functionResourceRef: acp-k8sresource
-      verbs:
-      - '*'
-    - functionResourceRef: acp-user-configmap
-      verbs:
-      - '*'
-    - functionResourceRef: acp-user-secret
-      verbs:
-      - '*'
-    - functionResourceRef: acp-podsexec
-      verbs:
-      - '*'
-    - functionResourceRef: acp-rootexec
-      verbs:
-      - '*'
-    - functionResourceRef: acp-podslog
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-appmarket
-      verbs:
-      - '*'
-    - functionResourceRef: acp-apphelm
-      verbs:
-      - '*'
-    - functionResourceRef: acp-batchaction
-      verbs:
-      - '*'
-    - functionResourceRef: acp-imagewhitelist
-      verbs:
-      - '*'
-    - functionResourceRef: acp-autoscalers
-      verbs:
-      - '*'
-    - functionResourceRef: acp-namespaceaudits
-      verbs:
-      - '*'
-    - functionResourceRef: acp-serviceaccounts
-      verbs:
-      - '*'
-    - functionResourceRef: acp-volumesnapshot
-      verbs:
-      - '*'
-    - functionResourceRef: acp-cosi
-      verbs:
-      - '*'
-    - functionResourceRef: acp-vpa
-      verbs:
-      - '*'
-    - functionResourceRef: acp-gitops-app
-      verbs:
-      - '*'
-    - functionResourceRef: devops-artifactcleanuppolicies
-      verbs:
-      - '*'
-    - functionResourceRef: devops-artifactcleanupruns
-      verbs:
-      - '*'
-    - functionResourceRef: devops-artifactretainpolicies
-      verbs:
-      - '*'
-    - functionResourceRef: devops-artifactpromotions
-      verbs:
-      - '*'
-    - functionResourceRef: devops-artifactpromotionruns
-      verbs:
-      - '*'
-    - functionResourceRef: devops-artifactpromotionapprovals
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-clusterpromotionpolicies
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-devopstools
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-toolbindings
-      verbs:
-      - '*'
-    - functionResourceRef: devops-toolresource
-      verbs:
-      - '*'
-    - functionResourceRef: devops-clusterpipelinetasktemplates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-clusterpipelinetemplates
-      verbs:
-      - '*'
-    - functionResourceRef: devops-pipelinetasktemplates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-pipelinetemplates
-      verbs:
-      - '*'
-    - functionResourceRef: devops-pipelinetemplatesyncs
-      verbs:
-      - '*'
-    - functionResourceRef: devops-clusterpipelinetemplatesyncs
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-pipelineconfigs
-      verbs:
-      - '*'
-    - functionResourceRef: devops-pipelines
-      verbs:
-      - '*'
-    - functionResourceRef: devops-templaterenders
-      verbs:
-      - '*'
-    - functionResourceRef: devops-policies
-      verbs:
-      - '*'
-    - functionResourceRef: devops-policyruns
-      verbs:
-      - '*'
-    - functionResourceRef: devops-builds
-      verbs:
-      - '*'
-    - functionResourceRef: devops-buildruns
-      verbs:
-      - '*'
-    - functionResourceRef: devops-tekton
-      verbs:
-      - '*'
-    - functionResourceRef: devops-clusterstages
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-deliveries
-      verbs:
-      - '*'
-    - functionResourceRef: devops-deliveryruns
-      verbs:
-      - '*'
-    - functionResourceRef: devops-stages
-      verbs:
-      - '*'
-    - functionResourceRef: devops-stageruns
-      verbs:
-      - '*'
-    - functionResourceRef: devops-integrationclasses
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-integrations
-      verbs:
-      - '*'
-    - functionResourceRef: devops-virtualartifacts
-      verbs:
-      - '*'
-    - functionResourceRef: devops-virtualartifactsfiles
-      verbs:
-      - '*'
-    - functionResourceRef: devops-virtualrepositories
-      verbs:
-      - '*'
-    - functionResourceRef: devops-secret
-      verbs:
-      - '*'
-    - functionResourceRef: devops-projectsettings
-      verbs:
-      - '*'
-    - functionResourceRef: devops-environments
-      verbs:
-      - '*'
-    - functionResourceRef: devops-virtualissuebranches
-      verbs:
-      - '*'
-    - functionResourceRef: devops-virtualissues
-      verbs:
-      - '*'
-    - functionResourceRef: devops-virtualusers
-      verbs:
-      - '*'
-    - functionResourceRef: devops-projects
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-variables
-      verbs:
-      - '*'
-    - functionResourceRef: devops-gitrepositories
-      verbs:
-      - '*'
-    - functionResourceRef: devops-gitbranches
-      verbs:
-      - get
-      - list
-      - watch
-      - patch
-    - functionResourceRef: devops-gitcommits
-      verbs:
-      - '*'
-    - functionResourceRef: devops-gitrepositorytags
-      verbs:
-      - '*'
-    - functionResourceRef: devops-codequalities
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-testplans
-      verbs:
-      - '*'
-    - functionResourceRef: devops-testmodules
-      verbs:
-      - '*'
-    - functionResourceRef: devops-testcases
-      verbs:
-      - '*'
-    - functionResourceRef: devops-testcaseexecutions
-      verbs:
-      - '*'
-    - functionResourceRef: devops-versionschemes
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-versionstreams
-      verbs:
-      - '*'
-    - functionResourceRef: devops-versionrequests
-      verbs:
-      - '*'
-    - functionResourceRef: devops-clustergitsources
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-gitsources
-      verbs:
-      - '*'
-    - functionResourceRef: devops-clustertemplates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-virtualartifactuploads
-      verbs:
-      - '*'
-    - functionResourceRef: devops-storageplugins
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: devops-clusterpolicies
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-gateways
-      verbs:
-      - '*'
-    - functionResourceRef: asm-gatewaydeploys
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-gatewayprojectbindings
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-serviceentries
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-virtualservices
-      verbs:
-      - '*'
-    - functionResourceRef: asm-envoyfilters
-      verbs:
-      - '*'
-    - functionResourceRef: asm-asmloadbalancers
-      verbs:
-      - '*'
-    - functionResourceRef: asm-apiattributes
-      verbs:
-      - '*'
-    - functionResourceRef: asm-gatewaygroups
-      verbs:
-      - '*'
-    - functionResourceRef: asm-jwtpolicies
-      verbs:
-      - '*'
-    - functionResourceRef: asm-ingressgateways
-      verbs:
-      - '*'
-    - functionResourceRef: asm-istioproxyupdatetasks
-      verbs:
-      - '*'
-    - functionResourceRef: asm-istiocanaryupdates
-      verbs:
-      - '*'
-    - functionResourceRef: asm-canaryevents
-      verbs:
-      - '*'
-    - functionResourceRef: asm-appconfigs
-      verbs:
-      - '*'
-    - functionResourceRef: asm-routerules
-      verbs:
-      - '*'
-    - functionResourceRef: asm-policies
-      verbs:
-      - '*'
-    - functionResourceRef: asm-errorchecks
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-clusterconfig
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-domains
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-envoyfiltertemplates
-      verbs:
-      - '*'
-    - functionResourceRef: asm-envoyfiltertemplatesyncs
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-envoyfilterbindings
-      verbs:
-      - '*'
-    - functionResourceRef: asm-connectionpools
-      verbs:
-      - '*'
-    - functionResourceRef: asm-manualgrayevents
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-manualgrayreleases
-      verbs:
-      - '*'
-    - functionResourceRef: asm-microservices
-      verbs:
-      - '*'
-    - functionResourceRef: asm-microservicepolicies
-      verbs:
-      - '*'
-    - functionResourceRef: asm-whitelists
-      verbs:
-      - '*'
-    - functionResourceRef: asm-outlierdetections
-      verbs:
-      - '*'
-    - functionResourceRef: asm-servicemeshs
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-casemonitors
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-asmk8sresource
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-authorizationpolicy
-      verbs:
-      - '*'
-    - functionResourceRef: asm-istiosecurity
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-istioauthentication
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-istiorbac
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-istioconfig
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-istionetworking
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-canarydeliveries
-      verbs:
-      - '*'
-    - functionResourceRef: asm-canarytemplates
-      verbs:
-      - '*'
-    - functionResourceRef: asm-wasmmoduletemplates
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-wasmmoduleinstalls
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-wasmmoduledeployments
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: aiops-alerthistories
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-servicemeshgroups
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: asm-isolatepods
-      verbs:
-      - '*'
-    - functionResourceRef: asm-globalratelimiters
-      verbs:
-      - '*'
-    - functionResourceRef: asm-sidecarbypasses
-      verbs:
-      - '*'
-    - functionResourceRef: asm-serviceregistries
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-mysql
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-mysql-para-template
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-mysqluser
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-mysqlrestore
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-mysql-mgr
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-mysqlmgr-backup-restore
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-redis
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-redisbackup
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-redisfailover
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-redisuser
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-kafka
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-kafka-tools
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-kafkatopic
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-kafkauser
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-mongo
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-mongo-backup-restore
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-postgresql
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-rabbitmq
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-rocketmq
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-alertcenter
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-inspection
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-inspectionjob
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-backupstorage
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-backupstat
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-paramdefinition
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-paramtemplate-system
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-middleware-paramtemplate-project
-      verbs:
-      - '*'
-    - functionResourceRef: acp-middleware-imageversions
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: platform-manage-accesstokeninfoes
-      verbs:
-      - get
-      - list
-      - watch
+    - apiGroup: authorization.k8s.io
+      resources:
+      - localsubjectaccessreviews
+      verbs:
+      - create
+    - apiGroup: rbac.authorization.k8s.io
+      resources:
+      - rolebindings
+      - roles
+      verbs:
+      - create
       - delete
       - deletecollection
-    - functionResourceRef: acp-operator-backed
-      verbs:
-      - '*'
-    - functionResourceRef: platform-manage-commonconfigs
-      verbs:
       - get
       - list
-      - watch
-    - functionResourceRef: acp-namespace-resource-manage
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: product-management
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-crd
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-provider-networks
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-vlan
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-localstorage
-      verbs:
-      - '*'
-    - functionResourceRef: acp-builtinstorage
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-interconnectionsubnets
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: infrastructure-moduleinfo
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-metallb
-      verbs:
-      - get
-      - list
-      - watch
-    - functionResourceRef: acp-multicluster-namespaces
-      verbs:
-      - get
-      - list
-      - watch
-      - create
-      - update
-      - delete
       - patch
-    - functionResourceRef: acp-cloudedge
-      verbs:
-      - '*'
-    - functionResourceRef: aiops-monitoring-metrics
+      - update
+      - watch
+    rules:
+    - functionResourceRef: aml-clusterservingruntimes
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: aiops-monitoring-dashboard
-      verbs:
-      - '*'
-    - functionResourceRef: aiops-audits
-      verbs:
-      - get
-      - list
-    - functionResourceRef: acp-gatewayapi
-      verbs:
-      - '*'
-    - functionResourceRef: acp-gatewayapigatewayclass
+    - functionResourceRef: aml-profiles
       verbs:
       - get
       - list
       - watch
-    - functionResourceRef: acp-ingressclass
+      - patch
+      - update
+- apiVersion: auth.alauda.io/v1beta1
+  kind: RoleTemplate
+  metadata:
+    annotations:
+      auth.cpaas.io/role.id: "9"
+      cpaas.io/creator: system
+      cpaas.io/description: 查看该命名空间的模型、应用等资源，没有查看外的其他操作权限。
+      cpaas.io/description.en: Responsible for managing config in namespace level.
+      cpaas.io/display-name: AML 命名空间 Viewer
+      cpaas.io/display-name.en: AML Namespace Viewer
+      helm.sh/chart-version: v1.3.1-rc.35.gf744c5bf
+      helm.sh/original-name: aml-namespace-viewer
+    creationTimestamp: "2025-03-25T02:34:57Z"
+    generation: 1
+    labels:
+      auth.cpaas.io/creator.email: ""
+      auth.cpaas.io/roletemplate.level: namespace
+      auth.cpaas.io/roletemplate.official: "false"
+      helm.sh/chart-name: aml-global
+      helm.sh/release-name: aml-global
+      helm.sh/release-namespace: cpaas-system
+    name: aml-namespace-viewer
+    resourceVersion: "488942"
+    uid: f8de191f-c9b5-4199-b433-bb53f1adc8c7
+  spec:
+    customRules:
+    - apiGroup: kubeflow.org
+      resources:
+      - poddefaults
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: kubeflow.org
+      resources:
+      - notebooks
+      - notebooks/finalizers
+      - poddefaults
+      verbs:
+      - get
+      - list
+    - apiGroup: storage.k8s.io
+      resources:
+      - storageclasses
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: serving.knative.dev
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: networking.internal.knative.dev
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: autoscaling.internal.knative.dev
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: caching.internal.knative.dev
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: kubeflow.org
+      resources:
+      - experiments
+      - trials
+      - suggestions
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: serving.kserve.io
+      resources:
+      - inferenceservices
+      - trainedmodels
+      - servingruntimes
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: serving.knative.dev
+      resources:
+      - services
+      - services/status
+      - routes
+      - routes/status
+      - configurations
+      - configurations/status
+      - revisions
+      - revisions/status
+      verbs:
+      - get
+      - list
+    - apiGroup: '*'
+      resources:
+      - configmaps
+      - endpoints
+      - persistentvolumeclaims
+      - persistentvolumeclaims/status
+      - pods
+      - replicationcontrollers
+      - replicationcontrollers/scale
+      - serviceaccounts
+      - services
+      - services/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: '*'
+      resources:
+      - bindings
+      - events
+      - limitranges
+      - namespaces/status
+      - pods/log
+      - pods/status
+      - replicationcontrollers/status
+      - resourcequotas
+      - resourcequotas/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: '*'
+      resources:
+      - namespaces
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: apps
+      resources:
+      - controllerrevisions
+      - daemonsets
+      - daemonsets/status
+      - deployments
+      - deployments/scale
+      - deployments/status
+      - replicasets
+      - replicasets/scale
+      - replicasets/status
+      - statefulsets
+      - statefulsets/scale
+      - statefulsets/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: autoscaling
+      resources:
+      - horizontalpodautoscalers
+      - horizontalpodautoscalers/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: batch
+      resources:
+      - cronjobs
+      - cronjobs/status
+      - jobs
+      - jobs/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: extensions
+      resources:
+      - daemonsets
+      - daemonsets/status
+      - deployments
+      - deployments/scale
+      - deployments/status
+      - ingresses
+      - ingresses/status
+      - networkpolicies
+      - replicasets
+      - replicasets/scale
+      - replicasets/status
+      - replicationcontrollers/scale
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: policy
+      resources:
+      - poddisruptionbudgets
+      - poddisruptionbudgets/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: networking.k8s.io
+      resources:
+      - ingresses
+      - ingresses/status
+      - networkpolicies
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: istio.io
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: networking.istio.io
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - pipelines
+      - pipelines/versions
+      - experiments
+      - jobs
+      verbs:
+      - get
+      - list
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - runs
+      verbs:
+      - get
+      - list
+      - readArtifact
+    - apiGroup: kubeflow.org
+      resources:
+      - viewers
+      verbs:
+      - create
+      - get
+      - delete
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - visualizations
+      verbs:
+      - create
+    - apiGroup: kubeflow.org
+      resources:
+      - mpijobs
+      - tfjobs
+      - pytorchjobs
+      - mxjobs
+      - xgboostjobs
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: kubeflow.org
+      resources:
+      - mpijobs/status
+      - tfjobs/status
+      - pytorchjobs/status
+      - mxjobs/status
+      - xgboostjobs/status
+      verbs:
+      - get
+    - apiGroup: kubeflow.org
+      resources:
+      - notebooks
+      - notebooks/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: tensorboard.kubeflow.org
+      resources:
+      - tensorboards
+      - tensorboards/finalizers
+      verbs:
+      - get
+      - list
+    - apiGroup: '*'
+      resources:
+      - persistentvolumeclaims
+      verbs:
+      - get
+      - list
+      - watch
+    rules:
+    - functionResourceRef: aml-clusterservingruntimes
       verbs:
       - get
       - list
