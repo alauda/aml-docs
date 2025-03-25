@@ -1,0 +1,812 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.15.0
+  name: amlclusters.amlclusters.aml.dev
+spec:
+  group: amlclusters.aml.dev
+  names:
+    kind: AmlCluster
+    listKind: AmlClusterList
+    plural: amlclusters
+    singular: amlcluster
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - description: Ready
+      jsonPath: .status.conditions[?(@.type=="Ready")].status
+      name: Ready
+      type: string
+    - description: Reason
+      jsonPath: .status.conditions[?(@.type=="Ready")].reason
+      name: Reason
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              amlExperimental:
+                type: object
+              components:
+                properties:
+                  knativeServing:
+                    description: |-
+                      Knative-Serving component configuration.
+                      Requires KServeless operator to be installed.
+                      Requires Service Mesh (istio).
+                    properties:
+                      ingressGateway:
+                        description: |-
+                          IngressGateway allows to customize some parameters for the Istio Ingress Gateway
+                          that is bound to KNative-Serving.
+                        properties:
+                          certificate:
+                            description: |-
+                              Certificate specifies configuration of the TLS certificate securing communication
+                              for the gateway.
+                            properties:
+                              secretName:
+                                description: |-
+                                  SecretName specifies the name of the Kubernetes Secret resource that contains a
+                                  TLS certificate secure HTTP communications for the KNative network.
+                                type: string
+                              type:
+                                default: ACPDefaultIngress
+                                description: |-
+                                  Type specifies if the TLS certificate should be generated automatically, or if the certificate
+                                  is provided by the user. Allowed values are:
+                                  * SelfSigned: A certificate is going to be generated using an own private key.
+                                  * Provided: Pre-existence of the TLS Secret (see SecretName) with a valid certificate is assumed.
+                                  * ACPDefaultIngress: Default ingress certificate configured for ACP (ALB)
+                                enum:
+                                - SelfSigned
+                                - Provided
+                                - ACPDefaultIngress
+                                type: string
+                            type: object
+                          domain:
+                            description: |-
+                              Domain specifies the host name for intercepting incoming requests.
+                              Most likely, you will want to use a wildcard name, like *.example.com.
+                              If you choose to generate a certificate, this is the domain used for the certificate request.
+                            type: string
+                        required:
+                        - domain
+                        type: object
+                      managementState:
+                        pattern: ^(Managed|Unmanaged|Removed)$
+                        type: string
+                      namespace:
+                        type: string
+                      values:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                    type: object
+                  kserve:
+                    description: |-
+                      Kserve component configuration.
+                      Requires KServeless operator to be installed.
+                    properties:
+                      managementState:
+                        pattern: ^(Managed|Unmanaged|Removed)$
+                        type: string
+                      namespace:
+                        type: string
+                      values:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                    type: object
+                type: object
+              values:
+                properties:
+                  amlApiServer:
+                    properties:
+                      tolerations:
+                        items:
+                          description: |-
+                            The pod this Toleration is attached to tolerates any taint that matches
+                            the triple <key,value,effect> using the matching operator <operator>.
+                          properties:
+                            effect:
+                              description: |-
+                                Effect indicates the taint effect to match. Empty means match all taint effects.
+                                When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                              type: string
+                            key:
+                              description: |-
+                                Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                                If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                              type: string
+                            operator:
+                              description: |-
+                                Operator represents a key's relationship to the value.
+                                Valid operators are Exists and Equal. Defaults to Equal.
+                                Exists is equivalent to wildcard for value, so that a pod can
+                                tolerate all taints of a particular category.
+                              type: string
+                            tolerationSeconds:
+                              description: |-
+                                TolerationSeconds represents the period of time the toleration (which must be
+                                of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                                it is not set, which means tolerate the taint forever (do not evict). Zero and
+                                negative values will be treated as 0 (evict immediately) by the system.
+                              format: int64
+                              type: integer
+                            value:
+                              description: |-
+                                Value is the taint value the toleration matches to.
+                                If the operator is Exists, the value should be empty, otherwise just a regular string.
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  amlServer:
+                    properties:
+                      nodeSelector:
+                        items:
+                          type: string
+                        type: array
+                      tolerations:
+                        items:
+                          description: |-
+                            The pod this Toleration is attached to tolerates any taint that matches
+                            the triple <key,value,effect> using the matching operator <operator>.
+                          properties:
+                            effect:
+                              description: |-
+                                Effect indicates the taint effect to match. Empty means match all taint effects.
+                                When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                              type: string
+                            key:
+                              description: |-
+                                Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                                If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                              type: string
+                            operator:
+                              description: |-
+                                Operator represents a key's relationship to the value.
+                                Valid operators are Exists and Equal. Defaults to Equal.
+                                Exists is equivalent to wildcard for value, so that a pod can
+                                tolerate all taints of a particular category.
+                              type: string
+                            tolerationSeconds:
+                              description: |-
+                                TolerationSeconds represents the period of time the toleration (which must be
+                                of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                                it is not set, which means tolerate the taint forever (do not evict). Zero and
+                                negative values will be treated as 0 (evict immediately) by the system.
+                              format: int64
+                              type: integer
+                            value:
+                              description: |-
+                                Value is the taint value the toleration matches to.
+                                If the operator is Exists, the value should be empty, otherwise just a regular string.
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  amlService:
+                    properties:
+                      appsBaseImage:
+                        description: 应用镜像构建的基础镜像
+                        type: string
+                      appsGradioVersions:
+                        description: 应用镜像构建可选的 Gradio 的版本列表
+                        type: string
+                      appsPipMirror:
+                        description: 应用镜像构建使用的 pip 镜像源
+                        type: string
+                      appsStreamlitVersions:
+                        description: 应用镜像构建可选的 Streamlit 的版本列表
+                        type: string
+                      gitDatasetUpdateCallbackUrl:
+                        description: gitlab 回调 amlservice 的访问地址，用于在数据集更新之后，触发自动更新
+                          preview 数据。
+                        type: string
+                      imageBuildPvcWorkspaceSize:
+                        description: 镜像构建任务用于存放工作区文件的空间大小，比如存放模型文件
+                        type: string
+                      imageBuildUsedPvcName:
+                        description: 镜像构建服务使用的pvc名称（非NFS）,需提前创建好，建议申请大一点的空间用于缓存构建镜像，比如：150G
+                        type: string
+                      nodeSelector:
+                        items:
+                          type: string
+                        type: array
+                      notebookStorageClass:
+                        description: 自动创建的 notebook 使用的存储类
+                        type: string
+                      tolerations:
+                        items:
+                          description: |-
+                            The pod this Toleration is attached to tolerates any taint that matches
+                            the triple <key,value,effect> using the matching operator <operator>.
+                          properties:
+                            effect:
+                              description: |-
+                                Effect indicates the taint effect to match. Empty means match all taint effects.
+                                When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                              type: string
+                            key:
+                              description: |-
+                                Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                                If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                              type: string
+                            operator:
+                              description: |-
+                                Operator represents a key's relationship to the value.
+                                Valid operators are Exists and Equal. Defaults to Equal.
+                                Exists is equivalent to wildcard for value, so that a pod can
+                                tolerate all taints of a particular category.
+                              type: string
+                            tolerationSeconds:
+                              description: |-
+                                TolerationSeconds represents the period of time the toleration (which must be
+                                of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                                it is not set, which means tolerate the taint forever (do not evict). Zero and
+                                negative values will be treated as 0 (evict immediately) by the system.
+                              format: int64
+                              type: integer
+                            value:
+                              description: |-
+                                Value is the taint value the toleration matches to.
+                                If the operator is Exists, the value should be empty, otherwise just a regular string.
+                              type: string
+                          type: object
+                        type: array
+                      trainingPvcShareInNamespace:
+                        description: 训练使用的 PVC 是否在命名空间内共享，即一个命名空间仅使用一个通用的 PVC 缓存训练时的模型、数据集
+                        type: string
+                      trainingPvcSize:
+                        description: 训练 PVC 大小。如果是命名空间共享的缓存PVC，建议使用较大的空间，足够命名空间所有训练任务使用
+                        type: string
+                      trainingPvcStorageClass:
+                        description: 训练 PVC 使用的存储类
+                        type: string
+                    type: object
+                  buildkitd:
+                    properties:
+                      storage:
+                        properties:
+                          emptyDir:
+                            description: 当 type 为 emptyDir 时，需要提供以下配置
+                            properties:
+                              sizeLimit:
+                                type: integer
+                            type: object
+                          pvc:
+                            description: 当 type 为 pvc 时，需要提供以下配置
+                            properties:
+                              accessMode:
+                                type: string
+                              storageClassName:
+                                type: string
+                              storageSize:
+                                type: string
+                            type: object
+                          type:
+                            description: 存储类型，支持：emptyDir,pvc
+                            enum:
+                            - emptyDir
+                            - pvc
+                            type: string
+                        type: object
+                      tolerations:
+                        items:
+                          description: |-
+                            The pod this Toleration is attached to tolerates any taint that matches
+                            the triple <key,value,effect> using the matching operator <operator>.
+                          properties:
+                            effect:
+                              description: |-
+                                Effect indicates the taint effect to match. Empty means match all taint effects.
+                                When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                              type: string
+                            key:
+                              description: |-
+                                Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                                If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                              type: string
+                            operator:
+                              description: |-
+                                Operator represents a key's relationship to the value.
+                                Valid operators are Exists and Equal. Defaults to Equal.
+                                Exists is equivalent to wildcard for value, so that a pod can
+                                tolerate all taints of a particular category.
+                              type: string
+                            tolerationSeconds:
+                              description: |-
+                                TolerationSeconds represents the period of time the toleration (which must be
+                                of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                                it is not set, which means tolerate the taint forever (do not evict). Zero and
+                                negative values will be treated as 0 (evict immediately) by the system.
+                              format: int64
+                              type: integer
+                            value:
+                              description: |-
+                                Value is the taint value the toleration matches to.
+                                If the operator is Exists, the value should be empty, otherwise just a regular string.
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                  experimentalFeatures:
+                    properties:
+                      agents:
+                        type: boolean
+                      datasets:
+                        type: boolean
+                      imageBuilder:
+                        type: boolean
+                      tuneModels:
+                        type: boolean
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  global:
+                    properties:
+                      defaultNamespace:
+                        description: 默认纳管的命名空间
+                        type: string
+                      defaultNodeSelector:
+                        items:
+                          type: string
+                        type: array
+                      defaultTolerations:
+                        items:
+                          description: |-
+                            The pod this Toleration is attached to tolerates any taint that matches
+                            the triple <key,value,effect> using the matching operator <operator>.
+                          properties:
+                            effect:
+                              description: |-
+                                Effect indicates the taint effect to match. Empty means match all taint effects.
+                                When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                              type: string
+                            key:
+                              description: |-
+                                Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                                If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                              type: string
+                            operator:
+                              description: |-
+                                Operator represents a key's relationship to the value.
+                                Valid operators are Exists and Equal. Defaults to Equal.
+                                Exists is equivalent to wildcard for value, so that a pod can
+                                tolerate all taints of a particular category.
+                              type: string
+                            tolerationSeconds:
+                              description: |-
+                                TolerationSeconds represents the period of time the toleration (which must be
+                                of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                                it is not set, which means tolerate the taint forever (do not evict). Zero and
+                                negative values will be treated as 0 (evict immediately) by the system.
+                              format: int64
+                              type: integer
+                            value:
+                              description: |-
+                                Value is the taint value the toleration matches to.
+                                If the operator is Exists, the value should be empty, otherwise just a regular string.
+                              type: string
+                          type: object
+                        type: array
+                      deployFlavor:
+                        default: single-node
+                        description: DeployFlavor for single node or HA-cluster
+                        enum:
+                        - single-node
+                        - ha-cluster
+                        type: string
+                      gitUserEmail:
+                        description: 后台 git push 使用的 email，仅在 git log 存储
+                        type: string
+                      gitlabAdminTokenSecretRef:
+                        description: Gitlab Admin 密钥地址
+                        properties:
+                          name:
+                            description: Name is the name of resource being referenced
+                            type: string
+                          namespace:
+                            description: Namespace is the namespace of resource being
+                              referenced
+                            type: string
+                        required:
+                        - name
+                        - namespace
+                        type: object
+                      gitlabBaseUrl:
+                        description: Gitlab 访问地址
+                        pattern: ^https?:\/\/[\w\d\.\-]+(:[\d]+)?$
+                        type: string
+                      imageRegistryPrefix:
+                        description: harbor 项目名字
+                        type: string
+                      images:
+                        additionalProperties:
+                          properties:
+                            repository:
+                              type: string
+                            tag:
+                              type: string
+                          type: object
+                        type: object
+                      labelBaseDomain:
+                        type: string
+                      mysql:
+                        description: MySQL configuration.
+                        properties:
+                          database:
+                            default: aml
+                            description: Database to use.
+                            type: string
+                          host:
+                            description: Host where the database server is located.
+                            type: string
+                          passwordSecretRef:
+                            description: Password reference to a secret containing
+                              the password.
+                            properties:
+                              name:
+                                description: Name is the name of resource being referenced
+                                type: string
+                              namespace:
+                                description: Namespace is the namespace of resource
+                                  being referenced
+                                type: string
+                            required:
+                            - name
+                            - namespace
+                            type: object
+                          port:
+                            default: 3306
+                            description: 'MySQL port to use, default is usually OK.
+                              (default: 3306)'
+                            minimum: 1
+                            type: integer
+                          user:
+                            description: User to log in as.
+                            type: string
+                        required:
+                        - database
+                        - host
+                        - user
+                        type: object
+                      registry:
+                        properties:
+                          address:
+                            type: string
+                        type: object
+                    required:
+                    - gitlabAdminTokenSecretRef
+                    - gitlabBaseUrl
+                    type: object
+                  mysql:
+                    properties:
+                      pvc:
+                        properties:
+                          storageClassName:
+                            type: string
+                          storageSize:
+                            type: integer
+                        type: object
+                      tolerations:
+                        items:
+                          description: |-
+                            The pod this Toleration is attached to tolerates any taint that matches
+                            the triple <key,value,effect> using the matching operator <operator>.
+                          properties:
+                            effect:
+                              description: |-
+                                Effect indicates the taint effect to match. Empty means match all taint effects.
+                                When specified, allowed values are NoSchedule, PreferNoSchedule and NoExecute.
+                              type: string
+                            key:
+                              description: |-
+                                Key is the taint key that the toleration applies to. Empty means match all taint keys.
+                                If the key is empty, operator must be Exists; this combination means to match all values and all keys.
+                              type: string
+                            operator:
+                              description: |-
+                                Operator represents a key's relationship to the value.
+                                Valid operators are Exists and Equal. Defaults to Equal.
+                                Exists is equivalent to wildcard for value, so that a pod can
+                                tolerate all taints of a particular category.
+                              type: string
+                            tolerationSeconds:
+                              description: |-
+                                TolerationSeconds represents the period of time the toleration (which must be
+                                of effect NoExecute, otherwise this field is ignored) tolerates the taint. By default,
+                                it is not set, which means tolerate the taint forever (do not evict). Zero and
+                                negative values will be treated as 0 (evict immediately) by the system.
+                              format: int64
+                              type: integer
+                            value:
+                              description: |-
+                                Value is the taint value the toleration matches to.
+                                If the operator is Exists, the value should be empty, otherwise just a regular string.
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                type: object
+            required:
+            - values
+            type: object
+          status:
+            properties:
+              components:
+                description: Expose component's specific status
+                properties:
+                  aml:
+                    properties:
+                      conditions:
+                        description: Conditions is a set of Condition instances.
+                        items:
+                          description: |-
+                            Condition represents an observation of an object's state. Conditions are an
+                            extension mechanism intended to be used when the details of an observation
+                            are not a priori known or would not apply to all instances of a given Kind.
+
+
+                            Conditions should be added to explicitly convey properties that users and
+                            components care about rather than requiring those properties to be inferred
+                            from other observations. Once defined, the meaning of a Condition can not be
+                            changed arbitrarily - it becomes part of the API, and has the same
+                            backwards- and forwards-compatibility concerns of any other part of the API.
+                          properties:
+                            lastTransitionTime:
+                              format: date-time
+                              type: string
+                            message:
+                              type: string
+                            reason:
+                              description: |-
+                                ConditionReason is intended to be a one-word, CamelCase representation of
+                                the category of cause of the current status. It is intended to be used in
+                                concise output, such as one-line kubectl get output, and in summarizing
+                                occurrences of causes.
+                              type: string
+                            status:
+                              type: string
+                            type:
+                              description: |-
+                                ConditionType is the type of the condition and is typically a CamelCased
+                                word or short phrase.
+
+
+                                Condition types should indicate state in the "abnormal-true" polarity. For
+                                example, if the condition indicates when a policy is invalid, the "is valid"
+                                case is probably the norm, so the condition should be called "Invalid".
+                              type: string
+                          required:
+                          - status
+                          - type
+                          type: object
+                        type: array
+                      deployedRelease:
+                        properties:
+                          name:
+                            type: string
+                        type: object
+                      managementState:
+                        pattern: ^(Managed|Unmanaged|Removed)$
+                        type: string
+                    type: object
+                  kServe:
+                    properties:
+                      conditions:
+                        description: Conditions is a set of Condition instances.
+                        items:
+                          description: |-
+                            Condition represents an observation of an object's state. Conditions are an
+                            extension mechanism intended to be used when the details of an observation
+                            are not a priori known or would not apply to all instances of a given Kind.
+
+
+                            Conditions should be added to explicitly convey properties that users and
+                            components care about rather than requiring those properties to be inferred
+                            from other observations. Once defined, the meaning of a Condition can not be
+                            changed arbitrarily - it becomes part of the API, and has the same
+                            backwards- and forwards-compatibility concerns of any other part of the API.
+                          properties:
+                            lastTransitionTime:
+                              format: date-time
+                              type: string
+                            message:
+                              type: string
+                            reason:
+                              description: |-
+                                ConditionReason is intended to be a one-word, CamelCase representation of
+                                the category of cause of the current status. It is intended to be used in
+                                concise output, such as one-line kubectl get output, and in summarizing
+                                occurrences of causes.
+                              type: string
+                            status:
+                              type: string
+                            type:
+                              description: |-
+                                ConditionType is the type of the condition and is typically a CamelCased
+                                word or short phrase.
+
+
+                                Condition types should indicate state in the "abnormal-true" polarity. For
+                                example, if the condition indicates when a policy is invalid, the "is valid"
+                                case is probably the norm, so the condition should be called "Invalid".
+                              type: string
+                          required:
+                          - status
+                          - type
+                          type: object
+                        type: array
+                      deployedRelease:
+                        properties:
+                          name:
+                            type: string
+                        type: object
+                      managementState:
+                        pattern: ^(Managed|Unmanaged|Removed)$
+                        type: string
+                    type: object
+                  knativeServing:
+                    properties:
+                      conditions:
+                        description: Conditions is a set of Condition instances.
+                        items:
+                          description: |-
+                            Condition represents an observation of an object's state. Conditions are an
+                            extension mechanism intended to be used when the details of an observation
+                            are not a priori known or would not apply to all instances of a given Kind.
+
+
+                            Conditions should be added to explicitly convey properties that users and
+                            components care about rather than requiring those properties to be inferred
+                            from other observations. Once defined, the meaning of a Condition can not be
+                            changed arbitrarily - it becomes part of the API, and has the same
+                            backwards- and forwards-compatibility concerns of any other part of the API.
+                          properties:
+                            lastTransitionTime:
+                              format: date-time
+                              type: string
+                            message:
+                              type: string
+                            reason:
+                              description: |-
+                                ConditionReason is intended to be a one-word, CamelCase representation of
+                                the category of cause of the current status. It is intended to be used in
+                                concise output, such as one-line kubectl get output, and in summarizing
+                                occurrences of causes.
+                              type: string
+                            status:
+                              type: string
+                            type:
+                              description: |-
+                                ConditionType is the type of the condition and is typically a CamelCased
+                                word or short phrase.
+
+
+                                Condition types should indicate state in the "abnormal-true" polarity. For
+                                example, if the condition indicates when a policy is invalid, the "is valid"
+                                case is probably the norm, so the condition should be called "Invalid".
+                              type: string
+                          required:
+                          - status
+                          - type
+                          type: object
+                        type: array
+                      deployedRelease:
+                        properties:
+                          name:
+                            type: string
+                        type: object
+                      managementState:
+                        pattern: ^(Managed|Unmanaged|Removed)$
+                        type: string
+                    type: object
+                type: object
+              conditions:
+                items:
+                  description: "Condition contains details for one aspect of the current
+                    state of this API Resource.\n---\nThis struct is intended for
+                    direct use as an array at the field path .status.conditions.  For
+                    example,\n\n\n\ttype FooStatus struct{\n\t    // Represents the
+                    observations of a foo's current state.\n\t    // Known .status.conditions.type
+                    are: \"Available\", \"Progressing\", and \"Degraded\"\n\t    //
+                    +patchMergeKey=type\n\t    // +patchStrategy=merge\n\t    // +listType=map\n\t
+                    \   // +listMapKey=type\n\t    Conditions []metav1.Condition `json:\"conditions,omitempty\"
+                    patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"`\n\n\n\t
+                    \   // other fields\n\t}"
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: |-
+                        type of condition in CamelCase or in foo.example.com/CamelCase.
+                        ---
+                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
+                        useful (see .node.status.conditions), the ability to deconflict is important.
+                        The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              lastHandledReconcileAt:
+                description: |-
+                  LastHandledReconcileAt holds the value of the most recent
+                  reconcile request value, so a change of the annotation value
+                  can be detected.
+                type: string
+              observedGeneration:
+                description: |-
+                  The observed generation of the object.
+                  When this matches the object's metadata.generation, it indicates the status is up-to-date.
+                format: int64
+                type: integer
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
