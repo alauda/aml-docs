@@ -13,7 +13,7 @@ Please visit [Alauda AI Essentials](../installation/ai-essentials.mdx) for insta
 Please visit [Alauda AI Cluster](../installation/ai-cluster.mdx) for:
 
 :::warning
-Please ignore `Creating Alauda AI Cluster Instance` since we are upgrading from **AML** 1.2.
+Please ignore `Creating Alauda AI Cluster Instance` since we are upgrading from **AML** `1.2`.
 :::
 
 1. [Downloading](../installation/ai-cluster.mdx#downloading) operator bundle packages for `Alauda AI Cluster` and `KServeless`.
@@ -33,7 +33,7 @@ kubectl -naml-operator get pod
 <Steps>
 ### Migrate Knative CRD
 
-Due toe the breaking change of Knative CRD, you need to migrate the CRD to the new version before upgrading.
+Due to the breaking change of Knative CRD, you need to migrate the CRD to the new version before upgrading.
 
 ```bash
 kubectl exec -it deploy/aml-operator -- /app/storageversion-migrate \
@@ -89,17 +89,16 @@ Run the following command:
 ```bash
 GITLAB_ADMIN_TOKEN=$(yq -r .global.gitToken < /tmp/aml-values.yaml)  # [!code callout]
 
-kubectl \
-  create secret generic \
-  aml-gitlab-admin-token \   # [!code callout]
-  --from-literal="password=${GITLAB_ADMIN_TOKEN}" \   # [!code callout]
-  -n cpaas-system   # [!code callout]
+# [!code callout:3]
+kubectl create secret generic aml-gitlab-admin-token \
+  --from-literal="password=${GITLAB_ADMIN_TOKEN}" \
+  -n cpaas-system
 ```
 
 <Callouts>
 
 1. Retrieve the GitLab admin token from the AML 1.2 values file.
-2. Create a gitlab admin token secret named **aml-gitlab-admin-token**
+2. Create a GitLab admin token secret named **aml-gitlab-admin-token**
 3. The token is saved under **password** key.
 4. The secret is created under **cpaas-system** namespace.
 
@@ -112,13 +111,12 @@ We also need to create a MySQL secret for **Alauda AI Cluster**.
 Run the following command:
 
 ```bash
-MYSQL_PASSWORD=$(kubectl -nkubeflow get secret mysql-secret -o jsonpath='{.data.password}' | base64 -d)
+MYSQL_PASSWORD=$(kubectl -nkubeflow get secret mysql-secret -o jsonpath='{.data.password}' | base64 -d)  # [!code callout]
 
-kubectl \
-  create secret generic \
-  aml-mysql-secret \   # [!code callout]
-  --from-literal="password=${MYSQL_PASSWORD}" \   # [!code callout]
-  -n cpaas-system   # [!code callout]
+# [!code callout:3]
+kubectl create secret generic aml-mysql-secret \
+  --from-literal="password=${MYSQL_PASSWORD}" \
+  -n cpaas-system
 ```
 
 <Callouts>
@@ -134,15 +132,9 @@ kubectl \
 
 Finally we create an `AmlCluster` resource named `default` for **Alauda AI Cluster** to finish the upgrading.
 
-```bash
-GITLAB_HOST_SCHEME=$(yq -r .global.gitScheme < /tmp/aml-values.yaml)   # [!code callout]
-GITLAB_HOST_BASE=$(yq -r .global.gitBase < /tmp/aml-values.yaml)  # [!code callout]
+Create a yaml file named `aml-cluster.yaml` with the following content:
 
-MYSQL_HOST=$(yq -r .global.mysqlHost < /tmp/aml-values.yaml)  # [!code callout]
-MYSQL_PORT=$(yq -r .global.mysqlPort < /tmp/aml-values.yaml)  # [!code callout]
-MYSQL_USER=$(yq -r .global.mysqlUsername < /tmp/aml-values.yaml)  # [!code callout]
-
-cat <<EOF | kubectl apply -f -
+```yaml title="aml-cluster.yaml"
 apiVersion: amlclusters.aml.dev/v1alpha1
 kind: AmlCluster
 metadata:
@@ -152,9 +144,8 @@ spec:
     global:
       # single-node or ha-cluster
       deployFlavor: single-node
-      gitlabBaseUrl: "${GITLAB_HOST_SCHEME}://${GITLAB_HOST_BASE}"
-      gitlabAdminTokenSecretRef:
-        # The gitlab admin token secret created previously
+      gitlabBaseUrl: "${GITLAB_BASE_URL}"
+      gitlabAdminTokenSecretRef:  # [!code callout]
         name: aml-gitlab-admin-token
         namespace: cpaas-system
       mysql:
@@ -162,35 +153,60 @@ spec:
         port: ${MYSQL_PORT}
         user: "${MYSQL_USER}"
         database: aml
-        passwordSecretRef:
-          # The mysql secret created previously
+        passwordSecretRef:  # [!code callout]
           name: aml-mysql-secret
           namespace: cpaas-system
     buildkitd:
       storage:
         type: emptyDir
   components:
+    kserve:
+      managementState: Managed  # [!code callout]
     knativeServing:
       managementState: Managed
       ingressGateway:
-        domain: "*.example.com"
+        domain: "*.example.com"  # [!code callout]
         certificate:
           secretName: knative-serving-cert
           type: SelfSigned
-    kserve:
-      managementState: Managed
-EOF
-
 ```
 
 <Callouts>
 
-1. Retrieve the GitLab host `scheme` (`http` or `https`) from the AML 1.2 values file.
-2. Retrieve the GitLab host `base` from the AML 1.2 values file.
-3. Retrieve the MySQL `host` from the AML 1.2 values file.
-4. Retrieve the MySQL `port` from the AML 1.2 values file.
-5. Retrieve the MySQL `user` from the AML 1.2 values file.
-6. Create an `AmlCluster` resource named `default` for **Alauda AI Cluster**.
+1. The `name` and `namespace` of GitLab admin token secret created previously.
+2. The `name` and `namespace` of MySQL secret created previously.
+3. Set the management state of `kserve` to `Managed`, which means the `KServe` will be installed and managed by **Alauda AI Cluster**.
+4. Set the management state of `knativeServing` to `Managed`, which means the `Knative Serving` will be installed and managed by **Alauda AI Cluster**.
+5. The wildcard `domain` for exposing inference services.
+
+  :::info
+  The `domain` and `certificate` are required for exposing inference services and reserved fo future use.
+  :::
+
+</Callouts>
+
+Executing the following commands to retrieve necessary context from **AML** `1.2`, and then install **Alauda AI Cluster**:
+
+```bash
+# Retrieve the GitLab host scheme and base from the AML 1.2 values file.
+GITLAB_HOST_SCHEME=$(yq -r .global.gitScheme < /tmp/aml-values.yaml)
+GITLAB_HOST_BASE=$(yq -r .global.gitBase < /tmp/aml-values.yaml)
+export GITLAB_BASE_URL="${GITLAB_HOST_SCHEME}://${GITLAB_HOST_BASE}"
+
+# Retrieve the MySQL host, port and user from the AML 1.2 values file.
+export MYSQL_HOST=$(yq -r .global.mysqlHost < /tmp/aml-values.yaml)
+export MYSQL_PORT=$(yq -r .global.mysqlPort < /tmp/aml-values.yaml)
+export MYSQL_USER=$(yq -r .global.mysqlUsername < /tmp/aml-values.yaml)
+
+# [!code callout:2]
+yq '(.. | select(tag == "!!str")) |= envsubst' aml-cluster.yaml \
+  | kubectl apply -f -
+```
+
+<Callouts>
+
+1. Render environment variables for `aml-cluster.yaml` file.
+2. Create the `AmlCluster` resource to install **Alauda AI Cluster**.
 
 </Callouts>
 
