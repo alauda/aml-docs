@@ -39,20 +39,22 @@ In **Platform Management** of ACP console:
 Then, run the following command to upload the **Alauda AI Essentials** cluster plugin to ACP global cluster:
 
 ```bash
+# [!code callout:5]
 violet push \
-    ${PKG_NAME} \  # [!code callout]
-    --platform-address=${PLATFORM_ADDRESS} \   # [!code callout]
-    --platform-username=${PLATFORM_ADMIN_USER} \   # [!code callout]
-    --platform-password=${PLATFORM_ADMIN_PASSWORD}   # [!code callout]
+    ${PKG_NAME} \
+    --platform-address=${PLATFORM_ADDRESS} \
+    --platform-username=${PLATFORM_ADMIN_USER} \
+    --platform-password=${PLATFORM_ADMIN_PASSWORD} \
     --clusters=global
 ```
 
 <Callouts>
 
-1. `${PKG_NAME}` is the name of the **Alauda AI Essentials** cluster plugin tarball.
-2. `${PLATFORM_ADDRESS}` is your ACP platform address.
-3. `${PLATFORM_ADMIN_USER}` is the username of the ACP platform admin.
-4. `${PLATFORM_ADMIN_PASSWORD}` is the password of the ACP platform admin.
+1. Execute `violet push` to upload cluster plugin.
+2. `${PKG_NAME}` is the name of the **Alauda AI Essentials** cluster plugin tarball.
+3. `${PLATFORM_ADDRESS}` is your ACP platform address.
+4. `${PLATFORM_ADMIN_USER}` is the username of the ACP platform admin.
+5. `${PLATFORM_ADMIN_PASSWORD}` is the password of the ACP platform admin.
 
 </Callouts>
 
