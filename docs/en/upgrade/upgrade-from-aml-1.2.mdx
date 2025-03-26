@@ -3,10 +3,7 @@ weight: 10
 ---
 
 # Upgrade from AML 1.2
-
-## Install Alauda AI Essentials
-
-Please visit [Alauda AI Essentials](../installation/ai-essentials.mdx) for installation instructions.
+Remember that Install Alauda AI Essentials must be executed as the last step
 
 ## Install Alauda AI Cluster Components
 
@@ -31,6 +28,96 @@ kubectl -naml-operator get pod
 ```
 
 <Steps>
+### Migrate profile resources
+Due to the breaking change of Manged ns, you need to migrate the old profiles resources to the new crd of "amlnamespaces". Run the following script in the business cluster where aml is deployed.
+```bash
+#!/bin/bash
+
+profiles=$(kubectl get profiles -o jsonpath='{.items[*].metadata.name}')
+
+for profile in $profiles; do
+  if kubectl get amlnamespace "$profile" &>/dev/null; then
+    echo "⚠️  AmlNamespace $profile already exists. Skipping..."
+    continue
+  fi
+
+  profile_yaml=$(kubectl get profile "$profile" -o yaml)
+
+  build_registry_file=$(mktemp)
+  from_registry_file=$(mktemp)
+  s3_file=$(mktemp)
+
+  echo "$profile_yaml" | yq '.spec.plugins[] | select(.kind == "AmlConfig") | .spec.buildRegistry' > "$build_registry_file"
+  echo "$profile_yaml" | yq '.spec.plugins[] | select(.kind == "AmlConfig") | .spec.fromRegistry' > "$from_registry_file"
+  echo "$profile_yaml" | yq '.spec.plugins[] | select(.kind == "AmlConfig") | .spec.s3' > "$s3_file"
+
+  amlnamespace_yaml=$(cat <<EOF
+apiVersion: manage.aml.dev/v1alpha1
+kind: AmlNamespace
+metadata:
+  name: $profile
+spec:
+  config: {}
+EOF
+)
+
+  if [[ -s "$build_registry_file" && $(yq 'type' "$build_registry_file") != "null" ]]; then
+    amlnamespace_yaml=$(echo "$amlnamespace_yaml" | yq ".spec.config.buildRegistry = load(\"$build_registry_file\")")
+  fi
+
+  if [[ -s "$from_registry_file" && $(yq 'type' "$from_registry_file") != "null" ]]; then
+    amlnamespace_yaml=$(echo "$amlnamespace_yaml" | yq ".spec.config.fromRegistry = load(\"$from_registry_file\")")
+  fi
+
+  if [[ -s "$s3_file" && $(yq 'type' "$s3_file") != "null" ]]; then
+    amlnamespace_yaml=$(echo "$amlnamespace_yaml" | yq ".spec.config.s3 = load(\"$s3_file\")")
+  fi
+
+  rm -f "$build_registry_file" "$from_registry_file" "$s3_file"
+
+  echo "$amlnamespace_yaml" | kubectl apply -f -
+  echo "✅ AmlNamespace $profile created."
+done
+```
+
+### Migrate inferenceservices resources
+
+Due to the upgrade of kserve. The container name verification of the inference service is more stringent and must be kserve-container. Therefore, the old data needs to be migrated for normal use.
+Run the following script in the business cluster where aml is deployed.
+```bash
+#!/bin/bash
+
+set -e
+
+# 获取所有带有 app.kubernetes.io/part-of: kubeflow-profile 标签的命名空间
+NAMESPACES=$(kubectl get ns -l app.kubernetes.io/part-of=kubeflow-profile -o jsonpath='{.items[*].metadata.name}')
+
+for ns in $NAMESPACES; do
+    echo "Processing namespace: $ns"
+
+    # 获取当前 namespace 下所有 InferenceService 资源的名称
+    SERVICES=$(kubectl get inferenceservice -n "$ns" -o jsonpath='{.items[*].metadata.name}')
+
+    for svc in $SERVICES; do
+        echo "Checking InferenceService: $svc in namespace: $ns"
+
+        # 获取当前 spec.predictor.model.name
+        MODEL_NAME=$(kubectl get inferenceservice "$svc" -n "$ns" -o jsonpath='{.spec.predictor.model.name}')
+
+        if [ "$MODEL_NAME" != "kserve-container" ]; then
+            echo "Updating $svc in namespace: $ns (model.name: $MODEL_NAME -> kserve-container)"
+
+            # 使用 kubectl patch 进行修改
+            kubectl patch inferenceservice "$svc" -n "$ns" --type=json -p='[{"op": "replace", "path": "/spec/predictor/model/name", "value": "kserve-container"}]'
+        else
+            echo "No change needed for $svc in namespace: $ns"
+        fi
+    done
+done
+
+echo "Script execution completed."
+```
+
 ### Migrate Knative CRD
 
 Due to the breaking change of Knative CRD, you need to migrate the CRD to the new version before upgrading.
@@ -208,3 +295,7 @@ Should returns `Ready`:
 NAME      READY   REASON
 default   True    Succeeded
 ```
+
+## Install Alauda AI Essentials
+
+Please visit [Alauda AI Essentials](../installation/ai-essentials.mdx) for installation instructions.
