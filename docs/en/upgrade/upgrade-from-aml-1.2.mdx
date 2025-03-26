@@ -3,7 +3,6 @@ weight: 10
 ---
 
 # Upgrade from AML 1.2
-Remember that Install Alauda AI Essentials must be executed as the last step
 
 ## Install Alauda AI Cluster Components
 
@@ -29,11 +28,16 @@ kubectl -naml-operator get pod
 
 <Steps>
 ### Migrate profile resources
-Due to the breaking change of Manged ns, you need to migrate the old profiles resources to the new crd of "amlnamespaces". Run the following script in the business cluster where aml is deployed.
-```bash
+
+Since **Alauda AI** `1.3` has removed the use of `Profile` from `kubeflow.org` and introduced a new
+Custom Resource Definition (CRD) called `AmlNamespace`, we need to migrate existing `Profile` resources to `AmlNamespace`.
+
+Execute following script in destination cluster:
+
+```bash title="migrate-profile-resources.sh"
 #!/bin/bash
 
-profiles=$(kubectl get profiles -o jsonpath='{.items[*].metadata.name}')
+profiles=$(kubectl get profiles.kubeflow.org -o jsonpath='{.items[*].metadata.name}')
 
 for profile in $profiles; do
   if kubectl get amlnamespace "$profile" &>/dev/null; then
@@ -41,7 +45,7 @@ for profile in $profiles; do
     continue
   fi
 
-  profile_yaml=$(kubectl get profile "$profile" -o yaml)
+  profile_yaml=$(kubectl get profiles.kubeflow.org "$profile" -o yaml)
 
   build_registry_file=$(mktemp)
   from_registry_file=$(mktemp)
@@ -80,42 +84,31 @@ EOF
 done
 ```
 
-### Migrate inferenceservices resources
+### Migrate InferenceService resources
 
-Due to the upgrade of kserve. The container name verification of the inference service is more stringent and must be kserve-container. Therefore, the old data needs to be migrated for normal use.
-Run the following script in the business cluster where aml is deployed.
-```bash
+In **Alauda AI** `1.3`, `KServe` introduces a breaking change that requires `model.name` to be `kserve-container` in `InferenceService` resources.
+Therefore, we need to patch all `InferenceService` resources created in **AML** `1.2` to accommodate this change.
+
+Execute following script in destination cluster:
+
+```bash title="migrate-inferenceservice-resources.sh"
 #!/bin/bash
 
 set -e
 
-# 获取所有带有 app.kubernetes.io/part-of: kubeflow-profile 标签的命名空间
-NAMESPACES=$(kubectl get ns -l app.kubernetes.io/part-of=kubeflow-profile -o jsonpath='{.items[*].metadata.name}')
+inferenceservices=$(kubectl get inferenceservice --all-namespaces -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}')
 
-for ns in $NAMESPACES; do
-    echo "Processing namespace: $ns"
-
-    # 获取当前 namespace 下所有 InferenceService 资源的名称
-    SERVICES=$(kubectl get inferenceservice -n "$ns" -o jsonpath='{.items[*].metadata.name}')
-
-    for svc in $SERVICES; do
-        echo "Checking InferenceService: $svc in namespace: $ns"
-
-        # 获取当前 spec.predictor.model.name
-        MODEL_NAME=$(kubectl get inferenceservice "$svc" -n "$ns" -o jsonpath='{.spec.predictor.model.name}')
-
-        if [ "$MODEL_NAME" != "kserve-container" ]; then
-            echo "Updating $svc in namespace: $ns (model.name: $MODEL_NAME -> kserve-container)"
-
-            # 使用 kubectl patch 进行修改
-            kubectl patch inferenceservice "$svc" -n "$ns" --type=json -p='[{"op": "replace", "path": "/spec/predictor/model/name", "value": "kserve-container"}]'
-        else
-            echo "No change needed for $svc in namespace: $ns"
-        fi
-    done
-done
-
-echo "Script execution completed."
+while IFS=" " read -r namespace svc; do
+    model_name=$(kubectl -n "$namespace" get inferenceservice "$svc" -o jsonpath='{.spec.predictor.model.name}')
+    if [ "$model_name" != "kserve-container" ]; then
+        echo ">> Updating $namespace/$svc..."
+        kubectl -n "$namespace" patch inferenceservice "$svc" --type=json -p='[{
+          "op": "replace",
+          "path": "/spec/predictor/model/name",
+          "value": "kserve-container"
+        }]'
+    fi
+done <<< "$inferenceservices"
 ```
 
 ### Migrate Knative CRD
@@ -156,14 +149,31 @@ for cm in "${CONFIGMAPS[@]}"; do
 done
 ```
 
-### Remove resources blocks upgrading
+### Cleanup Knative Serving resources
 
-Some resources block upgrading so manual action is required.
+Some `Knative Serving` resources block upgrading so manual action is required.
 
-Execute following command to remove problematic resources:
+Execute following script to remove problematic resources:
 
-```bash
+```bash title="cleanup-resources.sh"
 kubectl -nknative-serving delete pdb activator-pdb webhook-pdb
+
+kubectl -nknative-serving patch configmap config-istio --type=json -p='[{
+  "op": "remove",
+  "path": "/data/gateway.knative-serving.knative-local-gateway"
+}]'
+
+kubectl -nknative-serving patch gateways.networking.istio.io knative-local-gateway --type=json -p='[{
+  "op": "replace",
+  "path": "/spec/selector",
+  "value": {"knative": "ingressgateway"}
+}]'
+
+kubectl -nistio-system patch service knative-local-gateway --type=json -p='[{
+  "op": "replace",
+  "path": "/spec/selector",
+  "value": {"knative": "ingressgateway"}
+}]'
 ```
 
 ### Retrieve AML 1.2 Values
@@ -172,7 +182,7 @@ kubectl -nknative-serving delete pdb activator-pdb webhook-pdb
 `helm` and `yq` utilities should be installed on the cluster node if not present.
 :::
 
-In the AML cluster, you can retrieve the values of AML 1.2 with the following `helm` command:
+In the AML cluster, you can retrieve the values of **AML** `1.2` with the following `helm` command:
 
 ```bash
 helm get values aml -nkubeflow -oyaml | tee /tmp/aml-values.yaml
@@ -203,7 +213,7 @@ kubectl create secret generic aml-mysql-secret \
 
 <Callouts>
 
-1. Retrieve the MySQL password from previous AML 1.2 installed secret resource.
+1. Retrieve the MySQL password from previous **AML** `1.2` installed secret resource.
 2. Create a MySQL admin token secret named **aml-mysql-secret**.
 3. The password is saved under **password** key.
 4. The secret is created under **cpaas-system** namespace.
