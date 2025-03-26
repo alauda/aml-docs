@@ -1236,7 +1236,7 @@ items:
       - get
       - list
       - watch
-    - functionResourceRef: aml-profiles
+    - functionResourceRef: aml-namespaces
       verbs:
       - get
       - list
