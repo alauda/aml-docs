@@ -1,0 +1,245 @@
+---
+weight: 10
+---
+
+# Function Overview
+
+The core definition of the inference service function is to deploy trained machine learning or deep learning models as online callable services, using protocols such as HTTP API or gRPC, enabling applications to use the model's prediction, classification, generation, and other functions in real-time or in batches. This function mainly addresses how to efficiently, stably, and conveniently deploy models to production environments after model training is completed, and provide scalable online services.
+
+## Advantages
+
+* Simplifies the model deployment process, reducing deployment complexity.
+* Provides high-availability, high-performance online and batch inference services.
+* Supports dynamic model updates and version management.
+* Realizes automated operation, maintenance, and monitoring of model inference services.
+
+## Applicable Scenarios
+
+* Real-time recommendation systems: real-time recommendation of goods or content based on user behavior.
+* Image recognition: classification, detection, or recognition of uploaded images.
+* Natural language processing: provides services such as text classification, sentiment analysis, and machine translation.
+* Financial risk control: real-time assessment of user credit risk or transaction risk.
+* Large language model services: providing online question answering, text generation, and other services.
+* Batch inference: inferring large amounts of non-real-time data, such as historical data analysis and report generation.
+
+## Value Brought
+
+* Accelerates model deployment and shortens application development cycles.
+* Improves model inference efficiency and reduces latency.
+* Reduces operation and maintenance costs and improves system stability.
+* Supports rapid business iteration and innovation.
+
+## Main Functions
+
+**Function 1: Direct Model Deployment for Inference Services**
+
+* Allows users to directly select specific versions of model files from the model repository and specify the inference runtime image to quickly deploy online inference services. The system automatically downloads, caches, and loads the model, starting the inference service. This simplifies the model deployment process and lowers the deployment threshold.
+
+**Function 2: Custom Image Deployment for Inference Services**
+
+* Supports users in writing Dockerfiles to package models and their dependencies into custom images, and then deploy inference services through standard Kubernetes Deployments. This approach provides greater flexibility, allowing users to customize the inference environment according to their needs.
+
+**Function 3: Batch Operation of Inference Services**
+
+* Supports batch operations on multiple inference services, such as batch starting, stopping, updating, and deleting.
+* Able to support the creation, monitoring, and result export of batch inference tasks.
+* Provides batch resource management, which can allocate and adjust the resources of inference services in batches.
+
+**Function 4: Inference Service Experience**
+
+* Provides an interactive interface to facilitate user testing and experience of inference services.
+* Supports multiple input and output formats to meet the needs of different application scenarios.
+* Provides model performance evaluation tools to help users optimize model deployment.
+
+**Function 5: Inference Runtime Support**
+
+* Integrates a variety of mainstream inference frameworks, such as vLLM, Seldon MLServer, etc., and supports user-defined inference runtimes.
+
+:::tip
+
+- vLLM: Optimized for large language models (LLMs) like DeepSeek/Qwen, featuring high-concurrency processing and enhanced throughput with superior resource efficiency.
+- MLServer: Designed for traditional ML models (XGBoost/image classification), offering multi-framework compatibility and streamlined debugging.
+
+:::
+
+**Function 6: Access Methods, Logs, Swagger, Monitoring, etc.**
+
+* Provides multiple access methods, such as HTTP API and gRPC.
+* Supports detailed log recording and analysis to facilitate user troubleshooting.
+* Automatically generates Swagger documentation to facilitate user integration and invocation of inference services.
+* Provides real-time monitoring and alarm functions to ensure stable service operation.
+
+# Functional Advantages
+
+**Performance Advantages:**
+
+* Supports GPU acceleration to improve model inference speed.
+* Supports batch inference to improve throughput.
+* Optimizes the inference runtime to reduce latency.
+
+**Scalability:**
+
+* Built on Kubernetes, supporting elastic scaling.
+* Supports horizontal scaling to handle high concurrency scenarios.
+* Supports distributed inference of large models.
+* Supports parallel processing of batch tasks.
+
+**Security:**
+
+* Provides identity authentication and authorization mechanisms to ensure service security.
+* Supports network isolation to prevent data leakage.
+* Supports secure deployment and updating of models.
+
+**Stability:**
+
+* Provides health checks and automatic restart mechanisms to improve service availability.
+* Supports log monitoring and alarms to detect and resolve problems in a timely manner.
+
+
+
+## Create inference service
+
+<Steps>
+
+### Step 1
+**Choose Custom publishing**
+
+:::tip 
+Custom publishing inference service requires manual setting of parameters. You can also create a "template" by combining input parameters for quick publishing of inference services.
+:::
+
+### Step 2
+**Provide inference service details for model publishing**
+
+| Parameters   | Description                               |
+| :----- | :--------------------------------- |
+| Name | Required, The name of the inference API. |
+| Description | A detailed description of the inference API, explaining its functionality and purpose. |
+| Model | Required, The name of the model used for inference. |
+| Version | Required, The version of the model. options include Branch and Tag.|
+| Inference Runtimes | Required, The engine used for inference runtime |
+| Requests CPU | Required, The amount of CPU resources requested by the inference service.|
+| Requests Memory | Required, The amount of memory resources requested by the inference service.|
+| Limits CPU | Required, The maximum amount of CPU resources that the inference service can use.|
+| Limits Memory | Required, The maximum amount of memory resources that the inference service can use.|
+| GPU Acceleration Type | The type of GPU acceleration.|
+| GPU Acceleration Value | The value of GPU acceleration.|
+| Temporary storage | Temporary storage space used by the inference service.|
+| Mount existing PVC | Mount an existing Kubernetes Persistent Volume Claim (PVC) as storage.|
+| Capacity | Required, The capacity size of temporary storage or PVC.|
+| Auto scaling | Enable or disable auto-scaling functionality.|
+| Number of instances | Required, The number of instances running the inference service.|
+| Environment variables | Key-value pairs injected into the container runtime environment.|
+| Add parameters | Parameters passed to the container's entrypoint executable. Array of strings (e.g. ["--port=8080", "--batch_size=4"]).|
+| Startup command | Overrides the default ENTRYPOINT instruction in the container image. Executable + arguments (e.g. ["python", "serve.py"])|
+
+### Step 3
+Click the **Publish** button to create an inference service. 
+
+</Steps>
+
+
+## Experience
+
+<Steps>
+
+### Step 1
+From the **Inference API** services list, click the name of any **Running** service to view its details.
+
+### Step 2
+Click **Experience** to reveal the right-side panel.
+
+### Step 3
+Ask a question
+
+- System Role 
+
+  Defines the AI's purpose, tone, and operational boundaries (e.g., "You are a helpful assistant specialized in medical information").
+
+- Parameters 
+
+  Choose parameters according to your task type. Refer to the parameter descriptions below for details.
+
+</Steps>
+
+
+**Parameter Descriptions for Different Task Types**
+
+**Text Generation**
+
+_Preset Parameters_
+
+| Parameter | Data Type | Description |
+|---|---|---|
+| `do_sample` | bool | Whether to use sampling; if not, greedy decoding is used. |
+| `max_new_tokens` | int | The maximum number of tokens to generate, ignoring tokens in the prompt. |
+| `repetition_penalty` | float | Repetition penalty to control repeated content in the generated text; 1.0 means no repetition, 0 means repetition. |
+| `temperature` | float | The randomness of the model for the next token when generating text; 1.0 is high randomness, 0 is low randomness. |
+| `top_k` | int | When calculating the probability distribution of the next token, only consider the top k tokens with the highest probability. |
+| `top_p` | float | Controls the cumulative probability distribution considered by the model when selecting the next token. |
+| `use_cache` | bool | Whether to use the intermediate results calculated by the model during the generation process. |
+
+_Other Parameters_
+
+| Parameter | Data Type | Description |
+|---|---|---|
+| `max_length` | int | The maximum number of generated tokens. Corresponds to the number of tokens in the input prompt + `max_new_tokens`. If `max_new_tokens` is set, its effect is overridden by `max_new_tokens`. |
+| `min_length` | int | The minimum number of generated tokens. Corresponds to the number of tokens in the input prompt + `min_new_tokens`. If `min_new_tokens` is set, its effect is overridden by `min_new_tokens`. |
+| `min_new_tokens` | int | The minimum number of generated tokens, ignoring tokens in the prompt. |
+| `early_stop` | bool | Controls the stopping condition for beam-based methods. True: generation stops when `num_beams` complete candidates appear. False: applies heuristics to stop generation when it is unlikely to find better candidates. |
+| `num_beams` | int | Number of beams used for beam search. 1 means no beam search. |
+| `max_time` | int | The maximum time allowed for calculation to run, in seconds. |
+| `num_beam_groups` | int | Divides `num_beams` into groups to ensure diversity among different beam groups. |
+| `diversity_penalty` | float | Effective when `num_beam_groups` is enabled. This parameter applies a diversity penalty between groups to ensure that the content generated by each group is as different as possible. |
+| `penalty_alpha` | float | Contrastive search is enabled when `penalty_alpha` is greater than 0 and `top_k` is greater than 1. The larger the `penalty_alpha` value, the stronger the contrastive penalty, and the more likely the generated text is to meet expectations. If the `penalty_alpha` value is set too large, it may cause the generated text to be too uniform. |
+| `typical_p` | float | Local typicality measures the similarity between the conditional probability of predicting the next target token and the expected conditional probability of predicting the next random token given the generated partial text. If set to a floating-point number less than 1, the smallest set of locally typical tokens whose probabilities add up to or exceed `typical_p` will be retained for generation. |
+| `epsilon_cutoff` | float | If set to a floating-point number strictly between 0 and 1, only tokens with conditional probabilities greater than `epsilon_cutoff` will be sampled. Suggested values range from 3e-4 to 9e-4, depending on the model size. |
+| `eta_cutoff` | float | Eta sampling is a hybrid of local typical sampling and epsilon sampling. If set to a floating-point number strictly between 0 and 1, a token will only be considered if it is greater than `eta_cutoff` or sqrt(`eta_cutoff`) * exp(-entropy(softmax(next_token_logits))). Suggested values range from 3e-4 to 2e-3, depending on the model size. |
+| `repetition_penalty` | float | Parameter for repetition penalty. 1.0 means no penalty. |
+
+For more parameters, please refer to [Text Generation Parameter Configuration](https://huggingface.co/docs/transformers/main/en/main_classes/text_generation#transformers.GenerationConfig).
+
+**Text-to-Image**
+
+_Preset Parameters_
+
+| Parameter | Data Type | Description |
+|---|---|---|
+| `num_inference_steps` | int | The number of denoising steps. More denoising steps usually result in higher quality images but slower inference. |
+| `use_cache` | bool | Whether to use the intermediate results calculated by the model during the generation process. |
+
+_Other Parameters_
+
+| Parameter | Data Type | Description |
+|---|---|---|
+| `height` | int | The height of the generated image, in pixels. |
+| `width` | int | The width of the generated image, in pixels. |
+| `guidance_scale` | float | Used to adjust the balance between quality and diversity of the generated image. Larger values increase diversity but reduce quality; suggested range is 7 to 8.5. |
+| `negative_prompt` | str or List[str] | Used to guide what content should not be included in the image generation. |
+
+For more parameters, please refer to [Text-to-Image Parameter Configuration](https://huggingface.co/docs/diffusers/main/en/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusionPipeline).
+
+**Text Classification**
+
+_Preset Parameters_
+
+| Parameter | Data Type | Description |
+|---|---|---|
+| `top_k` | int | The number of top-scoring type labels. If the provided number is None or higher than the number of labels available in the model configuration, the default is to return the number of labels. |
+| `use_cache` | bool | Whether to use the intermediate results calculated by the model during the generation process. |
+
+For more parameters, please refer to [Text Classification Parameter Configuration](https://huggingface.co/docs/transformers/v4.36.1/en/main_classes/pipelines#transformers.TextClassificationPipeline.__call__)
+
+##### Additional References
+
+[Image Classification Parameter Configuration](https://huggingface.co/docs/transformers/v4.36.1/en/main_classes/pipelines#transformers.ImageClassificationPipeline.__call__)
+
+[Conversational Parameter Configuration](https://huggingface.co/docs/transformers/v4.36.1/en/main_classes/pipelines#transformers.ConversationalPipeline.__call__)
+
+[Summarization Parameter Configuration](https://huggingface.co/docs/transformers/v4.36.1/en/main_classes/pipelines#transformers.SummarizationPipeline.__call__)
+
+[Translation Parameter Configuration](https://huggingface.co/docs/transformers/v4.36.1/en/main_classes/pipelines#transformers.TranslationPipeline.__call__)
+
+[Text2Text Generation Parameter Configuration](https://huggingface.co/docs/transformers/v4.36.1/en/main_classes/pipelines#transformers.Text2TextGenerationPipeline.__call__)
+
+[Image-to-Image Parameter Configuration](https://huggingface.co/docs/transformers/v4.36.1/en/main_classes/pipelines#transformers.ImageToImagePipeline.__call__)

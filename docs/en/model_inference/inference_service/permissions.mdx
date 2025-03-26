@@ -1,0 +1,15 @@
+---
+weight: 80
+---
+
+# Permissions
+
+| Function       | Operation | Platform Admin | Project Admin | Namespace Owner | Namespace Editor | Namespace Viewer |
+|----------------|-----------|----------------|------------------|---------------|-----------------|-----------|
+| Inference API List | View | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Application List | View | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Inference Service | Delete | ✓ | ✓ | ✓ | ✓ | ✕ |
+| Batch Inference Service | Delete | ✓ | ✓ | ✓ | ✓ | ✕ |
+
+
+<K8sPermissionTable functions={['aml-clusterservingruntimes']} />
