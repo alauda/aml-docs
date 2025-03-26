@@ -36,24 +36,37 @@ kubectl -naml-operator get pod
 Due to the breaking change of Knative CRD, you need to migrate the CRD to the new version before upgrading.
 
 ```bash
-kubectl exec -it deploy/aml-operator -- /app/storageversion-migrate \
-    services.serving.knative.dev \
-    configurations.serving.knative.dev \
-    revisions.serving.knative.dev \
-    routes.serving.knative.dev \
-    domainmappings.serving.knative.dev
+# Migrate storageVersion of domainmappings from v1alpha1 to v1beta1
+kubectl patch crd domainmappings.serving.knative.dev --type='json' -p='[
+  {"op": "replace", "path": "/spec/versions/0/storage", "value": true},
+  {"op": "replace", "path": "/spec/versions/1/storage", "value": false}
+]'
+
+kubectl exec -naml-operator -it deploy/aml-operator -- /app/storageversion-migrate \
+  domainmappings.serving.knative.dev
 ```
 
 Wait for the command to complete, the command output should like this:
 
 ```
-INFO    storageversion/main.go:61       Migrating group resources       {"len": 5}
-INFO    storageversion/main.go:64       Migrating group resource        {"resource": "services.serving.knative.dev"}
-INFO    storageversion/main.go:64       Migrating group resource        {"resource": "configurations.serving.knative.dev"}
-INFO    storageversion/main.go:64       Migrating group resource        {"resource": "revisions.serving.knative.dev"}
-INFO    storageversion/main.go:64       Migrating group resource        {"resource": "routes.serving.knative.dev"}
+INFO    storageversion/main.go:61       Migrating group resources       {"len": 1}
 INFO    storageversion/main.go:64       Migrating group resource        {"resource": "domainmappings.serving.knative.dev"}
 INFO    storageversion/main.go:74       Migration complete
+```
+
+### Fix unexpected key in Knative config
+
+Run the following commands to remove `_example` key in Knative configs, which blocks upgrading.
+
+```bash
+CONFIGMAPS=(
+  $(kubectl -nknative-serving get configmaps -l app.kubernetes.io/name=knative-serving -o jsonpath='{.items[*].metadata.name}')
+)
+
+# Please ignore error message like `The request is invalid: ...`
+for cm in "${CONFIGMAPS[@]}"; do
+  kubectl -nknative-serving patch configmap "$cm" --type='json' -p='[{"op": "remove", "path": "/data/_example"}]'
+done
 ```
 
 ### Remove resources blocks upgrading
@@ -75,10 +88,10 @@ kubectl -nknative-serving delete pdb activator-pdb webhook-pdb
 In the AML cluster, you can retrieve the values of AML 1.2 with the following `helm` command:
 
 ```bash
-helm get values aml -nkubeflow -oyaml  | tee /tmp/aml-values.yaml
+helm get values aml -nkubeflow -oyaml | tee /tmp/aml-values.yaml
 ```
 
-Please save the generated `/tmp/aml-values.yaml` file for later use.
+Please keep the generated `/tmp/aml-values.yaml` file during upgrading.
 
 ### Creating GitLab Admin Token Secret
 
@@ -104,7 +117,7 @@ kubectl create secret generic aml-mysql-secret \
 <Callouts>
 
 1. Retrieve the MySQL password from previous AML 1.2 installed secret resource.
-2. Create a MySQL admin token secret named **aml-mysql-secret**
+2. Create a MySQL admin token secret named **aml-mysql-secret**.
 3. The password is saved under **password** key.
 4. The secret is created under **cpaas-system** namespace.
 
@@ -132,7 +145,7 @@ spec:
         namespace: cpaas-system
       mysql:
         host: "${MYSQL_HOST}"
-        port: ${MYSQL_PORT}
+        port: 3306
         user: "${MYSQL_USER}"
         database: aml
         passwordSecretRef:  # [!code callout]
@@ -145,7 +158,7 @@ spec:
     kserve:
       managementState: Managed  # [!code callout]
     knativeServing:
-      managementState: Managed
+      managementState: Managed  # [!code callout]
       ingressGateway:
         domain: "*.example.com"  # [!code callout]
         certificate:
@@ -159,7 +172,7 @@ spec:
 2. The `name` and `namespace` of MySQL secret created previously.
 3. Set the management state of `kserve` to `Managed`, which means the `KServe` will be installed and managed by **Alauda AI Cluster**.
 4. Set the management state of `knativeServing` to `Managed`, which means the `Knative Serving` will be installed and managed by **Alauda AI Cluster**.
-5. The wildcard `domain` for exposing inference services.
+5. The wildcard `domain` for exposing inference services. For now, just keep it as-is.
 
   :::info
   The `domain` and `certificate` are required for exposing inference services and reserved fo future use.
@@ -181,13 +194,13 @@ export MYSQL_PORT=$(yq -r .global.mysqlPort < /tmp/aml-values.yaml)
 export MYSQL_USER=$(yq -r .global.mysqlUsername < /tmp/aml-values.yaml)
 
 # [!code callout:2]
-yq '(.. | select(tag == "!!str")) |= envsubst' aml-cluster.yaml \
+yq '((.. | select(tag == "!!str")) |= envsubst) | (.spec.values.global.mysql.port = env(MYSQL_PORT))' aml-cluster.yaml \
   | kubectl apply -f -
 ```
 
 <Callouts>
 
-1. Render environment variables for `aml-cluster.yaml` file.
+1. Interpolate environment variables in `aml-cluster.yaml` file previously created.
 2. Create the `AmlCluster` resource to install **Alauda AI Cluster**.
 
 </Callouts>
@@ -196,7 +209,7 @@ yq '(.. | select(tag == "!!str")) |= envsubst' aml-cluster.yaml \
 
 ## Verification
 
-Check the status field from the `AMLCluster` resource which named `default`:
+Check the status field from the `AmlCluster` resource which named `default`:
 
 ```bash
 kubectl get amlcluster default
