@@ -2,25 +2,29 @@
 weight: 20
 ---
 
-:::tip
-
-将父模块下的所有功能模块进行罗列和简单介绍，方便用户快速了解该模块下的所有功能。
-
-可以访问 [功能总览示例](https://product-doc-guide.alauda.cn/template/features_overview/example.html) 查看对应文档的示例。
-
-:::
-
 # Features
 
 ## Model Management Functions
 
-- 功能1
+- **Function 1: Git-based Model Repository**  
+  A complete Git-managed storage solution supporting:
+  - **Repository Management**: Create/delete repos with metadata (name/description/visibility) and dependency checks
+  - **File Operations**: Web UI upload for small files + CLI/Git LFS for large files (e.g., `*.h5`, `*.bin`)
+  - **Version Control**: Full Git capabilities including:
+    - Branching (e.g., `main`/`experimental`)
+    - Tagging (e.g., `v1.0`)
+    - Automatic metadata sync from `README.md`
 
-  功能1的简单介绍。
+- **Function 2: Cross-Tenant Sharing**  
+  Enables controlled model sharing through:
+  - "Shared" visibility setting for inter-tenant access  
+  - `public` namespace marketplace for open-source models
 
-- 功能2
-
-  功能2的简单介绍。
+- **Function 3: MLOps Integration**  
+  Seamless workflow connections:
+  - One-click deployment to inference services  
+  - Direct notebook access to versioned models
+   
 
 ## Inference Service Functions
 
