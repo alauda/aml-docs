@@ -1,0 +1,311 @@
+apiVersion: v1
+items:
+- apiVersion: auth.alauda.io/v1beta1
+  kind: RoleTemplate
+  metadata:
+    annotations:
+      auth.cpaas.io/role.id: "9"
+      cpaas.io/creator: system
+      cpaas.io/description: 查看该命名空间的模型、应用等资源，没有查看外的其他操作权限。
+      cpaas.io/description.en: Responsible for managing config in namespace level.
+      cpaas.io/display-name: AML 命名空间 Viewer
+      cpaas.io/display-name.en: AML Namespace Viewer
+      helm.sh/chart-version: v1.3.1-rc.21.ga91c2d48
+      helm.sh/original-name: aml-namespace-viewer
+    creationTimestamp: "2025-03-10T13:39:55Z"
+    generation: 1
+    labels:
+      auth.cpaas.io/creator.email: ""
+      auth.cpaas.io/roletemplate.level: namespace
+      auth.cpaas.io/roletemplate.official: "false"
+      helm.sh/chart-name: aml-global
+      helm.sh/release-name: aml-global
+      helm.sh/release-namespace: cpaas-system
+    name: aml-namespace-viewer
+    resourceVersion: "10183559"
+    uid: b27ec005-b565-4b9a-b11d-8484aa0a174f
+  spec:
+    customRules:
+    - apiGroup: kubeflow.org
+      resources:
+      - poddefaults
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: kubeflow.org
+      resources:
+      - notebooks
+      - notebooks/finalizers
+      - poddefaults
+      verbs:
+      - get
+      - list
+    - apiGroup: storage.k8s.io
+      resources:
+      - storageclasses
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: serving.knative.dev
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: networking.internal.knative.dev
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: autoscaling.internal.knative.dev
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: caching.internal.knative.dev
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: kubeflow.org
+      resources:
+      - experiments
+      - trials
+      - suggestions
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: serving.kserve.io
+      resources:
+      - inferenceservices
+      - trainedmodels
+      - servingruntimes
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: serving.knative.dev
+      resources:
+      - services
+      - services/status
+      - routes
+      - routes/status
+      - configurations
+      - configurations/status
+      - revisions
+      - revisions/status
+      verbs:
+      - get
+      - list
+    - apiGroup: '*'
+      resources:
+      - configmaps
+      - endpoints
+      - persistentvolumeclaims
+      - persistentvolumeclaims/status
+      - pods
+      - replicationcontrollers
+      - replicationcontrollers/scale
+      - serviceaccounts
+      - services
+      - services/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: '*'
+      resources:
+      - bindings
+      - events
+      - limitranges
+      - namespaces/status
+      - pods/log
+      - pods/status
+      - replicationcontrollers/status
+      - resourcequotas
+      - resourcequotas/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: '*'
+      resources:
+      - namespaces
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: apps
+      resources:
+      - controllerrevisions
+      - daemonsets
+      - daemonsets/status
+      - deployments
+      - deployments/scale
+      - deployments/status
+      - replicasets
+      - replicasets/scale
+      - replicasets/status
+      - statefulsets
+      - statefulsets/scale
+      - statefulsets/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: autoscaling
+      resources:
+      - horizontalpodautoscalers
+      - horizontalpodautoscalers/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: batch
+      resources:
+      - cronjobs
+      - cronjobs/status
+      - jobs
+      - jobs/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: extensions
+      resources:
+      - daemonsets
+      - daemonsets/status
+      - deployments
+      - deployments/scale
+      - deployments/status
+      - ingresses
+      - ingresses/status
+      - networkpolicies
+      - replicasets
+      - replicasets/scale
+      - replicasets/status
+      - replicationcontrollers/scale
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: policy
+      resources:
+      - poddisruptionbudgets
+      - poddisruptionbudgets/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: networking.k8s.io
+      resources:
+      - ingresses
+      - ingresses/status
+      - networkpolicies
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: istio.io
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: networking.istio.io
+      resources:
+      - '*'
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - pipelines
+      - pipelines/versions
+      - experiments
+      - jobs
+      verbs:
+      - get
+      - list
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - runs
+      verbs:
+      - get
+      - list
+      - readArtifact
+    - apiGroup: kubeflow.org
+      resources:
+      - viewers
+      verbs:
+      - create
+      - get
+      - delete
+    - apiGroup: pipelines.kubeflow.org
+      resources:
+      - visualizations
+      verbs:
+      - create
+    - apiGroup: kubeflow.org
+      resources:
+      - mpijobs
+      - tfjobs
+      - pytorchjobs
+      - mxjobs
+      - xgboostjobs
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: kubeflow.org
+      resources:
+      - mpijobs/status
+      - tfjobs/status
+      - pytorchjobs/status
+      - mxjobs/status
+      - xgboostjobs/status
+      verbs:
+      - get
+    - apiGroup: kubeflow.org
+      resources:
+      - notebooks
+      - notebooks/status
+      verbs:
+      - get
+      - list
+      - watch
+    - apiGroup: tensorboard.kubeflow.org
+      resources:
+      - tensorboards
+      - tensorboards/finalizers
+      verbs:
+      - get
+      - list
+    - apiGroup: '*'
+      resources:
+      - persistentvolumeclaims
+      verbs:
+      - get
+      - list
+      - watch
+    rules:
+    - functionResourceRef: aml-clusterservingruntimes
+      verbs:
+      - get
+      - list
+      - watch
+kind: List
+metadata:
+  resourceVersion: ""
