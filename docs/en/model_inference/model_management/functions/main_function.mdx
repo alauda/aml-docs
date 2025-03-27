@@ -2,8 +2,8 @@
 weight: 10
 ---
 
-# Function Overview
-The core definition of the model repository function is to provide a Git-based version-controlled storage system for machine learning models, enabling teams to manage model files, track versions, and collaborate across tenants. It leverages **Git LFS** for large file storage and integrates with MLOps workflows to bridge model development and deployment.  
+# Feature Introduction
+The core definition of the model repository feature is to provide a Git-based version-controlled storage system for machine learning models, enabling teams to manage model files, track versions, and collaborate across tenants. It leverages **Git LFS** for large file storage and integrates with MLOps workflows to bridge model development and deployment.  
 
 ## Advantages
 1. **Git-native Version Control**  
@@ -36,13 +36,13 @@ The core definition of the model repository function is to provide a Git-based v
   - Eliminate redundant storage by reusing shared models (e.g., public BERT weights).  
 
 
-## Main Functions
+## Main Features
 
-**Function 1: Model Repository Creation & Deletion**  
+**Model Repository Creation & Deletion**  
 - Create an empty Git-backed repository with metadata (name/description/visibility).  
 - Delete models after dependency checks (e.g., ensure no active inference services).  
 
-**Function 2: File Management**  
+**File Management**  
 - **Web UI Upload**  
   - Drag-and-drop files/folders (limited to small/medium sizes).  
 - **CLI/Git LFS**  
@@ -54,7 +54,7 @@ The core definition of the model repository function is to provide a Git-based v
     cp ~/local_model/* . && git add . && git commit -m "v1.0" && git push
     ```
 
-**Function 3: Version Control**  
+**Version Control**  
 - **Branching**  
   - Maintain parallel versions (e.g., `experimental` vs `main` branches).  
 - **Tagging**  
@@ -62,13 +62,13 @@ The core definition of the model repository function is to provide a Git-based v
 - **Metadata Sync**  
   - Auto-read `README.md` from the default branch for model descriptions.  
 
-**Function 4: Cross-Tenant Sharing**  
+**Cross-Tenant Sharing**  
 - **Shared Models**  
   - Set visibility to "Shared" during creation for inter-tenant access.  
 - **Public Marketplace**  
   - Use `public` namespace to publish open-source models (e.g., HuggingFace conversions).  
 
-**Function 5: Integration with MLOps**  
+**Integration with MLOps**  
 - **Deployment Ready**  
   - One-click inference service launch from tagged model versions.  
 - **Notebook Integration**  
