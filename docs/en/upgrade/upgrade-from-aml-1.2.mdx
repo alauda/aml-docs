@@ -36,6 +36,8 @@ Execute following script in destination cluster:
 
 ```bash title="migrate-profile-resources.sh"
 #!/bin/bash
+BASE_DOMAIN=$(kubectl -n kube-public get cm  global-info -o jsonpath='{.data.labelBaseDomain}' | sed 's/"//g')
+CLUSTER_NAME=$(kubectl -n kube-public get cm  global-info -o jsonpath='{.data.clusterName}' | sed 's/"//g')
 
 profiles=$(kubectl get profiles.kubeflow.org -o jsonpath='{.items[*].metadata.name}')
 
@@ -60,6 +62,8 @@ apiVersion: manage.aml.dev/v1alpha1
 kind: AmlNamespace
 metadata:
   name: $profile
+  labels:
+    $BASE_DOMAIN/cluster: $CLUSTER_NAME
 spec:
   config: {}
 EOF
