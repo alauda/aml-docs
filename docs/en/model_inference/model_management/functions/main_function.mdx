@@ -1,0 +1,152 @@
+---
+weight: 10
+---
+
+# Feature Introduction
+The core definition of the model repository feature is to provide a Git-based version-controlled storage system for machine learning models, enabling teams to manage model files, track versions, and collaborate across tenants. It leverages **Git LFS** for large file storage and integrates with MLOps workflows to bridge model development and deployment.  
+
+## Advantages
+1. **Git-native Version Control**  
+   - Track model changes via commits/branches/tags, ensuring reproducibility.  
+2. **High-Speed Transfers**  
+   - CLI/Notebook uploads leverage internal network bandwidth (e.g., AML Notebooks同机房加速).  
+3. **Cross-Tenant Sharing**  
+   - Shared models can be accessed across namespaces (e.g., `public` as a model marketplace).  
+4. **Seamless Integration**  
+   - Directly deploy models from the repository to inference services.  
+
+
+## Applicable Scenarios 
+- **Team Collaboration**  
+  - Multiple data scientists concurrently update and version models in the same repository.  
+- **Model Auditing**  
+  - Trace historical versions via Git commits/tags for compliance.  
+- **Centralized Asset Management**  
+  - Organize private/shared models in a unified hub with metadata (e.g., tags/descriptions).  
+
+
+## Value Brought
+- **Reproducibility**  
+  - Pin model versions via tags (e.g., `production/v1.2`) to avoid training-serving skew.  
+- **Efficiency**  
+  - CLI uploads bypass browser limitations for large files (>10GB).  
+- **Security**  
+  - Tenant isolation via GitLab credentials prevents unauthorized access.  
+- **Cost Reduction**  
+  - Eliminate redundant storage by reusing shared models (e.g., public BERT weights).  
+
+
+## Main Features
+
+**Model Repository Creation & Deletion**  
+- Create an empty Git-backed repository with metadata (name/description/visibility).  
+- Delete models after dependency checks (e.g., ensure no active inference services).  
+
+**File Management**  
+- **Web UI Upload**  
+  - Drag-and-drop files/folders (limited to small/medium sizes).  
+- **CLI/Git LFS**  
+  - Use `git lfs track` for large files (e.g., `*.bin`, `*.h5`).  
+  - Example:  
+    ```bash
+    git clone <model_repo_url>
+    git lfs install
+    cp ~/local_model/* . && git add . && git commit -m "v1.0" && git push
+    ```
+
+**Version Control**  
+- **Branching**  
+  - Maintain parallel versions (e.g., `experimental` vs `main` branches).  
+- **Tagging**  
+  - Mark releases via UI/CLI (e.g., `git tag -a v2.0 -m "Stable release"`).  
+- **Metadata Sync**  
+  - Auto-read `README.md` from the default branch for model descriptions.  
+
+**Cross-Tenant Sharing**  
+- **Shared Models**  
+  - Set visibility to "Shared" during creation for inter-tenant access.  
+- **Public Marketplace**  
+  - Use `public` namespace to publish open-source models (e.g., HuggingFace conversions).  
+
+**Integration with MLOps**  
+- **Deployment Ready**  
+  - One-click inference service launch from tagged model versions.  
+- **Notebook Integration**  
+  - Pull models directly into AML Notebooks for testing:  
+    ```bash
+    !git clone https://aml-public/resnet50.git
+    ```  
+
+
+## Technical Notes
+- **Git LFS Requirement**  
+  - Must include `.gitattributes` to specify LFS-tracked files (e.g., `*.zip filter=lfs diff=lfs merge=lfs`).  
+- **Default Branch Rules**  
+  - Misconfigured `README.md` metadata may block inference deployment.  
+
+
+
+
+
+
+## Create Model Repository
+
+<Steps>
+
+### Step 1
+
+
+| Parameters   | Description                          |
+| :----- | :--------------------------------- |
+| Name | Required, Model Repository Name. |
+| Labels | Custom tags for categorization and search. (e.g., "CV", "NLP", "production") |
+| Description | Detailed explanation of the repository's purpose, model type, or usage guidelines. |
+
+### Step 2
+
+`Create` an empty Repository.
+
+### Step 3 
+
+Upload Model Files
+
+You may upload model files through either of the following methods:
+
+Option 1: Web UI Upload
+- Use the File Management interface to upload files
+- Drag and drop files/folders into the designated area
+- Supported formats: All model file types (.h5, .bin, .pt, etc.)
+- Progress tracking with real-time upload status
+
+Option 2: Git Command Line Upload
+1. Get Repository Address:
+- Navigate to Detail Info → Basic Info
+- Copy the Git repository URL (e.g., https://\<your-domain\>/\<namespace\>/\<repo-name\>.git)
+
+2. Upload via Git:
+
+```bash
+
+# Clone the repository
+git clone <repository-url>
+
+# Navigate to repo directory
+cd <repo-name>
+
+# Initialize Git LFS (if not already set up)
+git lfs install
+
+# Add model files (replace with your actual files)
+cp -r /path/to/your/model/files/* .
+
+# Configure LFS tracking (for large files)
+git lfs track "*.h5" "*.bin" "*.pt"
+
+# Commit and push
+git add .
+git commit -m "Add model files v1.0"
+git push origin main
+
+```
+
+</Steps>
