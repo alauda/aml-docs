@@ -2,31 +2,52 @@
 weight: 10
 ---
 
-:::tip
+# Introduction
 
-Explore the key features of the Monitoring & Ops module designed for Inference Services. This overview introduces core capabilities to help users efficiently monitor, analyze, and optimize AI service operations.
+## Monitoring & Ops Introduction
 
-:::
+Monitoring & Ops is a core module of the Alauda AI platform designed specifically for AI inference service operations. It provides comprehensive observability and operational capabilities across the full lifecycle of inference services, enabling unified management of logs and multi-dimensional metrics through integrated monitoring dashboards. As a critical component of Alauda's MLOps/LLMOps/GenOps solutions, it empowers teams to ensure service reliability, optimize resource utilization, and accelerate incident response.
 
-# Features Overview
+This module focuses on two key operational aspects:
+- **Logging**: Real-time streaming of inference service replica pod logs
+- **Monitor**: Multi-dimensional performance dashboards covering infrastructure, GPU resources, and API traffic
 
-## Logging
+## Advantages
 
-- **Realtime Pod Logs**  
-  Stream logs from Replica pods associated with inference services in real time. Debug issues instantly and track service behavior across deployments.
+The core advantages of Monitoring & Ops are:
 
-## Monitoring
+- **Real-Time Log Streaming**
+  - Provides instant access to pod-level logs from inference service replicas
+  - Enables rapid debugging and traceability of service requests
 
-### Resource Monitor
-- **CPU/Memory Utilization**  
-  Track CPU and memory usage metrics for inference services to optimize resource allocation and prevent bottlenecks.
+- **Multi-Dimensional Monitoring**
+  - **Resource Monitor**: Tracks CPU/Memory usage for infrastructure health assessment
+  - **Computing Monitor**: Monitors GPU utilization and VRAM allocation for accelerated computing
+  - **Other Monitor**: Measures API-level metrics including Token consumption and Request throughput
 
-### Computing Monitor
-- **GPU Metrics & VRAM**  
-  Monitor GPU compute utilization and video memory (VRAM) consumption to ensure efficient hardware usage for accelerated workloads.
+- **Unified Operations View**
+  - Aggregates critical operational data across physical resources, GPU clusters, and service endpoints
+  - Delivers correlated insights through purpose-built dashboards for AI workloads
 
-### Other Monitor
-- **Token Throughput**  
-  Measure token processing rates to evaluate model performance and scalability.  
-- **Request Traffic Analytics**  
-  Analyze request volume, latency, and track successful/failed requests per second (QPS) to maintain service reliability and meet SLAs.
+- **MLOps Ecosystem Integration**
+  - Seamlessly connects with Alauda's model management and deployment pipelines
+
+## Application Scenarios
+
+Monitoring & Ops is essential for:
+
+- **Production Model Operations**
+  - Monitor real-time performance of deployed AI models
+  - Track GPU utilization efficiency during high-concurrency inference
+
+- **Resource Optimization**
+  - Identify underutilized resources through historical metrics analysis
+  - Right-size deployments based on CPU/Memory/GPU usage patterns
+
+- **Performance Benchmarking**
+  - Compare token processing rates across model versions
+  - Analyze request latency distributions under different loads
+
+- **Incident Investigation**
+  - Correlate error logs with resource saturation events
+  - Diagnose OOM issues through memory usage timelines
