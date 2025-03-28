@@ -4,30 +4,29 @@ weight: 20
 
 :::tip
 
-将父模块下的所有功能模块进行罗列和简单介绍，方便用户快速了解该模块下的所有功能。
-
-可以访问 [功能总览示例](https://product-doc-guide.alauda.cn/template/features_overview/example.html) 查看对应文档的示例。
+Explore the key features of the Monitoring & Ops module designed for Inference Services. This overview introduces core capabilities to help users efficiently monitor, analyze, and optimize AI service operations.
 
 :::
 
-# 功能总览
+# Features Overview
 
-## 功能类别1
+## Logging
 
-- 功能1
+- **Realtime Pod Logs**  
+  Stream logs from Replica pods associated with inference services in real time. Debug issues instantly and track service behavior across deployments.
 
-  功能1的简单介绍。
+## Monitoring
 
-- 功能2
+### Resource Monitor
+- **CPU/Memory Utilization**  
+  Track CPU and memory usage metrics for inference services to optimize resource allocation and prevent bottlenecks.
 
-  功能2的简单介绍。
+### Computing Monitor
+- **GPU Metrics & VRAM**  
+  Monitor GPU compute utilization and video memory (VRAM) consumption to ensure efficient hardware usage for accelerated workloads.
 
-## 功能类别2
-
-- 功能1
-
-  功能1的简单介绍。
-
-- 功能2
-
-  功能2的简单介绍。
+### Other Monitor
+- **Token Throughput**  
+  Measure token processing rates to evaluate model performance and scalability.  
+- **Request Traffic Analytics**  
+  Analyze request volume, latency, and track successful/failed requests per second (QPS) to maintain service reliability and meet SLAs.
