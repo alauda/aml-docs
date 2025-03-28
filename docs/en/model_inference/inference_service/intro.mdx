@@ -6,6 +6,10 @@ weight: 10
 
 The Inference Service is a core feature of the Alauda AI platform, dedicated to efficiently deploying LLM models as online inference services, supporting various invocation methods such as HTTP API and gRPC. Through the Inference Service, users can rapidly build LLM applications and provide stable, high-performance LLM capabilities externally.
 
+<Directive type="warning">
+Running the built-in runtime in the container requires root privileges. Please ensure it is used in a trusted environment and follow your security policies.
+</Directive>
+
 ## Core Advantages
 
 * **Rapid Model Deployment:**
@@ -28,3 +32,4 @@ The Inference Service is a core feature of the Alauda AI platform, dedicated to 
     * Supports batch inference, performing inference calculations on large datasets.
 * **Application Integration:**
     * Integrating LLM capabilities into existing applications through APIs.
+
