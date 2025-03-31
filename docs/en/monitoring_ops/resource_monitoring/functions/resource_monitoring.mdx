@@ -1,0 +1,72 @@
+---
+weight: 10
+---
+
+# Resource Monitoring
+
+## Function Overview
+
+Resource Monitoring in Alauda AI's Monitoring & Ops module provides real-time insights into the CPU, memory, GPU, token usage, and request metrics of your inference services. This feature helps you identify performance bottlenecks, optimize resource allocation, and ensure stable service operations. It is particularly useful for scenarios such as:
+
+- **Performance tuning**: Diagnose high resource usage and adjust resource limits.
+- **Anomaly detection**: Monitor sudden spikes in resource consumption and request patterns.
+- **Capacity planning**: Analyze historical trends to scale resources efficiently.
+- **Cost optimization**: Track token usage and GPU utilization for budget management.
+
+## Main Features
+
+- **CPU Monitoring**:
+  - CPU Usage: Displays absolute CPU usage (e.g., cores used).
+  - CPU Utilization: Shows CPU usage as a percentage of allocated resources.
+- **Memory Monitoring**:
+  - Memory Usage: Tracks actual memory consumption (e.g., in GB).
+  - Memory Utilization: Displays memory usage as a percentage of allocated resources.
+- **Time Range Selection**: Analyze metrics over customizable periods (from 30 minutes to 7 days).
+
+## Accessing Resource Monitoring
+
+<Steps>
+  ### Step 1: Navigate to Inference Service Details
+  1. Go to **Inference Services** in the left navigation pane.
+  2. Click the target Inference Service name to open its details page.
+
+  ### Step 2: Open Monitoring Dashboard
+  1. Select the **Monitor** tab.
+  2. Ensure the **Resource Monitor** section is expanded (default view).
+
+  ### Step 3: Select Time Range
+  Use the time picker in the top-right corner to choose a predefined or custom range:
+  
+  | Preset Options         | Custom Range        |
+  |------------------------|---------------------|
+  | Last 30 minutes        | Start/End datetime  |
+  | Last 1 hour            |                     |
+  | Last 6 hours           |                     |
+  | Last 24 hours          |                     |
+  | Last 2 days            |                     |
+  | Last 7 days            |                     |
+</Steps>
+
+## Monitoring Metrics
+
+### CPU Usage
+- **Description**: Shows actual CPU cores consumed by the service.
+- **Data Format**: `cores` (float)
+- **Alert Threshold**: Configure alerts when usage approaches allocated CPU limits.
+
+### CPU Utilization
+- **Description**: Percentage of allocated CPU resources being used.
+- **Calculation**: `(Used Cores / Allocated Cores) × 100%`
+- **Interpretation**:
+  - Sustained >90%: Consider scaling CPU allocation
+  - \<20%: Potential over-provisioning
+
+### Memory Usage
+- **Description**: Physical memory consumed by the service.
+- **Data Format**: `GiB` or `MiB` (configurable via dashboard unit selector)
+- **Critical Note**: Kubernetes OOM kills occur when usage exceeds allocated memory.
+
+### Memory Utilization
+- **Description**: Percentage of allocated memory resources being used.
+- **Calculation**: `(Used Memory / Allocated Memory) × 100%`
+- **Optimal Range**: 40-80% utilization for buffer during traffic spikes.
