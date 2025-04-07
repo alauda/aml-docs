@@ -2,23 +2,33 @@
 weight: 10
 ---
 
+# Namespace Management
+
 The tenants supported by AML are K8s namespaces, which need to be managed in **Namespace Management** before they can be used as tenants of AML.
 
 The steps to create a namespace and add users to this namespace are as follows:
 
 1. Log in to the ACP platform as an administrator
-1. Create a namespace
+2. Create a namespace
     1. Enter ACP **Project Management**
-    1. Create or select an existing project, and then click to enter the current project details page.
-    1. Click **Namespace** > **Namespace**
-    1. Click **Create Namespace**
-1. Assign namespace permissions to users
+    2. Create or select an existing project, and then click to enter the current project details page.
+    3. Click **Namespace** > **Namespace**
+    4. Click **Create Namespace**
+    5. In **Create Namespace** page, under **Pod Security Policies** section, select **privileged** as security standard for all three `enforce`, `audit` and `warn` security modes.
+
+        :::warning
+
+        Security standard should be either blank or **privileged**, otherwise AI Inference workload may refuse to run.
+
+        :::
+
+3. Assign namespace permissions to users
     1. Enter ACP **Platform Management**
-    1. Select **User Role Management** > **User Management** from the navigation
-    1. Create a new user or select the user to be added to this namespace
-    1. Click the **Configure Role** tab and click the **Add Role** button
-    1. Configure AML-related roles for the user and select the previously created namespace
+    2. Select **User Role Management** > **User Management** from the navigation
+    3. Create a new user or select the user to be added to this namespace
+    4. Click the **Configure Role** tab and click the **Add Role** button
+    5. Configure AML-related roles for the user and select the previously created namespace
         - Editor: Users can create and delete workloads in the namespace and use resource quotas such as CPU and GPU to complete work
         - Owner: Users have the permission to manage this AML namespace
         - Viewer: Users can only view the resources of the namespace and cannot create or delete workloads
-1. Return to AML, click **Manage Namespace** in **Platform Management** > **Namespace Management**, and select the previously created namespace to complete the management
+4. Return to AML, click **Manage Namespace** in **Platform Management** > **Namespace Management**, and select the previously created namespace to complete the management
