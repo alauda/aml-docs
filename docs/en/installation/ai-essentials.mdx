@@ -20,7 +20,7 @@ We need to upload the Alauda AI Essentials cluster plugin to ACP **global** clus
 
 ### Procedure
 
-<Steps>
+<Procedure>
 
 ### Downloading the violet tool
 
@@ -43,8 +43,8 @@ Then, run the following command to upload the **Alauda AI Essentials** cluster p
 violet push \
     ${PKG_NAME} \
     --platform-address=${PLATFORM_ADDRESS} \
-    --platform-username=${PLATFORM_ADMIN_USER} \
-    --platform-password=${PLATFORM_ADMIN_PASSWORD} \
+    --platform-username=${PLATFORM_ADMINISTRATOR_USER} \
+    --platform-password=${PLATFORM_ADMINISTRATOR_PASSWORD} \
     --clusters=global
 ```
 
@@ -53,12 +53,12 @@ violet push \
 1. Execute `violet push` to upload cluster plugin.
 2. `${PKG_NAME}` is the name of the **Alauda AI Essentials** cluster plugin tarball.
 3. `${PLATFORM_ADDRESS}` is your ACP platform address.
-4. `${PLATFORM_ADMIN_USER}` is the username of the ACP platform admin.
-5. `${PLATFORM_ADMIN_PASSWORD}` is the password of the ACP platform admin.
+4. `${PLATFORM_ADMINISTRATOR_USER}` is the username of the ACP platform administrator.
+5. `${PLATFORM_ADMINISTRATOR_PASSWORD}` is the password of the ACP platform administrator.
 
 </Callouts>
 
-</Steps>
+</Procedure>
 
 ## Installing
 
