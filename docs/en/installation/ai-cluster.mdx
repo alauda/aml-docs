@@ -21,7 +21,7 @@ Please contact Consumer Support for more information.
 
 We need to upload both `Alauda AI Cluster` and `KServeless` to the destination cluster.
 
-<Steps>
+<Procedure>
 
 ### Downloading the violet tool
 
@@ -42,8 +42,8 @@ Save the following script in `uploading-ai-cluster-packages.sh` first, then read
 ```bash title=uploading-ai-cluster-packages.sh
 #!/usr/bin/env bash
 export PLATFORM_ADDRESS=https://platform-address  # [!code callout]
-export PLATFORM_ADMIN_USER=<admin>  # [!code callout]
-export PLATFORM_ADMIN_PASSWORD=<admin-password>  # [!code callout]
+export PLATFORM_ADMINISTRATOR_USER=<administrator>  # [!code callout]
+export PLATFORM_ADMINISTRATOR_PASSWORD=<administrator-password>  # [!code callout]
 export CLUSTER=<cluster-name>  # [!code callout]
 
 export AI_CLUSTER_OPERATOR_NAME=<path-to-aml-operator-tarball>  # [!code callout]
@@ -72,8 +72,8 @@ fi
 violet push \
     ${AI_CLUSTER_OPERATOR_NAME} \
     --platform-address=${PLATFORM_ADDRESS} \
-    --platform-username=${PLATFORM_ADMIN_USER} \
-    --platform-password=${PLATFORM_ADMIN_PASSWORD} \
+    --platform-username=${PLATFORM_ADMINISTRATOR_USER} \
+    --platform-password=${PLATFORM_ADMINISTRATOR_PASSWORD} \
     --clusters=${CLUSTER} \
     ${VIOLET_EXTRA_ARGS[@]}
 
@@ -82,8 +82,8 @@ violet push \
 violet push \
     ${KSERVELESS_OPERATOR_PKG_NAME} \
     --platform-address=${PLATFORM_ADDRESS} \
-    --platform-username=${PLATFORM_ADMIN_USER} \
-    --platform-password=${PLATFORM_ADMIN_PASSWORD} \
+    --platform-username=${PLATFORM_ADMINISTRATOR_USER} \
+    --platform-password=${PLATFORM_ADMINISTRATOR_PASSWORD} \
     --clusters=${CLUSTER} \
     ${VIOLET_EXTRA_ARGS[@]}
 ```
@@ -91,8 +91,8 @@ violet push \
 <Callouts>
 
 1. `${PLATFORM_ADDRESS}` is your ACP platform address.
-2. `${PLATFORM_ADMIN_USER}` is the username of the ACP platform admin.
-3. `${PLATFORM_ADMIN_PASSWORD}` is the password of the ACP platform admin.
+2. `${PLATFORM_ADMINISTRATOR_USER}` is the username of the ACP platform administrator.
+3. `${PLATFORM_ADMINISTRATOR_PASSWORD}` is the password of the ACP platform administrator.
 4. `${CLUSTER}` is the name of the cluster to install the Alauda AI components into.
 5. `${AI_CLUSTER_OPERATOR_NAME}` is the path to the Alauda AI Cluster Operator package tarball.
 6. `${KSERVELESS_OPERATOR_PKG_NAME}` is the path to the KServeless Operator package tarball.
@@ -104,18 +104,18 @@ violet push \
 
 After configuration, execute the script file using `bash ./uploading-ai-cluster-packages.sh` to upload both `Alauda AI Cluster` and `KServeless` operator packages to the destination cluster.
 
-</Steps>
+</Procedure>
 
 ## Install the Alauda AI Cluster Operator
 
-<Steps>
+<Procedure>
 
 ### Procedure
 
 In **Platform Management** of ACP console:
 
 1. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install the Alauda AI Cluster Operator.
-2. Click **Marketplace / Operator Hub**.
+2. Click **Marketplace / OperatorHub**.
 3. Select **Alauda AI Cluster**, then click **Install**.
 
     **Install Alauda AI Cluster** window will popup.
@@ -134,7 +134,7 @@ Confirm that the **Alauda AI Cluster** tile shows one of the following states:
 - `Installing`: installation is in progress; wait for this to change to `Installed`.
 - `Installed`: installation is complete.
 
-</Steps>
+</Procedure>
 
 ## Creating Alauda AI Cluster Instance
 
@@ -145,7 +145,7 @@ Once Alauda AI Cluster Operator is installed, you can create an Alauda AI Cluste
 In **Platform Management** of ACP console:
 
 1. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install the Alauda AI Cluster Operator.
-2. Click **Marketplace / Operator Hub**.
+2. Click **Marketplace / OperatorHub**.
 3. Select **Alauda AI Cluster**, then **Click**.
 4. In the **Alauda AI Cluster** page, click **All Instances** from the tab.
 5. Click **Create Instance**.
@@ -157,7 +157,7 @@ In **Platform Management** of ACP console:
     **Create AmlCluster** form will show up.
 
 7. Keep `default` unchanged for **Name**.
-8. Select **Deploy Flavor** from dropdown:
+8. Select **Install Flavor** from dropdown:
    1. `single-node` for non HA deployments.
    2. `ha-cluster` for HA cluster deployments (**Recommended** for production).
 9.  Select **Managed** for **Knative Serving Mode**.
@@ -183,8 +183,8 @@ In **Platform Management** of ACP console:
 
 12. Under **Gitlab** section:
     1.  Type the URL of self-hosted Gitlab for **Base URL**.
-    2.  Type `cpaas-system` fro **Admin Token Secret Namespace**.
-    3.  Type `aml-gitlab-admin-token` for **Admin Token Secret Name**.
+    2.  Type `cpaas-system` fro **Administrator Token Secret Namespace**.
+    3.  Type `aml-gitlab-administrator-token` for **Administrator Token Secret Name**.
 13. Under **MySQL** section:
     1.  Type the *address* of MySQL instance in the **Host** field.
     2.  Type the *port* for MySQL instance in **Port** field (Default: `3306`).
