@@ -26,7 +26,7 @@ Please ensure `aml-operator` pod is up and running in`aml-operator` namespace be
 kubectl -naml-operator get pod
 ```
 
-<Steps>
+<Procedure>
 ### Migrate profile resources
 
 Since **Alauda AI** `1.3` has removed the use of `Profile` from `kubeflow.org` and introduced a new
@@ -126,7 +126,7 @@ kubectl patch crd domainmappings.serving.knative.dev --type='json' -p='[
   {"op": "replace", "path": "/spec/versions/1/storage", "value": false}
 ]'
 
-kubectl exec -naml-operator -it deploy/aml-operator -- /app/storageversion-migrate \
+kubectl exec -naml-operator -it install/aml-operator -- /app/storageversion-migrate \
   domainmappings.serving.knative.dev
 ```
 
@@ -194,9 +194,9 @@ helm get values aml -nkubeflow -oyaml | tee /tmp/aml-values.yaml
 
 Please keep the generated `/tmp/aml-values.yaml` file during upgrading.
 
-### Creating GitLab Admin Token Secret
+### Creating GitLab Administrator Token Secret
 
-We need to create a secret for GitLab admin token, which is required to run **Alauda AI Cluster**.
+We need to create a secret for GitLab administrator token, which is required to run **Alauda AI Cluster**.
 
 Please follow instructions described in [Pre-Configuration](../installation//pre-configuration.mdx#gitlab-configuration).
 
@@ -218,7 +218,7 @@ kubectl create secret generic aml-mysql-secret \
 <Callouts>
 
 1. Retrieve the MySQL password from previous **AML** `1.2` installed secret resource.
-2. Create a MySQL admin token secret named **aml-mysql-secret**.
+2. Create a MySQL administrator token secret named **aml-mysql-secret**.
 3. The password is saved under **password** key.
 4. The secret is created under **cpaas-system** namespace.
 
@@ -241,8 +241,8 @@ spec:
       # single-node or ha-cluster
       deployFlavor: single-node
       gitlabBaseUrl: "${GITLAB_BASE_URL}"
-      gitlabAdminTokenSecretRef:  # [!code callout]
-        name: aml-gitlab-admin-token
+      gitlabAdministratorTokenSecretRef:  # [!code callout]
+        name: aml-gitlab-administrator-token
         namespace: cpaas-system
       mysql:
         host: "${MYSQL_HOST}"
@@ -269,7 +269,7 @@ spec:
 
 <Callouts>
 
-1. The `name` and `namespace` of GitLab admin token secret created previously.
+1. The `name` and `namespace` of GitLab administrator token secret created previously.
 2. The `name` and `namespace` of MySQL secret created previously.
 3. Set the management state of `kserve` to `Managed`, which means the `KServe` will be installed and managed by **Alauda AI Cluster**.
 4. Set the management state of `knativeServing` to `Managed`, which means the `Knative Serving` will be installed and managed by **Alauda AI Cluster**.
@@ -306,7 +306,7 @@ yq '((.. | select(tag == "!!str")) |= envsubst) | (.spec.values.global.mysql.por
 
 </Callouts>
 
-</Steps>
+</Procedure>
 
 ## Verification
 
