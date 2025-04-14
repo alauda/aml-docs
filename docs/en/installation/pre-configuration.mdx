@@ -12,13 +12,13 @@ If GitLab is running `v17.0` or greater, we need to **disable** expiration dates
 
 :::warning
 
-If expiration date for access token keeps enabled, we have to refresh administrator token manually at least yearly, or Alauda AI may stop functionally.
+If expiration date for access token keeps enabled, we have to refresh admin token manually at least yearly, or Alauda AI may stop functionally.
 
 :::
 
 To **disable** expiration dates for new access tokens:
 
-1. On the left sidebar, at the bottom, select **Administrator**.
+1. On the left sidebar, at the bottom, select **Admin**.
 2. Select **Settings > General**.
 3. Expand **Account and limit**.
 4. **Uncheck** the **Personal / Project / Group access token expiration** checkbox.
@@ -26,11 +26,11 @@ To **disable** expiration dates for new access tokens:
 
 ### Generate new token
 
-To **generate** impersonation token for administrator:
+To **generate** impersonation token for admin:
 
-1. On the left sidebar, at the bottom, select **Administrator**.
+1. On the left sidebar, at the bottom, select **Admin**.
 2. Select **Overview > Users**.
-3. Select the administrator user (Administrator for example).
+3. Select the admin user (Administrator for example).
 4. On the top navigation bar, select **Impersonation Tokens**.
 5. Select **Add new token**.
 6. In the popup form:
@@ -46,22 +46,22 @@ Make sure you save the newly generate token - you won't be able to access it aga
 
 :::
 
-### Create kubernetes secret for administrator token
+### Create kubernetes secret for admin token
 
-Then we create secret for gitlab administrator token named **aml-gitlab-administrator-token** under **cpaas-system** namespace:
+Then we create secret for gitlab admin token named **aml-gitlab-admin-token** under **cpaas-system** namespace:
 
 ```bash
 # [!code highlight]
 # Please replace ${TOKEN} with real token saved previously
 # [!code callout:3]
-kubectl create secret generic aml-gitlab-administrator-token \
+kubectl create secret generic aml-gitlab-admin-token \
   --from-literal="password=${TOKEN}" \
   -n cpaas-system
 ```
 
 <Callouts>
 
-1. Create a gitlab administrator token secret named **aml-gitlab-administrator-token**
+1. Create a gitlab admin token secret named **aml-gitlab-admin-token**
 2. The token is saved under **password** key, please replace `${TOKEN}` with the real token saved previously.
 3. The secret is created under **cpaas-system** namespace.
 
