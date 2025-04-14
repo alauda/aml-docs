@@ -421,7 +421,7 @@ spec:
                         description: 后台 git push 使用的 email，仅在 git log 存储
                         type: string
                       gitlabAdminTokenSecretRef:
-                        description: Gitlab Administrator 密钥地址
+                        description: Gitlab Admin 密钥地址
                         properties:
                           name:
                             description: Name is the name of resource being referenced
@@ -497,7 +497,7 @@ spec:
                             type: string
                         type: object
                     required:
-                    - gitlabAdministratorTokenSecretRef
+                    - gitlabAdminTokenSecretRef
                     - gitlabBaseUrl
                     type: object
                   mysql:
