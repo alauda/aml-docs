@@ -4,7 +4,7 @@ weight: 10
 
 # Feature Introduction
 
-The core definition of the inference service feature is to install trained machine learning or deep learning models as online callable services, using protocols such as HTTP API or gRPC, enabling applications to use the model's prediction, classification, generation, and other features in real-time or in batches. This feature mainly addresses how to efficiently, stably, and conveniently install models to production environments after model training is completed, and provide scalable online services.
+The core definition of the inference service feature is to deploy trained machine learning or deep learning models as online callable services, using protocols such as HTTP API or gRPC, enabling applications to use the model's prediction, classification, generation, and other features in real-time or in batches. This feature mainly addresses how to efficiently, stably, and conveniently deploy models to production environments after model training is completed, and provide scalable online services.
 
 ## Advantages
 
@@ -33,11 +33,11 @@ The core definition of the inference service feature is to install trained machi
 
 **Direct Model Deployment for Inference Services**
 
-* Allows users to directly select specific versions of model files from the model repository and specify the inference runtime image to quickly install online inference services. The system automatically downloads, caches, and loads the model, starting the inference service. This simplifies the model deployment process and lowers the deployment threshold.
+* Allows users to directly select specific versions of model files from the model repository and specify the inference runtime image to quickly deploy online inference services. The system automatically downloads, caches, and loads the model, starting the inference service. This simplifies the model deployment process and lowers the deployment threshold.
 
 **Custom Image Deployment for Inference Services**
 
-* Supports users in writing Dockerfiles to package models and their dependencies into custom images, and then install inference services through standard Kubernetes Deployments. This approach provides greater flexibility, allowing users to customize the inference environment according to their needs.
+* Supports users in writing Dockerfiles to package models and their dependencies into custom images, and then deploy inference services through standard Kubernetes Deployments. This approach provides greater flexibility, allowing users to customize the inference environment according to their needs.
 
 **Batch Operation of Inference Services**
 
@@ -99,7 +99,7 @@ The core definition of the inference service feature is to install trained machi
 
 ## Create inference service
 
-<Procedure>
+<Steps>
 
 ### Step 1
 **Choose Custom publishing**
@@ -136,12 +136,12 @@ Custom publishing inference service requires manual setting of parameters. You c
 ### Step 3
 Click the **Publish** button to create an inference service. 
 
-</Procedure>
+</Steps>
 
 
 ## Experience
 
-<Procedure>
+<Steps>
 
 ### Step 1
 From the **Inference API** services list, click the name of any **Running** service to view its details.
@@ -160,7 +160,7 @@ Ask a question
 
   Choose parameters according to your task type. Refer to the parameter descriptions below for details.
 
-</Procedure>
+</Steps>
 
 
 **Parameter Descriptions for Different Task Types**
@@ -205,7 +205,7 @@ _Preset Parameters_
 
 | Parameter | Data Type | Description |
 |---|---|---|
-| `num_inference_procedure` | int | The number of denoising procedure. More denoising procedure usually result in higher quality images but slower inference. |
+| `num_inference_steps` | int | The number of denoising steps. More denoising steps usually result in higher quality images but slower inference. |
 | `use_cache` | bool | Whether to use the intermediate results calculated by the model during the generation process. |
 
 _Other Parameters_
