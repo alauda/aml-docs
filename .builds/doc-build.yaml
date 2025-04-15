@@ -85,9 +85,9 @@ spec:
                 memory: 4Gi
             script: |
               # set -x
+              export COREPACK_NPM_REGISTRY=https://edge-nexus.alauda.cn/repository/cnpm
               export YARN_GLOBAL_FOLDER=/workspace/yarn_cache/global
-
-              yarn config set npmRegistryServer https://internal-mirrors.alauda.cn/repository/npm
+              yarn config set npmRegistryServer https://edge-nexus.alauda.cn/repository/cnpm
               yarn --immutable
               git reset --hard
     - name: modify-build-config
@@ -129,7 +129,7 @@ spec:
             workingDir: $(workspaces.source.path)
             env:
               - name: NODE_OPTIONS
-                value: "--max_old_space_size=14336" 
+                value: "--max_old_space_size=14336"
             resources:
               requests:
                 cpu: 2
@@ -139,7 +139,7 @@ spec:
                 memory: 8Gi
             script: |
               # set -x
-              rm -rf dist/container_platform/$(params.branch)
+              rm -rf dist/ai/$(params.branch)
               yarn build-online
     - name: build-offline-docs
       runAfter:
@@ -156,7 +156,7 @@ spec:
             workingDir: $(workspaces.source.path)
             env:
               - name: NODE_OPTIONS
-                value: "--max_old_space_size=14336" 
+                value: "--max_old_space_size=14336"
             resources:
               requests:
                 cpu: 2
@@ -166,7 +166,7 @@ spec:
                 memory: 8Gi
             script: |
               # set -x
-              rm -rf dist/container_platform/unversioned
+              rm -rf dist/ai/unversioned
               yarn build-offline
     - name: export-docs
       runAfter:
@@ -189,7 +189,7 @@ spec:
             workingDir: $(workspaces.source.path)
             env:
               - name: NODE_OPTIONS
-                value: "--max_old_space_size=14336" 
+                value: "--max_old_space_size=14336"
             resources:
               requests:
                 cpu: 2
