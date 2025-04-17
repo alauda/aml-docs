@@ -5,9 +5,9 @@ __metadata:
   version: 8
   cacheKey: 10c0
 
-"@alauda/doom@npm:^0.19.4":
-  version: 0.19.4
-  resolution: "@alauda/doom@npm:0.19.4"
+"@alauda/doom@npm:^0.19.5":
+  version: 0.19.5
+  resolution: "@alauda/doom@npm:0.19.5"
   dependencies:
     "@inquirer/prompts": "npm:^7.4.1"
     "@openapi-contrib/openapi-schema-to-json-schema": "npm:^5.1.0"
@@ -45,7 +45,7 @@ __metadata:
     yoctocolors: "npm:^2.1.1"
   bin:
     doom: lib/cli/index.js
-  checksum: 10c0/755101e5454175f09f417d701b2970b5505fa1a843c3b572df78d9a69f8d24b4df14bf497b63288178731f2171635c062122f412049f4f170b7aba79cdf6cce5
+  checksum: 10c0/9c41783594c7ec567340fa0b6de2e7afe9fb8c989b553e1422ad686919b9e37953bb861880937b19fa9ddb5e4dc7d6e8c47d4bfe29f367f605beb87cf8ce0add
   languageName: node
   linkType: hard
 
@@ -5735,7 +5735,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "root-workspace-0b6124@workspace:."
   dependencies:
-    "@alauda/doom": "npm:^0.19.4"
+    "@alauda/doom": "npm:^0.19.5"
     typescript: "npm:^5.7.3"
   languageName: unknown
   linkType: soft
