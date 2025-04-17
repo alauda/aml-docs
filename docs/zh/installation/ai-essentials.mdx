@@ -1,6 +1,6 @@
 ---
 weight: 20
-sourceSHA: c3aec30473d110694dd0c821b4accdbe45241b3f5e12c307ee3fc7439365156a
+sourceSHA: 6eefd208bb72dc33eb7f18cb8f850e77d89db8ecda141770f132531c54fe4240
 ---
 
 # Alauda AI Essentials 集群插件
@@ -10,14 +10,14 @@ Alauda AI Essentials 集群插件为 Alauda AI 提供了 UI 和 RBAC 资源。
 ## 下载
 
 :::info
-Alauda AI Essentials 集群插件可以从 Alauda 云获取。
+Alauda AI Essentials 集群插件可以从客户门户获取。
 
 如需更多信息，请联系消费者支持。
 :::
 
 ## 上传
 
-我们需要将 Alauda AI Essentials 集群插件上传到 ACP **global** 集群。
+我们需要将 Alauda AI Essentials 集群插件上传到 ACP **全球** 集群。
 
 ### 步骤
 
@@ -36,22 +36,23 @@ Alauda AI Essentials 集群插件可以从 Alauda 云获取。
 
   ### 上传包
 
-  然后，运行以下命令将 **Alauda AI Essentials** 集群插件上传到 ACP global 集群：
+  然后，运行以下命令将 **Alauda AI Essentials** 集群插件上传到 ACP 全球集群：
 
   ```bash
   violet push \
-      ${PKG_NAME} \  # [!code callout]
-      --platform-address=${PLATFORM_ADDRESS} \   # [!code callout]
-      --platform-username=${PLATFORM_ADMIN_USER} \   # [!code callout]
-      --platform-password=${PLATFORM_ADMIN_PASSWORD}   # [!code callout]
+      ${PKG_NAME} \
+      --platform-address=${PLATFORM_ADDRESS} \
+      --platform-username=${PLATFORM_ADMIN_USER} \
+      --platform-password=${PLATFORM_ADMIN_PASSWORD} \
       --clusters=global
   ```
 
   <Callouts>
-    1. `${PKG_NAME}` 是 **Alauda AI Essentials** 集群插件的 tarball 名称。
-    2. `${PLATFORM_ADDRESS}` 是您的 ACP 平台地址。
-    3. `${PLATFORM_ADMIN_USER}` 是 ACP 平台管理员的用户名。
-    4. `${PLATFORM_ADMIN_PASSWORD}` 是 ACP 平台管理员的密码。
+    1. 执行 `violet push` 以上传集群插件。
+    2. `${PKG_NAME}` 是 **Alauda AI Essentials** 集群插件的 tarball 名称。
+    3. `${PLATFORM_ADDRESS}` 是您的 ACP 平台地址。
+    4. `${PLATFORM_ADMIN_USER}` 是 ACP 平台管理员的用户名。
+    5. `${PLATFORM_ADMIN_PASSWORD}` 是 ACP 平台管理员的密码。
   </Callouts>
 </Steps>
 
@@ -61,7 +62,7 @@ Alauda AI Essentials 集群插件可以从 Alauda 云获取。
 
 在 ACP 控制台的 **平台管理** 中：
 
-1. 从控制台顶部的 **集群** 下拉列表中选择 **global** 集群。
+1. 从控制台顶部的 **集群** 下拉列表中选择 **全球** 集群。
 2. 点击 **市场 / 集群插件**。
 3. 找到 **Alauda AI Essentials**。
 4. 点击 **安装**。

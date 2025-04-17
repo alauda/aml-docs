@@ -1,6 +1,6 @@
 ---
 weight: 30
-sourceSHA: 6971f48f8f876ff748c87935cbf0cc4056ce338e0c53e45ecf97659d5b0906df
+sourceSHA: 80857500c51f8eaafc7c1dc1f6d6fb8e9b06b8d817be88f55f7ee1904520eaec
 ---
 
 # Alauda AI 集群组件
@@ -37,32 +37,55 @@ sourceSHA: 6971f48f8f876ff748c87935cbf0cc4056ce338e0c53e45ecf97659d5b0906df
 
   ### 上传包
 
-  然后，运行以下命令将 `Alauda AI 集群` 和 `KServeless` 操作员包上传到目标集群。
+  首先，将以下脚本保存在 `uploading-ai-cluster-packages.sh` 中，然后阅读下面的注释以更新该脚本中的环境变量配置。
 
-  ```bash
+  ```bash title=uploading-ai-cluster-packages.sh
+  #!/usr/bin/env bash
   export PLATFORM_ADDRESS=https://platform-address  # [!code callout]
   export PLATFORM_ADMIN_USER=<admin>  # [!code callout]
   export PLATFORM_ADMIN_PASSWORD=<admin-password>  # [!code callout]
-  export CLUSTER=<cluster-name>  #[!code callout]
+  export CLUSTER=<cluster-name>  # [!code callout]
 
-  export AI_CLUSTER_OPERATOR_NAME=<path to the alauda ai cluster package tarball>  #[!code callout]
-  export KSERVELESS_OPERATOR_PKG_NAME=<path to the kserveless package tarball>  #[!code callout]
+  export AI_CLUSTER_OPERATOR_NAME=<path-to-aml-operator-tarball>  # [!code callout]
+  export KSERVELESS_OPERATOR_PKG_NAME=<path-to-kserveless-operator-tarball>  # [!code callout]
 
+  VIOLET_EXTRA_ARGS=()
+  IS_EXTERNAL_REGISTRY=
+
+  # 如果目标集群的镜像注册表类型不是平台内置（外部私有或公共存储库）。
+  # 需要额外配置（取消注释以下行）：
+  # IS_EXTERNAL_REGISTRY=true
+  if [[ "${IS_EXTERNAL_REGISTRY}" == "true" ]]; then
+      REGISTRY_URL=<external-registry-url>  # [!code callout]
+      REGISTRY_USERNAME=<registry-username>  # [!code callout]
+      REGISTRY_PASSWORD=<registry-password>  # [!code callout]
+
+      VIOLET_EXTRA_ARGS+=(
+          --dst-repo "${REGISTRY_ADDRESS}"
+          --username "${REGISTRY_USERNAME}"
+          --password "${REGISTRY_PASSWORD}"
+      )
+  fi
+
+  # [!code highlight]
   # 将 **Alauda AI 集群** 操作员包推送到目标集群
   violet push \
       ${AI_CLUSTER_OPERATOR_NAME} \
       --platform-address=${PLATFORM_ADDRESS} \
       --platform-username=${PLATFORM_ADMIN_USER} \
       --platform-password=${PLATFORM_ADMIN_PASSWORD} \
-      --clusters=${CLUSTER}
+      --clusters=${CLUSTER} \
+      ${VIOLET_EXTRA_ARGS[@]}
 
+  # [!code highlight]
   # 将 **KServeless** 操作员包推送到目标集群
   violet push \
       ${KSERVELESS_OPERATOR_PKG_NAME} \
       --platform-address=${PLATFORM_ADDRESS} \
       --platform-username=${PLATFORM_ADMIN_USER} \
       --platform-password=${PLATFORM_ADMIN_PASSWORD} \
-      --clusters=${CLUSTER}
+      --clusters=${CLUSTER} \
+      ${VIOLET_EXTRA_ARGS[@]}
   ```
 
   <Callouts>
@@ -72,7 +95,12 @@ sourceSHA: 6971f48f8f876ff748c87935cbf0cc4056ce338e0c53e45ecf97659d5b0906df
     4. `${CLUSTER}` 是要安装 Alauda AI 组件的集群名称。
     5. `${AI_CLUSTER_OPERATOR_NAME}` 是 Alauda AI 集群操作员包 tarball 的路径。
     6. `${KSERVELESS_OPERATOR_PKG_NAME}` 是 KServeless 操作员包 tarball 的路径。
+    7. `${REGISTRY_ADDRESS}` 是外部注册表的地址。
+    8. `${REGISTRY_USERNAME}` 是外部注册表的用户名。
+    9. `${REGISTRY_PASSWORD}` 是外部注册表的密码。
   </Callouts>
+
+  配置完成后，使用命令 `bash ./uploading-ai-cluster-packages.sh` 执行脚本文件，将 `Alauda AI 集群` 和 `KServeless` 操作员包上传到目标集群。
 </Steps>
 
 ## 安装 Alauda AI 集群操作员

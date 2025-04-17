@@ -1,6 +1,6 @@
 ---
 weight: 5
-sourceSHA: 4ca7438fcd143e37804758166e5ae760f0cee0a571ff0509169d917badb55511
+sourceSHA: f9b8e3ec611ccf273a6ae7b55d266e6f53fc84723276a59d7c33c94efb350391
 ---
 
 # 预配置
@@ -9,7 +9,7 @@ sourceSHA: 4ca7438fcd143e37804758166e5ae760f0cee0a571ff0509169d917badb55511
 
 ### 禁用访问令牌的过期日期
 
-如果 GitLab 版本为 v17.0 或更高，我们需要**禁用**访问令牌的过期日期。
+如果 GitLab 版本为 `v17.0` 或更高，我们需要**禁用**访问令牌的过期日期。
 
 :::warning
 
@@ -53,11 +53,9 @@ sourceSHA: 4ca7438fcd143e37804758166e5ae760f0cee0a571ff0509169d917badb55511
 
 ```bash
 # 请将 ${TOKEN} 替换为之前保存的真实令牌
-kubectl \
-  create secret generic \
-  aml-gitlab-admin-token \   # [!code callout]
-  --from-literal="password=${TOKEN}" \   # [!code callout]
-  -n cpaas-system   # [!code callout]
+kubectl create secret generic aml-gitlab-admin-token \
+  --from-literal="password=${TOKEN}" \
+  -n cpaas-system
 ```
 
 <Callouts>
