@@ -271,10 +271,6 @@ kubectl -n aml-operator get pod
     3. 将 `kserve` 的管理状态设为 `Managed`，这意味着 `KServe` 将由 **Alauda AI 集群** 安装和管理。
     4. 将 `knativeServing` 的管理状态设为 `Managed`，这意味着 `Knative Serving` 将由 **Alauda AI 集群** 安装和管理。
     5. 用于暴露推理服务的通配符 `domain`。现在，保持原样。
-
-    :::info
-    `domain` 和 `certificate` 是暴露推理服务所必需的，保留用于将来使用。
-    :::
   </Callouts>
 
   执行以下命令以从 **AML** `1.2` 检索必要的上下文，然后安装 **Alauda AI 集群**：
