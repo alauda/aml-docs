@@ -1,67 +1,102 @@
 ---
 weight: 30
-sourceSHA: 9ce97db2a261169ef8f7488c0d1ba0d3d4d4ceb280feaab4ffb2b6ebecf631e9
 ---
 
-:::tip
+This document aims to help new users quickly understand how to deploy inference services in Alauda AI. By deploying a simple "text generation" inference service and experiencing it, you can quickly grasp the main features and usage methods of the platform.
 
-Use "simple and actionable" examples to allow users to quickly experience key features.
+## Applicable Scenarios
++ You are a new user of Alauda AI and want to quickly understand how to publish a model as a callable inference service.
++ You want to understand the basic functionalities of Alauda AI through a simple example, including uploading a model, publishing an inference service, and invoking an inference service.
++ You have just deployed a new Alauda AI environment and want to quickly verify if it is available.
 
-You can visit the [Quick Start Examples](https://product-doc-guide.alauda.cn/template/quick_start/example.html) to view corresponding document examples.
+## Estimated Reading Time
+It is estimated that completing the reading and operations in this document will take approximately 20 minutes.
 
-:::
+## Notes
+This document only demonstrates the basic process. For detailed parameter configurations, please refer to the complete documentation.
 
-# Quick Start
+## Prerequisites
++ You already have a platform administrator account (used to create and manage namespaces).
++ You have prepared the model file to be deployed (you can download it in advance from websites such as Hugging Face or ModelScope).
++ If you need to use GPU inference, please ensure that the GPU plugin is installed. If not, please install the GPU plugin in the platform management plugin center.
++ You understand the basic concepts of Kubernetes and machine learning models.
 
-Summarize the purpose, audience, and main content of this document in one sentence. For example: This document helps new users quickly understand and utilize the XXX functionality.
+## Step Overview
+| Step | Operation | Description | Notes |
+| --- | --- | --- | --- |
+| 1 | Create Namespace | Create a namespace in the container platform and configure relevant roles for Alauda AI for the user | Skip this step if you already have a namespace and have assigned user permissions |
+| 2 | Manage Namespace | Include the namespace in Alauda AI management | Skip this step if the namespace is already managed |
+| 3 | Upload Model | Upload the model file to the model repository | Skip this step if you have already uploaded the model or are using a platform-shared model |
+| 4 | Publish Inference Service | Publish the model as an online inference service |
+| 5 | Invoke Inference Service | Invoke the inference service via API or the "Experience" feature |
 
-## Introduction
+## Operation Steps
+### Step 1: Create Namespace and Assign Permissions to User
+**Note：Skip this step if you already have a namespace and have assigned user permissions**
 
-### Use Cases
+Namespaces are the foundation for multi-tenant isolation in Alauda AI, and each project should use an independent namespace.
 
-Provide users with a simple scenario, letting them know what this document is about and what problems it can solve.
+1. Log in to the container platform as an administrator.
+2. Go to **Project Management**, select or create a project.
+3. On the project details page, click **Namespace**.
+4. Click **Create Namespace** and enter a name (e.g., "text-classification-demo").
+5. Click **Create** to complete the namespace creation.
+6. Assign namespace permissions to the user:
+   - Go to **Administrator** > **Users** > **Users**.
+   - Create a user or select an existing user who needs to use this namespace.
+   - Click **Configure Roles** > **Add Role**.
+   - Add **Alauda AI Roles** and associate them with the created namespace and the project to which the namespace belongs.
+     - aml-namespace-editor: Used by namespace developers, with permissions to create, delete, modify, and query models and inference services.
+     - aml-namespace-owner: Used by namespace managers.
+     - aml-namespace-viewer: Can only view models, inference services, and other resources.
 
-### Estimated Reading Time
+### Step 2: Manage Namespace
+**Note：Skip this step if the namespace is already managed**
 
-Estimate the time required to read and complete the operations in this document, e.g., 10-15 minutes.
+Include the created namespace in Alauda AI management:
 
-## Important Notes (Optional)
+1. Enter Alauda AI, select **Admin** in the top navigation, and select the cluster where the newly created namespace is located in "Clusters" on the right side of **Admin**.
+2. Click **Namespace Manage** in the left navigation bar and click the **Management Namespace** button.
+3. Select the newly created "text-classification-demo" namespace in the pop-up dialog box.
+4. Click **Management** to complete the management operation.
 
-Remind users of any considerations they should keep in mind before reading the document, such as permissions, usage restrictions, important reminders, potential risks, etc.
+### Step 3: Upload Model
+**Note：Skip this step if you have already uploaded the model or are using a platform-shared model**
 
-## Prerequisites (Optional)
+Upload the text classification model to the model repository:
 
-List any preparation users need to do before reading the document, such as knowledge requirements, environment requirements, software versions, hardware specifications, network requirements, etc.
+1. Enter Alauda AI, select **Business view** in the top navigation, and select the managed namespace from the previous step.
+2. Click **Model Repository** in the left navigation bar, click **Create Model Repository**, and enter the prepared model name, such as "gpt2".
+3. After creation, enter the **File Management** tab on the model details page.
+4. Click **Import Model File**, and drag or select the model files/subfolders to upload. If uploading a Large Language Model, the UI may freeze due to the large file size. It is recommended to use the git push command to push large model files to the model repository.
+5. Click the **Import** button and wait for the upload to complete.
+6. In the **File Management** tab, click **Update metadata** and select the correct "Task Type" and "Framework" according to the attributes of the large model.
+   - Task Type: It is an attribute of the model itself and can be obtained by viewing the label on the model download details page. It is divided into "Text Generation", "Image Generation", etc.
+   - Framework: It is also an attribute of the model itself and can be obtained by viewing the label on the model download details page. It is divided into "Transformers", "MLflow", etc. Most popular open-source Large Language Models are of the "Transformers" type.
 
-## Overview of Steps
+### Step 4: Publish Inference Service
+Publish the model as an online inference service:
 
-- Use a table to outline the operations users need to perform, helping them understand the entire process. The list should include:
-  - No.: Starting from 1 and incrementing sequentially.
-  - Operation Steps: The steps that users need to execute; all operation steps should combine into a complete process, allowing users to understand the functionality from a macro perspective and visually see what final outcomes they can achieve.
-  - Description: A description of the operation steps, which should be concise and clear, enabling users to quickly understand.
+1. On the model details page, click **Publish inference API** > **Custom publishing**.
+2. Configure service parameters:
+   - Name: gpt2-service
+   - Model: gpt2
+   - Version: Branch-main
+   - Inference Runtimes: Needs to be selected based on the cuda version installed in the GPU node. For example, if the cuda11 driver is installed, select "vllm-cuda11.8-x86". If cuda12 is installed, select "vllm-cuda12.1-x86".
+   - Resource Requests: 1CPU/4Gi Memory
+   - Resource Limits: 2CPU/6Gi Memory
+   - GPU Acceleration: GPU Manager
+     - GPU vcore: 30
+     - GPU vmemory: 32
+   - Storage: Mount existing PVC/created PVC or Temporary Storage/Capacity 10Gi
+   - Auto Scaling: Off
+   - Number of instances: 1
+3. Click **Publish** and wait for the service to start.
+4. View the service status on the **Inference Services** page.
 
-## Steps
+### Step 5: Invoke Inference Service
+Test the published inference service:
 
-Provide detailed explanations for each step in the overview of steps.
-
-### Step 1
-
-- Begin with a paragraph that summarizes the operation, allowing users to grasp the basic concepts of the functionality involved.
-
-- Below the paragraph, use a numbered list to detail the configuration steps for that operation.
-
-...
-
-### Step N
-
-- Begin with a paragraph that summarizes the operation, allowing users to grasp the basic concepts of the functionality involved.
-
-- Below the paragraph, use a numbered list to detail the configuration steps for that operation.
-
-### Expected Results (Title to be adjusted as appropriate)
-
-To help users better understand the entire process and functionality, display the expected results using one or more of the following methods:
-
-- Function Overview: Describe the main features and uses in text.
-- Image Display: Visualize the results by adding images to the document.
-- Step List: Provide a detailed list of the operational flow by steps.
+1. Click **Inference Services** in the left navigation bar, click the name of the "Published Inference Service", and click **Experience** on the inference service details page.
+2. Enter the test text, such as "Recommend a few good books".
+3. View the generated text and generation parameters returned by the model.
