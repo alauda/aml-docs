@@ -1,0 +1,326 @@
+---
+weight: 10
+sourceSHA: f06dbb9c0e7ea8a62854c8ab506af80c8687681ccfae07589fce35eac78fe156
+---
+
+# Обновление с AML 1.2
+
+## Установка компонентов кластера Alauda AI
+
+Пожалуйста, посетите [Alauda AI Cluster](../installation/ai-cluster.mdx) для получения информации:
+
+:::warning
+Пожалуйста, игнорируйте раздел `Создание экземпляра Alauda AI Cluster`, так как мы обновляем с **AML** `1.2`.
+:::
+
+1. [Загрузка](../installation/ai-cluster.mdx#downloading) пакетов для оператора `Alauda AI Cluster` и `KServeless`.
+2. [Загрузка](../installation/ai-cluster.mdx#uploading) пакетов оператора в целевой кластер.
+3. [Установка оператора Alauda AI Cluster](../installation/ai-cluster.mdx#install-the-alauda-ai-cluster-operator) в целевом кластере.
+
+## Обновление
+
+Следующая процедура описывает, как обновить с **AML** `1.2` до **Alauda AI** `1.3`.
+
+Пожалуйста, убедитесь, что под `aml-operator` запущен в пространстве имен `aml-operator` перед обновлением:
+
+```bash
+kubectl -n aml-operator get pod
+```
+
+<Steps>
+### Миграция ресурсов профиля
+
+Поскольку **Alauda AI** `1.3` исключила использование `Profile` из `kubeflow.org` и представила новую
+Определение пользовательского ресурса (CRD) под названием `AmlNamespace`, нам необходимо мигрировать существующие ресурсы `Profile` в `AmlNamespace`.
+
+Выполните следующий сценарий в целевом кластере:
+
+```bash title="migrate-profile-resources.sh"
+#!/bin/bash
+BASE_DOMAIN=$(kubectl -n kube-public get cm  global-info -o jsonpath='{.data.labelBaseDomain}' | sed 's/"//g')
+CLUSTER_NAME=$(kubectl -n kube-public get cm  global-info -o jsonpath='{.data.clusterName}' | sed 's/"//g')
+
+profiles=$(kubectl get profiles.kubeflow.org -o jsonpath='{.items[*].metadata.name}')
+
+for profile in $profiles; do
+  if kubectl get amlnamespace "$profile" &>/dev/null; then
+    echo "⚠️  AmlNamespace $profile уже существует. Пропускаем..."
+    continue
+  fi
+
+  profile_yaml=$(kubectl get profiles.kubeflow.org "$profile" -o yaml)
+
+  build_registry_file=$(mktemp)
+  from_registry_file=$(mktemp)
+  s3_file=$(mktemp)
+
+  echo "$profile_yaml" | yq '.spec.plugins[] | select(.kind == "AmlConfig") | .spec.buildRegistry' > "$build_registry_file"
+  echo "$profile_yaml" | yq '.spec.plugins[] | select(.kind == "AmlConfig") | .spec.fromRegistry' > "$from_registry_file"
+  echo "$profile_yaml" | yq '.spec.plugins[] | select(.kind == "AmlConfig") | .spec.s3' > "$s3_file"
+
+  amlnamespace_yaml=$(cat <<EOF
+apiVersion: manage.aml.dev/v1alpha1
+kind: AmlNamespace
+metadata:
+  name: $profile
+  labels:
+    $BASE_DOMAIN/cluster: $CLUSTER_NAME
+spec:
+  config: {}
+EOF
+)
+
+  if [[ -s "$build_registry_file" && $(yq 'type' "$build_registry_file") != "null" ]]; then
+    amlnamespace_yaml=$(echo "$amlnamespace_yaml" | yq ".spec.config.buildRegistry = load(\"$build_registry_file\")")
+  fi
+
+  if [[ -s "$from_registry_file" && $(yq 'type' "$from_registry_file") != "null" ]]; then
+    amlnamespace_yaml=$(echo "$amlnamespace_yaml" | yq ".spec.config.fromRegistry = load(\"$from_registry_file\")")
+  fi
+
+  if [[ -s "$s3_file" && $(yq 'type' "$s3_file") != "null" ]]; then
+    amlnamespace_yaml=$(echo "$amlnamespace_yaml" | yq ".spec.config.s3 = load(\"$s3_file\")")
+  fi
+
+  rm -f "$build_registry_file" "$from_registry_file" "$s3_file"
+
+  echo "$amlnamespace_yaml" | kubectl apply -f -
+  echo "✅ AmlNamespace $profile создан."
+done
+```
+
+### Миграция ресурсов InferenceService
+
+В **Alauda AI** `1.3` `KServe` вводит изменение, требующее, чтобы `model.name` было `kserve-container` в ресурсах `InferenceService`.
+Поэтому нам нужно обновить все ресурсы `InferenceService`, созданные в **AML** `1.2`, чтобы учесть это изменение.
+
+Выполните следующий сценарий в целевом кластере:
+
+```bash title="migrate-inferenceservice-resources.sh"
+#!/bin/bash
+
+set -e
+
+inferenceservices=$(kubectl get inferenceservice --all-namespaces -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}')
+
+while IFS=" " read -r namespace svc; do
+    model_name=$(kubectl -n "$namespace" get inferenceservice "$svc" -o jsonpath='{.spec.predictor.model.name}')
+    if [ "$model_name" != "kserve-container" ]; then
+        echo ">> Обновление $namespace/$svc..."
+        kubectl -n "$namespace" patch inferenceservice "$svc" --type=json -p='[{
+          "op": "replace",
+          "path": "/spec/predictor/model/name",
+          "value": "kserve-container"
+        }]'
+    fi
+done <<< "$inferenceservices"
+```
+
+### Миграция CRD Knative
+
+Из-за изменения в CRD Knative необходимо мигрировать CRD на новую версию перед обновлением.
+
+```bash
+# Миграция storageVersion domainmappings с v1alpha1 на v1beta1
+kubectl patch crd domainmappings.serving.knative.dev --type='json' -p='[
+  {"op": "replace", "path": "/spec/versions/0/storage", "value": true},
+  {"op": "replace", "path": "/spec/versions/1/storage", "value": false}
+]'
+
+kubectl exec -n aml-operator -it deploy/aml-operator -- /app/storageversion-migrate \
+  domainmappings.serving.knative.dev
+```
+
+Дождитесь завершения команды, вывод команды должен выглядеть следующим образом:
+
+```
+INFO    storageversion/main.go:61       Миграция ресурсов группы       {"len": 1}
+INFO    storageversion/main.go:64       Миграция ресурса группы        {"resource": "domainmappings.serving.knative.dev"}
+INFO    storageversion/main.go:74       Миграция завершена
+```
+
+### Исправление неожиданного ключа в конфигурации Knative
+
+Выполните следующие команды, чтобы удалить ключ `_example` в конфигурациях Knative, который блокирует обновление.
+
+```bash
+CONFIGMAPS=(
+  $(kubectl -n knative-serving get configmaps -l app.kubernetes.io/name=knative-serving -o jsonpath='{.items[*].metadata.name}')
+)
+
+# Пожалуйста, игнорируйте сообщения об ошибках, такие как `Запрос недействителен: ...`
+for cm in "${CONFIGMAPS[@]}"; do
+  kubectl -n knative-serving patch configmap "$cm" --type='json' -p='[{"op": "remove", "path": "/data/_example"}]'
+done
+```
+
+### Удаление ресурсов Knative Serving
+
+Некоторые ресурсы `Knative Serving` блокируют обновление, поэтому требуется ручное действие.
+
+Выполните следующий сценарий для удаления проблемных ресурсов:
+
+```bash title="cleanup-resources.sh"
+kubectl -n knative-serving delete pdb activator-pdb webhook-pdb
+
+kubectl -n knative-serving patch configmap config-istio --type=json -p='[{
+  "op": "remove",
+  "path": "/data/gateway.knative-serving.knative-local-gateway"
+}]'
+
+kubectl -n knative-serving patch gateways.networking.istio.io knative-local-gateway --type=json -p='[{
+  "op": "replace",
+  "path": "/spec/selector",
+  "value": {"knative": "ingressgateway"}
+}]'
+
+kubectl -n istio-system patch service knative-local-gateway --type=json -p='[{
+  "op": "replace",
+  "path": "/spec/selector",
+  "value": {"knative": "ingressgateway"}
+}]'
+```
+
+### Извлечение значений AML 1.2
+
+:::info
+Утилиты `helm` и `yq` должны быть установлены на узле кластера, если они еще не установлены.
+:::
+
+В кластере AML вы можете извлечь значения **AML** `1.2` с помощью следующей команды `helm`:
+
+```bash
+helm get values aml -n kubeflow -o yaml | tee /tmp/aml-values.yaml
+```
+
+Пожалуйста, сохраните сгенерированный файл `/tmp/aml-values.yaml` во время обновления.
+
+### Создание секрета токена администратора GitLab
+
+Нам нужно создать секрет для токена администратора GitLab, который необходим для работы **Alauda AI Cluster**.
+
+Пожалуйста, следуйте инструкциям, описанным в [Предварительная настройка](../installation//pre-configuration.mdx#gitlab-configuration).
+
+### Создание секрета MySQL
+
+Нам также необходимо создать секрет MySQL для **Alauda AI Cluster**.
+
+Выполните следующую команду:
+
+```bash
+MYSQL_PASSWORD=$(kubectl -n kubeflow get secret mysql-secret -o jsonpath='{.data.password}' | base64 -d)  # [!code callout]
+
+# [!code callout:3]
+kubectl create secret generic aml-mysql-secret \
+  --from-literal="password=${MYSQL_PASSWORD}" \
+  -n cpaas-system
+```
+
+<Callouts>
+  1. Извлеките пароль MySQL из предыдущего установленного секрета **AML** `1.2`.
+  2. Создайте секрет токена администратора MySQL с именем **aml-mysql-secret**.
+  3. Пароль сохраняется под ключом **password**.
+  4. Секрет создается в пространстве имен **cpaas-system**.
+</Callouts>
+
+### Создание экземпляра Alauda AI Cluster
+
+В завершение мы создаем ресурс `AmlCluster` с именем `default` для **Alauda AI Cluster**, чтобы завершить обновление.
+
+Создайте файл yaml с именем `aml-cluster.yaml` со следующим содержимым:
+
+```yaml title="aml-cluster.yaml"
+apiVersion: amlclusters.aml.dev/v1alpha1
+kind: AmlCluster
+metadata:
+  name: default
+spec:
+  values:
+    global:
+      # одноузловой или кластер с высокой доступностью
+      deployFlavor: single-node
+      gitlabBaseUrl: "${GITLAB_BASE_URL}"
+      gitlabAdminTokenSecretRef:  # [!code callout]
+        name: aml-gitlab-admin-token
+        namespace: cpaas-system
+      mysql:
+        host: "${MYSQL_HOST}"
+        port: 3306
+        user: "${MYSQL_USER}"
+        database: aml
+        passwordSecretRef:  # [!code callout]
+          name: aml-mysql-secret
+          namespace: cpaas-system
+    buildkitd:
+      storage:
+        type: emptyDir
+  components:
+    kserve:
+      managementState: Managed  # [!code callout]
+    knativeServing:
+      managementState: Managed  # [!code callout]
+      ingressGateway:
+        domain: "*.example.com"  # [!code callout]
+        certificate:
+          secretName: knative-serving-cert
+          type: SelfSigned
+```
+
+<Callouts>
+  1. Имя и пространство имен секрета токена администратора GitLab, созданного ранее.
+  2. Имя и пространство имен секрета MySQL, созданного ранее.
+  3. Установите состояние управления `kserve` на `Managed`, что означает, что `KServe` будет установлен и управляем **Alauda AI Cluster**.
+  4. Установите состояние управления `knativeServing` на `Managed`, что означает, что `Knative Serving` будет установлен и управляем **Alauda AI Cluster**.
+  5. Домен с подстановочным знаком для экспонирования сервисов вывода. Пока просто оставьте как есть.
+
+  :::info
+
+  Домен и сертификат необходимы для экспонирования сервисов вывода и зарезервированы для будущего использования.
+
+  :::
+
+</Callouts>
+
+Выполните следующие команды, чтобы извлечь необходимый контекст из **AML** `1.2`, а затем установить **Alauda AI Cluster**:
+
+```bash
+# Извлеките схему и базу хоста GitLab из файла значений AML 1.2.
+GITLAB_HOST_SCHEME=$(yq -r .global.gitScheme < /tmp/aml-values.yaml)
+GITLAB_HOST_BASE=$(yq -r .global.gitBase < /tmp/aml-values.yaml)
+export GITLAB_BASE_URL="${GITLAB_HOST_SCHEME}://${GITLAB_HOST_BASE}"
+
+# Извлеките хост, порт и пользователя MySQL из файла значений AML 1.2.
+export MYSQL_HOST=$(yq -r .global.mysqlHost < /tmp/aml-values.yaml)
+export MYSQL_PORT=$(yq -r .global.mysqlPort < /tmp/aml-values.yaml)
+export MYSQL_USER=$(yq -r .global.mysqlUsername < /tmp/aml-values.yaml)
+
+# [!code callout:2]
+yq '((.. | select(tag == "!!str")) |= envsubst) | (.spec.values.global.mysql.port = env(MYSQL_PORT))' aml-cluster.yaml \
+  | kubectl apply -f -
+```
+
+<Callouts>
+  1. Интерполируйте переменные окружения в ранее созданном файле `aml-cluster.yaml`.
+  2. Создайте ресурс `AmlCluster`, чтобы установить **Alauda AI Cluster**.
+</Callouts>
+
+</Steps>
+
+## Проверка
+
+Проверьте поле статуса ресурса `AmlCluster`, названного `default`:
+
+```bash
+kubectl get amlcluster default
+```
+
+Должно вернуть `Ready`:
+
+```
+NAME      READY   REASON
+default   True    Succeeded
+```
+
+## Установка Alauda AI Essentials
+
+Пожалуйста, посетите [Alauda AI Essentials](../installation/ai-essentials.mdx) для получения инструкций по установке.

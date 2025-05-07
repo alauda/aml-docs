@@ -1,0 +1,76 @@
+---
+weight: 20
+sourceSHA: 6eefd208bb72dc33eb7f18cb8f850e77d89db8ecda141770f132531c54fe4240
+---
+
+# Плагин кластера Alauda AI Essentials
+
+Плагин кластера Alauda AI Essentials предоставляет ресурсы UI и RBAC для Alauda AI.
+
+## Скачивание
+
+:::info
+Плагин кластера Alauda AI Essentials можно получить из Портала клиентов.
+
+Пожалуйста, свяжитесь с поддержкой пользователей для получения дополнительной информации.
+:::
+
+## Загрузка
+
+Необходимо загрузить плагин кластера Alauda AI Essentials в **глобальный** кластер ACP.
+
+### Процедура
+
+<Steps>
+  ### Скачивание инструмента violet
+
+  Сначала необходимо скачать инструмент `violet`, если он отсутствует на машине.
+
+  В разделе **Управление платформой** консоли ACP:
+
+  1. Нажмите **Marketplace / Upload Packages**.
+  2. Нажмите **Download Packaging and Listing Tool**.
+  3. Найдите подходящую ОС / архитектуру CPU в разделе **Execution Environment**.
+  4. Нажмите **Download**, чтобы скачать инструмент `violet`.
+  5. Выполните `chmod +x ${PATH_TO_THE_VIOLET_TOOL}`, чтобы сделать инструмент исполняемым.
+
+  ### Загрузка пакета
+
+  Затем выполните следующую команду, чтобы загрузить плагин кластера **Alauda AI Essentials** в глобальный кластер ACP:
+
+  ```bash
+  # [!code callout:5]
+  violet push \
+      ${PKG_NAME} \
+      --platform-address=${PLATFORM_ADDRESS} \
+      --platform-username=${PLATFORM_ADMIN_USER} \
+      --platform-password=${PLATFORM_ADMIN_PASSWORD} \
+      --clusters=global
+  ```
+
+  <Callouts>
+    1. Выполните `violet push`, чтобы загрузить плагин кластера.
+    2. `${PKG_NAME}` — это имя архива плагина кластера **Alauda AI Essentials**.
+    3. `${PLATFORM_ADDRESS}` — это адрес вашей платформы ACP.
+    4. `${PLATFORM_ADMIN_USER}` — это имя пользователя администратора платформы ACP.
+    5. `${PLATFORM_ADMIN_PASSWORD}` — это пароль администратора платформы ACP.
+  </Callouts>
+</Steps>
+
+## Установка
+
+### Процедура
+
+В разделе **Управление платформой** консоли ACP:
+
+1. Выберите **глобальный** кластер из выпадающего списка **Cluster** в верхней части консоли.
+2. Нажмите **Marketplace / Cluster Plugin**.
+3. Найдите **Alauda AI Essentials**.
+4. Нажмите **Установить**.
+
+### Проверка
+
+Подтвердите, что плитка **Alauda AI Essentials** отображает одно из следующих состояний:
+
+- `Installing`: установка в процессе; дождитесь изменения состояния на `Installed`.
+- `Installed`: установка завершена.
