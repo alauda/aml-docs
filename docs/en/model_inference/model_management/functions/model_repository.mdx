@@ -2,42 +2,20 @@
 weight: 10
 ---
 
-# Feature Introduction
+# Model Repository
 The core definition of the model repository feature is to provide a Git-based version-controlled storage system for machine learning models, enabling teams to manage model files, track versions, and collaborate across tenants. It leverages **Git LFS** for large file storage and integrates with MLOps workflows to bridge model development and deployment.  
 
 ## Advantages
 1. **Git-native Version Control**  
    - Track model changes via commits/branches/tags, ensuring reproducibility.  
 2. **High-Speed Transfers**  
-   - CLI/Notebook uploads leverage internal network bandwidth (e.g., AML Notebooks同机房加速).  
+   - CLI/Notebook uploads leverage internal network bandwidth.  
 3. **Cross-Tenant Sharing**  
    - Shared models can be accessed across namespaces (e.g., `public` as a model marketplace).  
 4. **Seamless Integration**  
    - Directly deploy models from the repository to inference services.  
 
-
-## Applicable Scenarios 
-- **Team Collaboration**  
-  - Multiple data scientists concurrently update and version models in the same repository.  
-- **Model Auditing**  
-  - Trace historical versions via Git commits/tags for compliance.  
-- **Centralized Asset Management**  
-  - Organize private/shared models in a unified hub with metadata (e.g., tags/descriptions).  
-
-
-## Value Brought
-- **Reproducibility**  
-  - Pin model versions via tags (e.g., `production/v1.2`) to avoid training-serving skew.  
-- **Efficiency**  
-  - CLI uploads bypass browser limitations for large files (>10GB).  
-- **Security**  
-  - Tenant isolation via GitLab credentials prevents unauthorized access.  
-- **Cost Reduction**  
-  - Eliminate redundant storage by reusing shared models (e.g., public BERT weights).  
-
-
-## Main Features
-
+## Core Features
 **Model Repository Creation & Deletion**  
 - Create an empty Git-backed repository with metadata (name/description/visibility).  
 - Delete models after dependency checks (e.g., ensure no active inference services).  
@@ -85,16 +63,11 @@ The core definition of the model repository feature is to provide a Git-based ve
   - Misconfigured `README.md` metadata may block inference deployment.  
 
 
-
-
-
-
 ## Create Model Repository
 
 <Steps>
 
 ### Step 1
-
 
 | Parameters   | Description                          |
 | :----- | :--------------------------------- |
