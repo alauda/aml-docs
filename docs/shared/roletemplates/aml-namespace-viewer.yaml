@@ -306,6 +306,11 @@ items:
       - get
       - list
       - watch
+    - functionResourceRef: aml-inferenceservices
+      verbs:
+      - get
+      - list
+      - watch
 kind: List
 metadata:
   resourceVersion: ""
