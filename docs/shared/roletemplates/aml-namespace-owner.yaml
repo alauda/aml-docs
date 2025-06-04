@@ -641,13 +641,16 @@ items:
       - get
       - list
       - watch
-    - functionResourceRef: aml-profiles
+    - functionResourceRef: aml-namespaces
       verbs:
       - get
       - list
       - watch
       - patch
       - update
+    - functionResourceRef: aml-inferenceservices
+      verbs:
+        - "*"
 kind: List
 metadata:
   resourceVersion: ""
