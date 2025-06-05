@@ -1,0 +1,25 @@
+---
+weight: 4
+---
+
+# Gitlab
+
+## Prerequisites
+
+You can use the gitlab provided by acp, or you can use your own gitlab, but the following requirements must be met：
+
+- **The version must be v15 or better**.
+- **Enable git lfs**.
+- **It must be a self-hosted version, and does not support gitlab provided by public clouds**.
+
+## Switch gitlab after install
+
+If you want switch gitlab after install, please please perform the following steps:
+
+1. Refer to [pre-configuration](./pre-configuration.mdx) and re-execute it's steps.
+1. Update Alauda AI Cluster instance in aml-operator of OperatorHub. Under **Gitlab** section:
+    1.  Type the URL of self-hosted Gitlab for **Base URL**.
+    2.  Type `cpaas-system` for **Admin Token Secret Namespace**.
+    3.  Type `aml-gitlab-admin-token` for **Admin Token Secret Name**.
+1. Restart aml-controller deployment in kubeflow ns.
+1. Re-Management all namespaces in Alauda AI platform manage view.

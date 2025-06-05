@@ -7,7 +7,7 @@ items:
       auth.cpaas.io/functionresource.function.id: "1"
       auth.cpaas.io/functionresource.module.id: "200"
       cpaas.io/functionresource.function.display-name: 推理运行时
-      cpaas.io/functionresource.function.display-name.en: Cluster Serving Runtimes
+      cpaas.io/functionresource.function.display-name.en: Clusterservingruntimes
       cpaas.io/functionresource.module.display-name: Machine Learning
       cpaas.io/functionresource.module.display-name.en: Machine Learning
       helm.sh/chart-version: v1.3.1-rc.35.gf744c5bf
@@ -39,7 +39,7 @@ items:
       auth.cpaas.io/functionresource.function.id: "3"
       auth.cpaas.io/functionresource.module.id: "200"
       cpaas.io/functionresource.function.display-name: "AML 命名空间"
-      cpaas.io/functionresource.function.display-name.en: "aml namespaces"
+      cpaas.io/functionresource.function.display-name.en: "Amlnamespaces"
       cpaas.io/functionresource.module.display-name: Machine Learning
       cpaas.io/functionresource.module.display-name.en: Machine Learning
       helm.sh/chart-version: v1.3.1-rc.35.gf744c5bf
@@ -64,6 +64,36 @@ items:
       bindScope: cluster
       resources:
       - amlnamespaces
+- apiVersion: auth.alauda.io/v1beta1
+  kind: FunctionResource
+  metadata:
+    annotations:
+      auth.cpaas.io/functionresource.function.id: "4"
+      auth.cpaas.io/functionresource.module.id: "200"
+      cpaas.io/functionresource.function.display-name: "推理服务"
+      cpaas.io/functionresource.function.display-name.en: "Inferenceservices"
+      cpaas.io/functionresource.module.display-name: Machine Learning
+      cpaas.io/functionresource.module.display-name.en: Machine Learning
+      helm.sh/chart-version: v1.3.1-rc.35.gf744c5bf
+      helm.sh/original-name: aml-inferenceservices
+    labels:
+      auth.cpaas.io/functionresource.function: inferenceservices
+      auth.cpaas.io/functionresource.module: aml
+      auth.cpaas.io/product: console-aml
+      helm.sh/chart-name: aml-global
+      helm.sh/release-name: aml-global
+      helm.sh/release-namespace: cpaas-system
+    name: aml-inferenceservices
+    resourceVersion: "488927"
+    uid: 7c352367-f8c5-40f9-a51b-7fb9f4c45f62
+  spec:
+    rules:
+    - apiGroup: manage.aml.dev
+      bindCluster: business
+      bindNamespacePart: ""
+      bindScope: cluster
+      resources:
+      - inferenceservices
 kind: List
 metadata:
   resourceVersion: ""
