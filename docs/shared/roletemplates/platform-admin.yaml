@@ -1,0 +1,29 @@
+apiVersion: auth.alauda.io/v1beta1
+kind: RoleTemplate
+metadata:
+  annotations:
+    auth.cpaas.io/role.id: "1"
+    cpaas.io/creator: system
+    cpaas.io/description: 具备平台所有业务及资源的全部权限。
+    cpaas.io/description.en: Have full authority for all business and resources of the platform
+    cpaas.io/display-name: 平台管理员
+    cpaas.io/display-name.en: Platform Administrator
+    helm.sh/chart-version: v4.0.2
+    helm.sh/original-name: platform-admin-system
+  creationTimestamp: 2025-04-16T08:53:54Z
+  generation: 1
+  labels:
+    auth.cpaas.io/creator.email: ""
+    auth.cpaas.io/roletemplate.level: platform
+    auth.cpaas.io/roletemplate.official: "true"
+    helm.sh/chart-name: auth-manager
+    helm.sh/release-name: auth-manager
+    helm.sh/release-namespace: cpaas-system
+  name: platform-admin-system
+  resourceVersion: "16514"
+  uid: b89faee3-9ec7-43c8-b8cb-439948991f21
+spec:
+  rules:
+    - functionResourceRef: "*"
+      verbs:
+        - "*"
