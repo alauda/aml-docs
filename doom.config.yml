@@ -1,6 +1,6 @@
 title: Alauda AI
 logoText: Alauda AI
-lang: zh
+lang: en
 api:
   crds:
     - docs/shared/crds/*.yaml
