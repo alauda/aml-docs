@@ -5,17 +5,6 @@ weight: 10
 # Feature Introduction
 The core definition of the model repository feature is to provide a Git-based version-controlled storage system for machine learning models, enabling teams to manage model files, track versions, and collaborate across tenants. It leverages **Git LFS** for large file storage and integrates with MLOps workflows to bridge model development and deployment.  
 
-## Value Brought
-- **Reproducibility**  
-  - Pin model versions via tags (e.g., `production/v1.2`) to avoid training-serving skew.  
-- **Efficiency**  
-  - CLI uploads bypass browser limitations for large files (>10GB).  
-- **Security**  
-  - Tenant isolation via GitLab credentials prevents unauthorized access.  
-- **Cost Reduction**  
-  - Eliminate redundant storage by reusing shared models (e.g., public BERT weights).  
-
-
 ## Main Features
 
 **Model Repository Creation & Deletion**  
