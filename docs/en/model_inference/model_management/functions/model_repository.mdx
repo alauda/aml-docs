@@ -2,11 +2,20 @@
 weight: 10
 ---
 
-# Feature Introduction
+# Model Repository
 The core definition of the model repository feature is to provide a Git-based version-controlled storage system for machine learning models, enabling teams to manage model files, track versions, and collaborate across tenants. It leverages **Git LFS** for large file storage and integrates with MLOps workflows to bridge model development and deployment.  
 
-## Main Features
+## Advantages
+1. **Git-native Version Control**  
+   - Track model changes via commits/branches/tags, ensuring reproducibility.  
+2. **High-Speed Transfers**  
+   - CLI/Notebook uploads leverage internal network bandwidth.
+3. **Cross-Tenant Sharing**
+   - Shared models can be accessed across namespaces (e.g., `public` as a model marketplace).
+4. **Seamless Integration**
+   - Directly deploy models from the repository to inference services.
 
+## Core Features
 **Model Repository Creation & Deletion**  
 - Create an empty Git-backed repository with metadata (name/description/visibility).  
 - Delete models after dependency checks (e.g., ensure no active inference services).  
@@ -54,16 +63,11 @@ The core definition of the model repository feature is to provide a Git-based ve
   - Misconfigured `README.md` metadata may block inference deployment.  
 
 
-
-
-
-
 ## Create Model Repository
 
 <Steps>
 
-### Step 1
-
+### Step 1: Define Repository Metadata
 
 | Parameters   | Description                          |
 | :----- | :--------------------------------- |
@@ -71,13 +75,11 @@ The core definition of the model repository feature is to provide a Git-based ve
 | Labels | Custom tags for categorization and search. (e.g., "CV", "NLP", "production") |
 | Description | Detailed explanation of the repository's purpose, model type, or usage guidelines. |
 
-### Step 2
+### Step 2: Create the Empty Repository
 
-`Create` an empty Repository.
+After defining the necessary information, proceed to `Create` the empty Model Repository.
 
-### Step 3 
-
-Upload Model Files
+### Step 3: Upload Model Files
 
 You may upload model files through either of the following methods:
 

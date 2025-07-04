@@ -2,19 +2,29 @@
 weight: 10
 ---
 
-# Feature Introduction
+# Inference Service
 
 The core definition of the inference service feature is to deploy trained machine learning or deep learning models as online callable services, using protocols such as HTTP API or gRPC, enabling applications to use the model's prediction, classification, generation, and other features in real-time or in batches. This feature mainly addresses how to efficiently, stably, and conveniently deploy models to production environments after model training is completed, and provide scalable online services.
 
-## Main Features
+## Advantages
+
+* Simplifies the model deployment process, reducing deployment complexity.
+* Provides high-availability, high-performance online and batch inference services.
+* Supports dynamic model updates and version management.
+* Realizes automated operation, maintenance, and monitoring of model inference services.
+
+## Core Features
 
 **Direct Model Deployment for Inference Services**
 
 * Allows users to directly select specific versions of model files from the model repository and specify the inference runtime image to quickly deploy online inference services. The system automatically downloads, caches, and loads the model, starting the inference service. This simplifies the model deployment process and lowers the deployment threshold.
 
-**Custom Image Deployment for Inference Services**
+**Application for Inference Services**
 
-* Supports users in writing Dockerfiles to package models and their dependencies into custom images, and then deploy inference services through standard Kubernetes Deployments. This approach provides greater flexibility, allowing users to customize the inference environment according to their needs.
+* Use Kubernetes applications as inference services. This approach provides greater flexibility, allowing users to customize the inference environment according to their needs.
+
+**Inference Service Template Management**
+* Supports the creation, management, and deletion of inference service templates, allowing users to quickly deploy inference services based on predefined templates.
 
 **Batch Operation of Inference Services**
 
@@ -22,7 +32,7 @@ The core definition of the inference service feature is to deploy trained machin
 * Able to support the creation, monitoring, and result export of batch inference tasks.
 * Provides batch resource management, which can allocate and adjust the resources of inference services in batches.
 
-**Inference Service Experience**
+**Inference Experience**
 
 * Provides an interactive interface to facilitate user testing and experience of inference services.
 * Supports multiple input and output formats to meet the needs of different application scenarios.
@@ -46,19 +56,46 @@ The core definition of the inference service feature is to deploy trained machin
 * Automatically generates Swagger documentation to facilitate user integration and invocation of inference services.
 * Provides real-time monitoring and alarm features to ensure stable service operation.
 
+
 ## Create inference service
 
 <Steps>
 
-### Step 1
-**Choose Custom publishing**
+### Step 1: Navigate to Model Repository
+In the left navigation bar, click **Model Repository**
 
 :::tip 
 Custom publishing inference service requires manual setting of parameters. You can also create a "template" by combining input parameters for quick publishing of inference services.
 :::
 
-### Step 2
-**Provide inference service details for model publishing**
+### Step 2: Initiate Inference Service Publishing
+Click the model name to enter the model details page, and click **Publish Inference Service** in the upper right corner.
+
+### Step 3: Configure Model Metadata (if needed)
+If the **"Publish Inference Service"** button is not clickable, go to the **"File Management"** tab, click "Edit Metadata", and select **"Task Type"** and **"Framework"** based on the actual model information. (You must edit the metadata of the default branch for it to take effect.)
+
+### Step 4: Select Publish Mode and Configure
+Enter the **Publish Mode Selection** page. AML provides **Custom Publish** and **Template Publish** options.
+
+1. Template Publish:
+
+   - Select the model and click **Template Name**
+   - Enter the template publish form, where parameters from the template are preloaded but can be manually edited
+   - Click **Publish** to deploy the inference service
+2. Custom Publish：
+   - Click **Custom Publish**
+   - Enter the custom publish form and configure the parameters
+   - Click **Publish** to deploy the inference service
+
+### Step 5: Monitor and Manage Inference Service
+You can view the status, logs, and other details of the published inference service under Inference Service in the left navigation. **If the inference service fails to start or the running resources are insufficient, you may need to update or republish the inference service and modify the configuration that may cause the startup failure.**
+
+**Note:** The inference service will automatically scale up and down between the "minimum number of replicas" and "maximum number of replicas" according to the request traffic. If the "minimum number of replicas" is set to 0, the inference service will automatically pause and release resources when there is no request for a period of time. At this time, if a request comes, the inference service can automatically start and load the model cached in the PVC.
+
+AML completes the release and operation of cloud native inference services based on [kserve](https://github.com/kserve/kserve) InferenceService CRD. If you are familiar with the use of kserve, you can also click the "YAML" button in the upper right corner when "Publish inference service directly from model" to directly modify the YAML file to complete more advanced release operations.
+
+
+**Parameter Descriptions for model publishing**
 
 | Parameters   | Description                               |
 | :----- | :--------------------------------- |
@@ -82,41 +119,78 @@ Custom publishing inference service requires manual setting of parameters. You c
 | Add parameters | Parameters passed to the container's entrypoint executable. Array of strings (e.g. ["--port=8080", "--batch_size=4"]).|
 | Startup command | Overrides the default ENTRYPOINT instruction in the container image. Executable + arguments (e.g. ["python", "serve.py"])|
 
-### Step 3
-Click the **Publish** button to create an inference service. 
 
 </Steps>
 
+## Inference Service Template Management
 
-## Experience
+AML introduces **Template Publish** for quickly deploying inference services. You can create and delete templates (updating templates requires creating a new one).
 
 <Steps>
 
-### Step 1
-From the **Inference API** services list, click the name of any **Running** service to view its details.
+### Step 1: Create a Template
+  - In the left navigation bar, click **Inference Service > Create Inference Service**
+  - Click **Custom Publish**
+  - Enter the form page and configure parameters
+  - Click **Create Template**
 
-### Step 2
-Click **Experience** to reveal the right-side panel.
+### Step 2: Create a New Template from Existing
+  - In the left navigation bar, click **Inference Service > Create Inference Service**
+  - Select the model and click **Template Name**
+  - Edit the parameters as needed
+  - Click **Create Template** to save as a new template
 
-### Step 3
-Ask a question
-
-- System Role 
-
-  Defines the AI's purpose, tone, and operational boundaries (e.g., "You are a helpful assistant specialized in medical information").
-
-- Parameters 
-
-  Choose parameters according to your task type. Refer to the parameter descriptions below for details.
+### Step 3: Delete a Template
+  - In the left navigation bar, click **Inference Service > Create Inference Service**
+  - On the template card, click **Actions > Delete**
+  - Confirm the deletion
 
 </Steps>
 
 
-**Parameter Descriptions for Different Task Types**
+## Inference service update
+1. In the left navigation bar, click **Inference Service.**
+2. Click the **inference service name.**
+3. On the inference service detail page, click **Actions > Update** in the upper right to enter the update page.
+4. Modify the necessary fields and click **Update**. The system will perform a rolling update to avoid disrupting existing client requests.
 
-**Text Generation**
 
-_Preset Parameters_
+
+
+## Calling the published inference service
+AML provides a visual **"Inference Experience"** method for common task types to access the published inference service; you can also use the HTTP API method to call the inference service.
+
+### Inference Experience
+AML supports the following task type inference service inference demonstration (the task type is specified in the model metadata):
+
+- Text generation
+- Text classification
+- Image classification
+- Text to image
+
+After successfully publishing the inference service of the above task types, you can display the **"Inference Experience"** dialog box on the right side of the model details page and the inference service details page. Depending on the type of inference task, the input and output data types may be different. Taking text generation as an example, enter text, and you can append the model-generated text in blue font after the text entered in the text box.
+Inference experience supports selecting different inference services deployed in different clusters and published multiple times by the same model. After selecting an inference service, this inference service will be called to return the inference result.
+
+
+### Calling by HTTP API
+
+After publishing the inference service, you can call this inference service in applications or other services. This document will take Python code as an example to show how to call the published inference API.
+
+1. Click **Inference Service > Inference Service Name** from the left navigation bar to enter the inference service details page.
+2. Click the **Access Method** tab to get the in-cluster or out-cluster access method. The in-cluster access method can be accessed directly from Notebook or other containers in this K8s cluster. If you need to access it from a location outside the cluster (such as a local laptop), you need to use the out-cluster access method.
+3. Click Call Example to view the sample code.
+
+    ***Note: The code provided in the call example is only the API call protocol supported by the inference service published using the mlserver runtime (Seldon MLServer). In addition, the Swagger tab also only supports access to the inference service published by the mlserver runtime.***
+
+### Inference parameter description
+When calling the inference service, you can adjust the model output effect by adjusting the model inference parameters.
+In the **Inference Experience** interface, common parameters and default values ​​are pre-made, and any custom parameters can also be added.
+
+### Parameter Descriptions for Different Task Types
+
+#### Text Generation
+
+##### Preset Parameters
 
 | Parameter | Data Type | Description |
 |---|---|---|
@@ -128,7 +202,7 @@ _Preset Parameters_
 | `top_p` | float | Controls the cumulative probability distribution considered by the model when selecting the next token. |
 | `use_cache` | bool | Whether to use the intermediate results calculated by the model during the generation process. |
 
-_Other Parameters_
+##### Other Parameters
 
 | Parameter | Data Type | Description |
 |---|---|---|
@@ -148,16 +222,16 @@ _Other Parameters_
 
 For more parameters, please refer to [Text Generation Parameter Configuration](https://huggingface.co/docs/transformers/main/en/main_classes/text_generation#transformers.GenerationConfig).
 
-**Text-to-Image**
+#### Text-to-Image
 
-_Preset Parameters_
+##### Preset Parameters
 
 | Parameter | Data Type | Description |
 |---|---|---|
 | `num_inference_steps` | int | The number of denoising steps. More denoising steps usually result in higher quality images but slower inference. |
 | `use_cache` | bool | Whether to use the intermediate results calculated by the model during the generation process. |
 
-_Other Parameters_
+##### Other Parameters
 
 | Parameter | Data Type | Description |
 |---|---|---|
@@ -168,9 +242,9 @@ _Other Parameters_
 
 For more parameters, please refer to [Text-to-Image Parameter Configuration](https://huggingface.co/docs/diffusers/main/en/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusionPipeline).
 
-**Text Classification**
+#### Text Classification
 
-_Preset Parameters_
+##### Preset Parameters
 
 | Parameter | Data Type | Description |
 |---|---|---|
@@ -179,7 +253,7 @@ _Preset Parameters_
 
 For more parameters, please refer to [Text Classification Parameter Configuration](https://huggingface.co/docs/transformers/v4.36.1/en/main_classes/pipelines#transformers.TextClassificationPipeline.__call__)
 
-##### Additional References
+#### Additional References
 
 [Image Classification Parameter Configuration](https://huggingface.co/docs/transformers/v4.36.1/en/main_classes/pipelines#transformers.ImageClassificationPipeline.__call__)
 
