@@ -1,0 +1,167 @@
+---
+weight: 10
+i18n:
+  title:
+    en: Extend LLM Inference Runtimes
+    zh: 扩展 AI 平台 LLM 推理服务运行时
+---
+
+# Extend LLM Inference Runtimes
+
+## Introduction
+
+This document will guide you step-by-step on how to add new inference runtimes for Large Language Model (LLM) inference services within the AI Platform. By introducing custom runtimes, you can expand the platform's support for a wider range of model types and domestic chip hardware, and optimize performance for specific scenarios to meet broader business needs.
+
+## Scenarios
+
+Consider extending your AI Platform LLM inference service runtimes if you encounter any of the following situations:
+
+* **Support for New Model Types**: Your LLM model isn't natively supported by the current default inference runtimes (e.g., vLLM or Seldon MLServer).
+* **Compatibility with Domestic Chips**: You need to perform LLM inference on hardware equipped with domestic chips, either to leverage their specific advantages or to meet localization requirements.
+* **Performance Optimization for Specific Scenarios**: In certain inference scenarios, a new runtime (like Xinference) might offer better performance or resource utilization compared to existing runtimes.
+* **Custom Inference Logic**: You need to introduce custom inference logic or dependent libraries that are difficult to implement within the existing default runtimes.
+
+
+## Prerequisites
+
+Before you start, please ensure you meet these conditions:
+
+1.  Your AI Platform version is **1.3 or higher**.
+2.  Your Kubernetes cluster is deployed and **running normally**.
+3.  You have the necessary **inference runtime image(s)** prepared. For example, for the Xinference runtime, images might look like `build-harbor.alauda.cn/mlops/xinference:1.2.2-cu121-v1.3.0` (for GPU) or `build-harbor.alauda.cn/mlops/xinference:1.2.2-cpu-v1.3.0` (for CPU).
+4.  You have **cluster administrator privileges** (needed to create CRD instances).
+
+
+## Steps
+<Steps>
+### 1. Create Inference Runtime Resources
+
+You'll need to create the corresponding inference runtime resources based on your target hardware environment (GPU/CPU/NPU).
+
+1.  **Prepare the Runtime YAML Configuration**:
+    Based on the type of runtime you want to add (e.g., Xinference) and your target hardware environment, prepare the appropriate YAML configuration file. Here are examples for the Xinference runtime across different hardware environments:
+
+* **CPU Runtime Example**
+        ```yaml
+        # This is a sample YAML for Xinference GPU runtime
+        apiVersion: serving.kserve.io/v1alpha1
+        kind: ClusterServingRuntime
+        metadata:
+          name: aml-xinference-cuda-12.1 # Name of the runtime resource
+          labels:
+            cpaas.io/runtime-class: xinference # required runtime type label
+            cpaas.io/accelerator-type: "nvidia"
+            cpaas.io/cuda-version: "12.1"
+          annotations:
+            cpaas.io/display-name: xinference-cuda-12.1 # Display name in the UI
+        spec:
+          containers:
+          - name: kserve-container
+            image: build-harbor.alauda.cn/mlops/xinference:1.2.2-cpu-v1.3.0 # Replace with your actual CPU runtime image
+            env:
+            - name: MODEL_PATH # The path to the model directory is a required parameter across all runtimes.
+              value: /mnt/models/{{ index .Annotations "aml-model-repo" }}
+            - name: MODEL_UID # The MODEL_UID parameter is optional for other runtimes.
+              value: '{{ index .Annotations "aml-model-repo" }}'
+            - name: MODEL_ENGINE # The MODEL_UID parameter is optional for other runtimes.
+              value: "transformers"
+            - name: MODEL_FAMILY # Required parameter for xinference runtime, please set it based on your model family, value: "llama" # e.g., "llama", "chatglm", etc.
+              value: ""
+            command:
+            - bash
+            - -c
+            - |
+                set +e
+                if [ "${MODEL_PATH}" == "" ]; then
+                    echo "Need to set MODEL_PATH!"
+                    exit 1
+                fi
+                if [ "${MODEL_ENGINE}" == "" ]; then
+                    echo "Need to set MODEL_ENGINE!"
+                    exit 1
+                fi
+                if [ "${MODEL_UID}" == "" ]; then
+                    echo "Need to set MODEL_UID!"
+                    exit 1
+                fi
+                if [ "${MODEL_FAMILY}" == "" ]; then
+                    echo "Need to set MODEL_FAMILY!"
+                    exit 1
+                fi
+        
+                xinference-local --host 0.0.0.0 --port 8080 &
+                PID=$!
+                while [ true ];
+                do
+                    curl http://127.0.0.1:8080/docs
+                    if [ $? -eq 0 ]; then
+                        break
+                    else
+                        echo "waiting xinference-local server to become ready..."
+                        sleep 1
+                    fi
+                done
+        
+                set -e
+                xinference launch --model_path ${MODEL_PATH} --model-engine ${MODEL_ENGINE} -u ${MODEL_UID} -n ${MODEL_FAMILY} -e http://127.0.0.1:8080 $@
+                xinference list -e http://127.0.0.1:8080
+                echo "model load succeeded, waiting server process: ${PID}..."
+                wait ${PID}
+            # Add this line to use $@ in the script:
+            # see: https://unix.stackexchange.com/questions/144514/add-arguments-to-bash-c
+            - bash
+            resources:
+              limits:
+                cpu: 2
+                memory: 6Gi
+              requests:
+                cpu: 2
+                memory: 6Gi
+            startupProbe:
+              httpGet:
+                path: /docs
+                port: 8080
+                scheme: HTTP
+              failureThreshold: 60 
+              periodSeconds: 10
+              timeoutSeconds: 10
+          supportedModelFormats:
+            - name: transformers # The model format supported by the runtime
+              version: "1"
+            version: "1"
+        ```
+        * **Tip**: Make sure to replace the `image` field value with the path to your actual prepared runtime image. You can also modify the `annotations.cpaas.io/display-name` field to **customize the display name** of the runtime in the AI Platform UI.
+
+2.  **Apply the YAML File to Create the Resource**:
+    From a terminal with cluster administrator privileges, execute the following command to apply your YAML file and create the inference runtime resource:
+    ```bash
+    kubectl apply -f your-xinference-runtime.yaml
+    ```
+    :::tip
+    * **Important Tip**: Please **refer to the examples above and create/configure the runtime based on your actual environment and inference needs.** These examples are for reference only. You'll need to adjust parameters like the image, resource `limits`, and `requests` to ensure the runtime is compatible with your model and hardware environment and runs efficiently.
+    * **Note**: You can only use this custom runtime on the inference service publishing page *after* the runtime resource has been created!
+    :::
+
+### 2. Publish Xinference Inference Service and Select the Runtime
+
+Once the Xinference inference runtime resource is successfully created, you can select and configure it when publishing your LLM inference service on the AI Platform.
+
+1.  **Configure Inference Framework for the Model**:
+    Ensure that on the model details page of the model repository you are about to publish, you have selected the appropriate **framework** through the **File Management** metadata editing function. The framework parameter value chosen here must match a value included in the `supportedModelFormats` field when you created the inference service runtime. Please **ensure the model framework parameter value is listed in the `supportedModelFormats` list** set in the inference runtime.
+2.  **Navigate to the Inference Service Publishing Page**:
+    Log in to the AI Platform and navigate to the "Inference Services" or "Model Deployment" modules, then click "Publish Inference Service."
+3.  **Select the Xinference Runtime**:
+    In the inference service creation wizard, find the "Runtime" or "Inference Framework" option. From the dropdown menu or list, select the Xinference runtime you created in Step 1 (e.g., "Xinference CPU Runtime" or "Xinference GPU Runtime (CUDA)").
+4.  **Set Environment Variables**:
+    The Xinference runtime requires specific environment variables to function correctly. On the inference service configuration page, locate the "Environment Variables" or "More Settings" section and add the following environment variable:
+
+    * **Environment Variable Parameter Description**
+        | Parameter Name   | Description                                                                                                                                                                                                                                                                                                                      |
+        | :--------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+        | `MODEL_FAMILY`   | **Required**. Specifies the family type of the LLM model you are deploying. Xinference uses this parameter to identify and load the correct inference logic for the model. For example, if you are deploying a Llama 3 model, set it to `llama`; if it's a ChatGLM model, set it to `chatglm`. Please set this based on your model's actual family. |
+
+    * **Example**:
+        * **Variable Name**: `MODEL_FAMILY`
+        * **Variable Value**: `llama` (if you are using a Llama series model)
+
+</Steps>
