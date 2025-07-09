@@ -57,15 +57,19 @@ You'll need to create the corresponding inference runtime resources based on you
         spec:
           containers:
           - name: kserve-container
-            image: build-harbor.alauda.cn/mlops/xinference:1.2.2-cpu-v1.3.0 # Replace with your actual CPU runtime image
+            image: build-harbor.alauda.cn/mlops/xinference:1.2.2-cu121-v1.3.0 # Replace with your actual GPU runtime image
             env:
-            - name: MODEL_PATH # The path to the model directory is a required parameter across all runtimes.
+            # Required across all runtimes – path to the model directory
+            - name: MODEL_PATH
               value: /mnt/models/{{ index .Annotations "aml-model-repo" }}
-            - name: MODEL_UID # The MODEL_UID parameter is optional for other runtimes.
+            # The MODEL_UID parameter is optional for other runtimes.
+            - name: MODEL_UID 
               value: '{{ index .Annotations "aml-model-repo" }}'
-            - name: MODEL_ENGINE # Optional for other runtimes.
+            # The MODEL_ENGINE parameter is required by the Xinference runtime, while it can be omitted for other runtimes.
+            - name: MODEL_ENGINE 
               value: "transformers"
-            - name: MODEL_FAMILY # Required parameter for xinference runtime, please set it based on your model family, value: "llama" # e.g., "llama", "chatglm", etc.
+            # Required parameter for xinference runtime, please set it based on your model family, value: "llama" # e.g., "llama", "chatglm", etc.
+            - name: MODEL_FAMILY 
               value: ""
             command:
             - bash
