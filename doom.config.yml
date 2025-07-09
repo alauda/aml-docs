@@ -16,4 +16,16 @@ releaseNotes:
     fixed: |
       filter = 16502 AND Feature not in ("AIT - 平台打包") AND (resolution not in ("By Design", "Not a Bug", Duplicate, Rejected, "Cannot Reproduce") OR resolution is EMPTY) AND (fixVersion in (AI-v1.3.0) OR fixVersion in versionMatch(AI-v1.3.0)) AND status in (Done, Resolved, 已完成) AND project = ASM AND ReleaseNotesStatus = Publish
     unfixed: |
-      filter = 18959 AND affectedVersion in versionMatch("AI-v1.[0-3]") AND NOT (fixVersion in versionMatch("AI-v1.[0-3]") AND status in (Done, Resolved)) AND (labels not in (安全问题) OR labels is EMPTY) AND project = ASM AND ReleaseNotesStatus = Publish
+      (affectedVersion in versionMatch("AI-v1.[0-2]") OR affectedVersion in versionMatch("AI-v1.3.[0-0]")) AND NOT ((fixVersion in versionMatch("AI-v1.[0-2]") OR fixVersion in versionMatch("AI-v1.3.[0-0]")) AND status in (Done, Resolved)) AND (labels not in (安全问题) OR labels is EMPTY) AND project = ASM AND ReleaseNotesStatus = Publish
+    fixed_1.3.1: |
+      filter = 16502 AND Feature not in ("AIT - 平台打包") AND (resolution not in ("By Design", "Not a Bug", Duplicate, Rejected, "Cannot Reproduce") OR resolution is EMPTY) AND (fixVersion in (AI-v1.3.1) OR fixVersion in versionMatch(AI-v1.3.1)) AND status in (Done, Resolved, 已完成) AND project = ASM AND ReleaseNotesStatus = Publish
+    unfixed_1.3.1: |
+      (affectedVersion in versionMatch("AI-v1.[0-2]") OR affectedVersion in versionMatch("AI-v1.3.[0-1]")) AND NOT ((fixVersion in versionMatch("AI-v1.[0-2]") OR fixVersion in versionMatch("AI-v1.3.[0-1]")) AND status in (Done, Resolved)) AND (labels not in (安全问题) OR labels is EMPTY) AND project = ASM AND ReleaseNotesStatus = Publish
+    fixed_1.3.2: |
+      filter = 16502 AND Feature not in ("AIT - 平台打包") AND (resolution not in ("By Design", "Not a Bug", Duplicate, Rejected, "Cannot Reproduce") OR resolution is EMPTY) AND (fixVersion in (AI-v1.3.2) OR fixVersion in versionMatch(AI-v1.3.2)) AND status in (Done, Resolved, 已完成) AND project = ASM AND ReleaseNotesStatus = Publish
+    unfixed_1.3.2: |
+      (affectedVersion in versionMatch("AI-v1.[0-2]") OR affectedVersion in versionMatch("AI-v1.3.[0-2]")) AND NOT ((fixVersion in versionMatch("AI-v1.[0-2]") OR fixVersion in versionMatch("AI-v1.3.[0-2]")) AND status in (Done, Resolved)) AND (labels not in (安全问题) OR labels is EMPTY) AND project = ASM AND ReleaseNotesStatus = Publish
+    fixed_1.3.3: |
+      filter = 16502 AND Feature not in ("AIT - 平台打包") AND (resolution not in ("By Design", "Not a Bug", Duplicate, Rejected, "Cannot Reproduce") OR resolution is EMPTY) AND (fixVersion in (AI-v1.3.3) OR fixVersion in versionMatch(AI-v1.3.3)) AND status in (Done, Resolved, 已完成) AND project = ASM AND ReleaseNotesStatus = Publish
+    unfixed_1.3.3: |
+      (affectedVersion in versionMatch("AI-v1.[0-2]") OR affectedVersion in versionMatch("AI-v1.3.[0-3]")) AND NOT ((fixVersion in versionMatch("AI-v1.[0-2]") OR fixVersion in versionMatch("AI-v1.3.[0-3]")) AND status in (Done, Resolved)) AND (labels not in (安全问题) OR labels is EMPTY) AND project = ASM AND ReleaseNotesStatus = Publish
