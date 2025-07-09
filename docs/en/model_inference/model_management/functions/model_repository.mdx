@@ -6,14 +6,17 @@ weight: 10
 The core definition of the model repository feature is to provide a Git-based version-controlled storage system for machine learning models, enabling teams to manage model files, track versions, and collaborate across tenants. It leverages **Git LFS** for large file storage and integrates with MLOps workflows to bridge model development and deployment.  
 
 ## Advantages
-1. **Git-native Version Control**  
-   - Track model changes via commits/branches/tags, ensuring reproducibility.  
-2. **High-Speed Transfers**  
-   - CLI/Notebook uploads leverage internal network bandwidth.
-3. **Cross-Tenant Sharing**
-   - Shared models can be accessed across namespaces (e.g., `public` as a model marketplace).
-4. **Seamless Integration**
-   - Directly deploy models from the repository to inference services.
+**Git-native Version Control**  
+- Track model changes via commits/branches/tags, ensuring reproducibility.  
+
+**High-Speed Transfers**  
+- CLI/Notebook uploads leverage internal network bandwidth.
+
+**Cross-Tenant Sharing**
+- Shared models can be accessed across namespaces (e.g., `public` as a model marketplace).
+   
+**Seamless Integration**
+- Directly deploy models from the repository to inference services.
 
 ## Core Features
 **Model Repository Creation & Deletion**  
@@ -21,11 +24,11 @@ The core definition of the model repository feature is to provide a Git-based ve
 - Delete models after dependency checks (e.g., ensure no active inference services).  
 
 **File Management**  
-- **Web UI Upload**  
-  - Drag-and-drop files/folders (limited to small/medium sizes).  
-- **CLI/Git LFS**  
-  - Use `git lfs track` for large files (e.g., `*.bin`, `*.h5`).  
-  - Example:  
+1. **Web UI Upload**  
+    - Drag-and-drop files/folders (limited to small/medium sizes).  
+2. **CLI/Git LFS**  
+    - Use `git lfs track` for large files (e.g., `*.bin`, `*.h5`).  
+    - Example:  
     ```bash
     git clone <model_repo_url>
     git lfs install
@@ -33,34 +36,34 @@ The core definition of the model repository feature is to provide a Git-based ve
     ```
 
 **Version Control**  
-- **Branching**  
-  - Maintain parallel versions (e.g., `experimental` vs `main` branches).  
-- **Tagging**  
-  - Mark releases via UI/CLI (e.g., `git tag -a v2.0 -m "Stable release"`).  
-- **Metadata Sync**  
-  - Auto-read `README.md` from the default branch for model descriptions.  
+1. **Branching**  
+    - Maintain parallel versions (e.g., `experimental` vs `main` branches).  
+2. **Tagging**  
+    - Mark releases via UI/CLI (e.g., `git tag -a v2.0 -m "Stable release"`).  
+3. **Metadata Sync**  
+    - Auto-read `README.md` from the default branch for model descriptions.  
 
 **Cross-Tenant Sharing**  
-- **Shared Models**  
-  - Set visibility to "Shared" during creation for inter-tenant access.  
-- **Public Marketplace**  
-  - Use `public` namespace to publish open-source models (e.g., HuggingFace conversions).  
+1. **Shared Models**  
+    - Set visibility to "Shared" during creation for inter-tenant access.  
+2. **Public Marketplace**  
+    - Use `public` namespace to publish open-source models (e.g., HuggingFace conversions).  
 
 **Integration with MLOps**  
-- **Deployment Ready**  
-  - One-click inference service launch from tagged model versions.  
-- **Notebook Integration**  
-  - Pull models directly into AML Notebooks for testing:  
+1. **Deployment Ready**  
+    - One-click inference service launch from tagged model versions.  
+2. **Notebook Integration**  
+    - Pull models directly into AML Notebooks for testing:  
     ```bash
     !git clone https://aml-public/resnet50.git
     ```  
 
 
 ## Technical Notes
-- **Git LFS Requirement**  
-  - Must include `.gitattributes` to specify LFS-tracked files (e.g., `*.zip filter=lfs diff=lfs merge=lfs`).  
-- **Default Branch Rules**  
-  - Misconfigured `README.md` metadata may block inference deployment.  
+1. **Git LFS Requirement**  
+    - Must include `.gitattributes` to specify LFS-tracked files (e.g., `*.zip filter=lfs diff=lfs merge=lfs`).  
+2. **Default Branch Rules**  
+    - Misconfigured `README.md` metadata may block inference deployment.  
 
 
 ## Create Model Repository
@@ -83,18 +86,19 @@ After defining the necessary information, proceed to `Create` the empty Model Re
 
 You may upload model files through either of the following methods:
 
-Option 1: Web UI Upload
-- Use the File Management interface to upload files
-- Drag and drop files/folders into the designated area
-- Supported formats: All model file types (.h5, .bin, .pt, etc.)
-- Progress tracking with real-time upload status
+    * **Option 1: Web UI Upload**
+        * Use the File Management interface to upload files
+        * Drag and drop files/folders into the designated area
+        * Supported formats: All model file types (.h5, .bin, .pt, etc.)
+        * Progress tracking with real-time upload status
 
-Option 2: Git Command Line Upload
-1. Get Repository Address:
-- Navigate to Detail Info → Basic Info
-- Copy the Git repository URL (e.g., https://\<your-domain\>/\<namespace\>/\<repo-name\>.git)
+    * **Option 2: Git Command Line Upload**
 
-2. Upload via Git:
+        1.  **Get Repository Address:**
+            * Navigate to Detail Info → Basic Info
+            * Copy the Git repository URL (e.g., https://\<your-domain\>/\<namespace\>/\<repo-name\>.git)
+
+        2.  **Upload via Git:**
 
 ```bash
 

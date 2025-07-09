@@ -33,12 +33,15 @@ Before you start, please ensure you meet these conditions:
 
 
 ## Steps
+
 <Steps>
-### 1. Create Inference Runtime Resources
+
+### Create Inference Runtime Resources
 
 You'll need to create the corresponding inference runtime resources based on your target hardware environment (GPU/CPU/NPU).
 
-1.  **Prepare the Runtime YAML Configuration**:
+1. **Prepare the Runtime YAML Configuration**:
+
     Based on the type of runtime you want to add (e.g., Xinference) and your target hardware environment, prepare the appropriate YAML configuration file. Here are examples for the Xinference runtime across different hardware environments:
 
 * **GPU Runtime Example**
@@ -137,6 +140,7 @@ You'll need to create the corresponding inference runtime resources based on you
         * **Tip**: Make sure to replace the `image` field value with the path to your actual prepared runtime image. You can also modify the `annotations.cpaas.io/display-name` field to **customize the display name** of the runtime in the AI Platform UI.
 
 2.  **Apply the YAML File to Create the Resource**:
+
     From a terminal with cluster administrator privileges, execute the following command to apply your YAML file and create the inference runtime resource:
     ```bash
     kubectl apply -f your-xinference-runtime.yaml
@@ -146,15 +150,18 @@ You'll need to create the corresponding inference runtime resources based on you
     * **Note**: You can only use this custom runtime on the inference service publishing page *after* the runtime resource has been created!
     :::
 
-### 2. Publish Xinference Inference Service and Select the Runtime
+### Publish Xinference Inference Service and Select the Runtime
 
 Once the Xinference inference runtime resource is successfully created, you can select and configure it when publishing your LLM inference service on the AI Platform.
 
 1.  **Configure Inference Framework for the Model**:
+
     Ensure that on the model details page of the model repository you are about to publish, you have selected the appropriate **framework** through the **File Management** metadata editing function. The framework parameter value chosen here must match a value included in the `supportedModelFormats` field when you created the inference service runtime. Please **ensure the model framework parameter value is listed in the `supportedModelFormats` list** set in the inference runtime.
 2.  **Navigate to the Inference Service Publishing Page**:
+
     Log in to the AI Platform and navigate to the "Inference Services" or "Model Deployment" modules, then click "Publish Inference Service."
 3.  **Select the Xinference Runtime**:
+
     In the inference service creation wizard, find the "Runtime" or "Inference Framework" option. From the dropdown menu or list, select the Xinference runtime you created in Step 1 (e.g., "Xinference CPU Runtime" or "Xinference GPU Runtime (CUDA)").
 4.  **Set Environment Variables**:
     The Xinference runtime requires specific environment variables to function correctly. On the inference service configuration page, locate the "Environment Variables" or "More Settings" section and add the following environment variable:
