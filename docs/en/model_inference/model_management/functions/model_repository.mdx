@@ -116,6 +116,16 @@ git lfs track "*.h5" "*.bin" "*.pt"
 # Commit and push
 git add .
 git commit -m "Add model files v1.0"
+
+# Perform LFS migration check for existing large files (as seen in screenshot)
+git lfs migrate info
+
+# Migrate existing large files to LFS, specifically those above 100MB.
+# This limit (100MB) is chosen based on GitHub's recommended file size limits
+# for optimal performance and handling, as documented at:
+# https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github#file-size-limits
+git lfs migrate import --above 100MB
+
 git push origin main
 
 ```
