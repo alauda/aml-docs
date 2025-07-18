@@ -18,7 +18,9 @@ This document provides a step-by-step guide on how to configure external access 
 
 ### 1. View External Access Address of the Inference Service
 
-To find the external access address of your inference service, navigate to the inference service details page. You can find the address in the **Access Method** card, or by viewing the **YAML** card and checking the address under `status.url`.
+You can:
+1. Navigate to the service details page and copy the address from the **Access Method** card, **or**
+2. View the address in the **YAML** card under `status.url`.
 
 ### 2. Create a Domain
 
@@ -27,7 +29,8 @@ In the Administrator Console, go to **Network** > **Domains**, and then click **
 * For **Allocated To (Cluster)**, select the cluster where your service is located.
 * For **Allocated Projects**, choose the project where your inference service resides.
 
-### 3. Create a Load Balancer (Multiple projects can share, create as needed)
+### 3. Create a Load Balancer
+(*One load balancer can be shared by multiple projects; create a new one only if necessary.*)
 
 In the Administrator Console, go to **Network** > **Load Balancers**, and then click **Create Load Balancer**. For detailed help documentation, please refer to <ExternalSiteLink name="acp" href="/configure/networking/how_to/create_loadbalancer.mdx" children="Configure Load Balancer" />.
 
@@ -44,7 +47,7 @@ Add listening ports: **HTTP** protocol on port **80**, and **HTTPS** protocol on
 #### 4.2 Add Forwarding Rules Resources
 
 * **Domains**: Select the domain you created in the previous step.
-* **ServiceGroup**: Select the service named `knative-ingressgateway` under the `istio-system` namespace, and choose port **80**.
+* **ServiceGroup** (Kubernetes **Service**): Select `knative-ingressgateway` in the `istio-system` namespace and choose port **80**.
  
 For more detailed parameter configurations, you can refer to <ExternalSiteLink name="acp" href="/configure/networking/how_to/create_loadbalancer.mdx" children="Configure Load Balancer" />.
 
@@ -54,7 +57,13 @@ To verify that your inference service is accessible externally, use the `curl` c
 
 
 ```bash
-curl -v --resolve "your-inference-service-domain.com:your-port:your-load-balancer-ip" http://your-inference-service-domain.com/v1/models
+# For HTTP
+curl -v --resolve "your-inference-service-domain.com:your-port:your-load-balancer-ip" \
+    http://your-inference-service-domain.com/v1/models
+
+# For HTTPS (skip `-k` if you have a valid certificate)
+curl -vk --resolve "your-inference-service-domain.com:443:your-load-balancer-ip" \
+    https://your-inference-service-domain.com/v1/models
 ```
 **Here's what each part of the command means and what you need to replace:**
 
