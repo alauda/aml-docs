@@ -4,22 +4,28 @@ weight: 30
 
 # Alauda AI Cluster Components
 
+In the cluster where Alauda AI is to be used, the following two operators need to be deployed:
+
+1. Alauda AI
+
+Alauda AI is a full-stack MLOps platform that establishes an efficient ecosystem centered around model, application, and dataset management. It provides a comprehensive MLOps/LLMOps/GenOps solution suite covering the entire workflow, including inference services, application deployment, data annotation, model fine-tuning, and service operations & maintenance. This enables you to effortlessly deploy inference services, precisely optimize models, and accurately achieve your business objectives.
+
+2. Alauda AI Model Serving
+
+Alauda AI Model Serving provides serverless model inference.
+
 ## Downloading
 
-The following operator bundle packages require to be downloaded before installation:
-
-1. `Alauda AI Cluster`: For managing Alauda AI cluster components.
-2. `KServeless`: For managing `KServe` and `Knative Serving` components.
-
 :::info
-Those two operator bundle packages can be retrieved from Customer Portal.
+You can download 'Alauda AI' and 'Alauda AI Model Serving' from the Marketplace on the Customer Portal website. Follow these steps:
 
-Please contact Consumer Support for more information.
+1. Download the app named "AI".
+2. Unzip the downloaded file to obtain the `aml-operator.xxx.tgz` and `kserveless-operator.xxx.tgz` packages.
 :::
 
 ## Uploading
 
-We need to upload both `Alauda AI Cluster` and `KServeless` to the destination cluster.
+We need to upload both `Alauda AI` and `Alauda AI Model Serving` to the cluster where Alauda AI is to be used.
 
 <Steps>
 
@@ -27,7 +33,7 @@ We need to upload both `Alauda AI Cluster` and `KServeless` to the destination c
 
 First, we need to download the `violet` tool if not present on the machine.
 
-In **Platform Management** of ACP console:
+Log into the Web Console and switch to the **Administrator** view:
 
 1. Click **Marketplace / Upload Packages**.
 2. Click **Download Packaging and Listing Tool**.
@@ -102,57 +108,57 @@ violet push \
 
 </Callouts>
 
-After configuration, execute the script file using `bash ./uploading-ai-cluster-packages.sh` to upload both `Alauda AI Cluster` and `KServeless` operator packages to the destination cluster.
+After configuration, execute the script file using `bash ./uploading-ai-cluster-packages.sh` to upload both `Alauda AI` and `Alauda AI Model Serving` operator.
 
 </Steps>
 
-## Install the Alauda AI Cluster Operator
+## Install Alauda AI Operator
 
 <Steps>
 
 ### Procedure
 
-In **Platform Management** of ACP console:
+In **Administrator** view:
 
-1. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install the Alauda AI Cluster Operator.
-2. Click **Marketplace / Operator Hub**.
-3. Select **Alauda AI Cluster**, then click **Install**.
+1. Click **Marketplace / OperatorHub**.
+2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install Alauda AI.
+3. Select **Alauda AI**, then click **Install**.
 
-    **Install Alauda AI Cluster** window will popup.
+    **Install Alauda AI** window will popup.
 
-4. Then in the **Install Alauda AI Cluster** window.
+4. Then in the **Install Alauda AI** window.
 5. Leave **Channel** unchanged.
-6. Check whether the **Version** matches the **Alauda AI Cluster** version you want to install.
+6. Check whether the **Version** matches the **Alauda AI** version you want to install.
 7. Leave **Installation Location** unchanged, it should be `aml-operator` by default.
 8. Select **Manual** for **Upgrade Strategy**.
 9. Click **Install**.
 
 ### Verification
 
-Confirm that the **Alauda AI Cluster** tile shows one of the following states:
+Confirm that the **Alauda AI** tile shows one of the following states:
 
 - `Installing`: installation is in progress; wait for this to change to `Installed`.
 - `Installed`: installation is complete.
 
 </Steps>
 
-## Creating Alauda AI Cluster Instance
+## Creating Alauda AI Instance
 
-Once Alauda AI Cluster Operator is installed, you can create an Alauda AI Cluster instance.
+Once Alauda AI Operator is installed, you can create an Alauda AI instance.
 
 ### Procedure
 
-In **Platform Management** of ACP console:
+In **Administrator** view:
 
-1. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install the Alauda AI Cluster Operator.
-2. Click **Marketplace / Operator Hub**.
-3. Select **Alauda AI Cluster**, then **Click**.
-4. In the **Alauda AI Cluster** page, click **All Instances** from the tab.
-5. Click **Create Instance**.
+1. Click **Marketplace / OperatorHub**.
+2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install the Alauda AI Operator.
+3. Select **Alauda AI**, then **Click**.
+4. In the **Alauda AI** page, click **All Instances** from the tab.
+5. Click **Create**.
 
     **Select Instance Type** window will pop up.
 
-6. Locate the **AmlCluster** tile in **Select Instance Type** window, then click **Create Instance**.
+6. Locate the **AmlCluster** tile in **Select Instance Type** window, then click **Create**.
 
     **Create AmlCluster** form will show up.
 
@@ -183,7 +189,7 @@ In **Platform Management** of ACP console:
 
 12. Under **Gitlab** section:
     1.  Type the URL of self-hosted Gitlab for **Base URL**.
-    2.  Type `cpaas-system` fro **Admin Token Secret Namespace**.
+    2.  Type `cpaas-system` for **Admin Token Secret Namespace**.
     3.  Type `aml-gitlab-admin-token` for **Admin Token Secret Name**.
 13. Under **MySQL** section:
     1.  Type the *address* of MySQL instance in the **Host** field.
@@ -217,3 +223,39 @@ Should returns `Ready`:
 NAME      READY   REASON
 default   True    Succeeded
 ```
+
+## Replace GitLab Service After Installation
+
+If you want to replace GitLab Service after installation, follow these steps:
+
+1. **Reconfigure GitLab Service**  
+   Refer to the [Pre-installation Configuration](./pre-configuration.mdx) and re-execute its steps.
+
+2. **Update Alauda AI Instance**  
+   - In Administrator view, navigate to **Marketplace > OperatorHub**  
+   - From the **Cluster** dropdown, select the target cluster  
+   - Choose **Alauda AI** and click the **All Instances** tab  
+   - Locate the **'default'** instance and click **Update**
+
+3. **Modify GitLab Configuration**  
+   In the **Update default** form:  
+   - Locate the **GitLab** section  
+   - Enter:  
+     - **Base URL**: The URL of your new GitLab instance  
+     - **Admin Token Secret Namespace**: `cpaas-system`  
+     - **Admin Token Secret Name**: `aml-gitlab-admin-token`
+
+4. **Restart Components**  
+   Restart the `aml-controller` deployment in the `kubeflow` namespace.
+
+5. **Refresh Platform Data**  
+   In Alauda AI management view, re-manage all namespaces.
+   - In Alauda AI view, navigate to **Admin** view from **Business View**  
+   - On the **Namespace Management** page, delete all existing managed namespaces
+   - Use "Managed Namespace" to add namespaces requiring Alauda AI integration
+   :::info
+        Original models won't migrate automatically
+        Continue using these models:
+        - Recreate and re-upload in new GitLab OR
+        - Manually transfer model files to new repository
+   :::

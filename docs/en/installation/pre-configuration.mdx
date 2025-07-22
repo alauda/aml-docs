@@ -2,11 +2,38 @@
 weight: 5
 ---
 
-# Pre-configuration
+# Pre-installation Configuration
 
-## GitLab Configuration
+## **Preparing the GitLab Service**
 
-### Disable expiration dates for access tokens
+In Alauda AI, GitLab is the core component for **"Model Management"**. Before deploying Alauda AI, you **must prepare** a GitLab service.
+
+### **Deployment Options**
+
+#### **1. Use the platform-provided plugin**
+
+Deploy a new GitLab service using the **'Alauda Build of GitLab'** plugin.
+For instructions, refer to: <ExternalSiteLink name="alauda-build-of-gitlab" href="/install/01_installation_guide.mdx" children="Deploy Alauda Build of GitLab" />.
+
+#### **2. Use your own GitLab service**
+
+Alternatively, you can use a **self-managed GitLab instance**, but it **must meet** the **GitLab service requirements**.
+
+#### **3. GitLab service requirements**
+
+Regardless of deployment method, all GitLab instances must satisfy:
+
+- **Version**: Must be **v15 or later**.
+- **Git LFS**: Must be **enabled**.
+- **Hosting**: Must be **self-hosted** (public cloud-hosted GitLab services are **not supported**).
+- **Protocol**: Must use **HTTPS**.
+- **Access Tokens**: **Disable expiration dates** for access tokens.
+
+### **GitLab Configuration**
+
+Before deploying Alauda AI, perform these GitLab configuration steps after service acquisition。
+
+#### **1. Disable expiration dates for access tokens**
 
 If GitLab is running `v17.0` or greater, we need to **disable** expiration dates for access tokens.
 
@@ -24,7 +51,7 @@ To **disable** expiration dates for new access tokens:
 4. **Uncheck** the **Personal / Project / Group access token expiration** checkbox.
 5. Select **Save changes**.
 
-### Generate new token
+#### **2. Generate new token**
 
 To **generate** impersonation token for admin:
 
@@ -46,7 +73,7 @@ Make sure you save the newly generate token - you won't be able to access it aga
 
 :::
 
-### Create kubernetes secret for admin token
+#### **3. Create kubernetes secret for admin token**
 
 Then we create secret for gitlab admin token named **aml-gitlab-admin-token** under **cpaas-system** namespace:
 
