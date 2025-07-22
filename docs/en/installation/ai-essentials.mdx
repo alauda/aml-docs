@@ -2,21 +2,21 @@
 weight: 20
 ---
 
-# Alauda AI Essentials Cluster Plugin
+# Alauda AI Essentials
 
-Alauda AI Essentials cluster plugin provides UI and RBAC resources for Alauda AI.
+Alauda AI Essentials provides UI and RBAC resources for Alauda AI.
 
 ## Downloading
 
 :::info
 Alauda AI Essentials cluster plugin can be retrieved from Customer Portal.
 
-Please contact Consumer Support for more information.
+The package name is `aml-global-xxx.tgz`.
 :::
 
 ## Uploading
 
-We need to upload the Alauda AI Essentials cluster plugin to ACP **global** cluster.
+We need to upload the Alauda AI Essentials cluster plugin to **global** cluster.
 
 ### Procedure
 
@@ -26,7 +26,7 @@ We need to upload the Alauda AI Essentials cluster plugin to ACP **global** clus
 
 First, we need to download the `violet` tool if not present on the machine.
 
-In **Platform Management** of ACP console:
+Log into the Web Console and switch to the **Administrator** view:
 
 1. Click **Marketplace / Upload Packages**.
 2. Click **Download Packaging and Listing Tool**.
@@ -36,7 +36,7 @@ In **Platform Management** of ACP console:
 
 ### Uploading package
 
-Then, run the following command to upload the **Alauda AI Essentials** cluster plugin to ACP global cluster:
+Then, run the following command to upload the **Alauda AI Essentials** cluster plugin to global cluster:
 
 ```bash
 # [!code callout:5]
@@ -64,10 +64,10 @@ violet push \
 
 ### Procedure
 
-In **Platform Management** of ACP console:
+In **Administrator** view:
 
-1. Select **global** cluster from the **Cluster** dropdown list at the top of the console.
-2. Click **Marketplace / Cluster Plugin**.
+1. Click **Marketplace / Cluster Plugin**.
+2. Select **global** cluster from the **Cluster** dropdown list at the top of the console.
 3. Locate **Alauda AI Essentials**.
 4. Click **Install**.
 
