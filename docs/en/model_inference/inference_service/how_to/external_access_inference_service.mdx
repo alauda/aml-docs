@@ -1,0 +1,75 @@
+---
+weight: 10
+i18n:
+  title:
+    en: Configure External Access for Inference Services
+    zh: 配置推理服务外部访问
+---
+
+# Configure External Access for Inference Services
+
+## Introduction
+
+This document provides a step-by-step guide on how to configure external access for your inference services, including checking external access addresses, creating domains, setting up load balancers, and verifying the configuration.
+
+## Steps
+
+<Steps>
+
+### 1. View External Access Address of the Inference Service
+
+You can:
+1. Navigate to the service details page and copy the address from the **Access Method** card, **or**
+2. View the address in the **YAML** card under `status.url`.
+
+### 2. Create a Domain
+
+In the Administrator Console, go to **Network** > **Domains**, and then click **Create Domain**.
+* In the **Domain** field, enter the external access address of your inference service.
+* For **Allocated To (Cluster)**, select the cluster where your service is located.
+* For **Allocated Projects**, choose the project where your inference service resides.
+
+### 3. Create a Load Balancer
+(*One load balancer can be shared by multiple projects; create a new one only if necessary.*)
+
+In the Administrator Console, go to **Network** > **Load Balancers**, and then click **Create Load Balancer**. For detailed help documentation, please refer to <ExternalSiteLink name="acp" href="/configure/networking/how_to/create_loadbalancer.mdx" children="Configure Load Balancer" />.
+
+### 4. Configure the Load Balancer
+
+In the Alauda Container Platform Console, navigate to **Network** > **Load Balancers**, then click the name of the load balancer you just created to enter its configuration page.
+
+#### 4.1 Add Listener Frontend Resources
+
+Add listening ports: **HTTP** protocol on port **80**, and **HTTPS** protocol on port **443**. You can add more as needed.
+
+**If you choose the HTTPS protocol, please select `knative-serving-cert` (located in the `istio-system` namespace) as the Default Certificate.**
+
+#### 4.2 Add Forwarding Rules Resources
+
+* **Domains**: Select the domain you created in the previous step.
+* **ServiceGroup** (Kubernetes **Service**): Select `knative-ingressgateway` in the `istio-system` namespace and choose port **80**.
+ 
+For more detailed parameter configurations, you can refer to <ExternalSiteLink name="acp" href="/configure/networking/how_to/create_loadbalancer.mdx" children="Configure Load Balancer" />.
+
+### 5. Verify Access to the Inference Service via External Address
+
+To verify that your inference service is accessible externally, use the `curl` command below. **Remember to replace the placeholders with your actual load balancer IP address, port, and inference service address.**
+
+
+```bash
+# For HTTP
+curl -v --resolve "your-inference-service-domain.com:your-port:your-load-balancer-ip" \
+    http://your-inference-service-domain.com/v1/models
+
+# For HTTPS (skip `-k` if you have a valid certificate)
+curl -vk --resolve "your-inference-service-domain.com:443:your-load-balancer-ip" \
+    https://your-inference-service-domain.com/v1/models
+```
+**Here's what each part of the command means and what you need to replace:**
+
+* `your-inference-service-domain.com`: This should be the domain name you created for your inference service (e.g., `qwen2-0b5-kubeflow-admin-cpaas-io.my-company.com`).
+* `your-port`: This is the port your load balancer is listening on for HTTP traffic (commonly `80`).
+* `your-load-balancer-ip`: This is the actual IP address of your load balancer (e.g., `192.168.137.21`).
+
+If the request successfully returns the model list, your configuration is complete! If it fails, double-check your load balancer settings or review the inference service logs to pinpoint the problem.
+</Steps>
