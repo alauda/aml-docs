@@ -25,7 +25,7 @@ You can:
 ### 2. Create a Domain
 
 In the Administrator Console, go to **Network** > **Domains**, and then click **Create Domain**.
-* In the **Domain** field, enter the external access address of your inference service.
+* In the **Domain** field, enter the domain name of your inference service, excluding the protocol (e.g., qwen2-0b5-kubeflow-admin-cpaas-io.my-company.com).
 * For **Allocated To (Cluster)**, select the cluster where your service is located.
 * For **Allocated Projects**, choose the project where your inference service resides.
 
@@ -38,16 +38,39 @@ In the Administrator Console, go to **Network** > **Load Balancers**, and then c
 
 In the Alauda Container Platform Console, navigate to **Network** > **Load Balancers**, then click the name of the load balancer you just created to enter its configuration page.
 
-#### 4.1 Add Listener Frontend Resources
+#### 4.1 Ports Configuration
 
-Add listening ports: **HTTP** protocol on port **80**, and **HTTPS** protocol on port **443**. You can add more as needed.
+Add listening ports for your service. You can add more ports as needed.
 
-**If you choose the HTTPS protocol, please select `knative-serving-cert` (located in the `istio-system` namespace) as the Default Certificate.**
+**Step 1: Add a Port**
+1. In the **Port Management** section, click the **Add Port** button.
+2. In the configuration page, select a protocol (**HTTP** or **HTTPS**).
+3. Enter the corresponding port number. For HTTP, the standard port is `80`. For HTTPS, the standard port is `443`.
 
-#### 4.2 Add Forwarding Rules Resources
+**Step 2: Configure HTTPS (if applicable)**
+If you choose the **HTTPS** protocol, you must select a default certificate.
+1. Ensure you have switched to the **`istio-system`** namespace. This is crucial for the next step.
+2. Select **`knative-serving-cert`** as the **Default Certificate**.
 
-* **Domains**: Select the domain you created in the previous step.
-* **ServiceGroup** (Kubernetes **Service**): Select `knative-ingressgateway` in the `istio-system` namespace and choose port **80**.
+#### 4.2 Rules Configuration
+
+Configure forwarding rules for the ports you added in the previous step.
+
+**Step 1: Add a Rule**
+
+1. In the **Rules** section, click the **Add Rule** button.
+2. On the configuration page, click the **Add Rule Indicator** button to add your first rule.
+3. For **Type**, select **Domains**.
+4. From the dropdown menu, choose the domain name you created for your inference service, for example: `qwen2-0b5-kubeflow-admin-cpaas-io.my-company.com`.
+
+**Step 2: Configure the Service Group**
+
+1. Locate the **Service Group** configuration area.
+2. Ensure the **Namespace** is set to `istio-system`. If not, switch your project's namespace to `istio-system` first.
+3. Under **Services**, select `knative-ingressgateway` from the dropdown list.
+4. Choose port **80**.
+
+**Note:** The process for configuring rules for the HTTPS protocol (port 443) is the same as described above.
  
 For more detailed parameter configurations, you can refer to <ExternalSiteLink name="acp" href="/configure/networking/how_to/create_loadbalancer.mdx" children="Configure Load Balancer" />.
 
