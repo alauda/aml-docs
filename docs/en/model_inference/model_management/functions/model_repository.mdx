@@ -3,67 +3,67 @@ weight: 10
 ---
 
 # Model Repository
-The core definition of the model repository feature is to provide a Git-based version-controlled storage system for machine learning models, enabling teams to manage model files, track versions, and collaborate across tenants. It leverages **Git LFS** for large file storage and integrates with MLOps workflows to bridge model development and deployment.  
+The core definition of the model repository feature is to provide a Git-based version-controlled storage system for machine learning models, enabling teams to manage model files, track versions, and collaborate across tenants. It leverages **Git LFS** for large file storage and integrates with MLOps workflows to bridge model development and deployment.
 
 ## Advantages
-**Git-native Version Control**  
-- Track model changes via commits/branches/tags, ensuring reproducibility.  
+**Git-native Version Control**
+- Track model changes via commits/branches/tags, ensuring reproducibility.
 
-**High-Speed Transfers**  
+**High-Speed Transfers**
 - CLI/Notebook uploads leverage internal network bandwidth.
 
 **Cross-Tenant Sharing**
 - Shared models can be accessed across namespaces (e.g., `public` as a model marketplace).
-   
+
 **Seamless Integration**
 - Directly deploy models from the repository to inference services.
 
 ## Core Features
-**Model Repository Creation & Deletion**  
-- Create an empty Git-backed repository with metadata (name/description/visibility).  
-- Delete models after dependency checks (e.g., ensure no active inference services).  
+**Model Repository Creation & Deletion**
+- Create an empty Git-backed repository with metadata (name/description/visibility).
+- Delete models after dependency checks (e.g., ensure no active inference services).
 
-**File Management**  
-1. **Web UI Upload**  
-    - Drag-and-drop files/folders (limited to small/medium sizes).  
-2. **CLI/Git LFS**  
-    - Use `git lfs track` for large files (e.g., `*.bin`, `*.h5`).  
-    - Example:  
-    ```bash
-    git clone <model_repo_url>
-    git lfs install
-    cp ~/local_model/* . && git add . && git commit -m "v1.0" && git push
-    ```
+**File Management**
+1. **Web UI Upload**
+    - Drag-and-drop files/folders (limited to small/medium sizes).
+2. **CLI/Git LFS**
+    - Use `git lfs track` for large files (e.g., `*.bin`, `*.h5`).
+    - Example:
+      ```bash
+      git clone <model_repo_url>
+      git lfs install
+      cp ~/local_model/* . && git add . && git commit -m "v1.0" && git push
+      ```
 
-**Version Control**  
-1. **Branching**  
-    - Maintain parallel versions (e.g., `experimental` vs `main` branches).  
-2. **Tagging**  
-    - Mark releases via UI/CLI (e.g., `git tag -a v2.0 -m "Stable release"`).  
-3. **Metadata Sync**  
-    - Auto-read `README.md` from the default branch for model descriptions.  
+**Version Control**
+1. **Branching**
+    - Maintain parallel versions (e.g., `experimental` vs `main` branches).
+2. **Tagging**
+    - Mark releases via UI/CLI (e.g., `git tag -a v2.0 -m "Stable release"`).
+3. **Metadata Sync**
+    - Auto-read `README.md` from the default branch for model descriptions.
 
-**Cross-Tenant Sharing**  
-1. **Shared Models**  
-    - Set visibility to "Shared" during creation for inter-tenant access.  
-2. **Public Marketplace**  
-    - Use `public` namespace to publish open-source models (e.g., HuggingFace conversions).  
+**Cross-Tenant Sharing**
+1. **Shared Models**
+    - Set visibility to "Shared" during creation for inter-tenant access.
+2. **Public Marketplace**
+    - Use `public` namespace to publish open-source models (e.g., HuggingFace conversions).
 
-**Integration with MLOps**  
-1. **Deployment Ready**  
-    - One-click inference service launch from tagged model versions.  
-2. **Notebook Integration**  
-    - Pull models directly into AML Notebooks for testing:  
-    ```bash
-    !git clone https://aml-public/resnet50.git
-    ```  
+**Integration with MLOps**
+1. **Deployment Ready**
+    - One-click inference service launch from tagged model versions.
+2. **Notebook Integration**
+    - Pull models directly into AML Notebooks for testing:
+      ```bash
+      !git clone https://aml-public/resnet50.git
+      ```
 
 
 ## Technical Notes
-1. **Git LFS Requirement**  
-    - Must include `.gitattributes` to specify LFS-tracked files (e.g., `*.zip filter=lfs diff=lfs merge=lfs`).  
-2. **Default Branch Rules**  
-    - Misconfigured `README.md` metadata may block inference deployment.  
+1. **Git LFS Requirement**
+    - Must include `.gitattributes` to specify LFS-tracked files (e.g., `*.zip filter=lfs diff=lfs merge=lfs`).
+2. **Default Branch Rules**
+    - Misconfigured `README.md` metadata may block inference deployment.
 
 
 ## Create Model Repository
@@ -100,41 +100,41 @@ You may upload model files through either of the following methods:
 
         2.  **Upload via Git:**
 
-```bash
+            ```bash
 
-# Clone the repository
-git clone <repository-url>
+            # Clone the repository
+            git clone <repository-url>
 
-# Navigate to repo directory
-cd <repo-name>
+            # Navigate to repo directory
+            cd <repo-name>
 
-# Initialize Git LFS (if not already set up)
-git lfs install
+            # Initialize Git LFS (if not already set up)
+            git lfs install
 
-# Add model files (replace with your actual files)
-cp -r /path/to/your/model/files/* .
+            # Add model files (replace with your actual files)
+            cp -r /path/to/your/model/files/* .
 
-# Configure LFS tracking (for large files)
-git lfs track "*.h5" "*.bin" "*.pt"
+            # Configure LFS tracking (for large files)
+            git lfs track "*.h5" "*.bin" "*.pt"
 
-# Commit and push
-git add .
-git commit -m "Add model files v1.0"
+            # Commit and push
+            git add .
+            git commit -m "Add model files v1.0"
 
-# Perform LFS migration check for existing large files (as seen in screenshot)
-git lfs migrate info
+            # Perform LFS migration check for existing large files (as seen in screenshot)
+            git lfs migrate info
 
-# Migrate existing large files to LFS, specifically those above 100MB.
-# NOTE: This command rewrites commit history. If the repository is already shared,
-# coordinate with collaborators and push with --force, or prefer running it
-# before the first public push.
-# This limit (100MB) is chosen based on GitHub's recommended file size limits
-# for optimal performance and handling, as documented at:
-# https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github#file-size-limits
-git lfs migrate import --above 100MB
+            # Migrate existing large files to LFS, specifically those above 100MB.
+            # NOTE: This command rewrites commit history. If the repository is already shared,
+            # coordinate with collaborators and push with --force, or prefer running it
+            # before the first public push.
+            # This limit (100MB) is chosen based on GitHub's recommended file size limits
+            # for optimal performance and handling, as documented at:
+            # https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github#file-size-limits
+            git lfs migrate import --above 100MB
 
-git push origin main
+            git push origin main
 
-```
+            ```
 
 </Steps>
