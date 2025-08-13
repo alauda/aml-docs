@@ -1,0 +1,5 @@
+amlclusters
+amlnamespaces
+knative
+kserve
+xinference
