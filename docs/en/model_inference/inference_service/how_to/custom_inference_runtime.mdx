@@ -69,7 +69,7 @@ Once the custom inference runtime resource is successfully created, you can sele
 3.  **Select the Custom Runtime**:
 
     In the inference service creation wizard, find the "Runtime" or "Inference Framework" option. From the dropdown menu or list, select the custom runtime you created in Step 1 (e.g., "MLServer Runtime" or "Xinference GPU Runtime (CUDA)").
-4.  **Set Environment Variables(if needed)**:
+4.  **Set Environment Variables (if needed)**:
 
     Some runtimes, like Xinference, require specific environment variables to function correctly. On the inference service configuration page, locate the "Environment Variables" or "More Settings" section and add any required environment variables.
 
@@ -98,7 +98,7 @@ The MLServer runtime is versatile and can be used on both NVIDIA GPUs and CPUs.
     containers:
       - command:
           - /bin/bash
-          - -cl
+          - -lc
           - |
             mlserver start $MLSERVER_MODEL_URI $@
           # Add this line to use $@ in the script:
@@ -158,7 +158,7 @@ The MLServer runtime is versatile and can be used on both NVIDIA GPUs and CPUs.
       cpaas.io/cuda-version: "12.1"
     annotations:
       cpaas.io/display-name: xinference-cuda-12.1 # Display name in the UI
-     spec:
+  spec:
     containers:
       - name: kserve-container
         image: build-harbor.alauda.cn/mlops/xinference:1.2.2-cu121-v1.3.0
@@ -174,7 +174,7 @@ The MLServer runtime is versatile and can be used on both NVIDIA GPUs and CPUs.
           value: ""
         command:
         - bash
-        - -c
+        - -lc
         - |
           set +e
           if [ "${MODEL_PATH}" == "" ]; then
@@ -216,7 +216,7 @@ The MLServer runtime is versatile and can be used on both NVIDIA GPUs and CPUs.
   
           # 2. Start the Xinference model serving.
           set -e
-          xinference launch --model_path ${MODEL_PATH} --model-engine ${MODEL_ENGINE} -u ${MODEL_UID} -n ${MODEL_FAMILY} --n-gpu ${GPU_COUNT} -e http://127.0.0.1:8080 $@
+          xinference launch --model_path "${MODEL_PATH}" --model-engine "${MODEL_ENGINE}" -u "${MODEL_UID}" -n "${MODEL_FAMILY}" --n-gpu ${GPU_COUNT} -e http://127.0.0.1:8080 $@
           xinference list -e http://127.0.0.1:8080
           echo "model load succeeded, waiting server process: ${PID}..."
           wait ${PID}
@@ -239,6 +239,14 @@ The MLServer runtime is versatile and can be used on both NVIDIA GPUs and CPUs.
           failureThreshold: 60
           periodSeconds: 10
           timeoutSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          runAsNonRoot: true
+          runAsUser: 1000
     supportedModelFormats:
       - name: transformers
         version: "1"
@@ -259,7 +267,7 @@ The MLServer runtime is versatile and can be used on both NVIDIA GPUs and CPUs.
   spec:
     containers:
       - name: kserve-container
-        image: <Replace with your actual Xinference GPU image>
+        image: <Replace with your actual Xinference NPU image>
         env:
         - name: MODEL_PATH
           value: /mnt/models/{{ index .Annotations "aml-model-repo" }}
@@ -272,8 +280,8 @@ The MLServer runtime is versatile and can be used on both NVIDIA GPUs and CPUs.
           value: ""
         command:
           - bash
-          - -c
-          - >
+          - -lc
+          - |
             set +e
   
             pip install transformers~=4.49.0
@@ -315,23 +323,23 @@ The MLServer runtime is versatile and can be used on both NVIDIA GPUs and CPUs.
                 fi
             done
   
-             # 1. Check the number of available NPUs to decide whether to enable multi-NPU tensor parallelism.
+            # 1. Check the number of available NPUs to decide whether to enable multi-NPU tensor parallelism.
   
-            GPU_COUNT=$(python3 -c "import torch_npu; print(torch_npu.npu.device_count())")
+            NPU_COUNT=$(python3 -c "import torch_npu; print(torch_npu.npu.device_count())")
   
-            echo "Starting serving model name: ${MODEL_NAME}, num gpus: ${GPU_COUNT}"
+            echo "Starting serving model name: ${MODEL_NAME}, num gpus: ${NPU_COUNT}"
   
-            if [ ${GPU_COUNT} -lt 1 ]; then
-                echo "No GPUs found. Please check if the container have aquired any GPU device"
+            if [ ${NPU_COUNT} -lt 1 ]; then
+                echo "No NPUs found. Please check if the container have aquired any NPU device"
                 exit 1
             fi
   
   
-             # 2. Start the Xinference model serving.
+            # 2. Start the Xinference model serving.
   
             set -e
   
-            xinference launch --model_path ${MODEL_PATH} --model-engine ${MODEL_ENGINE} -u ${MODEL_UID} -n ${MODEL_FAMILY} --n-gpu ${GPU_COUNT} -e http://127.0.0.1:8080 $@
+            xinference launch --model_path "${MODEL_PATH}" --model-engine "${MODEL_ENGINE}" -u "${MODEL_UID}" -n "${MODEL_FAMILY}" --n-gpu ${GPU_COUNT} -e http://127.0.0.1:8080 $@
   
             xinference list -e http://127.0.0.1:8080
   
@@ -346,6 +354,23 @@ The MLServer runtime is versatile and can be used on both NVIDIA GPUs and CPUs.
           requests:
             cpu: 2
             memory: 6Gi
+        startupProbe:
+          httpGet:
+            path: /docs
+            port: 8080
+            scheme: HTTP
+          # The pod will be killed if the model is not available within 10 minutes.
+          failureThreshold: 60
+          periodSeconds: 10
+          timeoutSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          runAsNonRoot: true
+          runAsUser: 1000
     supportedModelFormats:
       - name: transformers
         version: "1"    
@@ -360,7 +385,6 @@ The MLServer runtime is versatile and can be used on both NVIDIA GPUs and CPUs.
     labels:
       cpaas.io/runtime-class: xinference # required runtime type label
       cpaas.io/accelerator-type: "cpu"
-      cpaas.io/cuda-version: ""
     annotations:
       cpaas.io/display-name: xinference-cpu # Display name in the UI
   spec:
@@ -379,7 +403,7 @@ The MLServer runtime is versatile and can be used on both NVIDIA GPUs and CPUs.
           value: ""
         command:
         - bash
-        - -c
+        - -lc
         - |
           set +e
           if [ "${MODEL_PATH}" == "" ]; then
@@ -415,7 +439,7 @@ The MLServer runtime is versatile and can be used on both NVIDIA GPUs and CPUs.
           
           # Start the Xinference model serving.
           set -e
-          xinference launch --model_path ${MODEL_PATH} --model-engine ${MODEL_ENGINE} -u ${MODEL_UID} -n ${MODEL_FAMILY} -e http://127.0.0.1:8080 $@
+          xinference launch --model_path "${MODEL_PATH}" --model-engine "${MODEL_ENGINE}" -u "${MODEL_UID}" -n "${MODEL_FAMILY}" -e http://127.0.0.1:8080 $@
           xinference list -e http://127.0.0.1:8080
           echo "model load succeeded, waiting server process: ${PID}..."
           wait ${PID}
@@ -438,6 +462,14 @@ The MLServer runtime is versatile and can be used on both NVIDIA GPUs and CPUs.
           failureThreshold: 60
           periodSeconds: 10
           timeoutSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          runAsNonRoot: true
+          runAsUser: 1000
     supportedModelFormats:
       - name: transformers
         version: "1"
