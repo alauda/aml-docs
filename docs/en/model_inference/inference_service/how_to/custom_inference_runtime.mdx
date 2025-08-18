@@ -42,23 +42,117 @@ You'll need to create the corresponding inference runtime resources based on you
 
 1. **Prepare the Runtime YAML Configuration**:
 
-    Based on the type of runtime you want to add and your target hardware environment, prepare the appropriate YAML configuration file. See the **Configuration Examples for Runtimes** section below for sample YAML configurations.
+    Based on the type of runtime you want to add (e.g., Xinference) and your target hardware environment, prepare the appropriate YAML configuration file. Here are examples for the Xinference runtime across different hardware environments:
 
+* **GPU Runtime Example**
+        ```yaml
+        # This is a sample YAML for Xinference GPU runtime
+        apiVersion: serving.kserve.io/v1alpha1
+        kind: ClusterServingRuntime
+        metadata:
+          name: aml-xinference-cuda-12.1 # Name of the runtime resource
+          labels:
+            cpaas.io/runtime-class: xinference # required runtime type label
+            cpaas.io/accelerator-type: "nvidia"
+            cpaas.io/cuda-version: "12.1"
+          annotations:
+            cpaas.io/display-name: xinference-cuda-12.1 # Display name in the UI
+        spec:
+          containers:
+          - name: kserve-container
+            image: build-harbor.alauda.cn/mlops/xinference:1.2.2-cu121-v1.3.0 # Replace with your actual GPU runtime image
+            env:
+            # Required across all runtimes – path to the model directory
+            - name: MODEL_PATH
+              value: /mnt/models/{{ index .Annotations "aml-model-repo" }}
+            # The MODEL_UID parameter is optional for other runtimes.
+            - name: MODEL_UID 
+              value: '{{ index .Annotations "aml-model-repo" }}'
+            # The MODEL_ENGINE parameter is required by the Xinference runtime, while it can be omitted for other runtimes.
+            - name: MODEL_ENGINE 
+              value: "transformers"
+            # Required parameter for xinference runtime, please set it based on your model family, value: "llama" # e.g., "llama", "chatglm", etc.
+            - name: MODEL_FAMILY 
+              value: ""
+            command:
+            - bash
+            - -c
+            - |
+                set +e
+                if [ "${MODEL_PATH}" == "" ]; then
+                    echo "Need to set MODEL_PATH!"
+                    exit 1
+                fi
+                if [ "${MODEL_ENGINE}" == "" ]; then
+                    echo "Need to set MODEL_ENGINE!"
+                    exit 1
+                fi
+                if [ "${MODEL_UID}" == "" ]; then
+                    echo "Need to set MODEL_UID!"
+                    exit 1
+                fi
+                if [ "${MODEL_FAMILY}" == "" ]; then
+                    echo "Need to set MODEL_FAMILY!"
+                    exit 1
+                fi
+        
+                xinference-local --host 0.0.0.0 --port 8080 &
+                PID=$!
+                while [ true ];
+                do
+                    curl http://127.0.0.1:8080/docs
+                    if [ $? -eq 0 ]; then
+                        break
+                    else
+                        echo "waiting xinference-local server to become ready..."
+                        sleep 1
+                    fi
+                done
+        
+                set -e
+                xinference launch --model_path ${MODEL_PATH} --model-engine ${MODEL_ENGINE} -u ${MODEL_UID} -n ${MODEL_FAMILY} -e http://127.0.0.1:8080 $@
+                xinference list -e http://127.0.0.1:8080
+                echo "model load succeeded, waiting server process: ${PID}..."
+                wait ${PID}
+            # Add this line to use $@ in the script:
+            # see: https://unix.stackexchange.com/questions/144514/add-arguments-to-bash-c
+            - bash
+            resources:
+              limits:
+                cpu: 2
+                memory: 6Gi
+              requests:
+                cpu: 2
+                memory: 6Gi
+            startupProbe:
+              httpGet:
+                path: /docs
+                port: 8080
+                scheme: HTTP
+              failureThreshold: 60 
+              periodSeconds: 10
+              timeoutSeconds: 10
+          supportedModelFormats:
+            - name: transformers # The model format supported by the runtime
+              version: "1"
       
+        ```
+        * **Tip**: Make sure to replace the `image` field value with the path to your actual prepared runtime image. You can also modify the `annotations.cpaas.io/display-name` field to **customize the display name** of the runtime in the AI Platform UI.
+
 2.  **Apply the YAML File to Create the Resource**:
 
     From a terminal with cluster administrator privileges, execute the following command to apply your YAML file and create the inference runtime resource:
     ```bash
-    kubectl apply -f your-runtime.yaml
+    kubectl apply -f your-xinference-runtime.yaml
     ```
     :::tip
-    * **Important Tip**: Please **refer to the examples below and create/configure the runtime based on your actual environment and inference needs.** These examples are for reference only. You'll need to adjust parameters like the image, resource `limits`, and `requests` to ensure the runtime is compatible with your model and hardware environment and runs efficiently.
+    * **Important Tip**: Please **refer to the examples above and create/configure the runtime based on your actual environment and inference needs.** These examples are for reference only. You'll need to adjust parameters like the image, resource `limits`, and `requests` to ensure the runtime is compatible with your model and hardware environment and runs efficiently.
     * **Note**: You can only use this custom runtime on the inference service publishing page *after* the runtime resource has been created!
     :::
 
-### Publish Inference Service and Select the Runtime
+### Publish Xinference Inference Service and Select the Runtime
 
-Once the custom inference runtime resource is successfully created, you can select and configure it when publishing your LLM inference service on the AI Platform.
+Once the Xinference inference runtime resource is successfully created, you can select and configure it when publishing your LLM inference service on the AI Platform.
 
 1.  **Configure Inference Framework for the Model**:
 
@@ -66,417 +160,12 @@ Once the custom inference runtime resource is successfully created, you can sele
 2.  **Navigate to the Inference Service Publishing Page**:
 
     Log in to the AI Platform and navigate to the "Inference Services" or "Model Deployment" modules, then click "Publish Inference Service."
-3.  **Select the Custom Runtime**:
+3.  **Select the Xinference Runtime**:
 
-    In the inference service creation wizard, find the "Runtime" or "Inference Framework" option. From the dropdown menu or list, select the custom runtime you created in Step 1 (e.g., "MLServer Runtime" or "Xinference GPU Runtime (CUDA)").
-4.  **Set Environment Variables (if needed)**:
+    In the inference service creation wizard, find the "Runtime" or "Inference Framework" option. From the dropdown menu or list, select the Xinference runtime you created in Step 1 (e.g., "Xinference CPU Runtime" or "Xinference GPU Runtime (CUDA)").
+4.  **Set Environment Variables**:
+    The Xinference runtime requires specific environment variables to function correctly. On the inference service configuration page, locate the "Environment Variables" or "More Settings" section and add the following environment variable:
 
-    Some runtimes, like Xinference, require specific environment variables to function correctly. On the inference service configuration page, locate the "Environment Variables" or "More Settings" section and add any required environment variables.
-
-</Steps>
-
-
-## Configuration Examples for Runtimes
-
-### MLServer 
-
-The MLServer runtime is versatile and can be used on both NVIDIA GPUs and CPUs.
-  ```yaml
-  apiVersion: serving.kserve.io/v1alpha1
-  kind: ClusterServingRuntime
-  metadata:
-    name: aml-mlserver-cuda-11.6
-    labels:
-      cpaas.io/runtime-class: mlserver
-      cpaas.io/accelerator-type: nvidia
-      cpaas.io/cuda-version: "11.6"
-    annotations:
-      cpaas.io/display-name: mlserver-cuda11.6-x86-arm
-  spec:
-    labels:
-      modelClass: mlserver_sklearn.SKLearnModel
-    containers:
-      - command:
-          - /bin/bash
-          - -lc
-          - |
-            mlserver start $MLSERVER_MODEL_URI $@
-          # Add this line to use $@ in the script:
-          # see: https://unix.stackexchange.com/questions/144514/add-arguments-to-bash-c
-          - bash
-        env:
-          - name: MLSERVER_MODEL_URI
-            value: /mnt/models
-          - name: MLSERVER_MODEL_NAME
-            value: '{{.Name}}'
-        image: build-harbor.alauda.cn/mlops/seldon-mlserver:1.6.0-cu116-v1.3.1
-        name: kserve-container
-        resources:
-          limits:
-            cpu: 2
-            memory: 6Gi
-          requests:
-            cpu: 2
-            memory: 6Gi
-        startupProbe:
-          httpGet:
-            path: /v2/models/{{.Name}}/ready
-            port: 8080
-            scheme: HTTP
-          failureThreshold: 60
-          periodSeconds: 10
-          timeoutSeconds: 10
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          privileged: false
-          runAsNonRoot: true
-          runAsUser: 1000
-    supportedModelFormats:
-      - name: mlflow
-        version: "1"
-      - name: transformers
-        version: "1"
-
-  ```
-
-### Xinference
-
-<Tabs>
-<Tab label="GPU">
-
-  ```yaml
-  apiVersion: serving.kserve.io/v1alpha1
-  kind: ClusterServingRuntime
-  metadata:
-    name: aml-xinference-cuda-12.1
-    labels:
-      cpaas.io/runtime-class: xinference # required runtime type label
-      cpaas.io/accelerator-type: "nvidia"
-      cpaas.io/cuda-version: "12.1"
-    annotations:
-      cpaas.io/display-name: xinference-cuda-12.1 # Display name in the UI
-  spec:
-    containers:
-      - name: kserve-container
-        image: build-harbor.alauda.cn/mlops/xinference:1.2.2-cu121-v1.3.0
-        env:
-        - name: MODEL_PATH
-          value: /mnt/models/{{ index .Annotations "aml-model-repo" }}
-        - name: MODEL_UID
-          value: '{{ index .Annotations "aml-model-repo" }}'
-        - name: MODEL_ENGINE
-          value: "transformers"
-        # Required parameter for xinference runtime, please set it based on your model family, value: "llama" # e.g., "llama", "chatglm", etc.
-        - name: MODEL_FAMILY
-          value: ""
-        command:
-        - bash
-        - -lc
-        - |
-          set +e
-          if [ "${MODEL_PATH}" == "" ]; then
-              echo "Need to set MODEL_PATH!"
-              exit 1
-          fi
-          if [ "${MODEL_ENGINE}" == "" ]; then
-              echo "Need to set MODEL_ENGINE!"
-              exit 1
-          fi
-          if [ "${MODEL_UID}" == "" ]; then
-              echo "Need to set MODEL_UID!"
-              exit 1
-          fi
-          if [ "${MODEL_FAMILY}" == "" ]; then
-              echo "Need to set MODEL_FAMILY!"
-              exit 1
-          fi
-  
-          xinference-local --host 0.0.0.0 --port 8080 &
-          PID=$!
-          while [ true ];
-          do
-              curl http://127.0.0.1:8080/docs
-              if [ $? -eq 0 ]; then
-                  break
-              else
-                  echo "waiting xinference-local server to become ready..."
-                  sleep 1
-              fi
-          done
-          # 1. Check the number of available GPUs to decide whether to enable multi-GPU tensor parallelism.
-          GPU_COUNT=$(python3 -c "import torch; print(torch.cuda.device_count())")
-          echo "Starting serving model name: ${MODEL_NAME}, num gpus: ${GPU_COUNT}"
-          if [ ${GPU_COUNT} -lt 1 ]; then
-              echo "No GPUs found. Please check if the container have aquired any GPU device"
-              exit 1
-          fi
-  
-          # 2. Start the Xinference model serving.
-          set -e
-          xinference launch --model_path "${MODEL_PATH}" --model-engine "${MODEL_ENGINE}" -u "${MODEL_UID}" -n "${MODEL_FAMILY}" --n-gpu ${GPU_COUNT} -e http://127.0.0.1:8080 $@
-          xinference list -e http://127.0.0.1:8080
-          echo "model load succeeded, waiting server process: ${PID}..."
-          wait ${PID}
-        # Add this line to use $@ in the script:
-        # see: https://unix.stackexchange.com/questions/144514/add-arguments-to-bash-c
-        - bash
-        resources:
-          limits:
-            cpu: 2
-            memory: 6Gi
-          requests:
-            cpu: 2
-            memory: 6Gi
-        startupProbe:
-          httpGet:
-            path: /docs
-            port: 8080
-            scheme: HTTP
-          # The pod will be killed if the model is not available within 10 minutes.
-          failureThreshold: 60
-          periodSeconds: 10
-          timeoutSeconds: 10
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          privileged: false
-          runAsNonRoot: true
-          runAsUser: 1000
-    supportedModelFormats:
-      - name: transformers
-        version: "1"
-  ```
-</Tab>
-<Tab label="NPU">
-  ```yaml
-  apiVersion: serving.kserve.io/v1alpha1
-  kind: ClusterServingRuntime
-  metadata:
-    name: aml-xinference-npu
-    labels:
-      cpaas.io/runtime-class: xinference # required runtime type label
-      cpaas.io/accelerator-type: npu
-      cpaas.io/cann-version: "7.2"
-    annotations:
-      cpaas.io/display-name: xinference-npu # Display name in the UI
-  spec:
-    containers:
-      - name: kserve-container
-        image: <Replace with your actual Xinference NPU image>
-        env:
-        - name: MODEL_PATH
-          value: /mnt/models/{{ index .Annotations "aml-model-repo" }}
-        - name: MODEL_UID
-          value: '{{ index .Annotations "aml-model-repo" }}'
-        - name: MODEL_ENGINE
-          value: "transformers"
-        # Required parameter for xinference runtime, please set it based on your model family, value: "llama" # e.g., "llama", "chatglm", etc.
-        - name: MODEL_FAMILY
-          value: ""
-        command:
-          - bash
-          - -lc
-          - |
-            set +e
-  
-            pip install transformers~=4.49.0
-  
-            if [ "${MODEL_PATH}" == "" ]; then
-                echo "Need to set MODEL_PATH!"
-                exit 1
-            fi
-  
-            if [ "${MODEL_ENGINE}" == "" ]; then
-                echo "Need to set MODEL_ENGINE!"
-                exit 1
-            fi
-  
-            if [ "${MODEL_UID}" == "" ]; then
-                echo "Need to set MODEL_UID!"
-                exit 1
-            fi
-  
-            if [ "${MODEL_FAMILY}" == "" ]; then
-                echo "Need to set MODEL_FAMILY!"
-                exit 1
-            fi
-  
-  
-            xinference-local --host 0.0.0.0 --port 8080 &
-  
-            PID=$!
-  
-            while [ true ];
-  
-            do
-                curl http://127.0.0.1:8080/docs
-                if [ $? -eq 0 ]; then
-                    break
-                else
-                    echo "waiting xinference-local server to become ready..."
-                    sleep 1
-                fi
-            done
-  
-            # 1. Check the number of available NPUs to decide whether to enable multi-NPU tensor parallelism.
-  
-            NPU_COUNT=$(python3 -c "import torch_npu; print(torch_npu.npu.device_count())")
-  
-            echo "Starting serving model name: ${MODEL_NAME}, num gpus: ${NPU_COUNT}"
-  
-            if [ ${NPU_COUNT} -lt 1 ]; then
-                echo "No NPUs found. Please check if the container have aquired any NPU device"
-                exit 1
-            fi
-  
-  
-            # 2. Start the Xinference model serving.
-  
-            set -e
-  
-            xinference launch --model_path "${MODEL_PATH}" --model-engine "${MODEL_ENGINE}" -u "${MODEL_UID}" -n "${MODEL_FAMILY}" --n-gpu ${GPU_COUNT} -e http://127.0.0.1:8080 $@
-  
-            xinference list -e http://127.0.0.1:8080
-  
-            echo "model load succeeded, waiting server process: ${PID}..."
-  
-            wait ${PID}
-          - bash
-        resources:
-          limits:
-            cpu: 2
-            memory: 6Gi
-          requests:
-            cpu: 2
-            memory: 6Gi
-        startupProbe:
-          httpGet:
-            path: /docs
-            port: 8080
-            scheme: HTTP
-          # The pod will be killed if the model is not available within 10 minutes.
-          failureThreshold: 60
-          periodSeconds: 10
-          timeoutSeconds: 10
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          privileged: false
-          runAsNonRoot: true
-          runAsUser: 1000
-    supportedModelFormats:
-      - name: transformers
-        version: "1"    
-  ```
-</Tab>
-<Tab label="CPU">
-  ```yaml
-  apiVersion: serving.kserve.io/v1alpha1
-  kind: ClusterServingRuntime
-  metadata:
-    name: aml-xinference-cpu
-    labels:
-      cpaas.io/runtime-class: xinference # required runtime type label
-      cpaas.io/accelerator-type: "cpu"
-    annotations:
-      cpaas.io/display-name: xinference-cpu # Display name in the UI
-  spec:
-    containers:
-      - name: kserve-container
-        image: build-harbor.alauda.cn/mlops/xinference:1.2.2-cpu-v1.3.0
-        env:
-        - name: MODEL_PATH
-          value: /mnt/models/{{ index .Annotations "aml-model-repo" }}
-        - name: MODEL_UID
-          value: '{{ index .Annotations "aml-model-repo" }}'
-        - name: MODEL_ENGINE
-          value: "transformers"
-        # Required parameter for xinference runtime, please set it based on your model family, value: "llama" # e.g., "llama", "chatglm", etc.
-        - name: MODEL_FAMILY
-          value: ""
-        command:
-        - bash
-        - -lc
-        - |
-          set +e
-          if [ "${MODEL_PATH}" == "" ]; then
-              echo "Need to set MODEL_PATH!"
-              exit 1
-          fi
-          if [ "${MODEL_ENGINE}" == "" ]; then
-              echo "Need to set MODEL_ENGINE!"
-              exit 1
-          fi
-          if [ "${MODEL_UID}" == "" ]; then
-              echo "Need to set MODEL_UID!"
-              exit 1
-          fi
-          if [ "${MODEL_FAMILY}" == "" ]; then
-              echo "Need to set MODEL_FAMILY!"
-              exit 1
-          fi
-  
-          xinference-local --host 0.0.0.0 --port 8080 &
-          PID=$!
-          while [ true ];
-          do
-              curl http://127.0.0.1:8080/docs
-              if [ $? -eq 0 ]; then
-                  break
-              else
-                  echo "waiting xinference-local server to become ready..."
-                  sleep 1
-              fi
-          done
-  
-          
-          # Start the Xinference model serving.
-          set -e
-          xinference launch --model_path "${MODEL_PATH}" --model-engine "${MODEL_ENGINE}" -u "${MODEL_UID}" -n "${MODEL_FAMILY}" -e http://127.0.0.1:8080 $@
-          xinference list -e http://127.0.0.1:8080
-          echo "model load succeeded, waiting server process: ${PID}..."
-          wait ${PID}
-        # Add this line to use $@ in the script:
-        # see: https://unix.stackexchange.com/questions/144514/add-arguments-to-bash-c
-        - bash
-        resources:
-          limits:
-            cpu: 2
-            memory: 6Gi
-          requests:
-            cpu: 2
-            memory: 6Gi
-        startupProbe:
-          httpGet:
-            path: /docs
-            port: 8080
-            scheme: HTTP
-          # The pod will be killed if the model is not available within 10 minutes.
-          failureThreshold: 60
-          periodSeconds: 10
-          timeoutSeconds: 10
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          privileged: false
-          runAsNonRoot: true
-          runAsUser: 1000
-    supportedModelFormats:
-      - name: transformers
-        version: "1"
-  ```
-</Tab>
-</Tabs>
-The Xinference runtime requires specific environment variables to function correctly.
     * **Environment Variable Parameter Description**
         | Parameter Name   | Description                                                                                                                                                                                                                                                                                                                      |
         | :--------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -485,3 +174,5 @@ The Xinference runtime requires specific environment variables to function corre
     * **Example**:
         * **Variable Name**: `MODEL_FAMILY`
         * **Variable Value**: `llama` (if you are using a Llama series model)
+
+</Steps>
