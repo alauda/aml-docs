@@ -4,30 +4,50 @@ weight: 5
 
 # Pre-installation Configuration
 
+## **Setting Default Storage Class**
+
+Before deploying Alauda AI, you need to set the default storage class for the cluster.
+
+1. Log in to the Web Console as an administrator.
+2. Switch to the **Administrator** view.
+3. Click **Storage** > **StorageClasses**.
+4. Click **Create StorageClass** to deploy a storage class, e.g., TopoLVM. If the desired storage class is already deployed, skip this step.
+5. Select the storage class to set as default,and click **Set Default**.
+
+## **Deploy Service Mesh**
+
+Since Alauda AI leverages Service Mesh capabilities for model inference services, Service Mesh must be deployed in the cluster before deploying Alauda AI. For detailed deployment procedures, refer to <ExternalSiteLink name="servicemesh" href="/install/create_service_mesh/index.mdx" children="Create Service Mesh" />.
+
+:::info
+
+After completing the **Prerequisites** on the **Create Service Mesh** page, proceed to the **Creating a Service Mesh** page and follow the on-screen instructions to finalize the deployment of the Service Mesh.
+
+:::
+
 ## **Preparing the GitLab Service**
 
-In Alauda AI, GitLab is the core component for **"Model Management"**. Before deploying Alauda AI, you **must prepare** a GitLab service.
+In Alauda AI, GitLab is the core component for **Model Management**. Before deploying Alauda AI, you **must prepare** a GitLab service.
 
 ### **Deployment Options**
 
-#### **1. Use the platform-provided plugin**
-
-Deploy a new GitLab service using the **'Alauda Build of GitLab'** plugin.
-For instructions, refer to: <ExternalSiteLink name="alauda-build-of-gitlab" href="/install/01_installation_guide.mdx" children="Deploy Alauda Build of GitLab" />.
-
-#### **2. Use your own GitLab service**
-
-Alternatively, you can use a **self-managed GitLab instance**, but it **must meet** the **GitLab service requirements**.
-
-#### **3. GitLab service requirements**
+#### **1. GitLab service requirements**
 
 Regardless of deployment method, all GitLab instances must satisfy:
 
 - **Version**: Must be **v15 or later**.
-- **Git LFS**: Must be **enabled**.
-- **Hosting**: Must be **self-hosted** (public cloud-hosted GitLab services are **not supported**).
 - **Protocol**: Must use **HTTPS**.
+- **Git LFS**: Must be **enabled**. For setup instructions, refer to <ExternalSiteLink name="alauda-build-of-gitlab" href="/howto/01_lfs.mdx" children="Managing Large Files with LFS" />.
+- **Hosting**: Must be **self-hosted** (public cloud-hosted GitLab services are **not supported**).
 - **Access Tokens**: **Disable expiration dates** for access tokens.
+
+#### **2. Use the platform-provided plugin**
+
+Deploy a new GitLab service using the **'Alauda Build of GitLab'** plugin.
+For instructions, refer to: <ExternalSiteLink name="alauda-build-of-gitlab" href="/install/01_installation_guide.mdx" children="Deploy Alauda Build of GitLab" />.
+
+#### **3. Use your own GitLab service**
+
+Alternatively, you can use a **self-managed GitLab instance**, but it **must meet** the **GitLab service requirements**.
 
 ### **GitLab Configuration**
 
