@@ -4,13 +4,13 @@ weight: 10
 
 # Namespace Management
 
-The tenants supported by AML are K8s namespaces, which need to be managed in **Namespace Management** before they can be used as tenants of AML.
+The tenants supported by Alauda AI are Kubernetes namespaces, which need to be managed in **Namespace Management** before they can be used as tenants of Alauda AI.
 
 The procedure to create a namespace and add users to this namespace are as follows:
 
-1. Log in to the ACP platform as an administrator
+1. Log into the Web Console as an administrator
 2. Create a namespace
-    1. Enter ACP **Project Management**
+    1. Switch to the **Projects** view
     2. Create or select an existing project, and then click to enter the current project details page.
     3. Click **Namespace** > **Namespace**
     4. Click **Create Namespace**
@@ -23,12 +23,12 @@ The procedure to create a namespace and add users to this namespace are as follo
         :::
 
 3. Assign namespace permissions to users
-    1. Enter ACP **Platform Management**
+    1. Switch to the **Administrator** view
     2. Select **User Role Management** > **User Management** from the navigation
     3. Create a new user or select the user to be added to this namespace
     4. Click the **Configure Role** tab and click the **Add Role** button
-    5. Configure AML-related roles for the user and select the previously created namespace
+    5. Configure Alauda AI-related roles for the user and select the previously created namespace
         - Editor: Users can create and delete workloads in the namespace and use resource quotas such as CPU and GPU to complete work
-        - Owner: Users have the permission to manage this AML namespace
+        - Owner: Users have the permission to manage this Alauda AI namespace
         - Viewer: Users can only view the resources of the namespace and cannot create or delete workloads
-4. Return to AML, click **Manage Namespace** in **Platform Management** > **Namespace Management**, and select the previously created namespace to complete the management
+4. Return to Alauda AI, click **Namespace Manage** in **Admin** > **Management Namespace**, and select the previously created namespace to complete the management
