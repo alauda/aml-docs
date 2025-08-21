@@ -24,9 +24,7 @@ The core definition of the model repository feature is to provide a Git-based ve
 - Delete models after dependency checks (e.g., ensure no active inference services).
 
 **File Management**
-1. **Web UI Upload**
-    - Drag-and-drop files/folders (limited to small/medium sizes).
-2. **CLI/Git LFS**
+1. **CLI/Git LFS**
     - Use `git lfs track` for large files (e.g., `*.bin`, `*.h5`).
     - Example:
       ```bash
@@ -68,73 +66,139 @@ The core definition of the model repository feature is to provide a Git-based ve
 
 ## Create Model Repository
 
+:::warning
+Before you begin, make sure you have Git and Git LFS installed on your system.
+
+**$ git lfs version**
+:::
+
 <Steps>
 
-### Step 1: Define Repository Metadata
+### Step 1: Clone or initialize a repository
 
-| Parameters   | Description                          |
-| :----- | :--------------------------------- |
-| Name | Required, Model Repository Name. |
-| Labels | Custom tags for categorization and search. (e.g., "CV", "NLP", "production") |
-| Description | Detailed explanation of the repository's purpose, model type, or usage guidelines. |
+If you already have a remote repository, clone it. Otherwise, you can initialize a new Git repository locally.
+```bash
+# Method 1: Clone an existing repository
+git clone <repository-url>
+cd <repo-name>
 
-### Step 2: Create the Empty Repository
+# Method 2: Initialize a new repository
+mkdir <your-repo-name>
+cd <your-repo-name>
+git init
+git checkout -b main # Create and switch to the main branch
+```
 
-After defining the necessary information, proceed to `Create` the empty Model Repository.
+### Step 2: Initializing Git LFS
 
-### Step 3: Upload Model Files
+Initializing Git LFS
+```bash
+git lfs install
+```
 
-You may upload model files through either of the following methods:
+### Step 3: Copy the model file to the repository directory (optional)
+```bash
+# If you have local model files that need to be added to the repository, copy them to the current directory.
 
-    * **Option 1: Web UI Upload**
-        * Use the File Management interface to upload files
-        * Drag and drop files/folders into the designated area
-        * Supported formats: All model file types (.h5, .bin, .pt, etc.)
-        * Progress tracking with real-time upload status
+cp -r /path/to/your/model/files/* .
+```
 
-    * **Option 2: Git Command Line Upload**
+### Step 4: Configure Git LFS tracking mode (choose one of the two)
+1. You can choose to proactively create a `.gitattributes` file to specify the file types to track.
 
-        1.  **Get Repository Address:**
-            * Navigate to Detail Info → Basic Info
-            * Copy the Git repository URL (e.g., https://\<your-domain\>/\<namespace\>/\<repo-name\>.git)
+2. Alternatively, use the git lfs migrate command to automatically check and migrate large files.
 
-        2.  **Upload via Git:**
+* **Option 1: Active tracking via `.gitattributes` (recommended for new projects)**
 
-            ```bash
+  ```bash
+  # This method tells Git LFS which files to track by explicitly specifying the file types in the `.gitattributes` file.
+  # This is useful for new projects or when you know exactly what file types you want to track.
 
-            # Clone the repository
-            git clone <repository-url>
+  cat >.gitattributes <<EOL
+  *.7z filter=lfs diff=lfs merge=lfs -text
+  *.arrow filter=lfs diff=lfs merge=lfs -text
+  *.bin filter=lfs diff=lfs merge=lfs -text
+  *.bz2 filter=lfs diff=lfs merge=lfs -text
+  *.ckpt filter=lfs diff=lfs merge=lfs -text
+  *.ftz filter=lfs diff=lfs merge=lfs -text
+  *.gz filter=lfs diff=lfs merge=lfs -text
+  *.h5 filter=lfs diff=lfs merge=lfs -text
+  *.joblib filter=lfs diff=lfs merge=lfs -text
+  *.lfs.* filter=lfs diff=lfs merge=lfs -text
+  *.mlmodel filter=lfs diff=lfs merge=lfs -text
+  *.model filter=lfs diff=lfs merge=lfs -text
+  *.msgpack filter=lfs diff=lfs merge=lfs -text
+  *.npy filter=lfs diff=lfs merge=lfs -text
+  *.npz filter=lfs diff=lfs merge=lfs -text
+  *.onnx filter=lfs diff=lfs merge=lfs -text
+  *.ot filter=lfs diff=lfs merge=lfs -text
+  *.parquet filter=lfs diff=lfs merge=lfs -text
+  *.pb filter=lfs diff=lfs merge=lfs -text
+  *.pickle filter=lfs diff=lfs merge=lfs -text
+  *.pkl filter=lfs diff=lfs merge=lfs -text
+  *.pt filter=lfs diff=lfs merge=lfs -text
+  *.pth filter=lfs diff=lfs merge=lfs -text
+  *.rar filter=lfs diff=lfs merge=lfs -text
+  *.safetensors filter=lfs diff=lfs merge=lfs -text
+  saved_model/**/* filter=lfs diff=lfs merge=lfs -text
+  *.tar.* filter=lfs diff=lfs merge=lfs -text
+  *.tar filter=lfs diff=lfs merge=lfs -text
+  *.tflite filter=lfs diff=lfs merge=lfs -text
+  *.tgz filter=lfs diff=lfs merge=lfs -text
+  *.wasm filter=lfs diff=lfs merge=lfs -text
+  *.xz filter=lfs diff=lfs merge=lfs -text
+  *.zip filter=lfs diff=lfs merge=lfs -text
+  *.zst filter=lfs diff=lfs merge=lfs -text
+  *tfevents* filter=lfs diff=lfs merge=lfs -text
+  EOL
 
-            # Navigate to repo directory
-            cd <repo-name>
+  # You can also manually add or modify the `.gitattributes` file, for example:
+  git lfs track "*.h5" "*.bin" "*.pt" # Track files with the specified suffix
+  ```
 
-            # Initialize Git LFS (if not already set up)
-            git lfs install
+  :::tip
+  If you already have files in your repository that you want to be tracked by Git LFS, you may want to run the following command after committing your `.gitattributes` changes to ensure Git reprocesses those files and converts them to LFS pointers:
 
-            # Add model files (replace with your actual files)
-            cp -r /path/to/your/model/files/* .
+  **git add --renormalize .**
+  :::
 
-            # Configure LFS tracking (for large files)
-            git lfs track "*.h5" "*.bin" "*.pt"
+* **Option 2: Use git lfs migrate to check and migrate (recommended for existing repositories or historical files)**
 
-            # Commit and push
-            git add .
-            git commit -m "Add model files v1.0"
+  The `git lfs migrate` command can find and migrate large files that already exist in your Git history (but are not tracked by LFS). This rewrites history—coordinate with collaborators. When pushing rewritten history, prefer `--force-with-lease`.
+  ```bash
+  # Check for files that need to be migrated
+  ```bash
+  # Check for files that need to be migrated
 
-            # Perform LFS migration check for existing large files (as seen in screenshot)
-            git lfs migrate info
+  git status # Ensure the working tree is clean
+  git lfs migrate info
 
-            # Migrate existing large files to LFS, specifically those above 100MB.
-            # NOTE: This command rewrites commit history. If the repository is already shared,
-            # coordinate with collaborators and push with --force, or prefer running it
-            # before the first public push.
-            # This limit (100MB) is chosen based on GitHub's recommended file size limits
-            # for optimal performance and handling, as documented at:
-            # https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github#file-size-limits
-            git lfs migrate import --above 100MB
+  # Migrate existing large files to LFS
+  # The following command will migrate all files larger than 100MB to Git LFS. This 100MB limit is based on GitHub's recommended file size limit for optimal performance.
 
-            git push origin main
+  git lfs migrate import --above 100MB
+  ```
 
-            ```
+  :::tip
+  For shared repositories: notify collaborators before migration, and when pushing rewritten history use:
+  `git push --force-with-lease`
+  :::
 
+### Step 5: Add, commit, and push
+Once you have configured LFS, add your files to the staging area, commit them, and push them to the remote repository.
+```bash
+# Add all changes, including the `.gitattributes` file (if created) and the model files.
+git add .
+git add --renormalize . # Ensure all files that conform to LFS rules are correctly tagged.
+
+# Check the list of files currently tracked by LFS (optional)
+git lfs ls-files -n
+
+# Commit the changes
+# It is recommended to configure your username and email address, or make sure you have them configured globally.
+# git config --global user.name "Your Name"
+# git config --global user.email "your.email@example.com"
+git commit -am "Add LLM model files with Git LFS"
+git push -u origin main
+```
 </Steps>
