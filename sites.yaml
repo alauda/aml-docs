@@ -9,10 +9,10 @@
   version: v17.8
   repo: https://github.com/AlaudaDevops/gitlab-ce-operator
   image: devops/alauda-build-of-gitlab-docs
-- name: servicemesh
+- name: servicemeshv1
   displayName:
-    en: Alauda Service Mesh
-    zh: Alauda Service Mesh
-  base: /servicemesh
-  version: "4.0"
+    en: Alauda Service Mesh v1
+    zh: Alauda Service Mesh v1
+  base: /servicemeshv1
+  version: "4.1"
   repo: https://github.com/alauda/asm-docs
