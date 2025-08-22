@@ -195,23 +195,8 @@ In **Administrator** view:
     1.  Type the URL of self-hosted Gitlab for **Base URL**.
     2.  Type `cpaas-system` for **Admin Token Secret Namespace**.
     3.  Type `aml-gitlab-admin-token` for **Admin Token Secret Name**.
-13. Under **MySQL** section:
-    1.  Type the *address* of MySQL instance in the **Host** field.
-    2.  Type the *port* for MySQL instance in **Port** field (Default: `3306`).
-    3.  Type the *user* to connect to the MySQL instance in the **Username** field.
-    4.  Type the *database* to be used for **Alauda AI** in the the **Database** field (Default: `aml`).
-    5.  Select the namespace of the password secret for the *user* in the the **Password Secret Namespace** field.
-    6.  Type the name of the password secret for the *user* in the the **Password Secret Name** field.
 
-    :::info
-    **About MySQL user privileges**
-
-    - The *user* for the MySQL instance should have DDL privileges.
-    - It's recommended to create the *database* and grants *user* access to the *database*.
-    - If *database* is not created, then the *user* requires `CREATE DATABASE` privileges to create the *database*.
-    :::
-
-14. Review above configurations and then click **Create**.
+13. Review above configurations and then click **Create**.
 
 ### Verification
 

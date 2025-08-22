@@ -4,16 +4,6 @@ weight: 5
 
 # Pre-installation Configuration
 
-## **Setting Default Storage Class**
-
-Before deploying Alauda AI, you need to set the default storage class for the cluster.
-
-1. Log in to the Web Console as an administrator.
-2. Switch to the **Administrator** view.
-3. Click **Storage** > **StorageClasses**.
-4. Click **Create StorageClass** to deploy a storage class, e.g., TopoLVM. If the desired storage class is already deployed, skip this step.
-5. Select the storage class to set as default,and click **Set Default**.
-
 ## **Deploy Service Mesh**
 
 Since Alauda AI leverages Service Mesh capabilities for model inference services, Service Mesh must be deployed in the cluster before deploying Alauda AI. For detailed deployment procedures, refer to <ExternalSiteLink name="servicemeshv1" href="/install/create_service_mesh/index.mdx" children="Create Service Mesh v1" />.
