@@ -10,13 +10,14 @@ weight: 11
 - Additional resources for runtime serving are determined by the actual business scale: 10x7B-sized LLM inference instances at the same time, requires at least 10 GPUs and corresponding CPU, memory, disk storage, and object storage.
 - 200G free disk space for each worker node.
 
-## Prerequisites
+## Installing
 
-You must meet the following requirements before you can install Alauda AI on your ACP cluster:
+Installing Alauda AI involves the following high-level tasks:
 
-- **Cluster administrator access to your ACP cluster**
-- **MySQL 5.7 (or better)**
-- **Service Mesh with Istio 1.20 (or better)**
-- **Gitlab (Self-Hosted) v15 or better**
+1. Confirm and configure your cluster to meet all requirements. Refer to [Pre-installation Configuration](./pre-configuration.mdx).
+2. Install Alauda AI Essentials. Refer to [Install Alauda AI Essentials](./ai-essentials.mdx).
+3. Install Alauda AI. Refer to [Install Alauda AI](./ai-cluster.mdx).
+
+Then, the core capabilities of Alauda AI have been successfully deployed. If you want to quickly experience the product, please refer to the [Quick Start](../overview/quick_start.mdx).
 
 <Overview />

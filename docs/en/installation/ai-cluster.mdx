@@ -2,17 +2,21 @@
 weight: 30
 ---
 
-# Alauda AI Cluster Components
+# Install Alauda AI
 
 In the cluster where Alauda AI is to be used, the following two operators need to be deployed:
 
-1. Alauda AI
+1. Alauda AI Operator
 
-Alauda AI is a full-stack MLOps platform that establishes an efficient ecosystem centered around model, application, and dataset management. It provides a comprehensive MLOps/LLMOps/GenOps solution suite covering the entire workflow, including inference services, application deployment, data annotation, model fine-tuning, and service operations & maintenance. This enables you to effortlessly deploy inference services, precisely optimize models, and accurately achieve your business objectives.
+Alauda AI Operator is the main engine that powers Alauda AI products. It focuses on two core functions: model management and inference services, and provides a flexible framework that can be easily expanded.
 
-2. Alauda AI Model Serving
+2. Alauda AI Model Serving Operator
 
-Alauda AI Model Serving provides serverless model inference.
+Alauda AI Model Serving Operator provides serverless model inference.
+
+:::info
+    During the deployment process of the Alauda AI, the Alauda AI Model Serving Operator will be automatically deployed, without requiring manual operation or configuration changes.
+:::
 
 ## Downloading
 
@@ -191,23 +195,8 @@ In **Administrator** view:
     1.  Type the URL of self-hosted Gitlab for **Base URL**.
     2.  Type `cpaas-system` for **Admin Token Secret Namespace**.
     3.  Type `aml-gitlab-admin-token` for **Admin Token Secret Name**.
-13. Under **MySQL** section:
-    1.  Type the *address* of MySQL instance in the **Host** field.
-    2.  Type the *port* for MySQL instance in **Port** field (Default: `3306`).
-    3.  Type the *user* to connect to the MySQL instance in the **Username** field.
-    4.  Type the *database* to be used for **Alauda AI** in the the **Database** field (Default: `aml`).
-    5.  Select the namespace of the password secret for the *user* in the the **Password Secret Namespace** field.
-    6.  Type the name of the password secret for the *user* in the the **Password Secret Name** field.
 
-    :::info
-    **About MySQL user privileges**
-
-    - The *user* for the MySQL instance should have DDL privileges.
-    - It's recommended to create the *database* and grants *user* access to the *database*.
-    - If *database* is not created, then the *user* requires `CREATE DATABASE` privileges to create the *database*.
-    :::
-
-14. Review above configurations and then click **Create**.
+13. Review above configurations and then click **Create**.
 
 ### Verification
 
@@ -223,6 +212,8 @@ Should returns `Ready`:
 NAME      READY   REASON
 default   True    Succeeded
 ```
+
+Now, the core capabilities of Alauda AI have been successfully deployed. If you want to quickly experience the product, please refer to the [Quick Start](../../overview/quick_start.mdx).
 
 ## Replace GitLab Service After Installation
 
