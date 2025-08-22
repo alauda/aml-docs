@@ -14,5 +14,5 @@
     en: Alauda Service Mesh v1
     zh: Alauda Service Mesh v1
   base: /servicemeshv1
-  version: "4.1"
+  version: "4.0"
   repo: https://github.com/alauda/asm-docs
