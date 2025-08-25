@@ -1,0 +1,95 @@
+---
+weight: 10
+---
+
+# Upgrade from AI 1.3
+
+
+## Before Upgrading
+
+<Steps>
+
+### Migrate InferenceService resources
+
+Before **Alauda AI** `1.4`, `InferenceService` resources did not explicitly specify their deployment mode. You must now explicitly define the deployment mode for all your inference services before upgrading.
+
+Execute following script in destination cluster:
+
+```bash title="migrate-inferenceservice-resources.sh"
+#!/bin/bash
+
+set -e
+
+kubectl get inferenceservice --all-namespaces -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name --no-headers | while read -r namespace name; do
+
+    if kubectl get inferenceservice "$name" -n "$namespace" -o yaml | grep -q 'serving.kserve.io/deploymentMode:' ; then
+        echo "InferenceService ${namespace}/${name} already has 'serving.kserve.io/deploymentMode' annotation. Skipping."
+    else
+        echo "InferenceService ${namespace}/${name} does not have 'serving.kserve.io/deploymentMode' annotation. Patching..."
+
+        kubectl patch inferenceservice "$name" -n "$namespace" --type=merge -p '{"metadata":{"annotations":{"serving.kserve.io/deploymentMode": "Serverless"}}}'
+
+        if [ $? -eq 0 ]; then
+            echo "Successfully patched ${namespace}/${name}."
+        else
+            echo "Failed to patch ${namespace}/${name}."
+        fi
+    fi
+done
+
+echo "migrate-inferenceservice-resources completed."
+
+```
+</Steps>
+
+## Install Alauda AI Cluster Components
+
+Please visit [Alauda AI Cluster](../installation/ai-cluster.mdx) for:
+
+:::warning
+Please ignore `Creating Alauda AI Cluster Instance` since we are upgrading **Alauda AI** from a previously managed version.
+:::
+
+1. [Downloading](../installation/ai-cluster.mdx#downloading) operator bundle packages for `Alauda AI Cluster` and `KServeless`.
+2. [Uploading](../installation/ai-cluster.mdx#uploading) operator bundle packages to the destination cluster.
+3. To upgrade, follow the process described below.
+    
+    
+
+## Upgrading
+
+The following procedure describes how to upgrade from **AI** `1.3` to **Alauda AI** `1.4`.
+
+<Steps>
+### Upgrade Alauda AI
+
+  - Navigate to the **Administrator** workbench, then to the **Marketplace -> OperatorHub** menu.
+  - Select your target **cluster**.
+  - Click the **Alauda AI** card.
+  - After the new version upload is complete, an upgrade prompt will appear at the top of the page.
+  - Click **Confirm** to complete the version upgrade.
+
+### Upgrade Alauda AI Model Serving
+
+  - Navigate to the **Administrator** workbench, then to the **Marketplace -> OperatorHub** menu.
+  - Select your target **cluster**.
+  - Click the **Alauda AI Model Serving** card.
+  - After the new version upload is complete, an upgrade prompt will appear at the top of the page.
+  - Click **Confirm** to complete the version upgrade.
+
+</Steps>
+
+## Verification
+
+Check the status field from the `AmlCluster` resource which named `default`:
+
+```bash
+kubectl get amlcluster default
+```
+
+Should returns `Ready`:
+
+```
+NAME      READY   REASON
+default   True    Succeeded
+```
