@@ -4,21 +4,33 @@ weight: 30
 
 # Install Alauda AI
 
-In the cluster where Alauda AI is to be used, the following two operators need to be deployed:
+**Alauda AI** now offers flexible deployment options. Starting with **Alauda AI** `1.4`, the **Serverless** capability is an optional feature, allowing for a more streamlined installation if it's not needed.
 
-1. Alauda AI Operator
+To begin, you will need to deploy the **Alauda AI Operator**. This is the core engine for all Alauda AI products. By default, it uses the **KServe** `Raw Deployment` mode for the inference backend, which is particularly recommended for resource-intensive generative workloads. This mode provides a straightforward way to deploy models and offers robust, customizable deployment capabilities by leveraging foundational Kubernetes functionalities.
 
-Alauda AI Operator is the main engine that powers Alauda AI products. It focuses on two core functions: model management and inference services, and provides a flexible framework that can be easily expanded.
+If your use case requires `Serverless` functionality, which enables advanced features like **scaling to zero on demand** for cost optimization, you can optionally install the **Alauda AI Model Serving Operator**. This operator is not part of the default installation and can be added at any time to enable `Serverless` functionality.
 
-2. Alauda AI Model Serving Operator
 
-Alauda AI Model Serving Operator provides serverless model inference.
 
 :::info
-    During the deployment process of the Alauda AI, the Alauda AI Model Serving Operator will be automatically deployed, without requiring manual operation or configuration changes.
+    [Recommended deployment option](https://kserve.github.io/website/docs/admin-guide/overview#generative-inference): For generative inference workloads, the Raw Kubernetes Deployment approach is recommended as it provides the most control over resource allocation and scaling.
 :::
 
 ## Downloading
+
+**Operator Components**:
+
+- **Alauda AI Operator**
+
+  Alauda AI Operator is the main engine that powers Alauda AI products. It focuses on two core functions: model management and inference services, and provides a flexible framework that can be easily expanded.
+  
+  _Download package: aml-operator.xxx.tgz_
+
+- **Alauda AI Model Serving Operator**
+
+  Alauda AI Model Serving Operator provides serverless model inference.
+
+  _Download package: kserveless-operator.xxx.tgz_
 
 :::info
 You can download 'Alauda AI' and 'Alauda AI Model Serving' from the Marketplace on the Customer Portal website. Follow these steps:
@@ -116,7 +128,7 @@ After configuration, execute the script file using `bash ./uploading-ai-cluster-
 
 </Steps>
 
-## Install Alauda AI Operator
+## Installing Alauda AI Operator
 
 <Steps>
 
@@ -150,6 +162,7 @@ Confirm that the **Alauda AI** tile shows one of the following states:
 
 Once Alauda AI Operator is installed, you can create an Alauda AI instance.
 
+<Steps>
 ### Procedure
 
 In **Administrator** view:
@@ -170,8 +183,8 @@ In **Administrator** view:
 8. Select **Deploy Flavor** from dropdown:
    1. `single-node` for non HA deployments.
    2. `ha-cluster` for HA cluster deployments (**Recommended** for production).
-9.  Select **Managed** for **Knative Serving Mode**.
-10. Select **Managed** for **KServe Mode**.
+9.  Set **KServe Mode** to **Managed**.
+10. Set **Knative Serving Provider** to **Operator** in Serverless Configuration section, and leave all other parameters blank.
 11. Input a valid domain for **Domain** field.
 
     :::info
@@ -212,8 +225,140 @@ Should returns `Ready`:
 NAME      READY   REASON
 default   True    Succeeded
 ```
+</Steps>
 
 Now, the core capabilities of Alauda AI have been successfully deployed. If you want to quickly experience the product, please refer to the [Quick Start](../../overview/quick_start.mdx).
+
+## Enabling Serverless Functionality
+
+Serverless functionality is an optional capability that requires an additional operator and instance to be deployed.
+
+### 1. Installing the Alauda AI Model Serving Operator
+
+
+<Steps>
+
+### Prerequisites
+
+The `Serverless` capability relies on the **Istio** `Gateway` for its networking. Please install the **Service Mesh** first by following the [documentation](./pre-configuration.mdx#deploy-service-mesh).
+
+### Procedure
+
+In **Administrator** view:
+
+1. Click **Marketplace / OperatorHub**.
+2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install.
+3. Select **Alauda AI Model Serving**, then click **Install**.
+
+    **Install Alauda AI Model Serving** window will popup.
+
+4. Then in the **Install Alauda AI Model Serving** window.
+5. Leave **Channel** unchanged.
+6. Check whether the **Version** matches the **Alauda AI Model Serving** version you want to install.
+7. Leave **Installation Location** unchanged, it should be `kserveless-operator` by default.
+8. Select **Manual** for **Upgrade Strategy**.
+9. Click **Install**.
+
+### Verification
+
+Confirm that the **Alauda AI Model Serving** tile shows one of the following states:
+
+- `Installing`: installation is in progress; wait for this to change to `Installed`.
+- `Installed`: installation is complete.
+
+</Steps>
+
+
+### 2. Creating Alauda AI Model Serving Instance
+
+Once **Alauda AI Model Serving Operator** is installed, you can create an instance. There are two ways to do this:
+
+####  **Automated Creation (Recommended)**
+
+You can have the instance automatically created and managed by the `AmlCluster` by editing its parameters.
+<Steps>
+
+In **Administrator** view:
+
+1. Click **Marketplace / OperatorHub**.
+2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you previously installed the `AmlCluster`.
+3. Select **Alauda AI**, then **Click**.
+4. In the **Alauda AI** page, click **All Instances** from the tab.
+5. Click name **default**.
+
+    
+
+6. Locate **Actions** dropdown list and select update.
+
+    **update default** form will show up.
+
+7. In the **Serverless Configuration** section:
+   1. Set **Knative Serving Provider** to `Legacy`.
+   2. Set **BuiltIn Knative Serving** to `Managed`.
+
+8. Leave all other parameters unchanged. Click **Update**.
+
+</Steps>    
+
+#### **Manual Creation and Integration**
+
+You can manually create the `KnativeServing (knativeservings.components.aml.dev)` instance.
+
+<Steps>
+
+In **Administrator** view:
+
+1. Click **Marketplace / OperatorHub**.
+2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install.
+3. Select **Alauda AI Model Serving**, then **Click**.
+4. In the **Alauda AI Model Serving** page, click **All Instances** from the tab.
+5. Click **Create**.
+
+    **Select Instance Type** window will pop up.
+
+6. Locate the **KnativeServing** tile in **Select Instance Type** window, then click **Create**.
+
+    **Create KnativeServing** form will show up.
+
+7. Keep `default-knative-serving` unchanged for **Name**.
+8. Keep `knative-serving` unchanged for **Knative Serving Namespace**.
+9. In the **Ingress Gateway** section, configure the following:
+   1. Set the **Ingress Gateway Istio Revision** to a value that corresponds to your Istio version (e.g., `1-22`).
+   2. Set a valid domain for the **Domain** field.
+   3. Set the appropriate **Domain Certificate Type**.
+
+    :::info
+        For details on configuring the domain and certificate type, refer to the [relevant section](#procedure-1).
+    :::
+
+10. In the **Values** section, configure the following:
+    1. Select **Deploy Flavor** from dropdown:
+        1. `single-node` for non HA deployments.
+        2. `ha-cluster` for HA cluster deployments (**Recommended** for production).
+    2. Set **Global Registry Address** to Match Your Cluster
+
+        You can find your cluster's private registry address by following these steps:
+        1. In the Web Console, go to Administrator / Clusters.
+        2. Select your target **cluster**.
+        3. On the **Overview** tab, find the `Private Registry address` value in the **Basic Info** section.
+
+</Steps>   
+
+Configure the `AmlCluster` instance to integrate with a `KnativeServing` instance.
+
+<Steps>
+
+In the **AmlCluster** instance update window, you will need to fill in the required parameters in the **Serverless Configuration** section.
+
+:::info
+After the initial installation, you will find that only the **Knative Serving Provider** is set to `Operator`. You will now need to provide values for the following parameters:
+:::
+
+* **APIVersion**: `components.aml.dev/v1alpha1`
+* **Kind**: `KnativeServing`
+* **Name**: `default-knative-serving`
+* Leave **Namespace** blank.
+</Steps>
 
 ## Replace GitLab Service After Installation
 

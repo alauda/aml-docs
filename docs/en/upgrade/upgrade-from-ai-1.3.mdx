@@ -60,27 +60,24 @@ Please ignore `Creating Alauda AI Cluster Instance` since we are upgrading **Ala
 
 The following procedure describes how to upgrade from **AI** `1.3` to **Alauda AI** `1.4`.
 
-<Steps>
-### Upgrade Alauda AI
+### Upgrading Alauda AI Operators
 
-  - Navigate to the **Administrator** workbench, then to the **Marketplace -> OperatorHub** menu.
-  - Select your target **cluster**.
-  - Click the **Alauda AI** card.
-  - After the new version upload is complete, an upgrade prompt will appear at the top of the page.
-  - Click **Confirm** to complete the version upgrade.
+The procedure for upgrading both operators is nearly identical, with only the target component being different.
 
-### Upgrade Alauda AI Model Serving
+| Step | Alauda AI Operator | Alauda AI Model Serving Operator |
+| :--- | :--- | :--- |
+| **1. Navigate** | Log into the Web Console, then go to **Marketplace > OperatorHub** in the **Administrator** view. | Log into the Web Console, then go to **Marketplace > OperatorHub** in the **Administrator** view. |
+| **2. Select** | Select your target **cluster**. | Select your target **cluster**. |
+| **3. Click** | Click the **Alauda AI** card. | Click the **Alauda AI Model Serving** card. |
+| **4. Confirm** | Click **Confirm** on the upgrade prompt. | Click **Confirm** on the upgrade prompt. |
 
-  - Navigate to the **Administrator** workbench, then to the **Marketplace -> OperatorHub** menu.
-  - Select your target **cluster**.
-  - Click the **Alauda AI Model Serving** card.
-  - After the new version upload is complete, an upgrade prompt will appear at the top of the page.
-  - Click **Confirm** to complete the version upgrade.
-
-</Steps>
-
+:::info
+    Once the new version is uploaded and recognized by the platform, an upgrade prompt will appear at the top of the operator's page.
+:::
 ## Verification
 
+<Steps>
+### Alauda AI
 Check the status field from the `AmlCluster` resource which named `default`:
 
 ```bash
@@ -93,3 +90,17 @@ Should returns `Ready`:
 NAME      READY   REASON
 default   True    Succeeded
 ```
+### Alauda AI Model Serving
+Check the status field from the `KnativeServing` resource which named `default-knative-serving`:
+
+```bash
+kubectl get KnativeServing.components.aml.dev default-knative-serving
+```
+
+Should returns `InstallSuccessful`:
+
+```
+NAME                      DEPLOYED   REASON
+default-knative-serving   True       InstallSuccessful
+```
+</Steps>
