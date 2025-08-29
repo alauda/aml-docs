@@ -1,0 +1,143 @@
+---
+weight: 10
+---
+
+# Uninstall
+
+This document guides you through the complete uninstallation of Alauda AI and its related components from your cluster. The uninstallation process is divided into two main parts: first, uninstalling the optional **Alauda AI Model Serving** and its instances, and then, uninstalling the core **Alauda AI** instance and Operator.
+
+If you don't need the Serverless capability or want to use only the essential core features to save resources, you can choose to perform only the first step to remove the **Alauda AI Model Serving** components.
+
+**Note:** Before proceeding with the uninstallation, ensure you have backed up all important data and models. The uninstallation process will permanently delete all resources and configurations associated with Alauda AI.
+
+
+
+## Uninstalling Alauda AI Model Serving Components
+
+This section guides you on how to uninstall the components that provide Serverless capabilities.
+
+### Deleting the Alauda AI Model Serving Instance
+
+:::warning
+Before deleting the **Alauda AI Model Serving** Instance, you must check the **Serverless** parameter configuration.
+
+**For versions 1.4 and later:**
+Ensure the **BuiltIn Knative Serving** field is set to `Unmanaged`.
+
+**For version 1.3:**
+Ensure the **Knative Serving Mode** field is set to `Unmanaged`.
+:::
+
+<Steps>
+
+#### Procedure
+
+From the **Administrator** view:
+
+1. Click **Marketplace / OperatorHub**.
+2. At the top of the console, from the **Cluster** dropdown list, select the cluster you want to uninstall from.
+3. Find and select **Alauda AI Model Serving**.
+4. On the **Alauda AI Model Serving** page, click the **All Instances** tab.
+5. Find the instance (commonly named `default-knative-serving`, or your custom instance name).
+6. Click the `...` menu on the right side of the instance, then select **Delete**.
+7. In the confirmation window, type the instance name to confirm the deletion, then click **Delete**.
+
+#### Verification
+
+Verify that the instance has been deleted with the following command:
+
+```bash
+kubectl get knativeservings.components.aml.dev -n knative-serving
+
+```
+
+If the instance was successfully deleted, the command will return "No resources found in knative-serving namespace."
+
+</Steps>
+
+### Uninstalling the Alauda AI Model Serving Operator
+
+<Steps>
+
+#### Procedure
+From the **Administrator** view:
+
+1. Click  **Marketplace / OperatorHub**.
+2. At the top of the console, from the **Cluster** dropdown list, select the cluster you want to uninstall from.
+3. Find and select **Alauda AI Model Serving**.
+4. On the **Alauda AI Model Serving** page, click Uninstall.
+5. In the confirmation window, check the installation location of the **Alauda AI Model Serving** Operator (default is kserveless-operator).
+6. Click the **Uninstall** button.
+
+#### Verification
+Confirm that the Alauda AI Model Serving tile's status has changed from Installed to Not Installed or has disappeared from the list.
+
+</Steps>
+
+
+## Uninstalling Core Alauda AI Components
+
+After completing the first section, you can proceed to uninstall the core Alauda AI components.
+
+### Deleting the Alauda AI Instance
+
+<Steps>
+
+#### Procedure
+
+From the **Administrator** view:
+
+1. Click **Marketplace / OperatorHub**.
+2. At the top of the console, from the **Cluster** dropdown list, select the cluster you want to uninstall from.
+3. Find and select **Alauda AI**.
+4. On the **Alauda AI** page, click the **All Instances** tab.
+5. Find the instance named `default`.
+6. Click the `...` menu on the right side of the instance, then select **Delete**.
+7. In the confirmation window, type the instance name `default` to confirm the deletion, then click **Delete**.
+
+#### Verification
+
+Verify that the instance has been deleted with the following command:
+
+```bash
+kubectl get amlcluster default
+```
+
+If the instance was successfully deleted, the command will return No resources found or a similar message.
+
+</Steps>
+
+
+### Uninstalling the Alauda AI Operator
+<Steps>
+
+#### Procedure
+From the **Administrator** view:
+
+1. Click **Marketplace / OperatorHub**.
+2. At the top of the console, from the **Cluster** dropdown list, select the cluster you want to uninstall from.
+3. Find and select **Alauda AI**.
+4. On the **Alauda AI** page, click **Uninstall**.
+5. In the confirmation window, check the installation location of the **Alauda AI** Operator (default is aml-operator).
+6. Click the **Uninstall** button.
+
+#### Verification
+Confirm that the Alauda AI tile's status has changed from Installed to Not Installed or has disappeared from the list.
+
+</Steps>
+
+
+### Cleaning Up Remaining Resources
+CRDs are not removed automatically when an operator is uninstalled. You can manually clean up these remaining resources, and be aware that:
+
+:::warning
+**Deleting a CRD will permanently delete all associated data.**
+:::
+
+```bash
+# List all Alauda AI-related CRDs
+kubectl get crd | grep aml.dev
+
+# Delete all CRDs related to aml.dev
+kubectl get crd -o name | grep aml.dev | xargs kubectl delete
+```

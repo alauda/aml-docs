@@ -3,3 +3,4 @@ amlnamespaces
 knative
 kserve
 xinference
+servicemeshv
