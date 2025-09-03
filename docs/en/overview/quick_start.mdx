@@ -62,11 +62,9 @@ Include the created namespace in Alauda AI management:
 Upload the text classification model to the model repository:
 
 1. Enter Alauda AI, select **Business view** in the top navigation, and select the managed namespace from the previous step.
-2. Click **Model Repository** in the left navigation bar, click **Create Model Repository**, and enter the prepared model name, such as "gpt2".
-3. After creation, enter the **File Management** tab on the model details page.
-4. Click **Import Model File**, and drag or select the model files/subfolders to upload. If uploading a Large Language Model, the UI may freeze due to the large file size. It is recommended to use the git push command to push large model files to the model repository.
-5. Click the **Import** button and wait for the upload to complete.
-6. In the **File Management** tab, click **Update metadata** and select the correct "Task Type" and "Framework" according to the attributes of the large model.
+2. Click **Model Repository** in the left navigation bar, click **Create Model Repository**, and enter the prepared model name, such as "Meta-Llama-3-8B-Instruct".
+3. To complete model uploading, refer to the [Create Model Repository](../model_inference/model_management/functions/model_repository.mdx#create-model-repository).
+4. In the **File Management** tab, click **Update metadata** and select the correct "Task Type" and "Framework" according to the attributes of the large model.
    - Task Type: It is an attribute of the model itself and can be obtained by viewing the label on the model download details page. It is divided into "Text Generation", "Image Generation", etc.
    - Framework: It is also an attribute of the model itself and can be obtained by viewing the label on the model download details page. It is divided into "Transformers", "MLflow", etc. Most popular open-source Large Language Models are of the "Transformers" type.
 
@@ -75,16 +73,17 @@ Publish the model as an online inference service:
 
 1. On the model details page, click **Publish inference API** > **Custom publishing**.
 2. Configure service parameters:
-   - Name: gpt2-service
-   - Model: gpt2
+   - Name: meta-llama-3-8b-service
+   - Model: Meta-Llama-3-8B-Instruct
    - Version: Branch-main
-   - Inference Runtimes: Needs to be selected based on the cuda version installed in the GPU node. For example, if the cuda11 driver is installed, select "vllm-cuda11.8-x86". If cuda12 is installed, select "vllm-cuda12.1-x86".
-   - Resource Requests: 1CPU/4Gi Memory
-   - Resource Limits: 2CPU/6Gi Memory
-   - GPU Acceleration: GPU Manager
-     - GPU vcore: 30
-     - GPU vmemory: 32
-   - Storage: Mount existing PVC/created PVC or Temporary Storage/Capacity 10Gi
+   - Inference Runtimes: Needs to be selected based on the cuda version installed in the GPU node. For example,if cuda12.6 or later is installed, select "vllm-cuda12.6-x86".
+   - Resource Requests: 2CPU/20Gi Memory
+   - Resource Limits: 2CPU/20Gi Memory
+   - GPU Acceleration: HAMi NVIDIA
+     - gpu number: 1
+     - vgpu cores: 50
+     - GPU vmemory: 23552
+   - Storage: Mount existing PVC/Capacity 10Gi
    - Auto Scaling: Off
    - Number of instances: 1
 3. Click **Publish** and wait for the service to start.
