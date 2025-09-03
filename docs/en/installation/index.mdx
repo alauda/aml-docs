@@ -4,11 +4,19 @@ weight: 11
 
 # Install
 
-## Hardware requirements
+## Requirements
 
+### Hardware
 - At least two nodes with 16 cores and 32 GB of memory in total.
 - Additional resources for runtime serving are determined by the actual business scale: 10x7B-sized LLM inference instances at the same time, requires at least 10 GPUs and corresponding CPU, memory, disk storage, and object storage.
 - 200G free disk space for each worker node.
+
+### Software
+- CUDA Toolkit Version: 12.6 or higher.
+
+:::info
+    If your GPU does not support CUDA 12.6, you may still use lower versions of the CUDA Toolkit.However, after deploying Alauda AI, it is necessary to add a custom inference runtime that is adapted for older CUDA versions. This can be done by referring to [Extend LLM Inference Runtimes](../model_inference/inference_service/how_to/custom_inference_runtime.mdx),since the built-in vLLM inference runtime only supports CUDA 12.6 or later versions.
+:::
 
 ## Installing
 
