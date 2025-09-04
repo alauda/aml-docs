@@ -184,8 +184,7 @@ In **Administrator** view:
    1. `single-node` for non HA deployments.
    2. `ha-cluster` for HA cluster deployments (**Recommended** for production).
 9.  Set **KServe Mode** to **Managed**.
-10. Set **Knative Serving Provider** to **Operator** in Serverless Configuration section, and leave all other parameters blank.
-11. Input a valid domain for **Domain** field.
+10. Input a valid domain for **Domain** field.
 
     :::info
     This domain is used by ingress gateway for exposing model serving services.
@@ -204,6 +203,7 @@ In **Administrator** view:
     **Domain Certificate Secret** field, and change the value of the **Domain Certificate Secret** field to `Provided`.
     :::
 
+11. Set **Knative Serving Provider** to **Operator** in Serverless Configuration section, and leave all other parameters blank.
 12. Under **Gitlab** section:
     1.  Type the URL of self-hosted Gitlab for **Base URL**.
     2.  Type `cpaas-system` for **Admin Token Secret Namespace**.
