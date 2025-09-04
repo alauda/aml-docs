@@ -21,10 +21,12 @@ In this specific case, the use of `hostIPC=true` violates the "baseline" Pod Sec
 
 ## Solutions
 
-To resolve this issue, you must adjust the **Pod Security Admission** configuration for the `namespace` where your inference service is deployed. Follow these steps:
+To resolve this issue, we first recommend checking your inference service configuration. If your runtime doesn't strictly need privileged modes like `hostIPC: true`, the safest approach is to modify your workload configuration and remove these privileged requirements. This resolves the issue without compromising security.
+
+If your workload absolutely requires these privileged features, follow these steps to adjust the security policy level:
 
 1.  Navigate to the **Projects** view and select the **Project** containing your inference service.
-2.  In the **Namespace** list, find the `namespace` where your service resides and click the "..." button on the right side of the row.
+2.  In the **Namespace** list, find the namespace where your service resides and click the **"..."** button on the right side of the row.
 3.  From the dropdown menu, select **Update Pod Security Admission**.
 4.  In the pop-up window, set the **Security Standard** for all three security modes (**Enforce**, **Audit**, and **Warn**) to `Privileged`.
 5.  Click **Update** to save the changes.

@@ -14,9 +14,9 @@ weight: 10
 Before **Alauda AI** `1.4`, `InferenceService` resources did not explicitly specify their deployment mode. You must now explicitly define the deployment mode for all your inference services before upgrading.
 
 :::warning
-The data migration you are about to perform is essentially an update to your inference services. For services running in **Knative Serverless mode**, this process involves a rolling update: a new `revision` will be created, and only once it's up and running will the old service be deleted.
+This migration updates your inference services. In **Knative Serverless** mode it triggers a rolling update: a new `revision` is created and the old one is deleted only after the new one is `Ready`.
 
-Because of this, if your current inference service lacks sufficient resources (such as **GPU, CPU, or memory**) to complete a rolling update, please **stop** the service before executing the following script.
+If the service may be resource‑constrained (**GPU/CPU/memory**), schedule a maintenance window or temporarily stop the service before running the script.
 :::
 
 
