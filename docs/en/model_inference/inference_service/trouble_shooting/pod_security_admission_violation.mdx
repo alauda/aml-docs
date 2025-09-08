@@ -1,0 +1,36 @@
+---
+weight: 14
+---
+
+
+# Inference Service Fails to Enter Running State
+
+## Problem Description
+
+After deploying an inference service, it remains in a non-running state for an extended period. The corresponding Pod is not created in the **Alauda Container Platform**'s **Workloads** section. However, the associated `Deployment` resource has been successfully created.
+
+In the **Real-time Events** section of the `Deployment`, a similar error message is observed:
+
+> `FailedCreate: Error creating: pods "gpt2-predictor-f677f684f-sjwq7" is forbidden: violates PodSecurity "baseline:latest": host namespaces (hostIPC=true)`
+
+## Root Cause Analysis
+
+This issue is caused by the **Pod Security Admission** mechanism, which is enabled on your Kubernetes cluster with a restrictive security policy. When the inference service `Pod` attempts to use privileged features, such as host namespaces (e.g., via `hostIPC=true`), the policy blocks its creation to prevent potential security vulnerabilities.
+
+In this specific case, the use of `hostIPC=true` violates the "baseline" Pod Security Standard, which explicitly forbids using host namespaces to ensure Pod isolation.
+
+## Solutions
+
+To resolve this issue, we first recommend checking your inference service configuration. If your runtime doesn't strictly need privileged modes like `hostIPC: true`, the safest approach is to modify your workload configuration and remove these privileged requirements. This resolves the issue without compromising security.
+
+If your workload absolutely requires these privileged features, follow these steps to adjust the security policy level:
+
+1.  Navigate to the **Projects** view and select the **Project** containing your inference service.
+2.  In the **Namespace** list, find the namespace where your service resides and click the **"..."** button on the right side of the row.
+3.  From the dropdown menu, select **Update Pod Security Admission**.
+4.  In the pop-up window, set the **Security Standard** for all three security modes (**Enforce**, **Audit**, and **Warn**) to `Privileged`.
+5.  Click **Update** to save the changes.
+
+## Summary
+
+The failure of an inference service Pod to start is typically due to its configuration violating the namespace's Pod security policy. By adjusting the **Pod Security Admission** level of the **namespace** to `Privileged`, you allow the inference service Pod to be created and run successfully.

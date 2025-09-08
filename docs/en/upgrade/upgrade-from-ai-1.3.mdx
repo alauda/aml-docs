@@ -8,10 +8,55 @@ weight: 10
 ## Before Upgrading
 
 <Steps>
+### Keep Inference Service Runtimes
+This step ensures that older ClusterServingRuntime resources are not inadvertently removed during the upgrade process. The script adds the `"helm.sh/resource-policy": "keep"` annotation to all `ClusterServingRuntime` resources, which instructs Helm to preserve them during the upgrade.
+
+
+Execute the following script in the destination cluster:
+
+```bash title="migrate-clusterservingruntime-resources.sh"
+#!/bin/bash
+set -e
+
+# Check if kubectl is installed
+if ! command -v kubectl &> /dev/null; then
+    echo "Error: kubectl not found. Please install kubectl and ensure it is in your PATH."
+    exit 1
+fi
+
+echo "Fetching all ClusterServingRuntime resources and checking for annotations..."
+
+kubectl get clusterservingruntime --no-headers -o name | while read -r name; do
+
+    if kubectl get "$name" -o yaml | grep -q 'helm.sh/resource-policy: keep'; then
+        echo "ClusterServingRuntime $name already has the 'helm.sh/resource-policy: keep' annotation. Skipping."
+    else
+        echo "ClusterServingRuntime $name does not have the 'helm.sh/resource-policy: keep' annotation. Patching..."
+        
+        kubectl patch "$name" \
+            --type=merge \
+            -p '{"metadata":{"annotations":{"helm.sh/resource-policy": "keep"}}}'
+        
+        echo "Successfully patched $name."
+    fi
+done
+
+echo "migrate-clusterservingruntime-resources completed."
+
+```
+
+
 
 ### Migrate InferenceService resources
 
 Before **Alauda AI** `1.4`, `InferenceService` resources did not explicitly specify their deployment mode. You must now explicitly define the deployment mode for all your inference services before upgrading.
+
+:::warning
+This migration updates your inference services. In **Knative Serverless** mode it triggers a rolling update: a new `revision` is created and the old one is deleted only after the new one is `Ready`.
+
+If the service may be resource‑constrained (**GPU/CPU/memory**), schedule a maintenance window or temporarily stop the service before running the script.
+:::
+
 
 Execute following script in destination cluster:
 
@@ -29,11 +74,7 @@ kubectl get inferenceservice --all-namespaces -o custom-columns=NAMESPACE:.metad
 
         kubectl patch inferenceservice "$name" -n "$namespace" --type=merge -p '{"metadata":{"annotations":{"serving.kserve.io/deploymentMode": "Serverless"}}}'
 
-        if [ $? -eq 0 ]; then
-            echo "Successfully patched ${namespace}/${name}."
-        else
-            echo "Failed to patch ${namespace}/${name}."
-        fi
+        echo "Successfully patched ${namespace}/${name}."
     fi
 done
 
