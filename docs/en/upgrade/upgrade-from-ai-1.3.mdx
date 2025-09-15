@@ -42,7 +42,6 @@ kubectl get clusterservingruntime --no-headers -o name | while read -r name; do
 done
 
 echo "migrate-clusterservingruntime-resources completed."
-
 ```
 
 
@@ -79,7 +78,6 @@ kubectl get inferenceservice --all-namespaces -o custom-columns=NAMESPACE:.metad
 done
 
 echo "migrate-inferenceservice-resources completed."
-
 ```
 </Steps>
 
@@ -142,6 +140,6 @@ Should returns `InstallSuccessful`:
 
 ```
 NAME                      DEPLOYED   REASON
-default-knative-serving   True       InstallSuccessful
+default-knative-serving   True       UpgradeSuccessful
 ```
 </Steps>

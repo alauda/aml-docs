@@ -40,7 +40,7 @@ From the **Administrator** view:
 4. On the **Alauda AI Model Serving** page, click the **All Instances** tab.
 5. Find the instance (commonly named `default-knative-serving`, or your custom instance name).
 6. Click the `...` menu on the right side of the instance, then select **Delete**.
-7. In the confirmation window, type the instance name to confirm the deletion, then click **Delete**.
+7. In the confirmation window, confirm the deletion, then click **Delete**.
 
 #### Verification
 
@@ -48,7 +48,6 @@ Verify that the instance has been deleted with the following command:
 
 ```bash
 kubectl get knativeservings.components.aml.dev -n knative-serving
-
 ```
 
 If the instance was successfully deleted, the command will return "No resources found in knative-serving namespace."
@@ -93,7 +92,7 @@ From the **Administrator** view:
 4. On the **Alauda AI** page, click the **All Instances** tab.
 5. Find the instance named `default`.
 6. Click the `...` menu on the right side of the instance, then select **Delete**.
-7. In the confirmation window, type the instance name `default` to confirm the deletion, then click **Delete**.
+7. In the confirmation window, confirm the deletion, then click **Delete**.
 
 #### Verification
 
@@ -132,12 +131,17 @@ CRDs are not removed automatically when an operator is uninstalled. You can manu
 
 :::warning
 **Deleting a CRD will permanently delete all associated data.**
+
+The `amlnamespaces.manage.aml.dev` CRD, which is responsible for managing namespaces, is not included in the deletion commands below. To ensure a complete deletion of resources, you must manually remove the finalizer field after the CRD deletion operation.
+
+It's generally recommended to keep this CRD unless you are certain you no longer need its management capabilities.
+
 :::
 
 ```bash
-# List all Alauda AI-related CRDs
-kubectl get crd | grep aml.dev
-
-# Delete all CRDs related to aml.dev
-kubectl get crd -o name | grep aml.dev | xargs kubectl delete
+# Delete all control plane CRDs
+kubectl delete crd amls.components.aml.dev
+kubectl delete crd kserves.components.aml.dev
+kubectl delete crd amlclusters.amlclusters.aml.dev
+kubectl delete crd knativeservings.components.aml.dev
 ```
