@@ -1,0 +1,276 @@
+---
+weight: 14
+i18n:
+  title:
+    en: Configure Scaling for Inference Services
+    zh: 配置推理服务自动扩缩容
+---
+
+# Configure Scaling for Inference Services
+
+## Introduction
+
+This document provides a step-by-step guide for configuring autoscaling up and down for inference services. With these settings, you can optimize resource usage, ensure service availability during high load, and release resources during low load.
+
+**About the Autoscaler**
+
+Knative Serving supports two autoscalers: **Knative Pod Autoscaler (KPA)** and Kubernetes' **Horizontal Pod Autoscaler (HPA)**. By default, our services use the Knative Pod Autoscaler (KPA).
+
+KPA is designed for serverless workloads and can quickly scale up based on concurrent requests or RPS (requests per second), and can scale services to zero replicas to save costs. HPA is more general and typically scales based on metrics like CPU or memory usage. This guide primarily focuses on configuring services via the Knative Pod Autoscaler (KPA).
+
+
+## Steps
+<Steps>
+### Autoscaling Down Configuration
+
+This section describes how to configure inference services to automatically scale down to zero replicas when there is no traffic, or to maintain a minimum number of replicas.
+
+#### Enable/Disable Scale to Zero
+
+You can configure whether to allow the inference service to scale down to zero replicas when there is no traffic. **By default, this value is `true`, which allows scaling to zero.**
+
+**Using InferenceService Resource Parameters**
+
+In the `spec.predictor` field of the `InferenceService`, set the `minReplicas` parameter.
+
+- `minReplicas: 0`: Allows scaling down to zero replicas.
+- `minReplicas: 1`: Disables scaling down to zero replicas, keeping at least one replica.
+
+  ```yaml
+  apiVersion: serving.kserve.io/v1beta1
+  kind: InferenceService
+  metadata:
+    name: demo
+    namespace: demo-space
+  spec:
+    predictor:
+      minReplicas: 0
+      ...
+  ```
+
+#### Platform-wide Disable of Scale to Zero
+
+:::warning
+Once the platform-wide feature is disabled, the `minReplicas: 0` configuration for all services will be ignored.
+:::
+
+You can modify the **global `ConfigMap`** to disable the platform's scale-to-zero feature. This configuration has the highest priority and will override the settings in all individual `InferenceService` resources.
+
+In the `config-autoscaler` ConfigMap in the `knative-serving` namespace, modify the value of `enable-scale-to-zero` to `"false"`
+
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  annotations:
+    "helm.sh/resource-policy": keep # [!code callout]
+  name: config-autoscaler
+  namespace: knative-serving
+data:
+  enable-scale-to-zero: "false"
+```
+<Callouts>
+1. Please ensure this annotation exists, otherwise your configuration will be reverted to the default value.
+</Callouts>
+
+
+
+
+#### Configure Pod Retention Period After Scaling to Zero
+
+This setting determines the minimum time the last Pod remains active after the autoscaler decides to scale to zero. This helps the service respond quickly when it starts receiving traffic again. **The default value is `0s`**
+
+You can choose to configure this for a single service or modify the global ConfigMap to make this setting effective for all services.
+
+**Method 1: Using `InferenceService` Annotations**
+
+In the `spec.predictor.annotations` of the `InferenceService`, add the `autoscaling.knative.dev/scale-to-zero-pod-retention-period` annotation.
+
+```yaml
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: qwen2
+  namespace: fy-1
+spec:
+  predictor:
+    annotations:
+      autoscaling.knative.dev/scale-to-zero-pod-retention-period: "1m5s"
+    ...
+```
+
+**Method 2: Using a Global `ConfigMap`**
+
+In the `config-autoscaler` ConfigMap in the `knative-serving` namespace, modify the value of `scale-to-zero-pod-retention-period` to a non-negative duration string, such as `"1m5s"`.
+
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  annotations:
+    "helm.sh/resource-policy": keep # [!code callout]
+  name: config-autoscaler
+  namespace: knative-serving
+data:
+  scale-to-zero-pod-retention-period: "1m5s"
+```
+<Callouts>
+1. Please ensure this annotation exists, otherwise your configuration will be reverted to the default value.
+</Callouts>
+
+
+#### Configure the Grace Period for Scaling to Zero
+
+This setting controls the maximum internal waiting time reserved by the system for the "scale from zero" mechanism before removing the last replica. **The default value is `30s`.**
+
+:::tip
+This value should only be adjusted if you encounter lost requests due to services scaling to zero. It does not affect the retention time of the last replica after there's no traffic, nor does it guarantee that the replica will be retained during this period.
+:::
+
+**Method: Using a Global `ConfigMap`**
+
+In the `config-autoscaler` ConfigMap in the `knative-serving` namespace, modify the value of `scale-to-zero-grace-period` to a duration string, such as `"40s"`.
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  annotations:
+    "helm.sh/resource-policy": keep # [!code callout]
+  name: config-autoscaler
+  namespace: knative-serving
+data:
+  scale-to-zero-grace-period: "40s"
+```
+
+<Callouts>
+1. Please ensure this annotation exists, otherwise your configuration will be reverted to the default value.
+</Callouts>
+
+
+### Autoscaling Up Configuration
+This section describes how to configure the inference service to automatically scale up in response to increased traffic.
+
+#### Configure Concurrency Thresholds
+
+Concurrency determines the number of requests that each application replica can handle simultaneously. You can set concurrency with a soft limit or a hard limit.
+
+- **Soft Limit**：A target limit that can be temporarily exceeded during a traffic surge, but which will trigger autoscaling to maintain the target value. **The default value is `100`.** 
+- **Hard Limit**：A strict upper bound. When concurrency reaches this value, excess requests will be buffered and queued for processing. **The default value is `0`, which means unlimited.**
+
+:::warning
+If both a soft and a hard limit are specified, the smaller of the two values will be used. This prevents the Autoscaler from having a target value that is not permitted by the hard limit value.
+:::
+You can choose to configure this for a single service or modify the global ConfigMap to make this setting effective for all services.
+
+**Method 1: Using `InferenceService` Resource Parameters**
+
+- **Soft Limit**：In `spec.predictor`, set `scaleTarget` and set `scaleMetric` to `concurrency`.
+- **Hard Limit**：In `spec.predictor`, set `containerConcurrency`
+
+  ```yaml
+  # Set soft and hard limits
+  apiVersion: serving.kserve.io/v1beta1
+  kind: InferenceService
+  metadata:
+    name: demo
+    namespace: demo-space
+  spec:
+    predictor:
+      scaleTarget: 200
+      scaleMetric: concurrency
+      containerConcurrency: 50
+      ...
+  ```
+
+**Method 2: Using a Global `ConfigMap`**
+
+- **Soft Limit**：In the `config-autoscaler` ConfigMap, set `container-concurrency-target-default`.
+- **Hard Limit**：There is no global setting for the hard limit, as it affects request buffering and queuing.
+
+**Target Utilization Percentage**
+
+This value specifies the target percentage that the autoscaler should actually aim for, allowing it to scale up proactively before the hard limit is reached. **The default value is `70`.**
+
+Method 1: Using `InferenceService` Annotations
+
+In the `spec.predictor.annotations` of the `InferenceService`, add the `autoscaling.knative.dev/target-utilization-percentage` annotation.
+
+```yaml
+# Set target utilization by service
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: qwen2
+  namespace: fy-1
+spec:
+  predictor:
+    annotations:
+      autoscaling.knative.dev/target-utilization-percentage: "80"
+```
+
+**Method 2: Using a Global `ConfigMap`**
+
+In the `config-autoscaler` ConfigMap, set `container-concurrency-target-percentage`.
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  annotations:
+    "helm.sh/resource-policy": keep # [!code callout]
+  name: config-autoscaler
+  namespace: knative-serving
+data:
+  container-concurrency-target-percentage: "80"
+```
+<Callouts>
+1. Please ensure this annotation exists, otherwise your configuration will be reverted to the default value.
+</Callouts>
+
+
+
+#### Configure Requests Per Second (RPS) Target
+
+You can change the scaling metric from concurrency to requests per second (RPS). **The default value is `200`.**
+
+**Method 1: Using `InferenceService` Resource Parameters**
+
+In `spec.predictor`, set `scaleTarget` and set `scaleMetric` to `rps`.
+
+```yaml
+# Set RPS target by service
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: qwen2
+  namespace: fy-1
+spec:
+  predictor:
+    scaleTarget: 150
+    scaleMetric: rps
+    ...
+```
+
+**Method 2: Using a Global ConfigMap**
+
+In the `config-autoscaler` ConfigMap, set `requests-per-second-target-default`.
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  annotations:
+    "helm.sh/resource-policy": keep # [!code callout]
+  name: config-autoscaler
+  namespace: knative-serving
+data:
+  requests-per-second-target-default: "200"
+```
+<Callouts>
+1. Please ensure this annotation exists, otherwise your configuration will be reverted to the default value.
+</Callouts>
+
+</Steps>
