@@ -123,7 +123,7 @@ data:
 
 #### Configure the Grace Period for Scaling to Zero
 
-This setting controls the maximum internal waiting time reserved by the system for the "scale from zero" mechanism before removing the last replica. **The default value is `30s`.**
+This setting adds a delay before removing the last replica after traffic stops, ensuring the activator/routing path is ready and preventing request loss during the transition to zero.
 
 :::tip
 This value should only be adjusted if you encounter lost requests due to services scaling to zero. It does not affect the retention time of the last replica after there's no traffic, nor does it guarantee that the replica will be retained during this period.
@@ -192,7 +192,7 @@ You can choose to configure this for a single service or modify the global Confi
 
 **Target Utilization Percentage**
 
-This value specifies the target percentage that the autoscaler should actually aim for, allowing it to scale up proactively before the hard limit is reached. **The default value is `70`.**
+This value specifies the target percentage the autoscaler aims for when metric=concurrency, allowing proactive scale‑up before the hard limit. **Default: `70`.** It does not apply when using RPS.
 
 Method 1: Using `InferenceService` Annotations
 
@@ -235,6 +235,7 @@ data:
 #### Configure Requests Per Second (RPS) Target
 
 You can change the scaling metric from concurrency to requests per second (RPS). **The default value is `200`.**
+Note: In RPS mode, the concurrency target‑percentage setting is not used.
 
 **Method 1: Using `InferenceService` Resource Parameters**
 
