@@ -1,6 +1,8 @@
 {
-  "devDependencies": {
-    "@alauda/doom": "^1.12.1"
+  "name": "aml-docs",
+  "type": "module",
+  "dependencies": {
+    "@alauda/doom": "^1.13.0"
   },
   "scripts": {
     "dev": "doom dev",
@@ -8,7 +10,16 @@
     "lint": "doom lint",
     "serve": "doom serve",
     "translate": "doom translate",
-    "export": "doom export"
+    "export": "doom export",
+    "prepare": "simple-git-hooks"
   },
-  "packageManager": "yarn@4.9.4"
+  "packageManager": "yarn@4.9.4",
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "prettier-plugin-pkg": "^0.21.2",
+    "simple-git-hooks": "^2.13.1"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "yarn lint"
+  }
 }
