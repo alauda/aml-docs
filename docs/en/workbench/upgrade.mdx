@@ -1,0 +1,18 @@
+---
+weight: 16
+---
+
+# Upgrade
+
+Workbench (Notebook v2.0) is compatible with the previous Notebook. This means you can create a new Workbench and mount the PVC used by your previous Notebook.
+
+:::note
+To prevent data loss or mount failures, do not run the previous Notebook and the new Workbench against the same PVC at the same time (most storage classes are ReadWriteOnce). Stop or delete the old Notebook before reusing its PVC.
+:::
+
+## Procedure
+
+1. Log in and open the **Alauda AI** page.
+2. Go to **Workbench** to open the list.
+3. Click **Create** and fill in the required fields.
+4. In **Home Directory**, select the PVC used by the previous Notebook.
