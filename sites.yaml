@@ -1,12 +1,12 @@
 - name: acp
   base: /container_platform
-  version: "4.0"
+  version: "4.1"
 - name: alauda-build-of-gitlab
   displayName:
     en: Alauda Build of Gitlab
     zh: Alauda Build of Gitlab
   base: /alauda-build-of-gitlab
-  version: v17.8
+  version: v17.11
   repo: https://github.com/AlaudaDevops/gitlab-ce-operator
   image: devops/alauda-build-of-gitlab-docs
 - name: servicemeshv1
