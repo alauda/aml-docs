@@ -2,22 +2,37 @@
 weight: 10
 i18n:
   title:
-    en: Extend LLM Inference Runtimes
-    zh: 扩展 AI 平台 LLM 推理服务运行时
+    en: Extend Inference Runtimes
+    zh: 扩展 AI 平台推理服务运行时
 ---
 
-# Extend LLM Inference Runtimes
+# Extend Inference Runtimes
 
 ## Introduction
 
-This document will guide you step-by-step on how to add new inference runtimes for Large Language Model (LLM) inference services within the AI Platform. By introducing custom runtimes, you can expand the platform's support for a wider range of model types and domestic chip hardware, and optimize performance for specific scenarios to meet broader business needs.
+This document will guide you step-by-step on how to add new inference runtimes for
+serving either Large Language Model (LLM) or any other models like "image classification",
+"object detection", "text classification" etc.
+
+Alauda AI comes with a builtin "vLLM" inference engine, with "custom inference runtimes",
+you can introduce more inference engines like
+[Seldon MLServer](https://github.com/SeldonIO/MLServer),
+[Triton inference server](https://github.com/triton-inference-server/server) and so on.
+
+By introducing custom runtimes, you can expand the platform's support for a wider range of
+model types and GPU types, and optimize performance for specific scenarios
+to meet broader business needs.
+
+In this section, we'll demonstrate extending current AI platform with a custom
+[XInfernece](https://github.com/xorbitsai/inference)
+serving runtime to deploy LLMs and serve an "OpenAI compatible API".
 
 ## Scenarios
 
-Consider extending your AI Platform LLM inference service runtimes if you encounter any of the following situations:
+Consider extending your AI Platform inference service runtimes if you encounter any of the following situations:
 
-* **Support for New Model Types**: Your LLM model isn't natively supported by the current default inference runtimes (e.g., vLLM or Seldon MLServer).
-* **Compatibility with Domestic Chips**: You need to perform LLM inference on hardware equipped with domestic chips, either to leverage their specific advantages or to meet localization requirements.
+* **Support for New Model Types**: Your model isn't natively supported by the current default inference runtime `vLLM`.
+* **Compatibility with other types GPUs**: You need to perform LLM inference on hardware equipped with GPUs like AMD or Huawei Ascend.
 * **Performance Optimization for Specific Scenarios**: In certain inference scenarios, a new runtime (like Xinference) might offer better performance or resource utilization compared to existing runtimes.
 * **Custom Inference Logic**: You need to introduce custom inference logic or dependent libraries that are difficult to implement within the existing default runtimes.
 
@@ -26,10 +41,10 @@ Consider extending your AI Platform LLM inference service runtimes if you encoun
 
 Before you start, please ensure you meet these conditions:
 
-1.  Your AI Platform version is **1.3 or higher**.
-2.  Your Kubernetes cluster is deployed and **running normally**.
-3.  You have the necessary **inference runtime image(s)** prepared. For example, for the Xinference runtime, images might look like `build-harbor.alauda.cn/mlops/xinference:1.2.2-cu121-v1.3.0` (for GPU) or `build-harbor.alauda.cn/mlops/xinference:1.2.2-cpu-v1.3.0` (for CPU).
-4.  You have **cluster administrator privileges** (needed to create CRD instances).
+1. Your ACP cluster is deployed and **running normally**.
+2. Your AI Platform version is **1.3 or higher**.
+3. You have the necessary **inference runtime image(s)** prepared. For example, for the Xinference runtime, images might look like `xprobe/xinference:v1.2.2` (for GPU) or `xprobe/xinference:v1.2.2-cpu` (for CPU).
+4. You have **cluster administrator privileges** (needed to create CRD instances).
 
 
 ## Steps
@@ -60,7 +75,7 @@ You'll need to create the corresponding inference runtime resources based on you
         spec:
           containers:
           - name: kserve-container
-            image: build-harbor.alauda.cn/mlops/xinference:1.2.2-cu121-v1.3.0 # Replace with your actual GPU runtime image
+            image: xprobe/xinference:v1.2.2  # Replace with your actual GPU runtime image
             env:
             # Required across all runtimes – path to the model directory
             - name: MODEL_PATH
@@ -173,6 +188,6 @@ Once the Xinference inference runtime resource is successfully created, you can 
 
     * **Example**:
         * **Variable Name**: `MODEL_FAMILY`
-        * **Variable Value**: `llama` (if you are using a Llama series model)
+        * **Variable Value**: `llama` (if you are using a Llama series model, checkout the [docs](https://inference.readthedocs.io/en/v1.2.2/getting_started/using_xinference.html#manage-models) for more detail. Or you can run `xinference registrations -t LLM` to list all supported model families.)
 
 </Steps>
