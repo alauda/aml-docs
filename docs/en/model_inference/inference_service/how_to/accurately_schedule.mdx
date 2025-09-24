@@ -28,9 +28,9 @@ With these settings, you can resolve the CUDA Runtime and CUDA Driver version mi
 
 #### Solution 1: Manual labeling
   1. On each GPU node, run the following command to retrieve the supported CUDA runtime version:
-    ```bash
-    nvidia-smi | sed -n 's/.*CUDA Version: \([0-9.]\+\).*/\1/p'
-    ```
+     ```bash
+     nvidia-smi | sed -n 's/.*CUDA Version: \([0-9.]\+\).*/\1/p'
+     ```
     For example, the output might be 12.4.
   2. On the control node, label the GPU node with the corresponding major and minor version:
     ```bash
@@ -61,24 +61,24 @@ With these settings, you can resolve the CUDA Runtime and CUDA Driver version mi
   2. Parse the ClusterServingRuntime label:
     If `cpaas.io/accelerator-type` is nvidia, further parse `cpaas.io/cuda-version` (e.g., 11.8).
   3. Add nodeAffinity field in the inference service, example:
-  ```yaml
-  apiVersion: serving.kserve.io/v1beta1
-  kind: InferenceService
-  spec:
-    predictor:
-      affinity:
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - weight: 100
-              preference:
-              matchExpressions:
-              - key: nvidia.com/cuda.runtime.major
-                operator: In
-                values: ["11"]
-              - key: nvidia.com/cuda.runtime.minor
-                operator: Gt
-                values: ["7"] # Since the k8s operator only supports Gt, which means greater than but not equal to, we use the rt version minus one to meet the requirements.
-  ```
+      ```yaml
+      apiVersion: serving.kserve.io/v1beta1
+      kind: InferenceService
+      spec:
+        predictor:
+          affinity:
+            nodeAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - weight: 100
+                  preference:
+                  matchExpressions:
+                  - key: nvidia.com/cuda.runtime.major
+                    operator: In
+                    values: ["11"]
+                  - key: nvidia.com/cuda.runtime.minor
+                    operator: Gt
+                    values: ["7"] # Since the k8s operator only supports Gt, which means greater than but not equal to, we use the rt version minus one to meet the requirements.
+      ```
 
 </Steps>
