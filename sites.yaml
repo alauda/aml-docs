@@ -2,20 +2,11 @@
   base: /container_platform
   version: "4.1"
 - name: alauda-build-of-gitlab
-  displayName:
-    en: Alauda Build of Gitlab
-    zh: Alauda Build of Gitlab
   base: /alauda-build-of-gitlab
   version: v17.11
-  repo: https://github.com/AlaudaDevops/gitlab-ce-operator
-  image: devops/alauda-build-of-gitlab-docs
 - name: servicemeshv1
-  displayName:
-    en: Alauda Service Mesh v1
-    zh: Alauda Service Mesh v1
   base: /servicemeshv1
   version: "4.1"
-  repo: https://github.com/alauda/asm-docs
 - name: hami
   displayName:
     en: Alauda Build of Hami
