@@ -69,9 +69,8 @@ With these settings, you can resolve the CUDA Runtime and CUDA Driver version mi
           affinity:
             nodeAffinity:
               preferredDuringSchedulingIgnoredDuringExecution:
-                nodeSelectorTerms:
-                - weight: 100
-                  preference:
+              - weight: 100
+                preference:
                   matchExpressions:
                   - key: nvidia.com/cuda.runtime.major
                     operator: In
