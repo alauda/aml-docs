@@ -59,7 +59,7 @@ With these settings, you can resolve the CUDA Runtime and CUDA Driver version mi
   Starting from Alauda AI 1.5, the product will automatically schedule pod of inference services by the cuda version. For earlier versions, you can follow the following steps:
   1. Determine which ClusterServingRuntime you need to select when creating an inference service.
   2. Parse the ClusterServingRuntime label:
-    If cpaas.io/accelerator-type is nvidia, further parse cpaas.io/cuda-version (e.g., 11.8).
+    If `cpaas.io/accelerator-type` is nvidia, further parse `cpaas.io/cuda-version` (e.g., 11.8).
   3. Add nodeAffinity field in the inference service, example:
   ```yaml
   apiVersion: serving.kserve.io/v1beta1
