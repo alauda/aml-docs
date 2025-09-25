@@ -68,7 +68,7 @@ spec:
       ##  - we will not show this WorkspaceKind in the Spawner UI
       ##    if the SA does not exist in the Namespace
       ##
-      name: "default-editor"
+      name: "workbench-editor"
 
     ## activity culling configs (MUTABLE)
     ##  - for pausing inactive Workspaces
@@ -183,7 +183,7 @@ spec:
     ##    https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podsecuritycontext-v1-core
     ##
     securityContext:
-      runAsUser: 0 # s6 需要 root，同样下面 containerSecurityContext 需要注释
+      runAsUser: 0 # s6 requires root, and the following containerSecurityContext also needs to be commented out
       fsGroup: 100
 
     ## container SecurityContext for Workspace Pods (MUTABLE)

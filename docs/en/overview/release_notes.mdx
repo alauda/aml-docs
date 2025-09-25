@@ -1,88 +1,50 @@
 # Release Notes
 
-## AI 1.3.0
+## AI 1.4.0
 
 ### **New and Optimized Features**
 
-#### Shared Model Permission Restriction
+#### Inference Services Now Offer "Standard" and "Advanced" Modes
+When creating an inference service, users can now select either "Standard Mode" or "Advanced Mode," with "Standard Mode" being the default option.
 
-The model repository currently supports two model types: **Shared Models** and **Private Models**. In the original design, users could perform certain management actions on shared models, posing potential permission risks.  
-In this release, the functionality and permissions for Private Models remain unchanged, supporting full management operations. The **permissions for Shared Models are restricted and optimized** as follows:
-- Permission Restriction: All users can only use shared models. The ability to create, edit, or delete shared models is no longer supported.
-- Creation Flow Adjustment: The visibility parameter is removed from the "Create Model" flow. All newly created models default to **Private Models**.
-- Feature Removal: 
-    - The following features are removed for Shared Models:
-      - Edit Tags button
-      - Edit Description button
-      - Create Tag button
-      - Delete button
-      - File Management Tab
-      - Version Management Tab
+- Standard Mode: Ready to use out of the box. After successful deployment of Alauda AI, users can directly create an inference service in "Standard Mode".
+- Advanced Mode: Requires manual deployment of the "Alauda AI Model Serving" plugin. Supports serverless mode and enables the creation of inference services that can scale down to zero. This mode relies on Istio and provides additional monitoring metrics for inference services, such as "Traffic","QPS" and "Response time."
 
+#### Customizable Monitoring Dashboards
+A new "Dashboards" feature has been introduced, allowing users to customize and add dashboard charts according to their needs. For example, projects using GPUs from vendors other than NVIDIA can add customized dashboards provided by the manufacturers.
 
-#### New Template Publishing for Inference Services
-Previously, creating inference services required manual configuration of numerous interdependent parameters. This complexity often led to errors, reducing the success rate and impacting user experience.  
-In this release, the **Template Publishing** capability is introduced, enabling users to encapsulate verified configurations as templates and rapidly publish inference services based on them.  
-Benefits include:
-  - Users can create custom templates, reusing verified best practices.
-  - Auto-population of parameter configurations reduces repetitive input and dependency errors.
-  - Lowers the barrier to publishing large model inference services, improving success rates and efficiency.
+#### Workbench Plugin
+The new "Alauda AI Workbench" plugin is available for installation, providing users with IDE environments such as Jupyter Notebook and VS Code.
+This plugin replaces the "advanced" capabilities of the previous version and streamlines unnecessary components and some functions originally found in Kubeflow.
 
+#### Kubeflow Solution
+A native Kubeflow solution has been launched to meet the needs of project clients who are accustomed to using the native capabilities of the Kubeflow community.
 
-#### Multi-GPU Support on a Single Node for Inference Runtime
-Previously, inference services deployed on a single node only supported **single-GPU** mode due to resource scheduling limitations. This restricted large model inference scenarios and underutilized GPU resources.  
-With this upgrade, **multi-GPU scheduling** within a single node is now supported. A single inference service can automatically allocate multiple GPUs on the same machine, enabling larger model inference, better resource utilization, and enhanced service capability.
+#### Multi-Node Multi-GPU Solution
+A multi-node multi-GPU solution has been introduced to cater to users' requirements for deploying models with large parameter counts.
 
+#### Notebook-Based Pre-training and Fine-tuning Solutions
+Notebook-based solutions for model pre-training and fine-tuning have been launched to support users in optimizing their models.
 
-#### "Business Monitoring" for Inference Services
-Inference services previously only displayed basic information. To enhance observability and enable users to quickly detect issues, monitor service health in real-time, and optimize or adjust resources proactively, the following new feature is introduced:  
-**Monitoring Dashboard**
-  - Added as a new tab in inference services, covering three dimensions:
-      - **Resource Monitoring**: CPU usage (cores), CPU utilization (%), Memory usage (GiB), Memory utilization (%)
-      - **Compute Monitoring**: GPU usage (cores), GPU utilization (%), GPU memory usage (GiB), GPU memory utilization (%)
-      - **Other Metrics**: Response Time, Traffic (inbound/outbound data volume), QPS (Queries Per Second), Total Calls, Token Throughput (/s)
+#### Inference Service Authentication Solution
+An inference service authentication solution based on Enovy AI Gateway has been introduced, supporting the creation of API Keys for inference services to enhance permission control capabilities.
 
-
-#### Inference Runtime Expansion
-To enhance AML inference runtime support, the following new runtimes are added in this version:  
-  - vllm-cuda-11.8
-  - vllm-cpu
-
-
-#### Dedicated "Platform Management View"
-Previously, platform management features (including Namespace management and credential management) were mixed with business functionalities in a single view, causing confusion due to mixed permission levels.  
-In this release:
-  - **Platform management functions are separated into an independent view**, visible and operable by **Administrators only**.
-  - Admins can freely switch between **"Management View"** and **"Business View"** via top navigation.
-  - Regular users can only access the **Business View**, with no access to platform management features.
-
-
-#### Auto-Configuration of GitLab Token for Namespace Onboarding
-Previously, when onboarding a namespace, users had to manually configure a GitLab Token to authorize repository access.  
-This release optimizes the GitLab authorization process by implementing **automatic GitLab Token configuration**:
-  - For each newly onboarded namespace, the platform automatically configures the GitLab Token.
-  - No manual operation or GitLab authorization management is required by users.
-  - Continuous access to GitLab is ensured for all managed namespaces.
-
-
+#### Enhanced Inference Service Logging
+The logging functionality for inference services has been enhanced, including features such as automatic log updates, pause updates, and container switching, maintaining consistency with Alauda Container Platform capabilities.
 
 ### **Deprecated Features**
 
-#### Downgrade of α Features to S2 Stage
+#### Downgrading mlserver Inference Runtime to a Solution
+Due to limited use cases and its impact on the user experience of large model inference services, the mlserver inference runtime has been downgraded to a solution. It is no longer included in the product by default, but a solution is provided to support specific scenarios, such as Small Language Model inference.
 
-During AML platform iterations, some modules were released as **α features** for exploratory validation of designs and user needs.  
-However, due to rapid changes in large model development scenarios and evolving user requirements, some α features have design flaws or limited applicability. These features will be **re-evaluated** and **downgraded to S2 stage** for future planning.  
-The following features are downgraded:
-  - **Dataset**: Dataset Repository, Data Labeling
-  - **Model Optimization**: Task Templates, Model Fine-tuning, Pre-training
-  - **Agents**: Application Repository, Dify
-  - **Advanced Features**: Notebook, Storage Volumes, MLFlow, Tensorboard, Workflow, Workflow Tasks, Scheduled Tasks, AutoML
-  - **Model**: Build Inference API Image
+#### Discontinuation of the Apps Feature
+Both the Apps feature and Dify are positioned as AI Agent development capabilities, with Dify offering a simpler development approach through its low-code capabilities. In contrast, the pure customization and from-scratch development approach of the Apps feature is less convenient. Therefore, the Apps feature has been discontinued. Projects that require pure custom development of AI Agents can be accommodated through alternative solutions.
 
-
+#### Discontinuation of the Model Upload UI Feature
+There are two ways to upload models: via git push command-line or through the UI. Command-line uploads offer better performance and faster speeds. Although the UI upload is user-friendly, it tends to freeze when dealing with large model files, which are typically several hundred GB in size. Therefore, the UI upload feature has been discontinued. To facilitate user access, a documentation link has been added in place of the original feature, allowing users to quickly navigate to the user manual for operation commands.
 
 ### **Fixed Issues**
-{/* release-notes-for-bugs?template=fixed&project=ASM */}
+{/* release-notes-for-bugs?template=fixed&project=AI */}
 
 ### **Known Issues**
-{/* release-notes-for-bugs?template=unfixed&project=ASM */}
+{/* release-notes-for-bugs?template=unfixed&project=AI */}

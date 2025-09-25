@@ -68,7 +68,7 @@ spec:
       ##  - we will not show this WorkspaceKind in the Spawner UI
       ##    if the SA does not exist in the Namespace
       ##
-      name: "default-editor"
+      name: "workbench-editor"
 
     ## activity culling configs (MUTABLE)
     ##  - for pausing inactive Workspaces

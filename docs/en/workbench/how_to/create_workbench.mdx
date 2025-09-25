@@ -4,50 +4,17 @@ weight: 14
 
 # Create Workbench
 
-:::note
-1. `WorkspaceKind` is the resource that cluster-admins create.
-2. `WorkspaceKind` specifies the template for a Workspace (e.g. "JupyterLab", "VSCode", "RStudio (in the feature)").
-:::
-
 ## Prerequisites
 
 - Ensure you have `kubectl` configured and connected to your cluster.
 - Ensure you have created `WorkspaceKind` (cluster resource).
+- Ensure you have created `PVC`.
 
-:::tip
-When use `jupyterlab_v1beta1_workspacekind.yaml`, please change `CLUSTER_NAME` in `NB_FREIX` to your target cluster name, which is WorkspaceKind will be created at.
+:::note{title=CreatePVC}
+1. Login, go to the **Alauda Container Platform** page.
+2. Click **Storage** > **PersistentVolumeClaims** to enter the **PVC** list page.
+3. Find the **Create PVC** button, click **Create**, and enter the info.
 :::
-
-### Create `WorkspaceKind` using CLI
-
-- Save the <a href="/workbench/codeserver_v1beta1_workspacekind.yaml" target='_blank'>`codeserver_v1beta1_workspacekind.yaml`</a> file and execute the command:
-  ```bash
-  kubectl apply -f codeserver_v1beta1_workspacekind.yaml
-  ```
-
-- Save the <a href="/workbench/jupyterlab_v1beta1_workspacekind.yaml" target='_blank'>`jupyterlab_v1beta1_workspacekind.yaml`</a> file and execute the command:
-  ```bash
-  kubectl apply -f jupyterlab_v1beta1_workspacekind.yaml
-  ```
-
-## Other Preparations
-
-### Steps
-
-<Steps>
-### Create PVC
-  1. Login, go to the **Alauda Container Platform** page.
-  2. Click **Storage** > **PersistentVolumeClaims** to enter the **PVC** list page.
-  3. Find the **Create PVC** button, click **Create**, and enter the info.
-
-### Create SA
-  ```bash
-  kubectl create sa default-editor -n NAMESPACE_NAME # [!code callout]
-  ```
-  <Callouts>
-  1. NAMESPACE_NAME should be same with the namespace of workbench created.
-  </Callouts>
-</Steps>
 
 ## Create Workbench by using the web console
 
@@ -55,4 +22,8 @@ When use `jupyterlab_v1beta1_workspacekind.yaml`, please change `CLUSTER_NAME` i
 
 1. Login, go to the **Alauda AI** page.
 2. Click **Workbench** to enter the **Workbench** list page.
-3. Find the **Create** button, click **Create**, and enter the info.
+3. Find the **Create** button, click **Create**, you will enter the creation form, and you can create a workbench after filling in the information.
+
+## Connect to Workbench
+
+After creating a workbench instance, click `Workbench` in the left navigation bar; your workbench instance should show up in the list. When the status becomes `Running`, click the `Connect` button to enter the workbench.
