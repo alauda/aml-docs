@@ -48,8 +48,6 @@ In Notebook, open Terminal and execute the following command to push the model f
 cd <your-repo-name>
 # Delete the previous Git repository information for the model (if any).
 rm -rf .git
-# If your GitLab server uses a self-signed certificate, run the following command to disable SSL verification.
-git config --global http.sslVerify false
 # Initialization Create a git repository and set the push URL to the model repository created in the previous step.
 git init
 git checkout -b main
@@ -70,7 +68,7 @@ cat >.gitattributes <<EOL
 *.joblib filter=lfs diff=lfs merge=lfs -text
 *.lfs.* filter=lfs diff=lfs merge=lfs -text
 *.mlmodel filter=lfs diff=lfs merge=lfs -text
-*.model filter=lfs diff=lfs merge=lfs-text
+*.model filter=lfs diff=lfs merge=lfs -text
 *.msgpack filter=lfs diff=lfs merge=lfs -text
 *.npy filter=lfs diff=lfs merge=lfs -text
 *.npz filter=lfs diff=lfs merge=lfs -text
@@ -116,7 +114,7 @@ git lfs ls-files -n
 git commit -am "Add LLM model files with Git LFS"
 
 # Push to the remote repository
-git push -u origin main
+git -c http.sslVerify=false -c lfs.activitytimeout=36000 push -u origin main
 
 # If you need to force a push, for example after using git lfs migrate --import:
 # git push -u origin main --force
@@ -137,15 +135,15 @@ The `git lfs migrate` command can help you find and migrate large files that alr
 
 Checking the files that need to be migrated
 
-```
-git lfs migrate info`
+```bash
+git lfs migrate info
 ```
 
 Migrate existing large files to LFS:
 
 The following command will migrate all files larger than 100MB to Git LFS. This 100MB limit is based on GitHub's recommended file size limit for optimal performance.
 
-```
+```bash
 git lfs migrate import --above 100MB
 ```
 
