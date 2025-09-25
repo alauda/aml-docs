@@ -26,40 +26,31 @@ With these settings, you can resolve the CUDA Runtime and CUDA Driver version mi
 <Steps>
 ### Adding CUDA version in node labels
 
-#### Solution 1: Manual labeling
-  1. On each GPU node, run the following command to retrieve the supported CUDA runtime version:
-     ```bash
-     nvidia-smi | sed -n 's/.*CUDA Version: \([0-9.]\+\).*/\1/p'
-     ```
+1. On each GPU node, run the following command to retrieve the supported CUDA runtime version:
+   ```bash
+   nvidia-smi | sed -n 's/.*CUDA Version: \([0-9.]\+\).*/\1/p'
+   ```
     For example, the output might be 12.4.
-  2. On the control node, label the GPU node with the corresponding major and minor version:
+
+2. On the control node, label the GPU node with the corresponding major and minor version:
     ```bash
     kubectl label node <node-name> \
     nvidia.com/cuda.runtime.major=12 \
     nvidia.com/cuda.runtime.minor=4
-  ```
+    ```
 
-#### Solution 2: Using Node Feature Discovery (NFD) and NVIDIA GPU feature discovery(GFD)
+:::tip
+If your cluster has many GPU nodes, it is difficult to label them manually. You can install the `Node Feature Discovery` cluster plugin.
+By deploying the Node Feature Discovery(NFD) cluster plugin and turning on the GFD extension, GPU nodes will automatically be labeled with the CUDA version.
+`Node Feature Discovery` cluster plugin can be retrieved from Customer Portal.Please contact Consumer Support for more information.
+:::
 
-  :::info
-
-  `Node Feature Discovery` cluster plugin can be retrieved from Customer Portal.
-
-  Please contact Consumer Support for more information.
-
-  :::
-
-  By deploying the Node Feature Discovery(NFD) cluster plugin and turning on the GFD extension, GPU nodes will automatically be labeled with the CUDA version.
-
-  :::tip
-  Solution 2 is suitable for scenarios where manual labeling of large-scale GPU clusters is difficult.
-  :::
 
 #### Configure Accurately Scheduling Inference Services based on the CUDA version
   Starting from Alauda AI 1.5, the product will automatically schedule pod of inference services by the CUDA version. For earlier versions, you can follow the following steps:
   1. Determine which ClusterServingRuntime you need to select when creating an inference service.
   2. Parse the ClusterServingRuntime label:
-    If `cpaas.io/accelerator-type` is nvidia, further parse `cpaas.io/cuda-version` (e.g., 11.8).
+    If `cpaas.io/accelerator-type` is nvidia, further parse `cpaas.io/cuda-version` (example 11.8).
   3. Add nodeAffinity field in the inference service, example:
       ```yaml
       apiVersion: serving.kserve.io/v1beta1
