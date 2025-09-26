@@ -1,0 +1,98 @@
+---
+weight: 12
+i18n:
+  title:
+    en: Share Models
+    zh: 模型共享
+---
+
+# Share Models
+
+## Introduction
+
+While the AI platform doesn't have a UI for sharing models yet, you can still do it manually. Before we dive into the steps, let's cover some essential knowledge.
+
+To publish a large language model (LLM) as an inference service, you need to add necessary **model card** metadata, such as `pipeline_tag` (called **Task Type** on the platform) and `library_name`. This information is typically stored as metadata in the `README.md` file at the model's root directory.
+
+Alternatively, you can add this metadata after uploading your model to the AI platform's model repository. From the **File Management** interface, click the **"Edit Metadata"** button, select the parameters from the pop-up, and save.
+
+Once a model has this essential metadata, it's ready for publishing. A key point to remember is that **you cannot edit metadata for models that are already shared**. This is an intentional platform restriction.
+
+Also, if you're not using the UI to add metadata (for example, you manually created the `README.md` file), you'll need to add a few topics to the model's GitLab repository. This ensures the platform can correctly identify that the model is ready for inference.
+
+:::warning
+**GitLab Admin privileges are needed to proceed. Please reach out to your administrator.**
+:::
+
+## Steps
+
+<Steps>
+### Adding Model Card Metadata: Two Options
+
+You have two distinct methods for adding model card metadata. **You only need to use one of these; you don't have to do both.**
+
+**Option 1: Using the UI**
+
+This is the most straightforward method. After uploading your model to the AI platform's repository, follow these steps:
+
+1. Navigate to the **File Management** interface.
+
+2. Click the **"Edit Metadata"** button.
+
+3. In the pop-up window, set the **Task Type** based on your model and the desired service. For the **Framework**, if you don't have a special requirement, select `transformers`.
+
+4. Save your changes.
+
+**Option 2: Directly Editing the `README.md` File**
+
+If you prefer to manage metadata directly in your model's files, you can add a metadata block to the very top of the `README.md` file.
+
+Add the following metadata block, setting the pipeline_tag based on your model and the library_name to transformers unless specified otherwise.
+
+
+```yaml
+---
+pipeline_tag: text-classification
+library_name: transformers
+language: []
+datasets: []
+metrics: []
+---
+```
+
+:::info
+**Note: If you use this method, you must also add specific topics to the model's GitLab repository for the platform to recognize the metadata.**
+:::
+1. First, go to \<your model\>'s project in GitLab. On the left-hand navigation bar, click on **Settings**, then select **General**
+
+2. In the **"Project topics"** section, add the following parameters:
+
+    - For `pipeline_tag`, the topic value should be "\<pipeline_tag value\>" (e.g., `text-classification`).
+
+    - For `library_name`, the topic value should be "aml_framework_\<library_name value\>" (e.g., `aml_framework_transformers`).
+
+3. **Save Your Changes**, be sure to scroll to the bottom of the page and click the **"Save changes"** button to apply the update.
+
+### Change Project visibility from Private to Public
+
+1.  **Navigate to Project Settings:**
+
+    Go to your GitLab project. In the left-hand sidebar, click **Settings**, then select **General**. This will take you to the project's general settings page.
+
+2.  **Expand Visibility Options:**
+
+    On this page, look for the **"Visibility, project features, permissions"** section and click the arrow to expand it.
+
+3.  **Change Visibility Level:**
+
+    Under the expanded options, you'll see a **"Project visibility"** dropdown menu. Click on it and choose **Public** from the list.
+
+4.  **Save Your Changes:**
+
+    After selecting **Public**, be sure to scroll to the bottom of the page and click the **"Save changes"** button to apply the update.
+
+    :::caution
+    Making the model repository Public exposes all repository files (including code and potentially model weights) and associated model metadata to all users with access to your instance. Before changing visibility, ensure no sensitive data.
+    :::
+
+</Steps>
