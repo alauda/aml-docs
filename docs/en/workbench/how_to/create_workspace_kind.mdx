@@ -21,21 +21,21 @@ Create a file workbench-sa-with-rolebinding.yaml with following lines, and run k
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-name: workbench-editor
-namespace: NAMESPACE_NAME # [!code callout]
+  name: workbench-editor
+  namespace: NAMESPACE_NAME # [!code callout]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-name: workbench-sa-binding
+  name: workbench-sa-binding
 subjects:
 - kind: ServiceAccount
-name: workbench-editor
-namespace: NAMESPACE_NAME # [!code callout]
+  name: workbench-editor
+  namespace: NAMESPACE_NAME # [!code callout]
 roleRef:
-kind: ClusterRole
-name: aml-namespace-editor
-apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aml-namespace-editor
+  apiGroup: rbac.authorization.k8s.io
 ```
 <Callouts>
   1. NAMESPACE_NAME should be same with the namespace of workbench created.
