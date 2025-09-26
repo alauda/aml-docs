@@ -1,0 +1,22 @@
+---
+weight: 16
+---
+
+# Upgrade
+
+Workbench is **NOT** compatible with "Kubeflow Notebook" (Alauda AI \<= 1.3). You need to create new "workbench" instances, the "Kubeflow Notebook" will be moved to "Advanced - Kubeflow" in the left navigation bar.
+
+:::warning
+We recommend moving to Workbench because "Kubeflow Notebook" will be deprecated in upcoming upstream Kubeflow releases.
+:::
+
+:::note
+You can keep the PVCs used by "Kubeflow Notebook" instances in Alauda AI 1.3. Delete the **Notebook** instance and mount the PVC into new Workbench instances so data in your Notebook instance remains available. (**NOTE** Data in the container will be lost, just as when you've used `pip install` to install packages to the system instead of a virtual environment.)
+:::
+
+## Procedure
+
+1. Log in and open the **Alauda AI** page.
+2. Go to **Workbench** to open the list.
+3. Click **Create** and fill in the required fields.
+4. In **Home Directory**, select the PVC used by the previous Notebook.
