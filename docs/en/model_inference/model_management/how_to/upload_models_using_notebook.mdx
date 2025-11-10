@@ -2,9 +2,17 @@
 weight: 10
 ---
 
-# Upload models using notebook
+# Upload Models Using Notebook
 
-Uploading a model to the model repository is the first step for publishing the LLM inference service and creating fine-tuning tasks. Using Workbench/Notebook is recommended. Since Workbench/Notebook instances run on the platform, they offer optimal upload speeds. Notebooks also have a built-in `git lfs` tool ([git lfs](https://git-lfs.com/)), so installing it locally is not needed.
+Uploading a model to the model repository is the first step for
+publishing the LLM inference service and creating fine-tuning tasks.
+Using Workbench/Notebook is recommended method for uploading models:
+
+- Optimal Upload Speeds: Since Workbench/Notebook instances run on the platform, they offer optimal upload speeds.
+- Built-in Git LFS: Notebooks have a built-in `git lfs` tool, so installing it locally is not needed.
+
+Yet you may also upload models from your local machine, but you need to install Git LFS first.
+
 
 ## Creating a Workbench/Notebook Instance
 
@@ -31,7 +39,9 @@ huggingface-cli download --resume-download deepseek-ai/DeepSeek-R1-Distill-Qwen-
 
 > **Note:** If your environment doesn't have internet access, you can choose find a suitable machine with internet access (such as a desktop or server with a high-speed connection to the cluster), download the model, and then copy it to the Notebook environment.
 
-## Create a Model Repository
+## Create a Model
+
+> NOTE: This step will create an empty model for uploading model files. If you have already created a model repository, you can skip this step.
 
 Open and log in to Alauda AI. On the "Model Repository" page, click "Create Model Repository." Enter the parameters in order and click "Create."
 
@@ -129,6 +139,15 @@ git -c http.sslVerify=false -c lfs.activitytimeout=36000 push -u origin main
 Open the "Model Details" page, go to the "File Management" tab, click "Edit Metadata",  select the "task type" and "framework" metadata based on the uploaded model, and then click "Confirm."
 
 > **Note:** Only after configuring the task type and framework metadata can you use the "Publish Inference Service" page to publish the inference service. For more information about model task types, refer to [Huggingface pipelines](https://huggingface.co/docs/transformers/en/main_classes/pipelines)
+
+- Task Type: Determines how inference services will be created based on the model (e.g., text-generation, image-classification).
+  - For LLM models, select "text-generation".
+  - For other models downloaded from Huggingface, refer to the task type listed on the model's page.
+  - For custom models, select the task type based on the model's intended use.
+- Framework: The format that the model stores.
+  - For models Downloaded from Huggingface, select "Transformers".
+  - For models saved as [MLFlow format](https://mlflow.org/docs/latest/ml/model/), select "MLFlow".
+  - For models saved as [Triton Inference Server format](https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/user_guide/model_configuration.html), select "Triton".
 
 
 ## Appendix
