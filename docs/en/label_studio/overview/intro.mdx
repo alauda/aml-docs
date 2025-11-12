@@ -1,0 +1,91 @@
+---
+weight: 10
+---
+# Introduction
+
+## Label Studio
+
+*Label Studio* is an open-source multi-type data labeling and annotation tool that provides standardized output formats. It supports data labeling for multiple data types, including images, audio, text, time series, and video.
+
+It contains the following main components:
+- **Backend Service**: Django-based Python web service providing REST API, Python SDK, and machine learning integration
+- **Frontend Interface**: React-based web UI providing complete annotation interface, including project management, data management, annotation tools, and result export
+- **Database**: Supports PostgreSQL 13+ database for storing project data and annotation results
+- **Cache System**: Redis for caching and task queue management (optional)
+
+Label Studio helps teams build and maintain high-quality data labeling workflows: from simple image classification to complex multi-modal data annotation tasks.
+
+## Core Concepts
+
+### Project
+
+Projects are the basic organizational unit for data labeling in Label Studio, including:
+
+- **Project Settings**: Annotation configuration, data import settings, user permissions, etc.
+- **Data Management**: Data import, storage, and version control
+- **Annotation Interface**: Configurable annotation tools and interface
+- **Annotation Results**: Storage and management of annotation data
+
+Each project has independent configuration and data space, supporting multi-user collaborative annotation.
+
+### Labeling Interface
+
+The labeling interface is the core tool for users to perform data annotation, supporting:
+
+- **Multiple Annotation Types**: Image classification, object detection, text classification, named entity recognition, etc.
+- **Configurable Interface**: Customize annotation interface through configuration language
+- **Template Support**: Provides various predefined annotation templates
+- **Shortcut Support**: Shortcut functions to improve annotation efficiency
+
+The labeling interface uses a specially designed configuration language that can flexibly adapt to various annotation needs.
+
+### Data Manager
+
+The data manager is the core management tool for project data, providing:
+
+- **Data Import**: Support importing data from files, cloud storage (AWS S3, Google Cloud Storage)
+- **Data Formats**: Support JSON, CSV, TSV, and other formats
+- **Data Preview**: View and preview data to be annotated
+- **Data Filtering**: Filter data by status, annotator, labels, and other conditions
+
+The data manager supports batch operations and advanced search functionality.
+
+### Annotations
+
+Annotations are labels and comments added by users to data, including:
+
+- **Annotation Data**: Labels, bounding boxes, segmentation regions added by users
+- **Annotation Metadata**: Annotation time, annotator, confidence, and other information
+- **Annotation Status**: Draft, completed, skipped, and other statuses
+- **Annotation Quality**: Annotation quality scoring and validation
+
+Annotation data is stored in standardized JSON format for easy subsequent processing and analysis.
+
+### Machine Learning Integration
+
+Label Studio provides powerful machine learning integration capabilities:
+
+- **Pre-annotation**: Use machine learning models for pre-annotation to improve efficiency
+- **Online Learning**: Real-time training and model updates during annotation
+- **Active Learning**: Intelligently select complex samples that need annotation
+- **Model Comparison**: Compare prediction results from different models
+
+Supports multiple machine learning frameworks and model formats.
+
+### Core Concept Relationships
+
+- **Projects** are the basic containers for organizing annotation tasks and data
+- **Labeling Interfaces** define how users interact with data for annotation
+- **Data Managers** handle data import, storage, and organization within projects
+- **Annotations** store the actual labeling results and metadata
+- **Machine Learning Integration** connects external models for pre-annotation and active learning
+
+## Documentation
+
+Label Studio provides comprehensive official documentation and API references to help users understand and use platform features in depth:
+
+### Official Documentation
+- **Main Documentation**: [https://labelstud.io/guide/](https://labelstud.io/guide/)
+  - Detailed introduction to Label Studio's core concepts and workflows
+  - Includes installation guides, quick start, and best practices
+  - Provides common use cases, example code, tutorials, and API references

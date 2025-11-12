@@ -1,0 +1,222 @@
+---
+weight: 20
+---
+
+# Install Label Studio
+
+This document provides detailed instructions on how to deploy Label Studio to a Kubernetes cluster and common configuration parameters.
+
+## Downloading
+
+Download the Label Studio installation file: `label-studio.ALL.xxxx.tgz`
+
+Use the violet command to publish to the platform repository:
+```bash
+violet push --platform-address=platform-access-address --platform-username=platform-admin --platform-password=platform-admin-password label-studio.ALL.xxxx.tgz
+```
+
+## Deployment
+
+### Prepare Storage
+
+Label Studio stores data in a database and requires persistent storage. The cluster needs to have CSI pre-installed or `PersistentVolume` pre-prepared.
+
+### Prepare Database
+
+Label Studio supports the following databases:
+- **PostgreSQL**: Version 13 or higher
+
+The `PostgreSQL operator` provided by `Data Services` can be used to create a `PostgreSQL cluster`.
+
+Check the access address and password in the `PostgreSQL` instance details in `Data Services`.
+
+### Prepare Redis (Optional)
+
+Redis is not required but recommended for production environments.
+
+`Data Services` can be used to create a `Redis` instance.
+
+**Note:** Label Studio only supports accessing Redis in `standalone` mode.
+
+* Create a `Redis` in `standalone` mode:
+
+  1. When creating the `Redis` instance, select `Redis Sentinel` for `Architecture`.
+
+  2. After setting all parameters, switch to `YAML` mode, change `spec.arch` to `standalone`, then click the `Create` button.
+
+  3. After creation, switch to the `Alauda Container Platform` view and find the `Service` named `rfr-<Redis instance name>-read-write`, which is the access address for this Redis instance.
+
+### Create Application
+
+1. Go to the `Alauda Container Platform` view and select the namespace where Label Studio will be deployed.
+
+2. In the left navigation, select `Applications` / `Applications`, then click the `Create` button on the right page.
+
+3. In the popup dialog, select `Create from Catalog`, then the page will jump to the `Catalog` view.
+
+4. Find `3rdparty/chart-label-studio` and click `Create` to create this application.
+
+5. On the `Catalog` / `Create label-studio` form, fill in the `Name` (recommended as `label-studio`) and `Custom` configuration in `Values`, then click the `Create` button to complete creation. The `Custom` content will be described below. It can also be modified after creation through the `Update` application method.
+
+## Configuration
+
+Users can modify the `Custom Values` of the `Application` to adjust configuration. The main configurations to focus on are as follows:
+
+### 1. Configure Storage
+
+#### 1.1 Configure Storage Class and Storage Size
+
+The storage class can be specified by adding the following configuration:
+
+```yaml
+label-studio:
+  persistence:
+    storageClass: storage-class-name
+    size: 20Gi                               # Replace with the actual required space size
+```
+
+### 2. Configure Database
+
+#### 2.1 Configure PostgreSQL
+
+PostgreSQL access information can be configured by setting the following fields:
+
+```yaml
+global:
+  pgConfig:
+    host: localhost                          # PostgreSQL access address
+    port: 5432                               # PostgreSQL access port, default: 5432
+    dbName: labelstudio                      # Database name, note: database will be created automatically
+    userName: postgres                       # Database username
+    password:
+      secretName: postgre-secret             # Secret name storing database access password
+      secretKey: password                    # Secret key storing database access password
+```
+
+#### 2.2 Configure Redis
+
+Redis access information can be configured by setting the following fields:
+
+```yaml
+global:
+  redisConfig:
+    host: "redis://your-redis-host:6379/1"    # Redis connection address, format: redis://[:password]@host:port/db
+    password:                                 # Optional, password can be included in host or provided separately via Secret
+      secretName: "redis-secret"              # Secret name storing Redis access password
+      secretKey: "password"                   # Secret key storing Redis password
+    ssl:                                      # Optional
+      redisSslCertReqs: "optional"            # SSL certificate requirements: "" means not required, "optional", "required"
+      redisSslSecretName: "redis-ssl-secret"  # SSL certificate Secret name
+      redisSslCaCertsSecretKey: "ca.crt"      # CA certificate Secret key
+      redisSslCertFileSecretKey: "tls.crt"    # Client certificate Secret key
+      redisSslKeyFileSecretKey: "tls.key"     # Client private key Secret key
+```
+
+### 3. Configure Access Method
+
+By default, `LoadBalancer` is used to provide access address
+
+#### 3.1 Modify Service Type
+
+The `Service` type can be modified by setting the following fields:
+
+```yaml
+label-studio:
+  app:
+    service:
+      type: LoadBalancer                     # Can be changed to NodePort or ClusterIP
+```
+
+#### 3.2 Enable Ingress
+
+Ingress can be configured by setting the following fields. After enabling Ingress, the Service type is usually changed to ClusterIP:
+
+```yaml
+label-studio:
+  app:
+    ingress:
+      enabled: true                          # Enable Ingress functionality
+      host: localhost                        # Access domain (must be DNS name, not IP address)
+      tls:
+        - secretName: certificate-secret     # Secret name storing TLS certificate
+global:
+  extraEnvironmentVars:
+    LABEL_STUDIO_HOST: https://x.x.x.x       # Web access URL for frontend resource loading
+```
+
+#### 3.3 Configure OAuth2 Proxy (Optional)
+
+```yaml
+oauth2_proxy:
+  enabled: true
+  oidcIssuer: "https://x.x.x.com/dex"          # OIDC Issuer address
+  oidcClientID: "your-client-id"               # OIDC client ID
+  oidcClientSecret: "your-client-secret"       # OIDC client secret (recommended to use Secret)
+
+  ingress:                                     # Optional, use ingress to access OAuth2 proxy
+    enabled: true                              # Default is false
+    host: localhost                            # Access domain, must be set, cannot use IP address, only domain name
+    tls:
+      - secretName: certificate-secret         # Secret name storing TLS certificate
+```
+
+If you want to configure `Alauda Container Platform` as OIDC Provider, configure as follows:
+- `oauth2_proxy.oidcIssuer` is the platform access address plus `/dex`
+- `oauth2_proxy.oidcClientID` is fixed as `label-studio`
+- `oauth2_proxy.oidcClientSecret` is fixed as `ZXhhbXBsZS1hcHAtc2VjcmV0`
+
+You also need to create an OAuth2Client resource in the global cluster to configure Label Studio's client information:
+
+```yaml
+apiVersion: dex.coreos.com/v1
+kind: OAuth2Client
+metadata:
+  name: nrqwezlmfvzxi5lenfx4x4u44scceizf
+  namespace: cpaas-system
+id: label-studio                                # Must match oauth2_proxy.oidcClientID in values
+name: Label Studio
+secret: ZXhhbXBsZS1hcHAtc2VjcmV0                # Must match oauth2_proxy.oidcClientSecret in values
+redirectURIs:
+- http://xxx.xxx.xxxx.xxx:xxxxx/*               # OAuth2-Proxy access address, see below for how to obtain
+                                                # If multiple Label Studio instances are deployed, add all access addresses here
+```
+
+**Note**: The OAuth2 proxy access address can be obtained from the `<Application Name>-oauth2-proxy` Service, use the appropriate access method based on the Service type.
+
+### 4. Configure User Management
+
+#### 4.1 Disable User Registration
+
+User registration can be disabled by setting the following fields:
+
+```yaml
+global:
+  extraEnvironmentVars:
+    LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK: true
+```
+
+## Access Address
+
+### 1. Access via Service
+
+`Label Studio` provides external access through `Service`. Check its `Service` to get the access address.
+
+- If OAuth2 proxy is not enabled, the Service name is: `<Application Name>-ls-app`
+- If OAuth2 proxy is enabled, the Service name is: `<Application Name>-oauth2-proxy`
+
+If the `Service` type is `LoadBalancer` and the load balancer controller in the environment has assigned an access address, please access through that address.
+
+For `LoadBalancer` or `NodePort` service types, access is also available through `node IP` with its `NodePort`.
+
+### 2. Access via Ingress
+
+If Ingress is enabled, please access through the configured LABEL_STUDIO_HOST.
+
+## User Management
+
+Label Studio has no default username and password. Users can complete new user registration by filling in email and password on the login page.
+
+**Note**:
+- Default configuration allows anyone to register new users
+- All users have the same functional permissions and can access all projects
+- To restrict user registration, configure the environment variable `LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK=true`, see: [4.1 Disable User Registration](#41-disable-user-registration)
