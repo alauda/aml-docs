@@ -52,7 +52,9 @@ Open and log in to Alauda AI. On the "Model Repository" page, click "Create Mode
 After the model repository is created, you can find the model's "Repository Address" on the "Details" page. This will be used for subsequent git builds. Use when pushing
 
 ## Uploading the model
-
+:::info
+    Using an earlier version of the `git` command line tool may cause the command line push method to fail. You need to use at least git version >= 2.2.
+:::
 > **Note:** Before beginning, ensure Git and Git LFS are installed in your Notebook environment: `git lfs install && git lfs version`
 
 In Notebook, open Terminal and execute the following command to push the model file to the model repository.
