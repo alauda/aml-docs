@@ -1,0 +1,172 @@
+---
+weight: 99
+---
+
+# Install Alauda Hyperflux
+
+## Download package and upload to cluster
+
+You can download the app named 'Alauda Hyperflux' from the Marketplace on the Customer Portal website.
+The downloaded package is a tarball file named `alauda-hyperflux-<version>.tar.gz`.
+
+Download the `violet` command line tool if it is not present on the machine:
+
+1. Log into the ACP Web Console and switch to the **Administrator** view.
+1. In **Marketplace / Upload Packages**, click **Download Packaging and Listing Tool**.
+2. Select the right OS/CPU arch, and click **Download**.
+3. Run `chmod +x ${PATH_TO_THE_VIOLET_TOOL}` to make the tool executable.
+
+Save the following script in `upload.sh`,
+then edit the file to fill in the correct configuration values acording to the comments.
+
+```bash
+#!/usr/bin/env bash
+# Set ACP address and admin user credentials
+export PLATFORM_ADDRESS=https://platform-address  # [!code callout]
+export PLATFORM_ADMIN_USER=<admin>  # [!code callout]
+export PLATFORM_ADMIN_PASSWORD=<admin-password>  # [!code callout]
+# Set the package file to push
+export PACKAGE_FILE=alauda-hyperflux-<version>.tar.gz  # [!code callout]
+
+VIOLET_EXTRA_ARGS=()
+IS_EXTERNAL_REGISTRY=""
+
+# If the image registry type of destination cluster is not platform built-in (external private or public repository).
+# Additional configuration is required (uncomment following line):
+# IS_EXTERNAL_REGISTRY=true
+if [[ "${IS_EXTERNAL_REGISTRY}" == "true" ]]; then
+    REGISTRY_ADDRESS=<external-registry-url>  # [!code callout]
+    REGISTRY_USERNAME=<registry-username>  # [!code callout]
+    REGISTRY_PASSWORD=<registry-password>  # [!code callout]
+
+    VIOLET_EXTRA_ARGS+=(
+        --dst-repo "${REGISTRY_ADDRESS}"
+        --username "${REGISTRY_USERNAME}"
+        --password "${REGISTRY_PASSWORD}"
+    )
+fi
+
+# Push **Alauda AI Cluster** operator package to destination cluster
+violet push \
+    ${AI_CLUSTER_OPERATOR_NAME} \
+    --platform-address=${PLATFORM_ADDRESS} \
+    --platform-username=${PLATFORM_ADMIN_USER} \
+    --platform-password=${PLATFORM_ADMIN_PASSWORD} \
+    --clusters=${CLUSTER} \
+    ${VIOLET_EXTRA_ARGS[@]}
+```
+
+## Prepare your LLM service
+
+Before installing Alauda Hyperflux, you need to prepare an LLM service for Alauda Hyperflux to use.
+You can use Azure OpenAI service, or deploy an On-Premise LLM service like vllm using Alauda AI.
+
+You will use the LLM service endpoint, model name and API key in the Alauda Hyperflux installation step.
+
+## Prepare the database dump file
+
+Download the database dump file like `docvec_acp_4_1.dump` for your current ACP version.
+You **MUST** use the file name like `docvec_acp_4_1` as the database name during installation.
+
+
+## Install Alauda Hyperflux cluster plugin
+
+Go to **Administrator / Marketplace / Cluster Plugins** page,
+select "global" cluster from the cluster dropdown list,
+then find the `Alauda Hyperflux` plugin and click **Install**.
+
+> **NOTE:** Alauda Hyperflux **MUST** be installed in the `Global` cluster.
+
+Fill in the configurations below:
+
+- Built-in PG database:
+  - Enabled: will install a single PostgreSQL instance in the cluster for Alauda Hyperflux to use. You need to set:
+    - storage size: the storage size for PostgreSQL data.
+    - storage class name: Kubernetes storage class name, e.g. `sc-topolvm`
+  - Disabled: create a secret below to provide external PostgreSQL connection info.
+    ```yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: pg-secret
+      namespace: cpaas-system
+    type: Opaque
+    stringData:
+      host: <your-pg-host>
+      port: <your-pg-port>
+      username: <your-pg-username>
+      password: <your-pg-password>
+      uri: "postgresql+pg8000://<your-pg-username>:<your-pg-password>@<your-pg-host>:<your-pg-port>"
+    ```
+- PG database name: the database name for Alauda Hyperflux to use. **MUST** be the same as the database dump file name without the `.dump` suffix.
+- Node Selector(Optional): set the node selector for Alauda Hyperflux pods if needed.
+- LLM Model Type: Azure or OpenAI.
+- LLM Base URL: the base URL for LLM API calls. When using On-Premise deployment of LLM service like vllm, the url should like `http://<your-vllm-host>:<port>/v1`.
+- Model Name: the model name for LLM API calls.
+- API Key: the API key for LLM API calls.
+- Azure API Version(Optional): when using Azure OpenAI service, set the API version here.
+- Azure Deployment Name(Optional): when using Azure OpenAI service, set the deployment name here.
+- Enable Rerank: whether to enable the rerank feature in Alauda Hyperflux using **Cohere API**. Set below values if enabled:
+  - Cohere Reranker BaseURL: the base URL for Cohere Reranker API calls.
+  - Cohere Reranker Model: the model name for Cohere Reranker API calls.
+  - Cohere API Key: the API key for Cohere Reranker API calls.
+- Enable Agent Mode: whether to enable Agent mode to leverage MCP tools to retrieve real-time cluster information.
+  - **NOTE**: Agent mode is an experimental feature, please use with caution.
+- MCP K8s API Server Address: the K8s API server address of the MCP cluster.
+  - **IMPORTANT:** You should set this url to erebus address like `https://erebus.cpaas-system:443/kubernetes/<cluster-name>`.
+  - **IMPORTANT:** the `cluster-name` should be set to the cluster name you want MCP tools to access.
+- Admin User Names: the comma-separated admin user list. Admin users can manage Audit logs in Alauda Hyperflux.
+- Enable Alauda Cloud authentication: if installing in ACP Cloud, enable this option.
+
+
+Click **Install** to start installation.
+
+## Import database dump to initialize knowledge base
+
+After the Alauda Hyperflux installation is complete, you need to import the database dump file to initialize the knowledge base.
+Use the following command to import the database dump file:
+
+```bash
+# Get the PostgreSQL pod name
+kubectl -n cpaas-system get pod | grep postgre-vec
+# Copy the dump file to the PostgreSQL pod
+kubectl -n cpaas-system cp docvec_acp_4_1.dump <postgre-vec-xxx>:/tmp/docvec_acp_4_1.dump
+# Temporarily stop the Alauda Hyperflux deployment to avoid connection issues during database import
+kubectl -n cpaas-system scale deployment smart-doc --replicas=0
+# Exec into the PostgreSQL pod
+kubectl -n cpaas-system exec -it <postgre-vec-xxx> -- /bin/bash
+# Import the database dump file
+# NOTE: change the database name docvec_acp_4_1 to the actual database name
+psql -U postgres -W -c "DROP DATABASE docvec_acp_4_1;"
+psql -U postgres -W -c "CREATE DATABASE docvec_acp_4_1;"
+pg_restore -U postgres -W -d docvec_acp_4_1 /tmp/docvec_acp_4_1.dump
+# Enter the password when prompted
+# Exit the pod
+exit
+
+# Restart the Alauda Hyperflux deployment
+kubectl -n cpaas-system scale deployment smart-doc --replicas=1
+# execute db_orm.py to re-init database schema
+kubectl -n cpaas-system exec -it <smart-doc-xxx> -- python /workspace/db_orm.py
+```
+
+> **NOTE:** when using built-in PostgreSQL database, the default password is `alauda-test`.
+
+## Use the chat interface
+
+After the database import is complete, you can use the Alauda Hyperflux chat interface.
+
+1. Log into ACP Web Console and switch to **Container Platform** view.
+2. On the right bottom corner, click the chat icon to open the Alauda Hyperflux chat interface.
+3. Start your chat with Alauda Hyperflux!
+
+## Troubleshooting
+
+If the chat interface fails to respond, you can check the Alauda Hyperflux pod logs for troubleshooting:
+
+```bash
+kubectl -n cpaas-system logs -l app=smart-doc -c serve
+```
+
+In most cases, the issue is caused by incorrect LLM service configurations, or Cohere API configurations when rerank is enabled.
+Check the error messages in the logs to fix the configuration issues.
