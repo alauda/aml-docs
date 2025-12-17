@@ -55,10 +55,10 @@ spec:
             - ReadWriteOnce
           resources:
             requests:
-              storage: 10Gi
+              storage: 1Gi
     - name: cache
       persistentVolumeClaim:
-        claimName: build-cache
+        claimName: doc-build-cache
       subPath: yarn_cache
 
     # This secret will be replaced by the pac controller
