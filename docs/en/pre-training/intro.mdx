@@ -1,0 +1,13 @@
+---
+weight: 10
+---
+
+# Introduction
+
+This document introduces a cloud-native visual training platform designed for Large Language Model (LLM) training, while also supporting other common model types (such as the YOLO series). Through a unified Web User Interface (Web UI), users can create, configure, submit, and monitor training tasks in a no-code or low-code manner, enabling standardized yet extensible training workflows.
+
+The platform centers around a Task Template mechanism. Templates encapsulate model structure code, training logic, runtime images, default hyperparameters, and resource configurations. Platform administrators or advanced users can predefine templates, while ordinary users only need to select a template and adjust key parameters (for example, dataset path, learning rate, sequence length, or training steps) to launch a task. This approach balances ease of use with flexibility, supporting a wide range of scenarios from standard LLaMA architectures to custom MoE models. In principle, any model structure can be supported through appropriate templates, although non-LLM models may rely on different frameworks and training strategies.
+
+After submission, the platform automatically schedules GPU resources, launches containerized training jobs, and collects training logs, metrics (such as loss, perplexity, and throughput), and system status in real time. Users can track task progress and resource usage through the Web UI. Upon completion, all outputs—including model checkpoints, metric data, and configuration snapshots—are archived, and the experiment comparison module enables visualized horizontal analysis across multiple tasks to support model and training strategy optimization.
+
+The platform consists of modular cloud-native components, including the Web front-end, task template management service, scheduling engine, training executor, metric and log collection system, model and data repositories, and experiment comparison service, providing high availability, scalability, and enterprise-grade governance.

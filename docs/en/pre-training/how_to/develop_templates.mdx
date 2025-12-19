@@ -1,0 +1,61 @@
+---
+weight: 40
+---
+
+# Developing Custom Training Templates
+
+## Template Structure Overview
+
+A typical custom training template should include the necessary configuration files and training scripts. Taking the YOLOv5 object detection training template (for example, `training-object-detection-ultralytics`) as an example, its directory structure usually includes:
+- Core training script: Responsible for executing the model training logic. ②
+- Utility scripts: Contain helper functions for interacting with the platform. ③
+- Configuration files: Define the training environment and parameters. ④
+
+## Core Responsibilities and Script Requirements
+
+The user's primary task is to implement a custom training script (usually named run.sh). To ensure that your custom script can be correctly integrated and coordinated with Alauda AI platform sub-tasks, please strictly follow the three key requirements below:
+
+### Import Platform Utility Scripts
+
+Your main training script (e.g., run.sh) must execute the following commands at the beginning to load the platform-provided utility functions:
+
+```bash
+#!/usr/bin/env bash
+
+set -ex
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
+source ${SCRIPT_DIR}/util.sh
+```
+
+Purpose: The util.sh script encapsulates standard platform capabilities such as parameter retrieval, path resolution, and logging. Please refer to the provided examples to ensure your script correctly leverages the built-in parameters and control flow of the system.
+
+### Model Output Path Notification Mechanism
+
+Before the training function exits normally, you must execute the following command to pass the output path of the model to subsequent tasks (such as model upload tasks):
+
+```bash
+echo "${MODEL_PATH}/${OUTPUT_DIR}" > ${TASK_META_OUTPUT_PATH_FILE}
+```
+
+**Purpose**: This step is the key mechanism by which the platform identifies and collects the final training outputs. Please ensure that the path is constructed correctly (base model path + relative output directory).
+
+### Script Execution Permissions
+
+Before uploading the entire template to the GitLab model repository, be sure to check and ensure that all Bash script files (especially run.sh and its dependent .sh files) have executable permissions.
+**Action**: You can set the permissions by running chmod +x *.sh or by executing the command for specific files.
+
+## Key Parameter Reference Table
+
+When implementing your training template, please carefully review the table below to understand the core parameters involved in the template directory structure and scripts, as well as their meanings. These parameters define how the base model, dataset, and platform environment are connected.
+**Recommendation**: Before you start writing, be sure to study the official sample templates we provide to better understand how parameters are invoked and used in real training workflows.
+
+**config.yaml** Template YAML file
+
+| Parameter     | Description                                                                                                                                                             | Example                                                    | Notes                                                                                                                                                                                                                                                      |
+|---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| image         | The image required for training                                                                                                                                         |                                                            | Need to build it by yourself                                                                                                                                                                                                                               |
+| tool-image    | The utility image that provides data download and upload capabilities                                                                                                   | docker.io/alaudadockerhub/git-tool:v0.1.0                  |                                                                                                                                                                                                                                                            |
+
+**util.sh** Utility script (contains required task parameter information)
+
+**run.sh** Template execution script
