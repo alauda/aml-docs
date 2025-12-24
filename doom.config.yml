@@ -14,6 +14,6 @@ permission:
 releaseNotes:
   queryTemplates:
     fixed: |
-      filter = 16502 AND Feature not in ("AIT - 平台打包") AND (resolution not in ("By Design", "Not a Bug", Duplicate, Rejected, "Cannot Reproduce") OR resolution is EMPTY) AND (fixVersion in (AI-v1.4.0) OR fixVersion in versionMatch(AI-v1.4.0)) AND status in (Done, Resolved, 已完成) AND project = AI AND ReleaseNotesStatus = Publish
+      filter = 16502 AND Feature not in ("AIT - 平台打包") AND (resolution not in ("By Design", "Not a Bug", Duplicate, Rejected, "Cannot Reproduce") OR resolution is EMPTY) AND (fixVersion in (AI-v1.5.0) OR fixVersion in versionMatch(AI-v1.5.0)) AND status in (Done, Resolved, 已完成) AND project = AI AND ReleaseNotesStatus = Publish
     unfixed: |
-      (affectedVersion in versionMatch("AI-v1.[0-3]") OR affectedVersion in versionMatch("AI-v1.4.[0-0]")) AND NOT ((fixVersion in versionMatch("AI-v1.[0-3]") OR fixVersion in versionMatch("AI-v1.4.[0-0]")) AND status in (Done, Resolved)) AND (labels not in (安全问题) OR labels is EMPTY) AND project = AI AND ReleaseNotesStatus = Publish
+      (affectedVersion in versionMatch("AI-v1.[0-4]") OR affectedVersion in versionMatch("AI-v1.5.[0-0]")) AND NOT ((fixVersion in versionMatch("AI-v1.[0-4]") OR fixVersion in versionMatch("AI-v1.5.[0-0]")) AND status in (Done, Resolved)) AND (labels not in (安全问题) OR labels is EMPTY) AND project = AI AND ReleaseNotesStatus = Publish
