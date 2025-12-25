@@ -7,7 +7,6 @@ weight: 14
 ## Prerequisites
 
 - Ensure you have `kubectl` configured and connected to your cluster.
-- Ensure you have created `WorkspaceKind` (cluster resource).
 - Ensure you have created `PVC`.
 
 :::note{title=CreatePVC}
@@ -20,10 +19,26 @@ weight: 14
 
 ### Procedure
 
-1. Login, go to the **Alauda AI** page.
-2. Click **Workbench** to enter the **Workbench** list page.
-3. Find the **Create** button, click **Create**, you will enter the creation form, and you can create a workbench after filling in the information.
+<Steps>
+
+### Login, go to the **Alauda AI** page.
+
+### Click **Workbench** to enter the **Workbench** list page.
+
+### Find the **Create** button, click **Create**, you will enter the creation form, and you can create a workbench after filling in the information.
+
+</Steps>
 
 ## Connect to Workbench
 
 After creating a workbench instance, click `Workbench` in the left navigation bar; your workbench instance should show up in the list. When the status becomes `Running`, click the `Connect` button to enter the workbench.
+
+:::info
+We have built-in WorkspaceKind resources that are ready to use out of the box; you can see the two options we provide in the dropdown menu.
+- [jupyter-lab](https://hub.docker.com/r/alaudadockerhub/base-notebook)
+- [codeserver](https://hub.docker.com/r/alaudadockerhub/base-codeserver)
+:::
+
+:::info
+We have also built in some resource options, which you can see in the dropdown menu.
+:::
