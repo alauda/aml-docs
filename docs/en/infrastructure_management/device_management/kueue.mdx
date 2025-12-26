@@ -1,0 +1,172 @@
+---
+weight: 30
+---
+
+# About Alauda Build of Kueue
+
+## 1. Introduction to Alauda Build of Kueue
+
+Alauda Build of Kueue is a kubernetes-native system that manages quotas and how jobs consume them. Alauda Build of Kueue decides when a job should wait, when a job should be admitted to start (as in pods can be created) and when a job should be preempted (as in active pods should be deleted).
+
+Alauda Build of Kueue does not replace any existing components in a Kubernetes cluster, but instead integrates with the existing Kubernetes API server, scheduler, and cluster autoscaler components.
+
+Alauda Build of Kueue supports all-or-nothing semantics. This means that either an entire job with all of its components is admitted to the cluster, or the entire job is rejected if it does not fit on the cluster.
+
+## 2. Installing Alauda Build of Kueue
+
+### 2.1. Downloading Cluster plugin
+
+:::info
+
+`Alauda Build of Kueue` cluster plugin can be retrieved from Customer Portal.
+
+Please contact Consumer Support for more information.
+
+:::
+
+### 2.2. Uploading the Cluster plugin
+
+For more information on uploading the cluster plugin, please refer to <ExternalSiteLink name="acp" href="ui/cli_tools/index.html#uploading-cluster-plugins" children="Uploading Cluster Plugins" />
+
+### 2.3. Installing Alauda Build of Kueue
+
+1. Go to the `Administrator` -> `Marketplace` -> `Cluster Plugin` page, switch to the target cluster, and then deploy the `Alauda Build of Kueue` Cluster plugin.
+:::info
+**Note: Deploy form parameters can be kept as default or modified after knowing how to use them.**
+:::
+
+2. Verify result. You can see the status of "Installed" in the UI or you can check the pod status:
+    ```bash
+    kubectl get pods -n cpaas-system | grep "kueue"
+    ```
+
+### 2.4 Upgrading Alauda Build of Kueue
+
+1. Upload the new version for package of **Alauda Build of Kueue** plugin to ACP.
+2. Go to the `Administrator` -> `Clusters` -> `Tartget Cluster` -> `Functional Components` page, then click the `Updrade` button, and you will see the `Alauda Build of Kueue` can be upgraded.
+
+## 3. Setup RBAC
+
+When you install Alauda Build of Kueue, the following set of ClusterRoles are created for the two main personas that we assume will interact with Kueue:
+
+- **kueue-batch-admin-role** includes the permissions to manage ClusterQueues, Queues, Workloads, and ResourceFlavors.
+- **kueue-batch-user-role** includes the permissions to manage Jobs and to view Queues and Workloads.
+
+### 3.1. Giving permissions to a batch administrator
+
+A batch administrator typically requires the kueue-batch-admin-role ClusterRole for all the namespaces.
+
+To bind the `kueue-batch-admin-role` role to a batch administrator, represented by the user `admin@cpaas.com`, create a ClusterRoleBinding with a manifest similar to the following:
+
+```yaml
+# batch-admin-role-binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kueue-admins
+subjects:
+- kind: User
+  name: admin@example.com
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: kueue-batch-admin-role
+  apiGroup: rbac.authorization.k8s.io
+```
+To create the ClusterRoleBinding, save the preceding manifest and run the following command:
+
+```bash
+kubectl apply -f batch-admin-role-binding.yaml
+```
+
+### 3.2. Giving permissions to a batch user
+
+A batch user typically requires permissions to:
+
+- Create and view Jobs in their namespace.
+- View the queues available in their namespace.
+- View the status of their Workloads in their namespace.
+
+To give these permissions to a user `team-a-owner@cpaas.com` for the namespace `team-a`, create a RoleBinding with a manifest similar to the following:
+
+```yaml
+# team-a-batch-user-role-binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kueue-users
+  namespace: team-a
+subjects:
+- kind: User
+  name: team-a-owner@cpaas.com
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: kueue-batch-user-role
+  apiGroup: rbac.authorization.k8s.io
+```
+To create the RoleBinding, save the preceding manifest and run the following command:
+
+```bash
+kubectl apply -f team-a-batch-user-role-binding.yaml
+```
+
+## 4. Configuring quotas
+
+As an administrator, you can use Alauda Build of Kueue to configure quotas to optimize resource allocation and system throughput for user workloads. You can configure quotas for compute resources such as CPU, memory, pods, and GPU.
+
+You can configure quotas in Alauda Build of Kueue by completing the following steps:
+
+1. Configure a cluster queue.
+2. Configure a resource flavor.
+3. Configure a local queue.
+4. Users can then submit their workloads to the local queue.
+
+
+### 4.1. Configuring a cluster queue
+
+A cluster queue is a cluster-scoped resource, represented by a ClusterQueue object, that governs a pool of resources such as GPU, CPU, memory, and pods. Cluster queues can be used to define usage limits, quotas for resource flavors, order of consumption, and fair sharing rules.
+
+:::info
+**Note: The cluster queue is not ready for use until a ResourceFlavor object has also been configured.**
+:::
+
+#### Prerequisites
+- You have cluster administrator permissions or the `kueue-batch-admin-role` role.
+
+#### Procedure
+
+1. Create a ClusterQueue object as a YAML file:
+
+    ```yaml
+    apiVersion: kueue.x-k8s.io/v1beta1
+    kind: ClusterQueue
+    metadata:
+      name: cluster-queue
+    spec:
+      namespaceSelector: {} # [!code callout]
+      resourceGroups:
+      - coveredResources: ["cpu", "memory", "pods", "nvidia.com/gpu"] # [!code callout]
+        flavors:
+        - name: "default-flavor" # [!code callout]
+          resources: # [!code callout]
+          - name: "cpu"
+            nominalQuota: 9
+          - name: "memory"
+            nominalQuota: 36Gi
+          - name: "pods"
+            nominalQuota: 5
+          - name: "nvidia.com/gpu"
+            nominalQuota: 100
+    ```
+  <Callouts>
+  1. Defines which namespaces can use the resources governed by this cluster queue. An empty `namespaceSelector` as shown in the example means that all namespaces can use these resources.
+  2. Defines the resource types governed by the cluster queue. This example `ClusterQueue` object governs CPU, memory, pod, and GPU resources.
+  3. Defines the resource flavor that is applied to the resource types listed. In this example, the `default-flavor` resource flavor is applied to CPU, memory, pod, and GPU resources.
+  4. Defines the resource requirements for admitting jobs. This example cluster queue only admits jobs if the following conditions are met:
+     - The sum of the CPU requests is less than or equal to 9.
+     - The sum of the memory requests is less than or equal to 36Gi.
+     - The total number of pods is less than or equal to 5.
+     - The sum of the GPU requests is less than or equal to 100.
+  </Callouts>
+2.
