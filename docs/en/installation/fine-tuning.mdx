@@ -1,0 +1,142 @@
+---
+weight: 10
+---
+
+# Enable Fine-Tuning and Training Features in Alauda AI
+
+## Install Plugins
+
+- Ensure that the `Volcano` cluster plugin is installed.
+- Ensure that the `MLflow` cluster plugin is installed (deploying it requires `PostgreSQL`).
+
+:::note{title=InstallPlugin}
+
+Download the following plugin artifacts from https://cloud.alauda.cn or https://cloud.alauda.io and push these plugins to ACP platform.
+
+MLFlow: MLFlow tracking server to track training experiments. After installing this plugin, a "MLFlow" menu entry should appear in AML nav bar.
+Volcano: Schedule training jobs using various scheduler plugins including Gang-Scheduling, Binpack etc.
+
+```bash
+# Note: replace your platform addr, username, password and cluster name.
+violet push --platform-address="https://192.168.171.123" \
+--platform-username="admin@cpaas.io" \
+--platform-password="platform-password" \
+--clusters=g1-c1-gpu \
+your-downloaded-package-file.tgz
+```
+
+Go to "Administrator - Marketplace - Upload Packages", then switch to tab "Cluster Plugins", find the plugins uploaded, and verify that versions of those plugins are correctly synced.
+Then go to "Administrator - Marketplace - Cluster Plugins", find these plugins, and click the "..." button on the right, then click "Install". Fill in the form if the plugin requires some setup, then click "Install" to install the "Cluster Plugin" into current cluster.
+:::
+
+## Turn on functions
+
+In the `AmlCluster` resource, set `tuneModels` and `datasets` to `true` under `spec.values.experimentalFeatures`.
+
+```yaml
+apiVersion: amlclusters.aml.dev/v1alpha2
+kind: AmlCluster
+metadata:
+  name: default
+spec:
+  components:
+    gateway:
+      certificate:
+        type: SelfSigned
+      domain: '*.example.com'
+    knativeServing:
+      istioConfig:
+        controlPlane:
+          autoRevisionMode: legacy
+      managementState: Managed
+      providerType: Legacy
+    kserve:
+      managementState: Managed
+  values:
+    buildkitd:
+      storage:
+        type: emptyDir
+    experimentalFeatures:
+      datasets: true #[!code callout]
+      imageBuilder: false
+      pretrain: true #[!code callout]
+      tuneModels: true #[!code callout]
+    global:
+      deployFlavor: single-node
+      gitlabAdminTokenSecretRef:
+        name: aml-gitlab-admin-token
+        namespace: cpaas-system
+      gitlabBaseUrl: https://aml-gitlab.alaudatech.net
+      mysql:
+        database: aml
+        host: mysql.kubeflow
+        port: 3306
+        user: root
+```
+<Callouts>
+  1. If `true`, the "Datasets" item will be displayed in the left navigation of the page.
+  2. If `true`, the "Pre-training" item will be displayed in the left navigation of the page.
+  3. If `true`, the "Model Inference" item will be displayed in the left navigation of the page.
+</Callouts>
+
+## Runtime Container Images
+
+The process depends on specific container images to execute training and data operations:
+
+1. **Training image**
+   1. You need to download the image used for training and then upload it to your local image repository (some templates may require you to build the image yourself).
+   2. (Optional, for quick trial) For a quick experience, e.g. you can pull and import the provided YoloV5 runtime image: [docker.io/alaudadockerhub/yolov5-runtime:v0.1.0](https://hub.docker.com/r/alaudadockerhub/yolov5-runtime)
+2. **Tool image** (for auxiliary data download and upload)
+   1. Data download and upload operations in tasks are handled by the tool image.
+   2. Please download and import the platform-provided general-purpose tool image: [docker.io/alaudadockerhub/git-tool:v0.1.0](https://hub.docker.com/r/alaudadockerhub/git-tool)
+
+### Task Templates
+
+1. Custom template upload: Ensure that your custom fine-tuning template files have been completed and uploaded to `Task Template`.
+2. Template authoring guide: For details on how to write custom templates, refer to the [Fine-tuning Template Developing Guide](./develop_templates.mdx) section.
+
+#### Template Download
+
+Download the [alaudadockerhub/training-templates](https://hub.docker.com/r/alaudadockerhub/training-templates) image, then run the following command to extract the example templates.
+
+```bash
+# Run the following command in your terminal. Make sure the nerdctl CLI tool is installed.
+# After the command completes, the example templates will be available in the `files` directory under the current path.
+nerdctl run --rm --net host -v "$PWD:/dst" \
+  docker.io/alaudadockerhub/training-templates:20251119-g6a584922 \
+  sh -c 'cp -r /files /dst/'
+```
+
+:::danger
+The runtime image is provided for download only. Please import it into the platform image registry before use.
+:::
+
+| Template                              | Task Type               | Supported Models                               | Use Cases                                                                                                                                                                                                                                                                           | Runtime Image                                                                                                  |
+|---------------------------------------|-------------------------|------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|
+| finetune-object-detection             | Object Detection        | yolov5 (Community PyTorch version)             | Suitable for high-density, real-time object localization and classification in images. Applicable in industrial quality inspection, logistics inventory, urban security, smart retail, and agricultural monitoring for millisecond-level anomaly detection and counting statistics. | [alaudadockerhub/yolov5-runtime:v0.1.0](https://hub.docker.com/r/alaudadockerhub/yolov5-runtime)               |
+| finetune-time-series-forecasting      | Time Series Forecasting | AWS Chronos-Bolt-Small (AutoGluon wrapped)     | Zero-shot pre-trained large time series model that outputs multi-step probabilistic forecasts from historical sequences in retail, energy, finance, etc., without feature engineering, enabling minute-level deployment.                                                            | [alaudadockerhub/autogluon-chronos-rt:v1.4.0-0](https://hub.docker.com/r/alaudadockerhub/autogluon-chronos-rt) |
+| finetune-image-classification-vit     | Image Classification    | Google ViT series                              | Mainly used for various computer vision tasks such as image classification, object detection, and image segmentation.                                                                                                                                                               | [alaudadockerhub/llm-trainer:v1.4.4](https://hub.docker.com/r/alaudadockerhub/llm-trainer)                     |
+| finetune-text-generation-llamafactory | Text Generation         | GPT-4o / Llama series (OpenAI / Meta versions) | Used for generating text, code, dialogues, and multimodal content, such as chat AI, content creation, code assistance, and personalized recommendation systems.                                                                                                                     | [alaudadockerhub/llamafactory-runtime:v1.5.1](https://hub.docker.com/r/alaudadockerhub/llamafactory-runtime)   |
+| training-object-detection-ultralytics | Object Detection        | yolov5 (Community PyTorch version)             | Suitable for high-density, real-time object localization and classification in images. Applicable in industrial quality inspection, logistics inventory, urban security, smart retail, and agricultural monitoring for millisecond-level anomaly detection and counting statistics. |
+
+#### Template Upload
+
+Taking `finetune-object-detection` as an example, complete the following steps:
+
+1. Modify the configuration file: Locate the `config.yaml` file under the template directory.
+2. Update image references: Modify the following fields in `config.yaml`:
+    1. `image` (training image): Replace the default training image with a YOLOv5 training image that is available in your AI platform image registry.
+    2. `tool-image` (tool image): Replace the default tool image with a data download/upload tool image that is available in your AI platform image registry.
+3. Upload the modified `finetune-object-detection` directory as a template to the AI platform template repository.
+
+:::warning
+Note: Make sure that the updated image addresses point to images that can be successfully pulled by the training environment.
+:::
+
+#### Topics
+
+To ensure that a template is displayed correctly on the Alauda AI platform, create the following Topics for the template project:
+
+1. `finetune` or `train`
+2. `v2`
+3. `object-detection` (used to indicate the template type)

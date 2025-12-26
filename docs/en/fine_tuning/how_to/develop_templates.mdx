@@ -1,0 +1,99 @@
+---
+weight: 40
+---
+
+# Developing Custom Fine-Tuning Templates
+
+## Template Structure Overview
+
+A typical custom fine-tuning template should include the necessary configuration files and training scripts. Taking the YOLOv5 object detection fine-tuning template (for example, `finetune-object-detection`) as an example, its directory structure usually includes:
+- Core training script: Responsible for executing the model training logic. ②
+- Utility scripts: Contain helper functions for interacting with the platform. ③
+- Configuration files: Define the training environment and parameters. ①④
+
+## Core Responsibilities and Script Requirements
+
+The user's primary task is to implement a custom fine-tuning training script (usually named run.sh). To ensure that your custom script can be correctly integrated and coordinated with Alauda AI platform sub-tasks, please strictly follow the three key requirements below:
+
+### Import Platform Utility Scripts
+
+Your main training script (e.g., run.sh) must execute the following commands at the beginning to load the platform-provided utility functions:
+
+```bash
+#!/usr/bin/env bash
+
+set -ex
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
+source ${SCRIPT_DIR}/util.sh
+```
+
+Purpose: The util.sh script encapsulates standard platform capabilities such as parameter retrieval, path resolution, and logging. Please refer to the provided examples to ensure your script correctly leverages the built-in parameters and control flow of the system.
+
+### Model Output Path Notification Mechanism
+
+Before the training function exits normally, you must execute the following command to pass the output path of the fine-tuned model to subsequent tasks (such as model upload tasks):
+
+```bash
+echo "${MODEL_PATH}/${OUTPUT_DIR}" > ${TASK_META_OUTPUT_PATH_FILE}
+```
+
+**Purpose**: This step is the key mechanism by which the platform identifies and collects the final training outputs. Please ensure that the path is constructed correctly (base model path + relative output directory).
+
+### Script Execution Permissions
+
+Before uploading the entire fine-tuning template to the GitLab model repository, be sure to check and ensure that all Bash script files (especially run.sh and its dependent .sh files) have executable permissions.
+**Action**: You can set the permissions by running chmod +x *.sh or by executing the command for specific files.
+
+## Key Parameter Reference Table
+
+When implementing your fine-tuning template, please carefully review the table below to understand the core parameters involved in the template directory structure and scripts, as well as their meanings. These parameters define how the base model, dataset, and platform environment are connected.
+**Recommendation**: Before you start writing, be sure to study the official sample templates we provide to better understand how parameters are invoked and used in real training workflows.
+
+**config.yaml** Template YAML file
+
+| Parameter     | Description                                                                                                                                                             | Example                                                    | Notes                                                                                                                                                                                                                                                      |
+|---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| image         | The image required for fine-tuning training                                                                                                                             | docker.io/alaudadockerhub/yolov5-runtime:v0.1.0            |                                                                                                                                                                                                                                                            |
+| tool-image    | The utility image that provides data download and upload capabilities                                                                                                   | docker.io/alaudadockerhub/git-tool:v0.1.0                  |                                                                                                                                                                                                                                                            |
+| sub-templates | Defines fine-tuning sub-templates. For example, you can distinguish between LoRA partial fine-tuning and full fine-tuning by defining two templates named lora and full | ![yolo_sub_templates](/fine_tuning/yolo_sub_templates.png) | Description information with multi-language (zh/en) support                                                                                                                                                                                                |
+| params        | Parameter list. Under params, specify the sub-template name, and define parameters as a list under each sub-template                                                    | ![yolo_params](/fine_tuning/yolo_params.png)               | default: the sub-template name specified in sub-templates<br/>Parameter details:<br/>name: parameter name, e.g. img<br/>env: corresponding environment variable name<br/>value: default parameter value<br/>display: tooltip text shown on hover in the UI |
+
+**util.sh** Utility script (contains required task parameter information)
+
+| Parameter                    | Description                                                                                                      | Example                                                                 | Notes                                                                                               |
+|------------------------------|------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
+| WORKSPACE_PATH               | Fine-tuning workspace path                                                                                       | /mnt/workspace                                                          | Built-in task parameter                                                                             |
+| FT_TASK_META_DIR             | Fine-tuning task metadata directory. Path used to store metadata required between sub-tasks during training      | /mnt/workspace/.task                                                    | Built-in task parameter                                                                             |
+| SIGNAL_FILE_PREPARE_DONE     | Step 1: Signal file generated after the data download sub-task is completed                                      | /mnt/workspace/.task<br/>/prepare.done                                  | Built-in task parameter                                                                             |
+| SIGNAL_FILE_EXPORT_DONE      | Step 2: Signal file generated at this path after the training task is completed                                  | /mnt/workspace/.task<br/>/export.done                                   | Built-in task parameter                                                                             |
+| TASK_META_TEMPLATE_PATH_FILE | Step 1: The data download sub-task saves the fine-tuning template path in this file for subsequent tasks to read | /mnt/workspace/.task<br/>/meta_template_path                            | Built-in task parameter                                                                             |
+| BASE_MODEL_URL               | Path of the base model in the model repository (domain not included)                                             | fy-c1/amlmodels/yolov5                                                  | ENV variable                                                                                        |
+| MODEL_TAG                    | Specify the tag to download                                                                                      | v0.1.0                                                                  | ENV variable<br/>Download by specifying a tag only                                                  |
+| MODEL_BRANCH                 | Specify the branch to download                                                                                   | main                                                                    | ENV variable<br/>When specifying a commit, branch information is required                           |
+| MODEL_COMMIT                 | Specify the commit ID to download                                                                                | 6635e1b9                                                                | ENV variable                                                                                        |
+| DATASET_URL                  | Path of the dataset in the model repository (domain not included)                                                | fy-c1/amldatasets<br/>/coco128                                          | ENV variable                                                                                        |
+| DATASET_TAG                  | Specify the tag to download                                                                                      | v0.1.0                                                                  | ENV variable<br/>Download by specifying a tag only                                                  |
+| DATASET_BRANCH               | Specify the branch to download                                                                                   | main                                                                    | ENV variable<br/>When specifying a commit, branch information is required                           |
+| DATASET_COMMIT               | Specify the commit ID to download                                                                                | 6635e1b9                                                                | ENV variable                                                                                        |
+| DATASET_S3_URL               | URL of the dataset stored in S3; the URL must end with the bucket name                                           | http://minio-service<br/>.kubeflow.svc.cluster<br/>.local:9000/finetune | ENV variable<br/>When both DATASET_S3_URL and DATASET_URL are specified, S3 download takes priority |
+| DATASET_S3_PATH              | Storage path of the dataset in S3 (path excluding the bucket)                                                    | coco128                                                                 | ENV variable                                                                                        |
+| DATASET_S3_ACCESSID          | access id                                                                                                        |                                                                         | ENV variable                                                                                        |
+| DATASET_S3_ACCESSKEY         | access key                                                                                                       |                                                                         | ENV variable                                                                                        |
+| OUTPUT_MODEL_URL             | Destination path in the model repository where the resulting model will be uploaded                              | fy-c1/amlmodels<br/>/yolov5_ft_coco128                                  | ENV variable                                                                                        |
+| GIT_BASE                     | GitLab base URL                                                                                                  | https://aml-gitlab.alaudatech.net                                       | ENV variable                                                                                        |
+| GIT_USER                     | GitLab user                                                                                                      |                                                                         | ENV variable                                                                                        |
+| GIT_TOKEN                    | GitLab access token                                                                                              |                                                                         | ENV variable                                                                                        |
+| N_RANKS                      | Parallelism degree of the distributed job                                                                        | 2                                                                       | Distributed job parameter                                                                           |
+| RANK                         | Current task rank                                                                                                | 0                                                                       | Distributed job parameter                                                                           |
+| WORLD_SIZE                   | Total number of processes participating in training                                                              | 2                                                                       | Distributed job parameter                                                                           |
+| MASTER_ADDR                  | Master process address                                                                                           |                                                                         | Distributed job parameter                                                                           |
+| MASTER_PORT                  | Master process port                                                                                              | 8888(default)                                                           | Distributed job parameter                                                                           |
+
+**run.sh** Template execution script
+
+| Parameter           | Description                                   | Notes                                                                                                                                                                                                            |
+|---------------------|-----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| set_extra_params    | Set parameters via environment variables      |                                                                                                                                                                                                                  |
+| set_finetune_params | Set hyperparameters via environment variables |                                                                                                                                                                                                                  |
+| launch_training     | Main fine-tuning training function            | If multiple training scenarios are required, you can further define specific functions, such as CPU execution, single-node multi-GPU execution, or multi-node multi-GPU execution. Refer to the run.sh examples. |
+| export_weights      | Generate/export the resulting model           |                                                                                                                                                                                                                  |

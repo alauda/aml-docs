@@ -1,47 +1,43 @@
 # Release Notes
 
-## AI 1.4.0
+## AI 1.5.0
 
-### **New and Optimized Features**
+### **Features and Enhancements**
 
-#### Inference Services Now Offer "Standard" and "Advanced" Modes
-When creating an inference service, users can now select either "Standard Mode" or "Advanced Mode," with "Standard Mode" being the default option.
+#### Langflow Agent Development
+Leverage Langflow's upper-layer UI orchestration (powered by LangChain's foundational framework) to rapidly develop AI Agents for intelligent applications like expert Q&A, RAG-powered search, and workflow automation.
 
-- Standard Mode: Ready to use out of the box. After successful deployment of Alauda AI, users can directly create an inference service in "Standard Mode".
-- Advanced Mode: Requires manual deployment of the "Alauda AI Model Serving" plugin. Supports serverless mode and enables the creation of inference services that can scale down to zero. This mode relies on Istio and provides additional monitoring metrics for inference services, such as "Traffic","QPS" and "Response time."
+#### Featureform Feature Store Integration
+Featuform serves as a dedicated feature store, resolving performance inconsistencies in AI model training-inference pipelines caused by divergent data processing logic through centralized feature definition, version-controlled storage, and real-time feature serving.
 
-#### Customizable Monitoring Dashboards
-A new "Dashboards" feature has been introduced, allowing users to customize and add dashboard charts according to their needs. For example, projects using GPUs from vendors other than NVIDIA can add customized dashboards provided by the manufacturers.
+#### Evidently Data Drift Detection Capability Integration
+Evidently, as a AI model monitoring component, provides real-time data drift detection functionality. It continuously analyzes statistical discrepancies between online feature distributions and training data to automatically identify potential risks of data distribution shifts.
 
-#### Workbench Plugin
-The new "Alauda AI Workbench" plugin is available for installation, providing users with IDE environments such as Jupyter Notebook and VS Code.
-This plugin replaces the "advanced" capabilities of the previous version and streamlines unnecessary components and some functions originally found in Kubeflow.
+#### Workbench Plugin Enhances
+The legacy version of the Workbench plugin provided foundational support for model development environments but required users to manually configure environment definitions (e.g., Jupyter Notebook/VS Code container images) and development environment permission policies, resulting in a cumbersome operational workflow.
 
-#### Kubeflow Solution
-A native Kubeflow solution has been launched to meet the needs of project clients who are accustomed to using the native capabilities of the Kubeflow community.
+The new version introduces targeted optimizations for this scenario:
 
-#### Multi-Node Multi-GPU Solution
-A multi-node multi-GPU solution has been introduced to cater to users' requirements for deploying models with large parameter counts.
+1、Pre-integrated Standardized Development Environments
+Built-in, ready-to-use Jupyter Notebook environment templates eliminate manual image downloading and synchronization steps.
+2、Default Permission Management Configuration
+Provides predefined baseline permission policies for development environments while supporting customization of permission scopes via configuration files.
 
-#### Notebook-Based Pre-training and Fine-tuning Solutions
-Notebook-based solutions for model pre-training and fine-tuning have been launched to support users in optimizing their models.
+#### Fine-tuning Plugin Reconstruction and Stability Enhancement
+The new Fine-tuning plugin has undergone an architectural-level reconstruction, with a primary focus on optimizing the stability of training workflows, introducing distributed training capabilities, and adjusting the built-in template strategy:
 
-#### Inference Service Authentication Solution
-An inference service authentication solution based on Enovy AI Gateway has been introduced, supporting the creation of API Keys for inference services to enhance permission control capabilities.
+1、The built-in finetune-text-generation-llamafactory template supports fine-tuning tasks for mainstream text-generation models.
+2、The three template types previously provided in older versions image classification, text classification, and text-to-image are no longer included as built-in options. Users can implement these functionalities through custom template solutions.
 
-#### Enhanced Inference Service Logging
-The logging functionality for inference services has been enhanced, including features such as automatic log updates, pause updates, and container switching, maintaining consistency with Alauda Container Platform capabilities.
+#### Training Plugin Reconstruction and Stability Enhancement
+The new Training plugin has undergone an architectural-level reconstruction, with a primary focus on optimizing the stability of training workflows, introducing distributed training capabilities
 
-### **Deprecated Features**
 
-#### Downgrading mlserver Inference Runtime to a Solution
-Due to limited use cases and its impact on the user experience of large model inference services, the mlserver inference runtime has been downgraded to a solution. It is no longer included in the product by default, but a solution is provided to support specific scenarios, such as Small Language Model inference.
+### **Deprecated and Removed Features**
 
-#### Discontinuation of the Apps Feature
-Both the Apps feature and Dify are positioned as AI Agent development capabilities, with Dify offering a simpler development approach through its low-code capabilities. In contrast, the pure customization and from-scratch development approach of the Apps feature is less convenient. Therefore, the Apps feature has been discontinued. Projects that require pure custom development of AI Agents can be accommodated through alternative solutions.
+#### Deprecation of Image Management Functionality in Model Repository
+In Alauda AI v1.5.0, the original Image Management(model image building and image-based inference service)capabilities will be officially deprecated. These features were initially provided as experimental functionalities in earlier releases but, due to identified stability risks and usability concerns, have been evaluated and determined to no longer warrant ongoing maintenance.
 
-#### Discontinuation of the Model Upload UI Feature
-There are two ways to upload models: via git push command-line or through the UI. Command-line uploads offer better performance and faster speeds. Although the UI upload is user-friendly, it tends to freeze when dealing with large model files, which are typically several hundred GB in size. Therefore, the UI upload feature has been discontinued. To facilitate user access, a documentation link has been added in place of the original feature, allowing users to quickly navigate to the user manual for operation commands.
 
 ### **Fixed Issues**
 {/* release-notes-for-bugs?template=fixed&project=AI */}
