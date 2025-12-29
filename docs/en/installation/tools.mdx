@@ -1,0 +1,75 @@
+---
+weight: 90
+---
+
+# Tools Menu Configuration
+
+This document describes how to add custom tool links to the **Tools** section in the left navigation, for example integrating **MLflow**.
+
+Starting with AML 1.3, the Tools menu is no longer maintained by manually editing `kube-public/centraldashboard-config`. Instead, an **auto-discovery mechanism** is used: the system scans all `ConfigMap` resources labeled with
+`aml.cpaas.io/centralMenuItem: "true"` and automatically merges them to generate the Tools menu configuration.
+
+:::warning
+Do not manually edit `kube-public/centraldashboard-config`. Any manual changes will be reverted during upgrades or restarts.
+:::
+
+## Add a Tools Menu Item
+
+You can add a new entry to the Tools menu by creating a `ConfigMap` that follows the required format.
+
+Example (MLflow):
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aml-mlflow-menu-config
+  namespace: kubeflow
+  labels:
+    aml.cpaas.io/centralMenuItem: "true"
+data:
+  menu: |-
+    - link: "https://192.168.128.11/clusters/g1-c1-x86/mlflow/"
+      parentUid: advanced
+      title: MLFlow
+      titleI18N:
+        en: MLFlow
+      tags: [kubeflow]
+      order: 200040
+```
+
+### Field Description
+
+- `link`: The URL to open when the menu item is clicked
+- `parentUid`: Must be set to `advanced`, which mounts the item under the **Tools** menu
+- `title / titleI18N`: Display name of the menu item, with internationalization support
+- `tags`: Indicates the features or capabilities required for this menu item to be shown in the Tools menu.
+- `order`: Menu ordering value; smaller numbers appear earlier
+
+## Result
+
+- After the ConfigMap is created, its content is automatically merged into the `data` section of `centraldashboard-config`, for example:
+
+    ```json
+    {
+      "type": "item",
+      "link": "",
+      "i18nKey": "tool",
+      "text": "Tools",
+      "en": "Tools",
+      "icon": "advanced",
+      "children": [
+        {
+          "type": "item",
+          "link": "https://192.168.128.11/clusters/g1-c1-x86/mlflow/",
+          "i18nKey": "",
+          "text": "MLFlow",
+          "en": "MLFlow",
+          "icon": ""
+        }
+      ]
+    }
+    ```
+- A corresponding menu item will appear under **Tools** in the left navigation
+- An arrow icon will be displayed on the right side of the menu item, indicating an external page
+- Clicking the menu item opens the URL specified in the `link` field in a new page
