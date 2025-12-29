@@ -1,0 +1,32 @@
+---
+weight: 10
+---
+
+# Monitor Dashboard Stuck at Loading
+
+When Alauda AI is deployed on ACP 4.2.0, changes to the default security policies in ACP may cause monitoring data to be unavailable on the monitoring details page of inference services created by Alauda AI. This issue will be fixed in a future ACP release.
+
+As a temporary workaround, perform the following steps in the corresponding business cluster:
+
+```bash
+kubectl edit clusterroles warlock -n cpass-system
+```
+
+Add the following rule:
+
+```yaml
+rules:
+  - apiGroups:
+      - components.aml.dev
+    resources:
+      - amls/finalizers
+    verbs:
+      - update
+```
+
+After applying the change, restart the warlock deployment:
+
+```bash
+kubectl rollout restart deployment warlock -n cpaas-system
+```
+
