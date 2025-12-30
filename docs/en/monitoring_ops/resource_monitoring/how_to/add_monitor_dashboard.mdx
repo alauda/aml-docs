@@ -9,17 +9,41 @@ weight: 10
 <Steps>
   ### Navigate to Administrator View
   1. Open the Product View Selector at the top of the page.
-  2. Select **Administrator View** to switch to that view.
+  2. Select **Administrator View** to switch to the administrator interface.
 
   ### Open Monitoring Dashboard
   1. Go to **Operations Center** → **Monitor** → **Dashboards** in the left navigation pane.
-  2. Click the Create button in the upper-right corner.
+  2. Click the **Create** button in the upper-right corner.
 
   ### Configure Dashboard Information
   1. Provide a dashboard name and select a folder.
-  :::note
-  Folder must be set to AML.
-  :::
+  2. Add the label `cpaas.io/published: "true"` to the dashboard. You can do this by clicking the **YAML** button in the upper-right corner of the dashboard and editing the resource YAML.
+    :::note
+    The folder must be set to **AML**.
+    :::
+
+  ### Edit Dashboard Metric
+  1. After creating the dashboard, click the **Edit** button in the upper-right corner to modify it.
+  2. Select the **Native** radio button under **Add Method**. You can use the example query below and paste it into the **PromQL** field.
+     ```bash
+     100 *
+     (
+       sum by (deployment)(
+         rate(container_cpu_usage_seconds_total{
+           namespace="$namespace",
+           pod=~"qwen.*"
+         }[5m])
+       )
+       /
+       sum by (deployment)(
+         kube_pod_container_resource_limits_cpu_cores{
+           namespace="$namespace",
+           pod=~"qwen.*"
+         }
+       )
+     )
+     ```
+
 </Steps>
 
 After the dashboard is created, you can switch to it from the **Alauda AI View** under **Observe** → **Dashboards** by clicking the **Switch** button.
