@@ -1,0 +1,92 @@
+---
+weight: 30
+---
+
+# Create Fine-tuning Tasks
+
+## Prepare Datasets \{#prepare_datasets}
+
+Alauda AI Fine-Tuning tasks support reading datasets from S3 storage and Alauda AI datasets. You need to upload your datasets to S3 storage and Alauda AI datasets before creating Fine-Tuning tasks.
+
+:::note
+dataset format should follow the need that the task templates mentioned, e.g. yoloV5 task template need the dataset formated as coco128 like, and provide a YAML configuration file.
+:::
+
+If you are using S3 storage, you need to create a Secret under your namespace like below:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: s3-credentials
+  namespace: fy-c1 #[!code callout]
+  annotations:
+    s3-url: http://minio-service.kubeflow.svc.cluster.local:9000/finetune #[!code callout]
+    s3-name: test-minio #[!code callout]
+    s3-path: coco128 #[!code callout]
+  labels:
+    aml.cpaas.io/part-of: aml
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: foo #[!code callout]
+  AWS_SECRET_ACCESS_KEY: bar #[!code callout]
+```
+<Callouts>
+  1. **namespace**: Change to your current namespace.
+  2. **s3-url**: Set to your S3 storage service endpoint and bucket like `https://endpoint:port/bucket`.
+  3. **s3-name**: Displays information, for example, `minIO-1 http://localhost:9000/first-bucket`, where `minIO-1` is the `s3-name`.
+  4. **s3-path**: Enter the location of the file in the storage bucket, specifying the file or folder. Use '/' for the root directory.
+  5. **AWS_ACCESS_KEY_ID**: Replace this with your Access Key ID.
+  6. **AWS_SECRET_ACCESS_KEY**: Replace this with your Secret Access Key.
+</Callouts>
+
+## Steps to Create Fine-Tuning Tasks \{#create_tasks}
+
+1. In Alauda AI, go to `Model Optimization` → `Fine-Tuning`. Click `Create Fine-tuning Task`. In the popup dialog, select a template from the dropdown list and click `Create`.
+2. On the fine-tuning task creation page, fill in the form, then click `Create and Run`. Check out below table for more information about each field.
+
+Fine-Tuning Form Field Explanation:
+
+| Name                            | Description                                                                                                                                                                                                                                                                                                                                                              | Example                                     |
+|---------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------|
+| Training Type                   | “LoRA”, “Full Fine-Tuning”, or others (mainly defined by the template).                                                                                                                                                                                                                                                                                                  | Lora                                        |
+| Model                           | Select a model name. You can filter by entering keywords. Single selection. Required.                                                                                                                                                                                                                                                                                    | yolov5                                      |
+| Model Output                    | “Existing Model Repository” (default) or “Create Model Repository”.                                                                                                                                                                                                                                                                                                      | Existing Model Repository                   |
+| Training Data                   | “External Storage” or “Platform Dataset”. By default, only “External Storage” is shown. When the dataset feature switch is enabled, both options are displayed.                                                                                                                                                                                                          | External Storage                            |
+| S3 Storage                      | Only Secrets with specific labels or annotations are displayed. They are listed with the “secret name” and “endpoint/bucket”.                                                                                                                                                                                                                                            | minIO-1  http://localhost:9000/first-bucket |
+| File Path                       | Required. Visible only when “External Storage” is selected. Enter the file or folder path in the storage bucket. Use '/' for the root directory.                                                                                                                                                                                                                         | /foo                                        |
+| Distributed Training            | Start distributed training. For example, when the number is 2, parallel training tasks will be conducted in 2 pods, and the corresponding CPU, memory, and GPU usage will also double.                                                                                                                                                                                   | 1                                           |
+| GPU Acceleration                | “GPUManager”, “Physical GPU”, “NVIDIA HAMi”, etc. The specific names and configurations are read from “Extended Resources”. There is no distinction between GPU-related and non-GPU-related resources; all are listed directly (currently, there are no extended resources other than GPUs).                                                                             | HAMi NVIDIA                                 |
+| Storage                         | During fine-tuning, PVCs will be dynamically created as temporary storage areas, including for downloading model files, downloading training data, generating new model files, etc. The recommended capacity is set to "model size * 2 + training data size + 5G". The created temporary storage areas will be automatically deleted after fine-tuning to release space. | sc-topolvm                                  |
+| Hyper Parameters Configurations | When adding multiple configuration groups, multiple parallel tasks will be created, each of which will independently request the resources requested in the form.                                                                                                                                                                                                        |                                             |
+
+## Task Status \{#task_status}
+
+The task details page provides comprehensive information about each task, including **Basic Info**, **Basic Model**, **Output Model**, **Data Configurations**, **Resource Configuration**, and **Hyper Parameters Configurations**. The **Basic Info** section displays the task status, which can be one of the following:
+
+- **pending**: The job is waiting to be scheduled.
+- **aborting**: The job is being aborted due to external factors.
+- **aborted**: The job has been aborted due to external factors.
+- **running**: At least the minimum required pods are running.
+- **restarting**: The job is restarting.
+- **completing**: At least the minimum required pods are in the completing state; the job is performing cleanup.
+- **completed**: At least the minimum required pods are in the completed state; the job has finished cleanup.
+- **terminating**: The job is being terminated due to internal factors and is waiting for pods to release resources.
+- **terminated**: The job has been terminated due to internal factors.
+- **failed**: The job could not start after the maximum number of retry attempts.
+
+## Experiment Tracking \{#experiment_tracking}
+
+The platform provides built-in experiment tracking for training and fine-tuning tasks through integration with MLflow.
+All tasks executed within the same namespace are logged under a single MLflow experiment named after that namespace, with each task recorded as an individual run.
+Configuration, metrics, and outputs are automatically tracked during execution.
+
+During training, key metrics are continuously logged to MLflow, you can checkout the real-time metric dashboards in the experiment tracking tab.
+In the task detail page, users can access the `Tracking` tab to view the line charts show how the metrics goes, such as loss or other task-specific indicators, along a unified time axis.
+This allows users to quickly assess training progress, convergence behavior, and potential anomalies without manually inspecting logs.
+
+In addition to single-task tracking, the platform supports experiment comparison.
+Users can select multiple training tasks from the task list and enter a comparison view, where the differences in hyperparameters and other critical configurations are presented side by side.
+This makes it easier to understand how changes in training settings impact model behavior and outcomes, supporting more informed iteration and optimization of training strategies.
+
+By combining MLflow-based metric tracking with native visualization and comparison features, the platform enables experiments to be observable, comparable, and reproducible throughout the model training lifecycle.
