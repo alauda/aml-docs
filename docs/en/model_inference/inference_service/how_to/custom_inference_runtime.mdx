@@ -579,6 +579,14 @@ spec:
       volumeMounts:
         - mountPath: /dev/shm
           name: dshm
+      startupProbe:
+        failureThreshold: 60
+        httpGet:
+          path: /v1/models
+          port: 8080
+          scheme: HTTP
+        periodSeconds: 10
+        timeoutSeconds: 180
   supportedModelFormats:
     - name: transformers
       version: "1"
@@ -596,11 +604,13 @@ Unlike other runtimes, MindIE **must** have annotations added to the `InferenceS
 
 | Configuration Key | Value | Purpose |
 | :--- | :--- | :--- |
-| `storage.kserve.io/readonly:` | `"false"` | **Enables write access to the model storage volume.** |
+| `storage.kserve.io/readonly` | `"false"` | **Enables write access to the model storage volume.** |
 
 **3.User Privileges (Root Access)**
 
 Due to the requirements of the Ascend driver and hardware abstraction layer, the MindIE image **must run as the root user**. Ensure your `ClusterServingRuntime` or `InferenceService` security context is configured accordingly:
+
+**Note**: The MindIE ClusterServingRuntime YAML example above does not specify a `securityContext`, which means the container runs with the default settings of the image (typically root). Unlike MLServer which explicitly sets `runAsNonRoot: true` and `runAsUser: 1000`, MindIE requires root privileges to access the NPU hardware.
 
 ## Comparison of Runtime Configurations
 
