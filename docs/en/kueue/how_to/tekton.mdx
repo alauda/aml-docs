@@ -1,0 +1,180 @@
+---
+weight: 80
+---
+
+# Integrate with Alauda DevOps Pipelines
+
+This page shows how to leverage the Alauda Build of Kueue's scheduling and resource management capabilities when running the Alauda DevOps Pipelines(Tekton Pipelines).
+
+## Prerequisites
+
+- You have installed the Alauda DevOps Pipelines.
+- You have installed the Alauda Build of Kueue.
+- You have installed the Alauda Build of Hami(for demonstrating vGPU).
+- The Alauda Container Platform Web CLI has communication with your cluster.
+
+## Procedure
+1. Create a project and namespace in Alauda Container Platform, for example, the project name is `test`, and the namespace name is `test-1`.
+
+2. Create the assets by running the following command:
+    ```bash
+    cat <<EOF| kubectl create -f -
+    apiVersion: kueue.x-k8s.io/v1beta1
+    kind: ClusterQueue
+    metadata:
+      name: cluster-queue
+    spec:
+      namespaceSelector: {}
+      resourceGroups:
+      - coveredResources: ["cpu", "memory", "pods", "nvidia.com/gpualloc", "nvidia.com/total-gpucores", "nvidia.com/total-gpumem"]
+        flavors:
+        - name: "default-flavor"
+          resources:
+          - name: "cpu"
+            nominalQuota: 9
+          - name: "memory"
+            nominalQuota: 36Gi
+          - name: "pods"
+            nominalQuota: 5
+          - name: "nvidia.com/gpualloc"
+            nominalQuota: "2"
+          - name: "nvidia.com/total-gpucores"
+            nominalQuota: "50"
+          - name: "nvidia.com/total-gpumem"
+            nominalQuota: "20000"
+    ---
+    apiVersion: kueue.x-k8s.io/v1beta1
+    kind: ResourceFlavor
+    metadata:
+      name: default-flavor
+    ---
+    apiVersion: kueue.x-k8s.io/v1beta1
+    kind: LocalQueue
+    metadata:
+      namespace: yulin-1
+      name: test-1
+    spec:
+      clusterQueue: cluster-queue
+    EOF
+    ```
+3. Create a `Pipeline` resource in the Alauda Container Platform by Web CLI or UI:
+
+    ```yaml
+    apiVersion: tekton.dev/v1
+    kind: Pipeline
+    metadata:
+      name: test
+      namespace: test-1
+    spec:
+      tasks:
+        - name: run-script
+          taskSpec:
+            description: test
+            metadata: {}
+            spec: null
+            steps:
+              - computeResources:
+                  limits:
+                    cpu: "2"
+                    memory: 2Gi
+                    nvidia.com/gpualloc: "2"
+                    nvidia.com/gpucores: "50"
+                    nvidia.com/gpumem: 8k
+                  requests:
+                    cpu: "1"
+                    memory: 1Gi
+                image: nvidia/cuda:11.0-base
+                imagePullPolicy: IfNotPresent
+                name: run-script
+                script: |
+                  #!/bin/sh
+                  nvidia-smi
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop:
+                      - ALL
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  seccompProfile:
+                    type: RuntimeDefault
+          timeout: 30m0s
+    ```
+
+4. Create a `PipelineRun` resource in the Alauda Container Platform by Web CLI or UI:
+
+    ```yaml
+    apiVersion: tekton.dev/v1
+    kind: PipelineRun
+    metadata:
+      annotations:
+        chains.tekton.dev/signed: "true"
+        integrations.tekton.dev/integrations: |
+          []
+      generateName: test-
+      labels:
+        tekton.dev/pipeline: test
+        kueue.x-k8s.io/queue-name: test # [!code callout]
+      name: test-r5ssv
+      namespace: test-1
+    spec:
+      pipelineRef:
+        name: test # [!code callout]
+      taskRunTemplate:
+        podTemplate:
+          securityContext:
+            fsGroup: 65532
+            fsGroupChangePolicy: OnRootMismatch
+        serviceAccountName: default
+      timeouts:
+        pipeline: 1h0m0s
+    ```
+    <Callouts>
+      1. "kueue.x-k8s.io/queue-name: test" label: Defines the `LocalQueue` resource for manage the all pods of the `PipelineRun`.
+      2. 'spec.pipelineRef.name': Defines the `Pipeline` resource that is referenced by the `PipelineRun`.
+    </Callouts>
+5. Observe pods of the `PipelineRun`:
+    ```bash
+    kubectl -n yulin-1 get pod | grep test
+    ```
+    You will see that this pod is in a `SchedulingGated` state:
+
+    ```
+    test-dw4q7-run-script-pod   0/1     SchedulingGated   0          13s   <none>   <none>   <none>           <none>
+    ```
+6. Update the `nvidia.com/total-gpucores` quotas:
+     ```bash
+     cat <<EOF| kubectl apply -f -
+     apiVersion: kueue.x-k8s.io/v1beta1
+     kind: ClusterQueue
+     metadata:
+       name: cluster-queue
+     spec:
+       namespaceSelector: {}
+       resourceGroups:
+       - coveredResources: ["cpu", "memory", "pods", "nvidia.com/gpualloc", "nvidia.com/total-gpucores", "nvidia.com/total-gpumem"]
+         flavors:
+         - name: "default-flavor"
+           resources:
+           - name: "cpu"
+             nominalQuota: 9
+           - name: "memory"
+             nominalQuota: 36Gi
+           - name: "pods"
+             nominalQuota: 5
+           - name: "nvidia.com/gpualloc"
+             nominalQuota: "2"
+           - name: "nvidia.com/total-gpucores"
+             nominalQuota: "100"
+           - name: "nvidia.com/total-gpumem"
+             nominalQuota: "20000"
+    EOF
+    ```
+
+    You will see that this pod is in a `Running` state:
+    ```
+    test-dw4q7-run-script-pod   1/1     Running   0          13s   <none>   <none>   <none>           <none>
+    ```
+
+
+

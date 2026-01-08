@@ -1,0 +1,10 @@
+---
+weight: 10
+---
+# Introduction
+
+Alauda Build of Kueue is a kubernetes-native system that manages quotas and how jobs consume them. Alauda Build of Kueue decides when a job should wait, when a job should be admitted to start (as in pods can be created) and when a job should be preempted (as in active pods should be deleted).
+
+Alauda Build of Kueue does not replace any existing components in a Kubernetes cluster, but instead integrates with the existing Kubernetes API server, scheduler, and cluster autoscaler components.
+
+Alauda Build of Kueue supports all-or-nothing semantics. This means that either an entire job with all of its components is admitted to the cluster, or the entire job is rejected if it does not fit on the cluster.
