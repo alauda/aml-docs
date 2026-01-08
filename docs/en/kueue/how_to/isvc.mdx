@@ -1,0 +1,127 @@
+---
+weight: 90
+---
+
+# Integrate with InferenceService
+
+This page shows how to leverage the Alauda Build of Kueue's scheduling and resource management capabilities when running inferenceService in Alauda AI.
+
+## Prerequisites
+
+- You have installed the Alauda AI.
+- You have installed the Alauda Build of Kueue.
+- You have installed the Alauda Build of Hami(for demonstrating vGPU).
+- The Alauda Container Platform Web CLI has communication with your cluster.
+
+## Procedure
+1. Create a project and namespace in Alauda Container Platform, for example, the project name is `test`, and the namespace name is `test-1`.
+2. Switch to Alauda AI, click **Namespace Manage** in **Admin** > **Management Namespace**, and select the previously created namespace to complete the management
+3. Create the assets by running the following command:
+    ```bash
+    cat <<EOF| kubectl create -f -
+    apiVersion: kueue.x-k8s.io/v1beta1
+    kind: ClusterQueue
+    metadata:
+     name: cluster-queue
+    spec:
+     namespaceSelector: {}
+     resourceGroups:
+     - coveredResources: ["cpu", "memory", "pods", "nvidia.com/gpualloc", "nvidia.com/total-gpucores", "nvidia.com/total-gpumem"]
+       flavors:
+       - name: "default-flavor"
+         resources:
+         - name: "cpu"
+           nominalQuota: 9
+         - name: "memory"
+           nominalQuota: 36Gi
+         - name: "pods"
+           nominalQuota: 5
+         - name: "nvidia.com/gpualloc"
+           nominalQuota: "2"
+         - name: "nvidia.com/total-gpucores"
+           nominalQuota: "50"
+         - name: "nvidia.com/total-gpumem"
+           nominalQuota: "20000"
+         - name: "ephemeral-storage"
+           nominalQuota: 100Gi
+    ---
+    apiVersion: kueue.x-k8s.io/v1beta1
+    kind: ResourceFlavor
+    metadata:
+     name: default-flavor
+    ---
+    apiVersion: kueue.x-k8s.io/v1beta1
+    kind: LocalQueue
+    metadata:
+     namespace: yulin-1
+     name: test-1
+    spec:
+     clusterQueue: cluster-queue
+    EOF
+    ```
+4. Create a `InferenceService` resource in the Alauda AI UI with label `kueue.x-k8s.io/queue-name: test-1`:
+
+    ```yaml
+    kind: InferenceService
+    apiVersion: serving.kserve.io/v1beta1
+    metadata:
+      labels:
+        kueue.x-k8s.io/queue-name: test-1
+      name: test
+      namespace: test-1
+    # ...
+    spec:
+        model:
+          resources:
+            limits:
+              cpu: '1'
+              ephemeral-storage: 10Gi
+              memory: 2Gi
+              nvidia.com/gpualloc: '1'
+              nvidia.com/gpucores: '80'
+              nvidia.com/gpumem: 8k
+    # ...
+    ```
+5. Observe pods of the `InferenceService`:
+    ```bash
+    kubectl -n yulin-1 get pod | grep test-predictor
+    ```
+    You will see that this pod is in a `SchedulingGated` state:
+
+    ```
+    test-predictor-8475554f4d-zw7lp   0/1     SchedulingGated   0          13s   <none>   <none>   <none>           <none>
+
+    ```
+6. Update the `nvidia.com/total-gpucores` quotas:
+    ```bash
+    cat <<EOF| kubectl apply -f -
+    apiVersion: kueue.x-k8s.io/v1beta1
+    kind: ClusterQueue
+    metadata:
+      name: cluster-queue
+    spec:
+      namespaceSelector: {}
+      resourceGroups:
+      - coveredResources: ["cpu", "memory", "pods", "nvidia.com/gpualloc", "nvidia.com/total-gpucores", "nvidia.com/total-gpumem"]
+        flavors:
+        - name: "default-flavor"
+          resources:
+          - name: "cpu"
+            nominalQuota: 9
+          - name: "memory"
+            nominalQuota: 36Gi
+          - name: "pods"
+            nominalQuota: 5
+          - name: "nvidia.com/gpualloc"
+            nominalQuota: "2"
+          - name: "nvidia.com/total-gpucores"
+            nominalQuota: "100"
+          - name: "nvidia.com/total-gpumem"
+            nominalQuota: "20000"
+    EOF
+    ```
+
+    You will see that this pod is in a `Running` state:
+    ```
+    test-predictor-8475554f4d-zw7lp   1/1     Running   0          13s   <none>   <none>   <none>           <none>
+    ```
