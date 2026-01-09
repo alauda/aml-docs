@@ -33,38 +33,38 @@ A cluster queue is a cluster-scoped resource, represented by a ClusterQueue obje
     apiVersion: kueue.x-k8s.io/v1beta2
     kind: ClusterQueue
     metadata:
-     name: cluster-queue
+      name: cluster-queue
     spec:
-     namespaceSelector: {} # [!code callout]
+      namespaceSelector: {} # [!code callout]
       #matchLabels:
       #  kubernetes.io/metadata.name: team-a
-     resourceGroups:
-     - coveredResources: ["cpu", "memory", "pods"] # [!code callout]
-       flavors:
-       - name: "default-flavor" # [!code callout]
-         resources: # [!code callout]
-         - name: "cpu"
-           nominalQuota: 9
-         - name: "memory"
-           nominalQuota: 36Gi
-         - name: "pods"
-           nominalQuota: 5
-     - coveredResources: ["nvidia.com/gpualloc", "nvidia.com/total-gpucores", "nvidia.com/total-gpumem"] # [!code callout]
-       flavors:
-       - name: "t4-flavor" # [!code callout]
-         resources:
-         - name: "nvidia.com/gpualloc"
-           nominalQuota: "20"
-         - name: "nvidia.com/total-gpucores"
-           nominalQuota: "300"
-         - name: "nvidia.com/total-gpumem"
-           nominalQuota: "20480"
-     - coveredResources: ["nvidia.com/gpu"] # [!code callout]
-       flavors:
-       - name: "a30-flavor" # [!code callout]
-         resources:
-         - name: "nvidia.com/gpu"
-           nominalQuota: 100
+      resourceGroups:
+      - coveredResources: ["cpu", "memory", "pods"] # [!code callout]
+        flavors:
+        - name: "default-flavor" # [!code callout]
+          resources: # [!code callout]
+        - name: "cpu"
+          nominalQuota: 9
+        - name: "memory"
+          nominalQuota: 36Gi
+        - name: "pods"
+          nominalQuota: 5
+      - coveredResources: ["nvidia.com/gpualloc", "nvidia.com/total-gpucores", "nvidia.com/total-gpumem"] # [!code callout]
+        flavors:
+        - name: "t4-flavor" # [!code callout]
+          resources:
+          - name: "nvidia.com/gpualloc"
+            nominalQuota: "20"
+          - name: "nvidia.com/total-gpucores"
+            nominalQuota: "300"
+          - name: "nvidia.com/total-gpumem"
+            nominalQuota: "20480"
+      - coveredResources: ["nvidia.com/gpu"] # [!code callout]
+        flavors:
+        - name: "a30-flavor" # [!code callout]
+          resources:
+        - name: "nvidia.com/gpu"
+          nominalQuota: 100
     ```
     <Callouts>
       1. `namespaceSelector`: Defines which namespaces can use the resources governed by this cluster queue. An empty `namespaceSelector` as shown in the example means that all namespaces can use these resources.
@@ -111,7 +111,7 @@ You can use a custom ResourceFlavor object to represent different resource varia
     apiVersion: kueue.x-k8s.io/v1beta2
     kind: ResourceFlavor
     metadata:
-     name: default-flavor
+      name: default-flavor
     ```
 
     **Example of a custom ResourceFlavor object for Nvidia Tesla T4 GPU**
@@ -119,10 +119,10 @@ You can use a custom ResourceFlavor object to represent different resource varia
     apiVersion: kueue.x-k8s.io/v1beta2
     kind: ResourceFlavor
     metadata:
-     name: "t4-flavor"
+      name: "t4-flavor"
     spec:
-     nodeLabels:
-       nvidia.com/gpu.product: Tesla-T4
+      nodeLabels:
+        nvidia.com/gpu.product: Tesla-T4
     ```
 
     **Example of a custom ResourceFlavor object for Nvidia A30 GPU**
@@ -130,10 +130,10 @@ You can use a custom ResourceFlavor object to represent different resource varia
     apiVersion: kueue.x-k8s.io/v1beta2
     kind: ResourceFlavor
     metadata:
-     name: "a30-flavor"
+      name: "a30-flavor"
     spec:
-     nodeLabels:
-       nvidia.com/gpu.product: NVIDIA-A30
+      nodeLabels:
+        nvidia.com/gpu.product: NVIDIA-A30
     ```
 
 2. Apply the ResourceFlavor object by running the following command:
@@ -162,10 +162,10 @@ As an administrator, you can configure a LocalQueue object to point to a cluster
     apiVersion: kueue.x-k8s.io/v1beta2
     kind: LocalQueue
     metadata:
-     namespace: team-namespace
-     name: user-queue
+      namespace: team-namespace
+      name: user-queue
     spec:
-     clusterQueue: cluster-queue
+      clusterQueue: cluster-queue
     ```
 
 2. Apply the LocalQueue object by running the following command:
@@ -194,10 +194,10 @@ A default local queue serves as the local queue for newly created jobs that do n
     apiVersion: kueue.x-k8s.io/v1beta2
     kind: LocalQueue
     metadata:
-     namespace: team-namespace
-     name: default
+      namespace: team-namespace
+      name: default
     spec:
-     clusterQueue: cluster-queue
+      clusterQueue: cluster-queue
     ```
 2. Apply the `LocalQueue` object by running the following command:
     ```bash
