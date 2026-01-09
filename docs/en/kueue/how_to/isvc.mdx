@@ -59,7 +59,7 @@ This page shows how to leverage the Alauda Build of Kueue's scheduling and resou
       clusterQueue: cluster-queue
     EOF
     ```
-4. Create a `InferenceService` resource in the Alauda AI UI with label `kueue.x-k8s.io/queue-name: test-1`:
+4. Create a `InferenceService` resource in the Alauda AI UI with label `kueue.x-k8s.io/queue-name: test`:
 
     ```yaml
     kind: InferenceService
@@ -102,7 +102,7 @@ This page shows how to leverage the Alauda Build of Kueue's scheduling and resou
     spec:
       namespaceSelector: {}
       resourceGroups:
-      - coveredResources: ["cpu", "memory", "pods", "nvidia.com/gpualloc", "nvidia.com/total-gpucores", "nvidia.com/total-gpumem"]
+      - coveredResources: ["cpu", "memory", "pods", "ephemeral-storage", "nvidia.com/gpualloc", "nvidia.com/total-gpucores", "nvidia.com/total-gpumem"]
         flavors:
         - name: "default-flavor"
           resources:
@@ -118,6 +118,8 @@ This page shows how to leverage the Alauda Build of Kueue's scheduling and resou
             nominalQuota: "100"
           - name: "nvidia.com/total-gpumem"
             nominalQuota: "20000"
+          - name: "ephemeral-storage"
+            nominalQuota: 100Gi
     EOF
     ```
 
