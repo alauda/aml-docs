@@ -43,12 +43,12 @@ A cluster queue is a cluster-scoped resource, represented by a ClusterQueue obje
         flavors:
         - name: "default-flavor" # [!code callout]
           resources: # [!code callout]
-        - name: "cpu"
-          nominalQuota: 9
-        - name: "memory"
-          nominalQuota: 36Gi
-        - name: "pods"
-          nominalQuota: 5
+          - name: "cpu"
+            nominalQuota: 9
+          - name: "memory"
+            nominalQuota: 36Gi
+          - name: "pods"
+            nominalQuota: 5
       - coveredResources: ["nvidia.com/gpualloc", "nvidia.com/total-gpucores", "nvidia.com/total-gpumem"] # [!code callout]
         flavors:
         - name: "t4-flavor" # [!code callout]
@@ -63,8 +63,8 @@ A cluster queue is a cluster-scoped resource, represented by a ClusterQueue obje
         flavors:
         - name: "a30-flavor" # [!code callout]
           resources:
-        - name: "nvidia.com/gpu"
-          nominalQuota: 100
+          - name: "nvidia.com/gpu"
+            nominalQuota: 100
     ```
     <Callouts>
       1. `namespaceSelector`: Defines which namespaces can use the resources governed by this cluster queue. An empty `namespaceSelector` as shown in the example means that all namespaces can use these resources.
@@ -150,8 +150,8 @@ As an administrator, you can configure a LocalQueue object to point to a cluster
 ### 3.1. Prerequisites
 
 - The Alauda Container Platform Web CLI has communication with your cluster.
-- You have cluster administrator permissions or the kueue-batch-admin-role role.
-- You have created a ClusterQueue object.
+- You have cluster administrator permissions or the `kueue-batch-admin-role` role.
+- You have created a `ClusterQueue` object.
 
 ### 3.2. Procedure
 

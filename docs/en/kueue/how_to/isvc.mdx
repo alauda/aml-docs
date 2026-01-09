@@ -26,7 +26,7 @@ This page shows how to leverage the Alauda Build of Kueue's scheduling and resou
     spec:
       namespaceSelector: {}
       resourceGroups:
-      - coveredResources: ["cpu", "memory", "pods", "nvidia.com/gpualloc", "nvidia.com/total-gpucores", "nvidia.com/total-gpumem"]
+      - coveredResources: ["cpu", "memory", "pods", "ephemeral-storage", "nvidia.com/gpualloc", "nvidia.com/total-gpucores", "nvidia.com/total-gpumem"]
         flavors:
         - name: "default-flavor"
           resources:
@@ -53,8 +53,8 @@ This page shows how to leverage the Alauda Build of Kueue's scheduling and resou
     apiVersion: kueue.x-k8s.io/v1beta2
     kind: LocalQueue
     metadata:
-      namespace: yulin-1
-      name: test-1
+      namespace: test-1
+      name: test
     spec:
       clusterQueue: cluster-queue
     EOF
@@ -66,7 +66,7 @@ This page shows how to leverage the Alauda Build of Kueue's scheduling and resou
     apiVersion: serving.kserve.io/v1beta1
     metadata:
       labels:
-        kueue.x-k8s.io/queue-name: test-1
+        kueue.x-k8s.io/queue-name: test
       name: test
       namespace: test-1
     # ...
@@ -84,7 +84,7 @@ This page shows how to leverage the Alauda Build of Kueue's scheduling and resou
     ```
 5. Observe pods of the `InferenceService`:
     ```bash
-    kubectl -n yulin-1 get pod | grep test-predictor
+    kubectl -n test-1 get pod | grep test-predictor
     ```
     You will see that this pod is in a `SchedulingGated` state:
 
