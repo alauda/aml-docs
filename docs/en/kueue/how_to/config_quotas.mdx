@@ -30,7 +30,7 @@ A cluster queue is a cluster-scoped resource, represented by a ClusterQueue obje
 
 1. Create a ClusterQueue object as a YAML file:
     ```yaml
-    apiVersion: kueue.x-k8s.io/v1beta1
+    apiVersion: kueue.x-k8s.io/v1beta2
     kind: ClusterQueue
     metadata:
      name: cluster-queue
@@ -67,22 +67,21 @@ A cluster queue is a cluster-scoped resource, represented by a ClusterQueue obje
            nominalQuota: 100
     ```
     <Callouts>
-      1. 'namespaceSelector': Defines which namespaces can use the resources governed by this cluster queue. An empty `namespaceSelector` as shown in the example means that all namespaces can use these resources.
-      2. 'coveredResources' of default-flavor: Defines the resource types governed by the cluster queue. This example `ClusterQueue` object governs CPU, memory, pod, and GPU resources.
-      3. 'flavors.name' of default-flavor: Defines the resource flavor that is applied to the resource types listed. In this example, the `default-flavor` resource flavor is applied to CPU, memory, pod, and GPU resources.
-      4. 'resources' of default-flavor: Defines the resource requirements for admitting jobs. This example cluster queue only admits jobs if the following conditions are met:
-      - The sum of the CPU requests is less than or equal to 9.
-      - The sum of the memory requests is less than or equal to 36Gi.
-      - The total number of pods is less than or equal to 5.
-      - The sum of the GPU tasks is less than or equal to 20 If you use the Alauda Build of Hami(Refer callout 5).
-      - The sum of the total GPU cores requests is less than or equal to 300 If you use the Alauda Build of Hami.
-      - The sum of the total GPU memory requests is less than or equal to 20480.
-      - The sum of the GPU requests is less than or equal to 100 If you use the Alauda Build of NVIDIA GPU Device Plugin.(Refer callout 7)
-      5. 'coveredResources' of t4-flavor: Defines the resources requirements for Alauda Build of Hami. If you not use the Alauda Build of Hami, please delete it.
-      6. 'flavors.name' of t4-flavor: Defines the resource flavor that is applied to the resource types listed. In this example, the `t4-flavor` resource flavor is applied to Nvidia T4 GPU cards.If you don't want to configure quotas for specific card types, you can fill in `default-flavor`.
-      7. 'coveredResources' of a30-flavor: Defines the resources requirements for Alauda Build of NVIDIA GPU Device Plugin. If you not use the Alauda Build of NVIDIA GPU Device Plugin, please delete it.
-      8. 'flavors.name' of a30-flavor: Defines the resource flavor that is applied to the resource types listed. In this example, the `a30-flavor` resource flavor is applied to Nvidia A30 GPU cards.If you don't want to configure quotas for specific card types, you can fill in `default-flavor`.
-
+      1. `namespaceSelector`: Defines which namespaces can use the resources governed by this cluster queue. An empty `namespaceSelector` as shown in the example means that all namespaces can use these resources.
+      2. `coveredResources` of `default-flavor`: Defines the resource types governed by the cluster queue. This example `ClusterQueue` object governs CPU, memory, pod, and GPU resources.
+      3. `flavors.name` of `default-flavor`: Defines the resource flavor that is applied to the resource types listed. In this example, the `default-flavor` resource flavor is applied to CPU, memory, pod, and GPU resources.
+      4. `resources` of `default-flavor`: Defines the resource requirements for admitting jobs. This example cluster queue only admits jobs if the following conditions are met:
+          - The sum of the CPU requests is less than or equal to 9.
+          - The sum of the memory requests is less than or equal to 36Gi.
+          - The total number of pods is less than or equal to 5.
+          - The sum of the GPU tasks is less than or equal to 20 If you use the Alauda Build of Hami(Refer callout 5).
+          - The sum of the total GPU cores requests is less than or equal to 300 If you use the Alauda Build of Hami.
+          - The sum of the total GPU memory requests is less than or equal to 20480.
+          - The sum of the GPU requests is less than or equal to 100 If you use the Alauda Build of NVIDIA GPU Device Plugin.(Refer callout 7).
+      5. `coveredResources` of `t4-flavor`: Defines the resources requirements for Alauda Build of Hami. If you do not use the Alauda Build of Hami, please delete it.
+      6. `flavors.name` of `t4-flavor`: Defines the resource flavor that is applied to the resource types listed. In this example, the `t4-flavor` resource flavor is applied to Nvidia T4 GPU cards. If you don't want to configure quotas for specific card types, you can fill in `default-flavor`.
+      7. `coveredResources` of `a30-flavor`: Defines the resources requirements for Alauda Build of NVIDIA GPU Device Plugin. If you do not use the Alauda Build of NVIDIA GPU Device Plugin, please delete it.
+      8. `flavors.name` of `a30-flavor`: Defines the resource flavor that is applied to the resource types listed. In this example, the `a30-flavor` resource flavor is applied to Nvidia A30 GPU cards. If you don't want to configure quotas for specific card types, you can fill in `default-flavor`.
     </Callouts>
 
 2. Apply the `ClusterQueue` object by running the following command:
@@ -109,7 +108,7 @@ You can use a custom ResourceFlavor object to represent different resource varia
 
     **Example of an empty ResourceFlavor object**
     ```yaml
-    apiVersion: kueue.x-k8s.io/v1beta1
+    apiVersion: kueue.x-k8s.io/v1beta2
     kind: ResourceFlavor
     metadata:
      name: default-flavor
@@ -160,7 +159,7 @@ As an administrator, you can configure a LocalQueue object to point to a cluster
 
     **Example of a basic LocalQueue object**
     ```yaml
-    apiVersion: kueue.x-k8s.io/v1beta1
+    apiVersion: kueue.x-k8s.io/v1beta2
     kind: LocalQueue
     metadata:
      namespace: team-namespace
@@ -192,7 +191,7 @@ A default local queue serves as the local queue for newly created jobs that do n
 
     **Example of a default LocalQueue object**
     ```yaml
-    apiVersion: kueue.x-k8s.io/v1beta1
+    apiVersion: kueue.x-k8s.io/v1beta2
     kind: LocalQueue
     metadata:
      namespace: team-namespace

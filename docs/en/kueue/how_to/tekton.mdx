@@ -19,7 +19,7 @@ This page shows how to leverage the Alauda Build of Kueue's scheduling and resou
 2. Create the assets by running the following command:
     ```bash
     cat <<EOF| kubectl create -f -
-    apiVersion: kueue.x-k8s.io/v1beta1
+    apiVersion: kueue.x-k8s.io/v1beta2
     kind: ClusterQueue
     metadata:
       name: cluster-queue
@@ -43,16 +43,16 @@ This page shows how to leverage the Alauda Build of Kueue's scheduling and resou
           - name: "nvidia.com/total-gpumem"
             nominalQuota: "20000"
     ---
-    apiVersion: kueue.x-k8s.io/v1beta1
+    apiVersion: kueue.x-k8s.io/v1beta2
     kind: ResourceFlavor
     metadata:
       name: default-flavor
     ---
-    apiVersion: kueue.x-k8s.io/v1beta1
+    apiVersion: kueue.x-k8s.io/v1beta2
     kind: LocalQueue
     metadata:
-      namespace: yulin-1
-      name: test-1
+      namespace: test-1
+      name: test
     spec:
       clusterQueue: cluster-queue
     EOF
@@ -130,12 +130,12 @@ This page shows how to leverage the Alauda Build of Kueue's scheduling and resou
         pipeline: 1h0m0s
     ```
     <Callouts>
-      1. "kueue.x-k8s.io/queue-name: test" label: Defines the `LocalQueue` resource for manage the all pods of the `PipelineRun`.
-      2. 'spec.pipelineRef.name': Defines the `Pipeline` resource that is referenced by the `PipelineRun`.
+      1. `kueue.x-k8s.io/queue-name: test` label: Specifies the `LocalQueue` that manages all pods of the `PipelineRun`.
+      2. `spec.pipelineRef.name`: Specifies the `Pipeline` resource that is referenced by the `PipelineRun`.
     </Callouts>
 5. Observe pods of the `PipelineRun`:
     ```bash
-    kubectl -n yulin-1 get pod | grep test
+    kubectl -n test-1 get pod | grep test
     ```
     You will see that this pod is in a `SchedulingGated` state:
 
@@ -145,7 +145,7 @@ This page shows how to leverage the Alauda Build of Kueue's scheduling and resou
 6. Update the `nvidia.com/total-gpucores` quotas:
      ```bash
      cat <<EOF| kubectl apply -f -
-     apiVersion: kueue.x-k8s.io/v1beta1
+     apiVersion: kueue.x-k8s.io/v1beta2
      kind: ClusterQueue
      metadata:
        name: cluster-queue
