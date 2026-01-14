@@ -4,3 +4,4 @@ knative
 kserve
 xinference
 servicemeshv1
+ipynb
