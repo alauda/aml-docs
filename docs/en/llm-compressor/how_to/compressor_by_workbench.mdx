@@ -1,0 +1,50 @@
+---
+weight: 30
+---
+
+# LLM Compressor with Alauda AI
+
+This document describes how to use the LLM Compressor integration with the Alauda AI platform to perform model compression workflows. The Alauda AI integration of LLM Compressor provides two example workflows:
+
+- A workbench image and the [data-free compressor notebook](/data-free-compressor.ipynb) that demonstrate how to compress a model, with an optional example for evaluating the compressed model.
+- A workbench image and the [calibration compressor notebook](/calibration-compressor.ipynb) that demonstrate how to compress a model using a calibration dataset, with an optional example for evaluating the model after compression.
+
+## Supported Model Compression Workflows
+
+On the Alauda AI platform, you can use the Workbench feature to run LLM Compressor on models stored in your model repository. The following workflow outlines the typical steps for compressing a model.
+
+### Create a Workbench
+
+Follow the instructions in [Create Workbench](../../workbench/how_to/create_workbench.mdx) to create a new Workbench instance. Note that model compression is currently supported only within **JupyterLab**.
+
+### Create a Model Repository and Upload Models
+
+Refer to [Upload Models Using Notebook](../../model_inference/model_management/how_to/upload_models_using_notebook.mdx) for detailed steps on creating a model repository and uploading your model files. The example notebooks in this guide use the [TinyLlama-1.1B-Chat-v1.0](https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0) model.
+
+### (Optional) Prepare and Upload a Dataset
+
+:::note
+If you plan to use the **data-free compressor notebook**, you can skip this step.
+:::
+
+To use the **calibration compressor notebook**, you must prepare and upload a calibration dataset. Prepare your dataset using the same process described in *Upload Models Using Notebook*. The example calibration notebook uses the [ultrachat_200k](https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k) dataset.
+
+### Clone Models and Datasets in JupyterLab
+
+In the JupyterLab terminal, use `git clone` to download the model repository (and dataset, if applicable) to your workspace. The data-free compressor notebook does not require a dataset.
+
+### Create and Run Compression Notebooks
+
+Download the appropriate example notebook for your use case: the [calibration compressor notebook](/calibration-compressor.ipynb) if you are using a dataset, or the [data-free compressor notebook](/data-free-compressor.ipynb) otherwise. Create a new notebook (for example, `compressor.ipynb`) in JupyterLab and paste the contents of the example notebook into it. Run the cells to perform model compression.
+
+### (Optional) Evaluate the Compressed Model
+
+After compression, you may choose to evaluate the resulting model using standard inference and performance metrics.
+
+### Upload the Compressed Model to the Repository
+
+Once compression (and optional evaluation) is complete, upload the compressed model back to the model repository using the steps outlined in *Upload Models Using Notebook*.
+
+### Deploy and Use the Compressed Model for Inference
+
+After uploading the compressed model, create a new inference service to deploy and use it. Follow the instructions in [create inference service](../../model_inference/inference_service/functions/inference_service.html#create-inference-service) to complete this step.
