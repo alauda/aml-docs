@@ -1,0 +1,15 @@
+---
+weight: 10
+---
+
+# Introduction
+
+[LLM Compressor](https://github.com/vllm-project/llm-compressor), part of [the vLLM project](https://docs.vllm.ai/en/latest/) for efficient serving of LLMs, integrates the latest model compression research into a single open-source library enabling the generation of efficient, compressed models with minimal effort.
+
+The framework allows users to apply some of the most recent research on model compression techniques to improve generative AI (gen AI) models' efficiency, scalability and performance while maintaining accuracy. With native support for Hugging Face and vLLM, the compressed models can be integrated into deployment pipelines, delivering faster and more cost-effective inference at scale.
+
+LLM Compressor supports a wide variety of compression techniques:
+
+- Weight-only quantization (W4A16) compresses model weights to 4-bit precision, valuable for AI applications with limited hardware resources or high sensitivity to latency.
+- Weight and activation quantization (W8A8) compresses both weights and activations to 8-bit precision, targeting general server scenarios for integer and floating point formats.
+- Weight pruning, also known as sparsification, removes certain weights from the model entirely. While this requires fine-tuning, it can be used in conjunction with quantization for further inference acceleration.
