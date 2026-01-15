@@ -1,0 +1,63 @@
+---
+weight: 20
+---
+
+# Installation
+
+## Prerequisites
+
+- **NvidiaDriver v565+**
+- **Kubernetes v1.32+**
+- **ACP v4.1+**
+- **Cluster administrator access to your ACP cluster**
+- **CDI must be enabled in the underlying container runtime (such as containerd)**
+- **DRA and corresponding API groups must be enabled**
+
+## Procedure
+
+### Installing Nvidia driver in your gpu node
+Prefer to [Installation guide of Nvidia Official website](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/)
+
+### Installing Nvidia Container Runtime
+Prefer to [Installation guide of Nvidia Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+
+### Downloading Cluster plugin
+
+:::info
+
+`Alauda Build of NVIDIA DRA Driver for GPUs` cluster plugin can be retrieved from Customer Portal.
+
+Please contact Consumer Support for more information.
+
+:::
+
+### Uploading the Cluster plugin
+
+For more information on uploading the cluster plugin, please refer to <ExternalSiteLink name="acp" href="ui/cli_tools/index.html#uploading-cluster-plugins" children="Uploading Cluster Plugins" />
+
+### Installing Alauda Build of NVIDIA DRA Driver for GPUs
+
+1. Add label "nvidia-device-enable=pgpu-dra" in your GPU node for `nvidia-dra-driver-gpu-kubelet-plugin` schedule.
+    ```bash
+     kubectl label nodes {nodeid} nvidia-device-enable=pgpu-dra
+    ```
+    :::info
+    **Note: On the same node, you can only set one of the following labels: `gpu=on`, `nvidia-device-enable=pgpu`, or `nvidia-device-enable=pgpu-dra`.**
+    :::
+
+2. Go to the `Administrator` -> `Marketplace` -> `Cluster Plugin` page, switch to the target cluster, and then deploy the `Alauda Build of NVIDIA DRA Driver for GPUs` Cluster plugin.
+
+3. Verify result. You can see the status of "Installed" in the UI or you can check the pod status:
+    ```bash
+    kubectl get pods -n kube-system | grep "nvidia-dra-driver-gpu"
+    ```
+    You should get results similar to:
+    ```
+    nvidia-dra-driver-gpu-controller-675644bfb5-c2hq4   1/1     Running   0              18h
+    nvidia-dra-driver-gpu-kubelet-plugin-65fjt          2/2     Running   0              18h
+    ```
+
+### Upgrading Alauda Build of NVIDIA DRA Driver for GPUs
+
+1. Upload the new version for package of **Alauda Build of NVIDIA DRA Driver for GPUs** plugin to ACP.
+2. Go to the `Administrator` -> `Clusters` -> `Target Cluster` -> `Functional Components` page, then click the `Upgrade` button, and you will see the `Alauda Build of NVIDIA DRA Driver for GPUs` can be upgraded.

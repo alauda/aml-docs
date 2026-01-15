@@ -1,0 +1,34 @@
+---
+weight: 20
+---
+
+# Enable CDI in Containerd
+
+CDI (Container Device Interface) provides a standard mechanism for device vendors to describe what is required to provide access to a specific resource such as a GPU beyond a simple device name.
+
+CDI support is enabled by default in containerd version 2.0 and later. Earlier versions, starting from 1.7.0, support for this feature requires manual activation.
+
+## Steps to Enable CDI in Containerd (1.7.0 <= version < 2.0.0)
+
+1. Update containerd configuration.
+    Edit the configuration file:
+    ```bash
+    vi /etc/containerd/config.toml
+    ```
+    Add or modify the following section:
+    ```toml
+    [plugins."io.containerd.grpc.v1.cri"]
+      enable_cdi = true
+    ```
+2. Restart containerd.
+    ```bash
+    systemctl restart containerd
+    systemctl status containerd
+    ```
+    Ensure the service is running correctly.
+
+3. Verify CDI is Enabled.
+    ```bash
+    journalctl -u containerd | grep "EnableCDI:true"
+    ```
+    Wait a moment, if there are logs, it means the setup was successful.
