@@ -1,0 +1,87 @@
+---
+weight: 10
+---
+
+export const prevVersion = "1.4";
+export const curVer = "1.5";
+
+# Upgrade Alauda AI 
+
+:::info
+Upgrade from {prevVersion} to {curVer}
+:::
+
+## Install Alauda AI Cluster Components
+
+Please visit [Alauda AI Cluster](../installation/ai-cluster.mdx) for:
+
+:::warning
+Please ignore `Creating Alauda AI Cluster Instance` since we are upgrading **Alauda AI** from a previously managed version.
+:::
+
+1. [Downloading](../installation/ai-cluster.mdx#downloading) operator bundle packages for `Alauda AI Cluster` and `KServeless`.
+2. [Uploading](../installation/ai-cluster.mdx#uploading) operator bundle packages to the destination cluster.
+3. To upgrade, follow the process described below.
+
+
+
+## Upgrading
+
+The following procedure describes how to upgrade from **Alauda AI** {prevVersion} to {curVer}.
+
+### Upgrade Alauda AI Essentials
+
+Upgrade **Alauda AI Essentials** in the Functional Components tab of the global cluster.
+
+In the **Administrator** view, navigate to **Clusters / Cluster** in the left navigation, find the **global** cluster in the right panel, and click the **Upgrade** button on the **Functional Components** tab page to trigger the upgrade.
+
+:::info
+All components that require upgrading, including **Alauda AI Essentials**, will be upgraded together and cannot be upgraded individually.
+:::
+
+After the upgrade is complete, please confirm that the status of **Alauda AI Essentials** in the list is **Running** and the version is **v1.4.x**.
+
+### Upgrading Alauda AI Operators
+
+The procedure for upgrading both operators is nearly identical, with only the target component being different.
+
+| Step | Alauda AI Operator | Alauda AI Model Serving Operator |
+| :--- | :--- | :--- |
+| **1. Navigate** | Log into the Web Console, then go to **Marketplace > OperatorHub** in the **Administrator** view. | Log into the Web Console, then go to **Marketplace > OperatorHub** in the **Administrator** view. |
+| **2. Select** | Select your target **cluster**. | Select your target **cluster**. |
+| **3. Click** | Click the **Alauda AI** card. | Click the **Alauda AI Model Serving** card. |
+| **4. Confirm** | Click **Confirm** on the upgrade prompt. | Click **Confirm** on the upgrade prompt. |
+
+:::info
+    Once the new version is uploaded and recognized by the platform, an upgrade prompt will appear at the top of the operator's page.
+:::
+## Verification
+
+<Steps>
+### Alauda AI
+Check the status field from the `AmlCluster` resource which named `default`:
+
+```bash
+kubectl get amlcluster default
+```
+
+Should returns `Ready`:
+
+```
+NAME      READY   REASON
+default   True    Succeeded
+```
+### Alauda AI Model Serving
+Check the status field from the `KnativeServing` resource which named `default-knative-serving`:
+
+```bash
+kubectl get KnativeServing.components.aml.dev default-knative-serving
+```
+
+Should returns `InstallSuccessful`:
+
+```
+NAME                      DEPLOYED   REASON
+default-knative-serving   True       UpgradeSuccessful
+```
+</Steps>
