@@ -6,8 +6,8 @@ weight: 30
 
 This document describes how to use the LLM Compressor integration with the Alauda AI platform to perform model compression workflows. The Alauda AI integration of LLM Compressor provides two example workflows:
 
-- A workbench image and the [data-free compressor notebook](/data-free-compressor.ipynb) that demonstrate how to compress a model.
-- A workbench image and the [calibration compressor notebook](/calibration-compressor.ipynb) that demonstrate how to compress a model using a calibration dataset.
+- A workbench image and the <a href="/data-free-compressor.ipynb" target="_blank">data-free compressor notebook</a> that demonstrate how to compress a model.
+- A workbench image and the <a href="/calibration-compressor.ipynb" target="_blank">calibration compressor notebook</a> that demonstrate how to compress a model using a calibration dataset.
 
 ## Supported Model Compression Workflows
 
@@ -21,6 +21,21 @@ Follow the instructions in [Create Workbench](../../workbench/how_to/create_work
 
 Refer to [Upload Models Using Notebook](../../model_inference/model_management/how_to/upload_models_using_notebook.mdx) for detailed steps on creating a model repository and uploading your model files. The example notebooks in this guide use the [TinyLlama-1.1B-Chat-v1.0](https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0) model.
 
+```python title=data-free-compressor.ipynb
+from llmcompressor.modifiers.quantization import QuantizationModifier
+
+model_id = "./TinyLlama-1.1B-Chat-v1.0" #[!code callout]
+recipe = QuantizationModifier(targets="Linear", scheme="W4A16", ignore=["lm_head"]) #[!code callout]
+```
+
+<Callouts>
+  1. Model to compress. **You can modify this line if you want to use your own model**.
+  2. This recipe will quantize all Linear layers except those in the `lm_head`,
+     which is often sensitive to quantization. The `W4A16` scheme compresses
+     weights to `4-bit` integers while retaining `16-bit` activations.
+</Callouts>
+
+
 ### (Optional) Prepare and Upload a Dataset
 
 :::note
@@ -29,18 +44,139 @@ If you plan to use the **data-free compressor notebook**, you can skip this step
 
 To use the **calibration compressor notebook**, you must prepare and upload a calibration dataset. Prepare your dataset using the same process described in *Upload Models Using Notebook*. The example calibration notebook uses the [ultrachat_200k](https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k) dataset.
 
+```python title=calibration-compressor.ipynb
+from datasets import load_dataset
+
+dataset_id = "./ultrachat_200k" #[!code callout]
+
+num_calibration_samples = 512 if use_gpu else 4 #[!code callout]
+max_sequence_length = 2048 if use_gpu else 16
+
+ds = load_dataset(dataset_id, split="train_sft") #[!code callout]
+ds = ds.shuffle(seed=42).select(range(num_calibration_samples)) #[!code callout]
+
+def preprocess(example): #[!code callout]
+    text = tokenizer.apply_chat_template(
+        example["messages"],
+        tokenize=False,
+    )
+    return tokenizer(
+        text,
+        padding=False,
+        max_length=max_sequence_length,
+        truncation=True,
+        add_special_tokens=False,
+    )
+
+ds = ds.map(preprocess, remove_columns=ds.column_names)
+```
+
+<Callouts>
+  1. Create the calibration dataset, using Huggingface datasets API. **You can modify this line if you want to use your own dataset**.
+  2. Select number of samples. 512 samples is a good place to start. Increasing the number of samples can improve accuracy.
+  3. Load dataset.
+  4. Shuffle and grab only the number of samples we need.
+  5. Preprocess and tokenize into format the model uses.
+</Callouts>
+
+### (Optional) Upload Dataset into S3 Storage
+
+If you wish to upload datasets into S3, you can first install the `boto3` tool and then run those codes in `JupyterLab`.
+
+```bash
+~/.venv/bin/python -m pip install boto3 -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+```python
+import os
+from boto3.s3.transfer import TransferConfig
+import boto3
+
+local_folder = "./ultrachat_200k" #[!code callout]
+bucket_name = "datasets"
+
+config = TransferConfig(
+    multipart_threshold=100*1024*1024,
+    max_concurrency=10,
+    multipart_chunksize=100*1024*1024,
+    use_threads=True
+) #[!code callout]
+
+for root, dirs, files in os.walk(local_folder):
+    for filename in files:
+        local_path = os path.join(root, filename)
+        relative_path = os.path.relpath(local_path, local_folder)
+        s3_key = f"ultrachat_200k/{relative_path.replace(os.sep, '/')}"
+        s3.upload_file(local_path, bucket_name, s3_key, Config=config)
+        print(f"Uploaded {local_path} -> {s3_key}")
+```
+
+<Callouts>
+  1. **You can modify this line if you want to use your own dataset**.
+  2. Configure multipart upload with 100 MB chunks and a maximum of 10 concurrent threads.
+</Callouts>
+
+### (Optional) Use Dataset in S3 Storage
+
+If you wish to use datasets from S3, you can first install the `s3fs` tool and then modify the dataset loading section in the example by following the code below.
+
+```bash
+~/.venv/bin/python -m pip install s3fs -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+```python title=calibration-compressor.ipynb
+import os
+from datasets import load_dataset
+
+os.environ["AWS_ACCESS_KEY_ID"] = "@7Apples@" #[!code callout]
+os.environ["AWS_SECRET_ACCESS_KEY"] = "07Apples@"
+
+storage_options = {
+  "key": "07Apples@",
+  "secret": "O7Apples@",
+  "client_kwargs": {
+    "endpoint_url": "http://minio.minio-system.svc.cluster.local:80" #[!code callout]
+  }
+}
+
+ds = load_dataset(
+      'parquet',
+      data_files='s3://datasets/ultrachat_200k/data/train_sft-*.parquet', #[!code callout]
+      storage_options=storage_options, #[!code callout]
+      split="train"
+)
+```
+
+<Callouts>
+  1. Set environment variables (as a backup, some underlying components will use them).
+  2. Define storage configuration; you must explicitly specify the endpoint_url to connect to MinIO.
+  3. If the dataset is split, this is equivalent to `split="train_sft"` in the example.
+</Callouts>
+
 ### Clone Models and Datasets in JupyterLab
 
 In the JupyterLab terminal, use `git clone` to download the model repository (and dataset, if applicable) to your workspace. The data-free compressor notebook does not require a dataset.
 
 ### Create and Run Compression Notebooks
 
-Download the appropriate example notebook for your use case: the [calibration compressor notebook](/calibration-compressor.ipynb) if you are using a dataset, or the [data-free compressor notebook](/data-free-compressor.ipynb) otherwise. Create a new notebook (for example, `compressor.ipynb`) in JupyterLab and paste the contents of the example notebook into it. Run the cells to perform model compression.
+Download the appropriate example notebook for your use case: the **calibration compressor notebook** if you are using a dataset, or the **data-free compressor notebook** otherwise. Create a new notebook (for example, `compressor.ipynb`) in JupyterLab and paste the contents of the example notebook into it. Run the cells to perform model compression.
 
 ### Upload the Compressed Model to the Repository
 
 Once compression is complete, upload the compressed model back to the model repository using the steps outlined in *Upload Models Using Notebook*.
 
+```python
+model_dir = "./" + model_id.split("/")[-1] + "-W4A16" #[!code callout]
+model.save_pretrained(model_dir)
+tokenizer.save_pretrained(model_dir);
+```
+
+<Callouts>
+  1. Save model and tokenizer. **You can modify this line if you want to change the name of output**.
+</Callouts>
+
 ### Deploy and Use the Compressed Model for Inference
 
-After uploading the compressed model, create a new inference service to deploy and use it. Follow the instructions in [create inference service](../../model_inference/inference_service/functions/inference_service.html#create-inference-service) to complete this step.
+Quantized and sparse models that you create with LLM Compressor are saved using the `compressed-tensors` library (an extension of [Safetensors](https://huggingface.co/docs/safetensors/en/index)).
+The compression format matches the model's quantization or sparsity type. These formats are natively supported in vLLM, enabling fast inference through optimized deployment kernels by using Alauda AI Inference Server.
+Follow the instructions in [create inference service](../../model_inference/inference_service/functions/inference_service.mdx#create-inference-service) to complete this step.
