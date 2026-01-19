@@ -1,0 +1,58 @@
+---
+weight: 30
+---
+
+# Enable DRA(Dynamic Resource Allocation) and corresponding API groups in Kubernetes
+
+DRA support is enabled by default in Kubernetes 1.34 and later. Earlier versions, starting from 1.32, support for this feature requires manual activation.
+
+
+## Steps to Enable DRA in Kubernetes 1.32–1.33
+
+On the all master nodes:
+1. Edit `kube-apiserver` component manifests in `/etc/kubernetes/manifests/kube-apiserver.yaml`:
+    ```yaml
+    spec:
+      containers:
+      - command:
+        - kube-apiserver
+        - --feature-gates=DynamicResourceAllocation=true # required
+        - --runtime-config=resource.k8s.io/v1beta1 # required
+        - --runtime-config=resource.k8s.io/v1beta2 # required
+        # ... other flags
+    ```
+
+2. Edit `kube-controller-manager` component manifests in `/etc/kubernetes/manifests/kube-controller-manager.yaml`:
+    ```yaml
+    spec:
+      containers:
+      - command:
+        - kube-controller-manager
+        - --feature-gates=DynamicResourceAllocation=true # required
+        # ... other flags
+    ```
+
+3. Edit `kube-scheduler` component manifests in `/etc/kubernetes/manifests/kube-scheduler.yaml`:
+    ```yaml
+    spec:
+      containers:
+      - command:
+        - kube-scheduler
+        - --feature-gates=DynamicResourceAllocation=true
+        # ... other flags
+    ```
+
+4. For kubelet, edit `/var/lib/kubelet/config.yaml` on the all nodes:
+
+    ```yaml
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    kind: KubeletConfiguration
+    featureGates:
+      DynamicResourceAllocation: true
+    ```
+
+    Restart kubelet:
+
+    ```bash
+    sudo systemctl restart kubelet
+    ```
