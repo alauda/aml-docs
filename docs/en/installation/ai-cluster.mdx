@@ -195,9 +195,6 @@ In **Administrator** view:
 
     By default, the configuration uses `SelfSigned` certificate type for securing ingress traffic to your cluster, the certificate is
     stored in the `knative-serving-cert` secret that is specified in the **Domain Certificate Secret** field.
-
-    To use certificate provided by your own, store the certificate secret in the `istio-system` namespace, then update the value of the
-    **Domain Certificate Secret** field, and change the value of the **Domain Certificate Secret** field to `Provided`.
     :::
 
 11. In the **Serverless Configuration** section, set **Knative Serving Provider** to **Operator**; leave all other parameters blank.

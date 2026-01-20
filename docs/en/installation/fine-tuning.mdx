@@ -47,11 +47,8 @@ spec:
         type: SelfSigned
       domain: '*.example.com'
     knativeServing:
-      istioConfig:
-        controlPlane:
-          autoRevisionMode: legacy
-      managementState: Managed
-      providerType: Legacy
+      managementState: Removed
+      providerType: Operator
     kserve:
       managementState: Managed
   values:
