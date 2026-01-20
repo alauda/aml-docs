@@ -137,7 +137,7 @@ In **Administrator** view:
 2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install Alauda AI.
 3. Select **Alauda AI**, then click **Install**.
 
-    **Install Alauda AI** window will popup.
+    **Install Alauda AI** window will pop up.
 
 4. Then in the **Install Alauda AI** window.
 5. Leave **Channel** unchanged.
@@ -247,7 +247,7 @@ In **Administrator** view:
 2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install.
 3. Search for and select **Knative Operator**, then click **Install**.
 
-    **Install Knative Operator** window will popup.
+    **Install Knative Operator** window will pop up.
 
 4. Then in the **Install Knative Operator** window.
 5. Leave **Channel** unchanged.
@@ -285,6 +285,7 @@ Once **Knative Operator** is installed, you need to create the `KnativeServing` 
 4. Under **Provided APIs**, locate **KnativeServing** and click **Create Instance**.
 5. Switch to **YAML view**.
 6. Replace the content with the following YAML:
+7. Click **Create**.
 
    ```yaml
    apiVersion: operator.knative.dev/v1beta1
@@ -323,8 +324,6 @@ Once **Knative Operator** is installed, you need to create the `KnativeServing` 
 1. `private-registry` is a placeholder for your private registry address. You can find this in the **Administrator** view, then click **Clusters**, select `your cluster`, and check the **Private Registry** value in the **Basic Info** section.
 
 </Callouts>
-
-7.Click **Create**.
 
 </Steps>
 
