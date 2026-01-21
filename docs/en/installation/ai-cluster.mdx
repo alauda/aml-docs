@@ -23,7 +23,7 @@ If your use case requires `Serverless` functionality, which enables advanced fea
 - **Alauda AI Operator**
 
   Alauda AI Operator is the main engine that powers Alauda AI products. It focuses on two core functions: model management and inference services, and provides a flexible framework that can be easily expanded.
-  
+
   _Download package: aml-operator.xxx.tgz_
 
 - **Alauda AI Model Serving Operator**
@@ -292,7 +292,7 @@ In **Administrator** view:
 
 8. Leave all other parameters unchanged. Click **Update**.
 
-</Steps>    
+</Steps>
 
 #### **Manual Creation and Integration**
 
@@ -336,7 +336,7 @@ In **Administrator** view:
         2. Select your target **cluster**.
         3. On the **Overview** tab, find the `Private Registry address` value in the **Basic Info** section.
 
-</Steps>   
+</Steps>
 
 Configure the `AmlCluster` instance to integrate with a `KnativeServing` instance.
 
@@ -358,29 +358,29 @@ After the initial installation, you will find that only the **Knative Serving Pr
 
 If you want to replace GitLab Service after installation, follow these steps:
 
-1. **Reconfigure GitLab Service**  
+1. **Reconfigure GitLab Service**
    Refer to the [Pre-installation Configuration](./pre-configuration.mdx) and re-execute its steps.
 
-2. **Update Alauda AI Instance**  
-   - In Administrator view, navigate to **Marketplace > OperatorHub**  
-   - From the **Cluster** dropdown, select the target cluster  
-   - Choose **Alauda AI** and click the **All Instances** tab  
+2. **Update Alauda AI Instance**
+   - In Administrator view, navigate to **Marketplace > OperatorHub**
+   - From the **Cluster** dropdown, select the target cluster
+   - Choose **Alauda AI** and click the **All Instances** tab
    - Locate the **'default'** instance and click **Update**
 
-3. **Modify GitLab Configuration**  
-   In the **Update default** form:  
-   - Locate the **GitLab** section  
-   - Enter:  
-     - **Base URL**: The URL of your new GitLab instance  
-     - **Admin Token Secret Namespace**: `cpaas-system`  
+3. **Modify GitLab Configuration**
+   In the **Update default** form:
+   - Locate the **GitLab** section
+   - Enter:
+     - **Base URL**: The URL of your new GitLab instance
+     - **Admin Token Secret Namespace**: `cpaas-system`
      - **Admin Token Secret Name**: `aml-gitlab-admin-token`
 
-4. **Restart Components**  
+4. **Restart Components**
    Restart the `aml-controller` deployment in the `kubeflow` namespace.
 
-5. **Refresh Platform Data**  
+5. **Refresh Platform Data**
    In Alauda AI management view, re-manage all namespaces.
-   - In Alauda AI view, navigate to **Admin** view from **Business View**  
+   - In Alauda AI view, navigate to **Admin** view from **Business View**
    - On the **Namespace Management** page, delete all existing managed namespaces
    - Use "Managed Namespace" to add namespaces requiring Alauda AI integration
    :::info
@@ -389,3 +389,28 @@ If you want to replace GitLab Service after installation, follow these steps:
         - Recreate and re-upload in new GitLab OR
         - Manually transfer model files to new repository
    :::
+## FAQ
+
+### 1. Configure the audit output directory for aml-skipper
+
+The default audit output path is `/cpaas/audit` on the host. However, on some operating systems (e.g., MicroOS), the root path of the host is read-only, and the `/cpaas` directory cannot be created. In this case, users need to modify the audit output path.
+
+To modify the audit output path, update the `AmlCluster` default resource and add the `amlSkipper.auditLogHostPath.path` configuration under `spec.values`. For example:
+
+```yaml
+apiVersion: amlclusters.aml.dev/v1alpha2
+kind: AmlCluster
+metadata:
+  name: default
+  ...
+spec:
+  ...
+  values:
+    amlSkipper:
+      auditLogHostPath:
+        path: /var/lib/audit
+```
+
+:::note
+The specific path should be consistent with the collection configuration of `Alauda Container Platform Log Collector`.
+:::
