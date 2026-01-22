@@ -25,6 +25,11 @@ Use these methods together to deploy models more efficiently on resource-limited
 
 ## LLM Compressor supports several compression algorithms:
 
+- AWQ: Weight only `INT4` quantization
 - GPTQ: Weight-only `INT4` quantization
+- FP8: Dynamic per-token quantization
+- SparseGPT: Post-training sparsity
+- SmoothQuant: Activation quantization
 
+For more information about compression algorithms and formats, please refer to the [documentation](https://docs.vllm.ai/projects/llm-compressor/en/latest/guides/compression_schemes/) and examples in the [llmcompressor](https://github.com/vllm-project/llm-compressor) repository.
 Each of these compression methods computes optimal scales and zero-points for weights and activations. Optimized scales can be per tensor, channel, group, or token. The final result is a compressed model saved with all its applied quantization parameters.
