@@ -1,0 +1,15 @@
+---
+weight: 70
+---
+
+# Gang scheduling
+
+Gang scheduling is a timeout-based implementation of All-or-nothing scheduling in Alauda Build of Kueue.
+
+Gang scheduling ensures that a group or gang of related jobs only start when all required resources are available. Alauda Build of Kueue enables gang scheduling by suspending jobs until the Alauda Container Platform cluster can guarantee the capacity to start and execute all of the related jobs in the gang together.
+
+Gang scheduling is important if you are working with expensive, limited resources, such as GPUs. Gang scheduling can prevent jobs from claiming but not using GPUs, which can improve GPU utilization and can reduce running costs. Gang scheduling can also help to prevent issues like resource segmentation and deadlocking.
+
+## Configuring gang scheduling
+
+The gang scheduling is enabled by default. As a cluster administrator, you can update the timeout or disable the gang scheduling by modifying the deployment form params of the `Alauda Build of Kueue` cluster plugin.

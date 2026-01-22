@@ -1,0 +1,210 @@
+---
+weight: 30
+---
+
+# Configuring quotas
+
+As an administrator, you can use Alauda Build of Kueue to configure quotas to optimize resource allocation and system throughput for user workloads. You can configure quotas for compute resources such as CPU, memory, pods, and GPU.
+
+You can configure quotas in Alauda Build of Kueue by completing the following steps:
+
+1. Configure a cluster queue.
+2. Configure a resource flavor.
+3. Configure a local queue.
+4. Users can then submit their workloads to the local queue.
+
+## 1. Configuring a cluster queue
+
+A cluster queue is a cluster-scoped resource, represented by a ClusterQueue object, that governs a pool of resources such as GPU, CPU, memory, and pods. Cluster queues can be used to define usage limits, quotas for resource flavors, order of consumption, and fair sharing rules.
+
+:::info
+**Note: The cluster queue is not ready for use until a ResourceFlavor object has also been configured.**
+:::
+
+### 1.1. Prerequisites
+
+- The Alauda Container Platform Web CLI has communication with your cluster.
+- You have cluster administrator permissions or the `kueue-batch-admin-role` role.
+
+### 1.2. Procedure
+
+1. Create a ClusterQueue object as a YAML file:
+    ```yaml
+    apiVersion: kueue.x-k8s.io/v1beta2
+    kind: ClusterQueue
+    metadata:
+      name: cluster-queue
+    spec:
+      namespaceSelector: {} # [!code callout]
+      #matchLabels:
+      #  kubernetes.io/metadata.name: team-a
+      resourceGroups:
+      - coveredResources: ["cpu", "memory", "pods"] # [!code callout]
+        flavors:
+        - name: "default-flavor" # [!code callout]
+          resources: # [!code callout]
+          - name: "cpu"
+            nominalQuota: 9
+          - name: "memory"
+            nominalQuota: 36Gi
+          - name: "pods"
+            nominalQuota: 5
+      - coveredResources: ["nvidia.com/gpualloc", "nvidia.com/total-gpucores", "nvidia.com/total-gpumem"] # [!code callout]
+        flavors:
+        - name: "t4-flavor" # [!code callout]
+          resources:
+          - name: "nvidia.com/gpualloc"
+            nominalQuota: "20"
+          - name: "nvidia.com/total-gpucores"
+            nominalQuota: "300"
+          - name: "nvidia.com/total-gpumem"
+            nominalQuota: "20480"
+      - coveredResources: ["nvidia.com/gpu"] # [!code callout]
+        flavors:
+        - name: "a30-flavor" # [!code callout]
+          resources:
+          - name: "nvidia.com/gpu"
+            nominalQuota: 100
+    ```
+    <Callouts>
+      1. `namespaceSelector`: Defines which namespaces can use the resources governed by this cluster queue. An empty `namespaceSelector` as shown in the example means that all namespaces can use these resources.
+      2. `coveredResources` of `default-flavor`: Defines the resource types governed by the cluster queue. This example `ClusterQueue` object governs CPU, memory, pod, and GPU resources.
+      3. `flavors.name` of `default-flavor`: Defines the resource flavor that is applied to the resource types listed. In this example, the `default-flavor` resource flavor is applied to CPU, memory, pod, and GPU resources.
+      4. `resources` of `default-flavor`: Defines the resource requirements for admitting jobs. This example cluster queue only admits jobs if the following conditions are met:
+          - The sum of the CPU requests is less than or equal to 9.
+          - The sum of the memory requests is less than or equal to 36Gi.
+          - The total number of pods is less than or equal to 5.
+          - The sum of the GPU tasks is less than or equal to 20 If you use the Alauda Build of Hami(Refer callout 5).
+          - The sum of the total GPU cores requests is less than or equal to 300 If you use the Alauda Build of Hami.
+          - The sum of the total GPU memory requests is less than or equal to 20480.
+          - The sum of the GPU requests is less than or equal to 100 If you use the Alauda Build of NVIDIA GPU Device Plugin.(Refer callout 7).
+      5. `coveredResources` of `t4-flavor`: Defines the resources requirements for Alauda Build of Hami. If you do not use the Alauda Build of Hami, please delete it.
+      6. `flavors.name` of `t4-flavor`: Defines the resource flavor that is applied to the resource types listed. In this example, the `t4-flavor` resource flavor is applied to Nvidia T4 GPU cards. If you don't want to configure quotas for specific card types, you can fill in `default-flavor`.
+      7. `coveredResources` of `a30-flavor`: Defines the resources requirements for Alauda Build of NVIDIA GPU Device Plugin. If you do not use the Alauda Build of NVIDIA GPU Device Plugin, please delete it.
+      8. `flavors.name` of `a30-flavor`: Defines the resource flavor that is applied to the resource types listed. In this example, the `a30-flavor` resource flavor is applied to Nvidia A30 GPU cards. If you don't want to configure quotas for specific card types, you can fill in `default-flavor`.
+    </Callouts>
+
+2. Apply the `ClusterQueue` object by running the following command:
+    ```bash
+    kubectl  apply -f <filename>.yaml
+    ```
+
+## 2. Configuring a resource flavor
+
+After you have configured a ClusterQueue object, you can configure a ResourceFlavor object.
+
+Resources in a cluster are typically not homogeneous. If the resources in your cluster are homogeneous, you can use an empty ResourceFlavor instead of adding labels to custom resource flavors.
+
+You can use a custom ResourceFlavor object to represent different resource variations that are associated with cluster nodes through labels, taints, and tolerations. You can then associate workloads with specific node types to enable fine-grained resource management.
+
+### 2.1. Prerequisites
+
+- The Alauda Container Platform Web CLI has communication with your cluster.
+- You have cluster administrator permissions or the `kueue-batch-admin-role` role.
+
+### 2.2. Procedure
+
+1. Create a ResourceFlavor object as a YAML file:
+
+    **Example of an empty ResourceFlavor object**
+    ```yaml
+    apiVersion: kueue.x-k8s.io/v1beta2
+    kind: ResourceFlavor
+    metadata:
+      name: default-flavor
+    ```
+
+    **Example of a custom ResourceFlavor object for Nvidia Tesla T4 GPU**
+    ```yaml
+    apiVersion: kueue.x-k8s.io/v1beta2
+    kind: ResourceFlavor
+    metadata:
+      name: "t4-flavor"
+    spec:
+      nodeLabels:
+        nvidia.com/gpu.product: Tesla-T4
+    ```
+
+    **Example of a custom ResourceFlavor object for Nvidia A30 GPU**
+    ```yaml
+    apiVersion: kueue.x-k8s.io/v1beta2
+    kind: ResourceFlavor
+    metadata:
+      name: "a30-flavor"
+    spec:
+      nodeLabels:
+        nvidia.com/gpu.product: NVIDIA-A30
+    ```
+
+2. Apply the ResourceFlavor object by running the following command:
+    ```bash
+    kubectl apply -f <filename>.yaml
+    ```
+
+## 3. Configuring a local queue
+
+A local queue is a namespaced object, represented by a LocalQueue object, that groups closely related workloads that belong to a single namespace.
+
+As an administrator, you can configure a LocalQueue object to point to a cluster queue. This allocates resources from the cluster queue to workloads in the namespace specified in the LocalQueue object.
+
+### 3.1. Prerequisites
+
+- The Alauda Container Platform Web CLI has communication with your cluster.
+- You have cluster administrator permissions or the `kueue-batch-admin-role` role.
+- You have created a `ClusterQueue` object.
+
+### 3.2. Procedure
+
+1. Create a LocalQueue object as a YAML file:
+
+    **Example of a basic LocalQueue object**
+    ```yaml
+    apiVersion: kueue.x-k8s.io/v1beta2
+    kind: LocalQueue
+    metadata:
+      namespace: team-namespace
+      name: user-queue
+    spec:
+      clusterQueue: cluster-queue
+    ```
+
+2. Apply the LocalQueue object by running the following command:
+    ```bash
+    kubectl apply -f <filename>.yaml
+    ```
+
+## 4. Configuring a default local queue
+
+As a cluster administrator, you can improve quota enforcement in your cluster by managing all jobs in selected namespaces without needing to explicitly label each job. You can do this by creating a default local queue.
+
+A default local queue serves as the local queue for newly created jobs that do not have the `kueue.x-k8s.io/queue-name` label. After you create a default local queue, any new jobs created in the namespace without a `kueue.x-k8s.io/queue-name` label automatically update to have the `kueue.x-k8s.io/queue-name: default` label.
+
+### 4.1. Prerequisites
+
+- The Alauda Container Platform Web CLI has communication with your cluster.
+- You have cluster administrator permissions or the `kueue-batch-admin-role` role.
+- You have created a ClusterQueue object.
+
+### 4.2. Procedure
+
+1. Create a LocalQueue object named default as a YAML file:
+
+    **Example of a default LocalQueue object**
+    ```yaml
+    apiVersion: kueue.x-k8s.io/v1beta2
+    kind: LocalQueue
+    metadata:
+      namespace: team-namespace
+      name: default
+    spec:
+      clusterQueue: cluster-queue
+    ```
+2. Apply the `LocalQueue` object by running the following command:
+    ```bash
+    kubectl apply -f <filename>.yaml
+    ```
+
+### 4.3. Verification
+
+1. Create a job in the same namespace as the default local queue.
+2. Observe that the job updates with the `kueue.x-k8s.io/queue-name: default` label.
