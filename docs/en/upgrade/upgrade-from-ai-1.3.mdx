@@ -4,13 +4,11 @@ weight: 10
 
 # Upgrade from AI 1.3
 
-
 ## Before Upgrading
 
 <Steps>
 ### Keep Inference Service Runtimes
 This step ensures that older ClusterServingRuntime resources are not inadvertently removed during the upgrade process. The script adds the `"helm.sh/resource-policy": "keep"` annotation to all `ClusterServingRuntime` resources, which instructs Helm to preserve them during the upgrade.
-
 
 Execute the following script in the destination cluster:
 
@@ -44,8 +42,6 @@ done
 echo "migrate-clusterservingruntime-resources completed."
 ```
 
-
-
 ### Migrate InferenceService resources
 
 Before **Alauda AI** `1.4`, `InferenceService` resources did not explicitly specify their deployment mode. You must now explicitly define the deployment mode for all your inference services before upgrading.
@@ -55,7 +51,6 @@ This migration updates your inference services. In **Knative Serverless** mode i
 
 If the service may be resource‑constrained (**GPU/CPU/memory**), schedule a maintenance window or temporarily stop the service before running the script.
 :::
-
 
 Execute following script in destination cluster:
 
@@ -79,6 +74,7 @@ done
 
 echo "migrate-inferenceservice-resources completed."
 ```
+
 </Steps>
 
 ## Install Alauda AI Cluster Components
@@ -92,8 +88,6 @@ Please ignore `Creating Alauda AI Cluster Instance` since we are upgrading **Ala
 1. [Downloading](../installation/ai-cluster.mdx#downloading) operator bundle packages for `Alauda AI Cluster` and `KServeless`.
 2. [Uploading](../installation/ai-cluster.mdx#uploading) operator bundle packages to the destination cluster.
 3. To upgrade, follow the process described below.
-
-
 
 ## Upgrading
 
@@ -115,16 +109,44 @@ After the upgrade is complete, please confirm that the status of **Alauda AI Ess
 
 The procedure for upgrading both operators is nearly identical, with only the target component being different.
 
-| Step | Alauda AI Operator | Alauda AI Model Serving Operator |
-| :--- | :--- | :--- |
+| Step            | Alauda AI Operator                                                                                | Alauda AI Model Serving Operator                                                                  |
+|:----------------|:--------------------------------------------------------------------------------------------------|:--------------------------------------------------------------------------------------------------|
 | **1. Navigate** | Log into the Web Console, then go to **Marketplace > OperatorHub** in the **Administrator** view. | Log into the Web Console, then go to **Marketplace > OperatorHub** in the **Administrator** view. |
-| **2. Select** | Select your target **cluster**. | Select your target **cluster**. |
-| **3. Click** | Click the **Alauda AI** card. | Click the **Alauda AI Model Serving** card. |
-| **4. Confirm** | Click **Confirm** on the upgrade prompt. | Click **Confirm** on the upgrade prompt. |
+| **2. Select**   | Select your target **cluster**.                                                                   | Select your target **cluster**.                                                                   |
+| **3. Click**    | Click the **Alauda AI** card.                                                                     | Click the **Alauda AI Model Serving** card.                                                       |
+| **4. Confirm**  | Click **Confirm** on the upgrade prompt.                                                          | Click **Confirm** on the upgrade prompt.                                                          |
 
 :::info
-    Once the new version is uploaded and recognized by the platform, an upgrade prompt will appear at the top of the operator's page.
+Once the new version is uploaded and recognized by the platform, an upgrade prompt will appear at the top of the operator's page.
 :::
+
+### Upgrading Alauda AI Workbench
+
+:::info
+This step is **only required if you have deployed** the **Alauda AI Workbench** cluster plugin. If you have not deployed Workbench, you can skip this step.
+
+For more information about cluster plugins, refer to <ExternalSiteLink name="acp" href="extend/index.html" children="Alauda Container Platform - Extend" />.
+:::
+
+The procedure to upgrade Workbench cluster plugin involves uploading new version and then upgrading it from Web Console.
+
+- Uploading Workbench Cluster Plugin
+
+Upload the new Workbench cluster plugin package to the global cluster. For detailed instructions on how to upload cluster plugins, refer to <ExternalSiteLink name="acp" href="extend/upload_package.html#upload-a-cluster-plugin" children="Uploading Cluster Plugins" />.
+
+- Upgrading from Web Console
+
+1. Log into the Web Console and switch to the **Administrator** view.
+2. Go to **Marketplace > Cluster Plugins**.
+3. Select the **global** cluster from the **Cluster** dropdown list at the top.
+4. Locate **Alauda AI Workbench**.
+5. Click the **...** button on the right side and select **Upgrade**.
+6. Follow the prompts to complete the upgrade.
+
+:::info
+Once the new version is uploaded and recognized by the platform, the **Upgrade** option will become available.
+:::
+
 ## Verification
 
 <Steps>
@@ -141,7 +163,9 @@ Should returns `Ready`:
 NAME      READY   REASON
 default   True    Succeeded
 ```
+
 ### Alauda AI Model Serving
+
 Check the status field from the `KnativeServing` resource which named `default-knative-serving`:
 
 ```bash
@@ -154,4 +178,9 @@ Should returns `InstallSuccessful`:
 NAME                      DEPLOYED   REASON
 default-knative-serving   True       UpgradeSuccessful
 ```
+
+### Alauda AI Workbench
+
+In the **Administrator** view, navigate to **Marketplace > Cluster Plugins** and confirm that the **Alauda AI Workbench** tile shows `Installed` status with the new version.
+
 </Steps>
