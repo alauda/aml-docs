@@ -282,6 +282,70 @@ spec:
 
  ```
 
+### Triton Inference Server
+
+The Triton Inference Server runtime is designed for NVIDIA GPUs and supports multiple model formats. Similar to MLServer, you need to create the `ClusterServingRuntime` resource first, then create your inference service.
+
+```yaml
+apiVersion: serving.kserve.io/v1alpha1
+kind: ClusterServingRuntime
+metadata:
+  annotations:
+    cpaas.io/display-name: triton-cuda12-x86
+  labels:
+    cpaas.io/accelerator-type: nvidia
+    cpaas.io/cuda-version: "12.1"
+    cpaas.io/runtime-class: triton
+  name: aml-triton-cuda-12
+spec:
+  containers:
+    - command:
+        - /bin/bash
+        - -c
+        - >
+          tritonserver --log-verbose=1 --http-port=8080
+          --model-repository=/mnt/models
+      env:
+        - name: OMP_NUM_THREADS
+          value: "1"
+        - name: MODEL_REPO
+          value: '{{ index .Annotations "aml-model-repo" }}'
+      image: alaudadockerhub/tritonserver:25.02-py3
+      name: kserve-container
+      resources:
+        limits:
+          cpu: 2
+          memory: 6Gi
+        requests:
+          cpu: 2
+          memory: 6Gi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        privileged: false
+        runAsNonRoot: true
+        runAsUser: 1000
+      startupProbe:
+        failureThreshold: 60
+        httpGet:
+          path: /v2/models/{{ index .Annotations "aml-model-repo" }}/ready
+          port: 8080
+          scheme: HTTP
+        periodSeconds: 10
+        timeoutSeconds: 10
+  supportedModelFormats:
+    - name: triton
+      version: "1"
+```
+
+**Usage Instructions:**
+
+1. **Create the ClusterServingRuntime**: Apply the YAML configuration above using `kubectl apply -f triton-runtime.yaml`
+2. **Prepare Your Model**: Ensure your model is in a format supported by Triton (e.g., TensorFlow, PyTorch, ONNX)
+3. **Set Model Framework**: In the model repository, set the framework metadata to `triton` to match the `supportedModelFormats` field
+4. **Create Inference Service**: When publishing your inference service, select the Triton runtime from the runtime dropdown menu
 
 ### MindIE (Ascend NPU 310P)
 
@@ -620,4 +684,5 @@ Before proceeding, refer to this table to understand the specific requirements f
 | :--- | :--- | :--- | :--- |
 | **Xinference** | CPU / NVIDIA GPU | transformers, pytorch | **Must** set `MODEL_FAMILY` environment variable |
 | **MLServer** | CPU / NVIDIA GPU | sklearn, xgboost, mlflow | Standard configuration |
+| **Triton** | NVIDIA GPU | triton (TensorFlow, PyTorch, ONNX, etc.) | Standard configuration |
 | **MindIE** | Huawei Ascend NPU | mindspore, transformers | **Must** add NPU required Annotations to InferenceService |
