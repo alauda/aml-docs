@@ -310,7 +310,7 @@ spec:
           value: "1"
         - name: MODEL_REPO
           value: '{{ index .Annotations "aml-model-repo" }}'
-      image: 152-231-registry.alauda.cn:60070/mlops/tritonserver:25.02-py3
+      image: alaudadockerhub/tritonserver:25.02-py3
       name: kserve-container
       resources:
         limits:
