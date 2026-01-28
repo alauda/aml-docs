@@ -327,6 +327,14 @@ spec:
         privileged: false
         runAsNonRoot: true
         runAsUser: 1000
+      startupProbe:
+        failureThreshold: 60
+        httpGet:
+          path: /v2/models/{{ index .Annotations "aml-model-repo" }}/ready
+          port: 8080
+          scheme: HTTP
+        periodSeconds: 10
+        timeoutSeconds: 10
   supportedModelFormats:
     - name: triton
       version: "1"
