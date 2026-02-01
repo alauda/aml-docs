@@ -12,4 +12,122 @@ Gang scheduling is important if you are working with expensive, limited resource
 
 ## Configuring gang scheduling
 
-The gang scheduling is enabled by default. As a cluster administrator, you can update the timeout or disable the gang scheduling by modifying the deployment form params of the `Alauda Build of Kueue` cluster plugin.
+The gang scheduling is enabled by default. As a cluster administrator, you can enable/disable the gang scheduling or update the `timeout` by modifying the deployment form params of the `Alauda Build of Kueue` cluster plugin.
+
+The `timeout` (`waitForPodsReady.timeout`) is an optional parameter, defaulting to 5 minutes.
+
+When the `timeout` expires for an admitted Workload, and the workload's pods are not all scheduled yet (i.e., the Workload condition remains `PodsReady=False`), then the Workload's admission is cancelled, the corresponding job is suspended and the Workload is re-queued.
+
+## Verification
+
+### Prerequisites
+
+- The Alauda Container Platform Web CLI has communication with your cluster.
+- You have installed the Alauda Build of Hami.
+- Assuming your cluster only has one GPU card for the Hami virtualization.
+
+### Procedure
+
+1. Verify that the Gang scheduling policy configuration is effective.
+
+    ```bash
+    kubectl -n cpaas-system get cm kueue-manager-config -o=yaml  | grep -C 8 waitForPodsReady
+    ```
+
+    You should get results similar to:
+    ```yaml
+        waitForPodsReady:
+          blockAdmission: true
+          recoveryTimeout: 3m
+          requeuingStrategy:
+            backoffBaseSeconds: 60
+            backoffLimitCount: null
+            backoffMaxSeconds: 3600
+            timestamp: Eviction
+          timeout: 5m
+    ```
+2. Create the assets by running the following command:
+    ```bash
+    cat <<EOF | kubectl create -f -
+    ---
+    apiVersion: kueue.x-k8s.io/v1beta1
+    kind: ClusterQueue
+    metadata:
+      name: cluster-queue
+    spec:
+      namespaceSelector: {}
+       #matchLabels:
+       #  kubernetes.io/metadata.name: team-a
+      resourceGroups:
+      - coveredResources: ["cpu", "memory", "pods", "nvidia.com/gpualloc", "nvidia.com/total-gpucores", "nvidia.com/total-gpumem"]
+        flavors:
+        - name: "default-flavor"
+          resources:
+          - name: "cpu"
+            nominalQuota: 9
+          - name: "memory"
+            nominalQuota: 36Gi
+          - name: "pods"
+            nominalQuota: 5
+          - name: "nvidia.com/gpualloc"
+            nominalQuota: "10"
+          - name: "nvidia.com/total-gpucores"
+            nominalQuota: "1000"
+          - name: "nvidia.com/total-gpumem"
+            nominalQuota: "20000"
+    ---
+    apiVersion: kueue.x-k8s.io/v1beta1
+    kind: ResourceFlavor
+    metadata:
+      name: default-flavor
+    ---
+    apiVersion: kueue.x-k8s.io/v1beta1
+    kind: LocalQueue
+    metadata:
+      name: test
+    spec:
+      clusterQueue: cluster-queue
+    ---
+    EOF
+    ```
+3. Create the following file with the job manifest:
+    ```bash
+    cat > job.yaml << EOF
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      generateName: gang-demo-
+      labels:
+        kueue.x-k8s.io/queue-name: test
+    spec:
+      parallelism: 3
+      completions: 3
+      template:
+        spec:
+          containers:
+          - name: dummy-job
+            image: registry.k8s.io/e2e-test-images/agnhost:2.53
+            command: [ "/bin/sh" ]
+            args: [ "-c", "sleep infinity" ]
+            resources:
+              limits:
+                cpu: "20m"
+                memory: "200Mi"
+                nvidia.com/gpualloc: 1
+                nvidia.com/gpucores: 80
+                nvidia.com/gpumem: 4096
+              requests:
+                cpu: "20m"
+                memory: "200Mi"
+          restartPolicy: Never
+    EOF
+    kubectl create -f job.yaml
+    ```
+4. With only one GPU card, you can see one running pod and two pending pods.
+    ```text
+    NAME                    READY   STATUS              RESTARTS   AGE
+    gang-demo-vgzmf-fgkj8   0/1     Pending             0          13s
+    gang-demo-vgzmf-hgtdn   1/1     Running             0          13s
+    gang-demo-vgzmf-k6p4d   0/1     Pending             0          13s
+    ```
+    After a 5-minute wait, all pods were eventually evicted.
