@@ -15,10 +15,10 @@ You can configure quotas in Alauda Build of Kueue by completing the following st
 
 ## 1. Configuring a cluster queue
 
-A cluster queue is a cluster-scoped resource, represented by a ClusterQueue object, that governs a pool of resources such as GPU, CPU, memory, and pods. Cluster queues can be used to define usage limits, quotas for resource flavors, order of consumption, and fair sharing rules.
+A cluster queue is a cluster-scoped resource, represented by a `ClusterQueue` object, that governs a pool of resources such as GPU, CPU, memory, and pods. Cluster queues can be used to define usage limits, quotas for resource flavors, order of consumption, and fair sharing rules.
 
 :::info
-**Note: The cluster queue is not ready for use until a ResourceFlavor object has also been configured.**
+**Note: The cluster queue is not ready for use until a `ResourceFlavor` object has also been configured.**
 :::
 
 ### 1.1. Prerequisites
@@ -28,7 +28,7 @@ A cluster queue is a cluster-scoped resource, represented by a ClusterQueue obje
 
 ### 1.2. Procedure
 
-1. Create a ClusterQueue object as a YAML file:
+1. Create a `ClusterQueue` object as a YAML file:
     ```yaml
     apiVersion: kueue.x-k8s.io/v1beta2
     kind: ClusterQueue
@@ -91,11 +91,11 @@ A cluster queue is a cluster-scoped resource, represented by a ClusterQueue obje
 
 ## 2. Configuring a resource flavor
 
-After you have configured a ClusterQueue object, you can configure a ResourceFlavor object.
+After you have configured a ClusterQueue object, you can configure a `ResourceFlavor` object.
 
-Resources in a cluster are typically not homogeneous. If the resources in your cluster are homogeneous, you can use an empty ResourceFlavor instead of adding labels to custom resource flavors.
+Resources in a cluster are typically not homogeneous. If the resources in your cluster are homogeneous, you can use an empty `ResourceFlavor` instead of adding labels to custom resource flavors.
 
-You can use a custom ResourceFlavor object to represent different resource variations that are associated with cluster nodes through labels, taints, and tolerations. You can then associate workloads with specific node types to enable fine-grained resource management.
+You can use a custom `ResourceFlavor` object to represent different resource variations that are associated with cluster nodes through labels, taints, and tolerations. You can then associate workloads with specific node types to enable fine-grained resource management.
 
 ### 2.1. Prerequisites
 
@@ -104,7 +104,7 @@ You can use a custom ResourceFlavor object to represent different resource varia
 
 ### 2.2. Procedure
 
-1. Create a ResourceFlavor object as a YAML file:
+1. Create a `ResourceFlavor` object as a YAML file:
 
     **Example of an empty ResourceFlavor object**
     ```yaml
@@ -114,7 +114,7 @@ You can use a custom ResourceFlavor object to represent different resource varia
       name: default-flavor
     ```
 
-    **Example of a custom ResourceFlavor object for Nvidia Tesla T4 GPU**
+    **Example of a custom `ResourceFlavor` object for Nvidia Tesla T4 GPU**
     ```yaml
     apiVersion: kueue.x-k8s.io/v1beta2
     kind: ResourceFlavor
@@ -125,7 +125,7 @@ You can use a custom ResourceFlavor object to represent different resource varia
         nvidia.com/gpu.product: Tesla-T4
     ```
 
-    **Example of a custom ResourceFlavor object for Nvidia A30 GPU**
+    **Example of a custom `ResourceFlavor` object for Nvidia A30 GPU**
     ```yaml
     apiVersion: kueue.x-k8s.io/v1beta2
     kind: ResourceFlavor
@@ -136,7 +136,7 @@ You can use a custom ResourceFlavor object to represent different resource varia
         nvidia.com/gpu.product: NVIDIA-A30
     ```
 
-2. Apply the ResourceFlavor object by running the following command:
+2. Apply the `ResourceFlavor` object by running the following command:
     ```bash
     kubectl apply -f <filename>.yaml
     ```
@@ -155,7 +155,7 @@ As an administrator, you can configure a LocalQueue object to point to a cluster
 
 ### 3.2. Procedure
 
-1. Create a LocalQueue object as a YAML file:
+1. Create a `LocalQueue` object as a YAML file:
 
     **Example of a basic LocalQueue object**
     ```yaml
@@ -168,7 +168,7 @@ As an administrator, you can configure a LocalQueue object to point to a cluster
       clusterQueue: cluster-queue
     ```
 
-2. Apply the LocalQueue object by running the following command:
+2. Apply the `LocalQueue` object by running the following command:
     ```bash
     kubectl apply -f <filename>.yaml
     ```
