@@ -11,14 +11,19 @@ Deploy Kubeflow plugins in Alauda AI >= 1.3. Including:
 
 1. A running ACP environment
 2. Ensure Alauda AI has been deployed (requires Alauda AI version >= 1.3)
-3. Deploy ASM in the business cluster where Kubeflow is to be deployed (if ASM was not deployed in the previous step)
+3. Deploy ASM in the business cluster where Kubeflow is to be deployed (if ASM was not deployed in the previous step) (Supports ASM v1 for now. ASM v2 support is expected in the future)
 4. Configure the oauth2-proxy plugin as described below
 
 ### Configure oauth2-proxy Plugin
 
-Refer to the steps in https://confluence.alauda.cn/pages/viewpage.action?pageId=213191378#heading-%E5%89%8D%E7%BD%AE%E4%BE%9D%E8%B5%96 to obtain the platform dex CA certificate.
+obtain the platform dex CA certificate for later use:
 
-Then go to the global cluster or in acp **Platform Management** -> **Resource Management** update the ServiceMesh resource, add the following content under the spec field (this method applies to servicemesh v1, for servicemesh v2 configuration method please consult relevant colleagues)
+```bash
+crt=$(kubectl get secret -n cpaas-system dex.tls -o jsonpath='{.data.tls\.crt}')
+echo -n $crt | base64 -d
+```
+
+Then go to the global cluster or in acp **Platform Management** -> **Resource Management** update the ServiceMesh resource, add the following content under the spec field:
 
 ***Note: If `spec.values.pilot.jwksResolverExtraRootCA` has already been configured, you can only configure `spec.meshConfig.extensionProviders`, and only add new ones, do not delete the original `spec.meshConfig.extensionProviders`***
 
