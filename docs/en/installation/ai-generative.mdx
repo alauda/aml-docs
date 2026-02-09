@@ -1,0 +1,101 @@
+---
+weight: 35
+---
+
+# Install Alauda AI Generative
+
+**Alauda AI Generative** is a cloud-native component built on **KServe** for serving generative AI models. As an extension of the Alauda AI ecosystem, it specifically optimizes for **Large Language Models (LLMs)**, offering essential features such as inference orchestration, streaming responses, and resource-based auto-scaling for generative workloads.
+
+---
+
+## Prerequisites
+
+Before installing **Alauda AI Generative**, you need to ensure the following dependencies are installed:
+
+### Required Dependencies
+
+| Dependency | Type | Description |
+|------------|------|-------------|
+| Alauda build of Envoy Gateway <ExternalSiteLink name="acp" href="/networking/operators/envoy_gateway_operator.mdx" children="install_envoy_gateway_operator" /> | Operator | Provides the underlying gateway functionality for AI services |
+| Envoy AI Gateway | Cluster Plugin | Provides AI-specific gateway capabilities |
+| [Alauda Build of LeaderWorkerSet](../../lws/install.mdx) | Cluster Plugin | Provides leader-worker set functionality for AI workloads |
+
+### Optional Dependencies
+
+| Dependency | Type | Description |
+|------------|------|-------------|
+| GIE | Built-in | Integrated GIE (gateway-api-inference-extension) for enhanced AI capabilities. Can be enabled through the Alauda AI Generative UI. |
+| Alauda AI | Operator | Required only if you need to use KServe Predictive AI functionality. Can be disabled if you only need LLM Generative AI functionality. |
+
+### Installation Notes
+
+1. **Required Dependencies**: All three required dependencies must be installed before installing Alauda AI Generative.
+2. **GIE Integration**: If you want to use GIE, you can enable it during the installation process by selecting the "Integrated GIE" option in the Alauda AI Generative UI.
+3. **Alauda AI Integration**: If you don't need KServe Predictive AI functionality and only want to use LLM Generative AI, you can disable the "Integrated With Alauda AI" option during installation.
+
+## Downloading Cluster Plugin
+
+:::info
+
+`Alauda AI Generative` cluster plugin can be retrieved from Customer Portal.
+
+Please contact Consumer Support for more information.
+
+:::
+
+## Uploading the Cluster Plugin
+
+For more information on uploading the cluster plugin, please refer to <ExternalSiteLink name="acp" href="ui/cli_tools/index.html#uploading-cluster-plugins" children="Uploading Cluster Plugins" />
+
+## Installing Alauda AI Generative
+
+1. Go to the `Administrator` -> `Marketplace` -> `Cluster Plugin` page, switch to the target cluster, and then deploy the `Alauda AI Generative` Cluster plugin.
+
+2. In the deployment form, configure the following parameters as needed:
+
+### Envoy Gateway Configuration
+
+| Parameter | Description | Default Value |
+|-----------|-------------|---------------|
+| **ServiceAccount Name** | The name of the service account used by Envoy Gateway. | envoy-gateway |
+| **ServiceAccount Namespace** | The namespace where the service account is located. | envoy-gateway-system |
+| **Create Instance** | Create an Envoy Gateway instance to manage inference traffic with bundled extensions. | Enabled |
+| **Instance Name** | The name of the Envoy Gateway instance to be created. | aieg |
+
+### Envoy AI Gateway Configuration
+
+| Parameter | Description | Default Value |
+|-----------|-------------|---------------|
+| **Service Name** | The Kubernetes service name for Envoy AI Gateway. | ai-gateway-controller |
+| **Port Number** | The port number used by Envoy AI Gateway. | 1063 |
+
+### KServe Gateway Configuration
+
+| Parameter | Description | Default Value |
+|-----------|-------------|---------------|
+| **Enabled** | Install a KServe Gateway Instance for inferenceservices functionality. | Enabled |
+| **Gateway Name** | The name of the KServe Gateway. | kserve-ingress-gateway |
+| **Gateway Namespace** | The namespace where the KServe Gateway is deployed. | kserve |
+| **GatewayClass** | Optional. The custom name for the GatewayClass. If left empty, the system will automatically derive it following the "\{Namespace\}-\{Name\}" pattern. | (Empty) |
+| **Port Number** | The port number used by KServe Gateway. | 80 |
+
+### GIE(gateway-api-inference-extension) Configuration
+
+| Parameter | Description | Default Value |
+|-----------|-------------|---------------|
+| **BuiltIn** | Install with the bundled gateway-api-inference-extension v0.5.1 dependencies for enhanced AI capabilities. | Enabled |
+
+### Alauda AI Integration
+
+| Parameter | Description | Default Value |
+|-----------|-------------|---------------|
+| **Integrated** | Enable integration with Alauda AI core plugin to reuse existing configurations. | Disabled |
+
+3. Click **Install** to begin the installation process.
+
+4. Verify result. You can see the status of "Installed" in the UI.
+
+## Upgrading Alauda AI Generative
+
+1. Upload the new version for package of **Alauda AI Generative** plugin to ACP.
+2. Go to the `Administrator` -> `Clusters` -> `Target Cluster` -> `Functional Components` page, then click the `Upgrade` button, and you will see the `Alauda AI Generative` can be upgraded.
