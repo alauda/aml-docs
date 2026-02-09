@@ -6,17 +6,20 @@ Deploy Kubeflow plugins in Alauda AI >= 2.0. Including:
 - chart-kubeflow-model-registry: Kubeflow Model Registry instance (Helm Chart)
 - kfp: Kubeflow Pipeline
 - kftraining: Kubeflow Training Operator (deprecated)
+- kubeflow-trainer: Kubeflow Training job management plugin, aka. Kubeflow Trainer v2 (replaces kftraining)
+
 
 ## Environment Preparation
 
 1. A running ACP environment
 2. Ensure Alauda AI has been deployed (requires Alauda AI version >= 2.0)
 3. Deploy ASM in the business cluster where Kubeflow is to be deployed (if ASM was not deployed in the previous step) (Supports ASM v1 for now. ASM v2 support is expected in the future)
-4. Configure the oauth2-proxy plugin as described below
+4. Deploy LWS (leader worker set) plugin, which is a dependency of Kubeflow Trainer v2.
+5. Configure the oauth2-proxy plugin as described below
 
 ### Configure oauth2-proxy Plugin
 
-obtain the platform dex CA certificate for later use:
+Obtain the platform dex CA certificate for later use:
 
 ```bash
 crt=$(kubectl get secret -n cpaas-system dex.tls -o jsonpath='{.data.tls\.crt}')
@@ -95,7 +98,7 @@ violet push --platform-address="https://192.168.171.123" \
 - chart-kubeflow-model-registry: Kubeflow Model Registry
 - kfp: Kubeflow Pipeline functionality
 - kftraining: Kubeflow Training Operator (deprecated)
-- volcano: volcano scheduler
+- kubeflow-trainer: Kubeflow Training job management plugin (replaces kftraining)
 
 ***Note: For the kftraining plugin, if you want to enable volcano scheduler support, you need to deploy volcano first then deploy kftraining.***
 
@@ -217,3 +220,17 @@ In **Catalog** or **Administrator** - **Marketplace** - **Chart Repositories**, 
 **Note: The Model Registry instance will restrict network requests from non-current namespaces. If you need to allow more namespaces to access, you need to manually modify `kubectl -n <your-namespace> edit authorizationpolicy model-registry-service` and according to the istio documentation, add the namespaces that are allowed to access.**
 
 **Note: You can install multiple Model Registry instances in different namespaces, each instance is independent of each other.**
+
+
+### 6. Deploy kubeflow-trainer (Kubeflow Trainer v2)
+
+> Note: You need to uninstall kftraining (Kubeflow Training Operator)
+before deploying kubeflow-trainer, if you have already deployed kftraining.
+
+> Note: make sure to install LWS (leader worker set) plugin before deploying
+kubeflow-trainer, as LWS is a dependency of kubeflow-trainer.
+
+In **Cluster Plugins**, find kubeflow-trainer (Kubeflow Trainer v2), 
+click the "Install" button, select the options of whether to enable `JobSet`
+and click the "Install" button to complete the deployment.
+
