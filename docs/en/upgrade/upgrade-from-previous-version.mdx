@@ -2,10 +2,10 @@
 weight: 10
 ---
 
-export const prevVersion = "1.4";
-export const curVer = "1.5";
+export const prevVersion = '1.4'
+export const curVer = '1.5'
 
-# Upgrade Alauda AI 
+# Upgrade Alauda AI
 
 :::info
 Upgrade from {prevVersion} to {curVer}
@@ -22,8 +22,6 @@ Please ignore `Creating Alauda AI Cluster Instance` since we are upgrading **Ala
 1. [Downloading](../installation/ai-cluster.mdx#downloading) operator bundle packages for `Alauda AI Cluster` and `KServeless`.
 2. [Uploading](../installation/ai-cluster.mdx#uploading) operator bundle packages to the destination cluster.
 3. To upgrade, follow the process described below.
-
-
 
 ## Upgrading
 
@@ -45,16 +43,100 @@ After the upgrade is complete, please confirm that the status of **Alauda AI Ess
 
 The procedure for upgrading both operators is nearly identical, with only the target component being different.
 
-| Step | Alauda AI Operator | Alauda AI Model Serving Operator |
-| :--- | :--- | :--- |
+| Step            | Alauda AI Operator                                                                                | Alauda AI Model Serving Operator                                                                  |
+|:----------------|:--------------------------------------------------------------------------------------------------|:--------------------------------------------------------------------------------------------------|
 | **1. Navigate** | Log into the Web Console, then go to **Marketplace > OperatorHub** in the **Administrator** view. | Log into the Web Console, then go to **Marketplace > OperatorHub** in the **Administrator** view. |
-| **2. Select** | Select your target **cluster**. | Select your target **cluster**. |
-| **3. Click** | Click the **Alauda AI** card. | Click the **Alauda AI Model Serving** card. |
-| **4. Confirm** | Click **Confirm** on the upgrade prompt. | Click **Confirm** on the upgrade prompt. |
+| **2. Select**   | Select your target **cluster**.                                                                   | Select your target **cluster**.                                                                   |
+| **3. Click**    | Click the **Alauda AI** card.                                                                     | Click the **Alauda AI Model Serving** card.                                                       |
+| **4. Confirm**  | Click **Confirm** on the upgrade prompt.                                                          | Click **Confirm** on the upgrade prompt.                                                          |
 
 :::info
-    Once the new version is uploaded and recognized by the platform, an upgrade prompt will appear at the top of the operator's page.
+Once the new version is uploaded and recognized by the platform, an upgrade prompt will appear at the top of the operator's page.
 :::
+
+### Upgrading Cluster Plugins
+
+:::info
+This step is **only required if you have deployed** any of the following cluster plugins: **Alauda AI Workbench**, **Alauda AI MLflow**, or **Alauda AI Volcano**. If you have not deployed any of these plugins, you can skip this step.
+
+For more information about cluster plugins, refer to <ExternalSiteLink name="acp" href="extend/index.html" children="Alauda Container Platform - Extend" />.
+:::
+
+The procedure to upgrade cluster plugins involves uploading new version packages and then upgrading them from the Web Console. The following plugins require upgrading:
+
+- Alauda AI Workbench
+- Alauda AI MLflow
+- Alauda AI Volcano
+
+#### Uploading Cluster Plugins
+
+Upload the new cluster plugin packages to the global cluster. For detailed instructions on how to upload cluster plugins, refer to <ExternalSiteLink name="acp" href="extend/upload_package.html#upload-a-cluster-plugin" children="Uploading Cluster Plugins" />.
+
+Repeat the upload process for each plugin that you have deployed.
+
+:::info
+After the upload is completed, wait approximately 10–15 minutes for the platform to synchronize the new version information.
+:::
+
+#### Verifying the New Version
+
+Navigate to **Administrator > Marketplace > Upload Packages** and switch to the **Cluster Plugin** tab. Locate each uploaded plugin to verify that the new version is displayed.
+
+#### Upgrading from Web Console
+
+1. Navigate to **Administrator > Clusters > Clusters**.
+2. Click on the cluster where the plugins are deployed.
+3. Switch to the **Functional Components** tab in the cluster details page.
+4. Locate the cluster plugins that have available upgrades—an upgrade icon will be displayed next to them.
+5. Click the **Upgrade** button for the plugin you want to upgrade.
+6. Review the upgrade information in the popup window, confirm the plugin version to be upgraded, and click the **Upgrade** button to start the upgrade process.
+
+Repeat this process for each plugin that you have deployed.
+
+:::info
+Once the new version is uploaded and recognized by the platform, the **Upgrade** button will become available for each plugin on the **Features** tab of the cluster details page.
+:::
+
+### Enabling Fine-Tuning and Training Features
+
+:::info
+This step is **required if you want to use** the fine-tuning and training features in the upgraded version. If you do not need these features, you can skip this step.
+
+For detailed information about fine-tuning and training features, refer to <ExternalSiteLink name="acp" href="installation/fine-tuning.html" children="Enable Fine-Tuning and Training Features" />.
+:::
+
+To enable the fine-tuning and training features, you need to configure the `AmlCluster` resource by setting the `pretrain` and `tuneModels` flags to `true`.
+
+1. Navigate to **Administrator > Clusters > Resources**.
+2. Enter `amlcluster` in the search box on the left side.
+3. Click the **Correlated with Cluster** panel to find the `AmlCluster` resource named `default`.
+4. Edit the resource and set `pretrain` and `tuneModels` to `true` under `spec.values.experimentalFeatures`.
+
+   ```yaml
+   apiVersion: amlclusters.aml.dev/v1alpha2
+   kind: AmlCluster
+   metadata:
+     name: default
+   spec:
+     values:
+       experimentalFeatures:
+         pretrain: true #[!code callout]
+         tuneModels: true #[!code callout]
+   ```
+
+<Callouts>
+  1. When set to `true`, the **Training** item appears in the left navigation
+  menu. 2. When set to `true`, the **Fine-Tuning** item appears in the left
+  navigation menu.
+</Callouts>
+
+:::note
+After enabling these features, ensure that the required cluster plugins are installed:
+
+- **Volcano** cluster plugin for training job scheduling
+- **MLflow** cluster plugin for training experiment monitoring (requires PostgreSQL)
+  :::
+
 ## Verification
 
 <Steps>
@@ -71,7 +153,9 @@ Should returns `Ready`:
 NAME      READY   REASON
 default   True    Succeeded
 ```
+
 ### Alauda AI Model Serving
+
 Check the status field from the `KnativeServing` resource which named `default-knative-serving`:
 
 ```bash
@@ -84,4 +168,13 @@ Should returns `InstallSuccessful`:
 NAME                      DEPLOYED   REASON
 default-knative-serving   True       UpgradeSuccessful
 ```
+
+### Alauda AI Cluster Plugins
+
+In the **Administrator** view, navigate to **Marketplace > Cluster Plugins** and confirm that the following cluster plugins show `Installed` status with the new version:
+
+- Alauda AI Workbench (if deployed)
+- Alauda AI MLflow (if deployed)
+- Alauda AI Volcano (if deployed)
+
 </Steps>
