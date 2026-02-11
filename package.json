@@ -1,20 +1,18 @@
 {
   "name": "aml-docs",
   "type": "module",
-  "dependencies": {
-    "@alauda/doom": "^1.13.0"
-  },
-  "scripts": {
-    "dev": "doom dev",
-    "build": "doom build",
-    "lint": "doom lint",
-    "serve": "doom serve",
-    "translate": "doom translate",
-    "export": "doom export",
-    "prepare": "simple-git-hooks"
-  },
   "packageManager": "yarn@4.9.4",
+  "scripts": {
+    "build": "doom build",
+    "dev": "doom dev",
+    "export": "doom export",
+    "lint": "doom lint",
+    "prepare": "simple-git-hooks",
+    "serve": "doom serve",
+    "translate": "doom translate"
+  },
   "devDependencies": {
+    "@alauda/doom": "^1.18.3",
     "prettier": "^3.6.2",
     "prettier-plugin-pkg": "^0.21.2",
     "simple-git-hooks": "^2.13.1"
