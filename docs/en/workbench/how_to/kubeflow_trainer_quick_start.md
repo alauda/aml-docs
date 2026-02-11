@@ -109,7 +109,7 @@ spec:
 
 > **Note: You need internet access to run below example notebook, since you need to install python packages, download datasets in this notebook.**
 
-Download [kubeflow_trainer_mnist.ipynb](/workbench/how_to/kubeflow_trainer_mnist.ipynb) and drag drop the file into your notebook instance. Follow the guide in this notebook to start a `TrainJob` using pytorch.
+Download `kubeflow_trainer_mnist.ipynb` from [github workbench howtos](https://github.com/alauda/aml-docs/tree/master/docs/en/workbench/how_to) and drag drop the file into your notebook instance. Follow the guide in this notebook to start a `TrainJob` using pytorch.
 
 For more informatoin about how to use **Kubeflow Trainer v2**, please refer to [Kubeflow Document](https://www.kubeflow.org/docs/components/trainer/)
 
