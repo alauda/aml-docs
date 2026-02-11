@@ -40,23 +40,7 @@ spec:
         - path: spec.values.pilot.jwksResolverExtraRootCA
           value: |
             -----BEGIN CERTIFICATE-----
-            MIIDKzCCAhOgAwIBAgIRAK9C9PuDXtYFvybudWQkN4UwDQYJKoZIhvcNAQELBQAw
-            EDEOMAwGA1UEChMFY3BhYXMwHhcNMjUwMzEwMDkxODAzWhcNMzUwMzA4MDkxODAz
-            WjASMRAwDgYDVQQKEwdrdWJlLWNhMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB
-            CgKCAQEAmChGjtwWOPvj0Ca3TkuPxxx6jg4oDTAPqyowT2pcaVeNhFwoMmCCkFXm
-            7brFKXCc7IE1kHq5dbRCn+UwCA46g7zvz8b7SY/0qRymwTlYqRILDZacwWHUSJSD
-            cDyK297V+Ig5oIno6fTa2FWSJBqyxqivZ3lzf1XpsiwSPPXol+LclUne0fDiM98C
-            dBQWKDYadwlcluuPUHULthA3OjcKGpmyV7cyTHPcRjBSmkAmuL0bQhbWhkB8G9oe
-            4cp2joo/qVsSzeUepkHeTD9PPk1AZ59FE8DDgL0FRREE7vou6g7fbOZL98pC4ldg
-            ZIY/EB5v38uR6J25uzLPFSf75vbwHwIDAQABo34wfDAOBgNVHQ8BAf8EBAMCBaAw
-            DAYDVR0TAQH/BAIwADAfBgNVHSMEGDAWgBQk8E8JWyAANbALLaeAxZ17adgq/TA7
-            BgNVHREENDAyggVjcGFhc4ILZXhhbXBsZS5jb22HBH8AAAGHEAAAAAAAAAAAAAAA
-            AAAAAAGHBMCoq/MwDQYJKoZIhvcNAQELBQADggEBAIXo0V2jMeRd4cw5p3FWoFno
-            VWno7Cy7ENvVjgfQymcWbGi6fXWvkDBUPCmqv5bosUVyAOJ/p92g861nCAo3jxoZ
-            voCTDN4xU+t0xs2hMTKHsSB7v3n18rBtqcVpUvm1it/NyeOU4HiYfPTPkRVugGf4
-            gtYknrU6Skt9BkiNy+2Jcsb6V3mAJ5GQzbT0qPL1vKWkBB9oCbjMwJggsW+TdKgY
-            KJuII0m6JNDUlKLCazLL8OvXq84Nu+cJ6QaNOT0gBRIWSPA+UbAsibbFnf0VOeeU
-            WforZLredR6GKc2qMdKdcW4G+8fRSWcx0gEIRquoQH1P7yIEJ3xOGoxQfIRVpls=
+            <YOUR_DEX_CA_CERTIFICATE_BASE64_HERE>
             -----END CERTIFICATE-----
         - path: spec.meshConfig.extensionProviders
           value:
@@ -188,7 +172,7 @@ spec:
 
               ## required for Kubeflow pipelines
               ## TEMPLATE: "cluster.local/ns/<KUBEFLOW_NAMESPACE>/sa/<KFP_UI_SERVICE_ACCOUNT>"
-              - "cluster.local/ns/kubeflow-new/sa/ml-pipeline-ui"
+              - "cluster.local/ns/kubeflow/sa/ml-pipeline-ui"
       when:
         - key: request.headers[kubeflow-userid]
           values:
