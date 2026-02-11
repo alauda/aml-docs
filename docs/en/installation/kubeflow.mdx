@@ -1,0 +1,220 @@
+# Kubeflow Chart Plugins
+
+Deploy Kubeflow plugins in Alauda AI >= 2.0. Including:
+
+- kfbase: Kubeflow Base components, including authentication and authorization, central dashboard, notebook, pvc-viewer, tensorboards, volumes, model registry ui, kserve endpoints ui, model catalog API service, etc.
+- chart-kubeflow-model-registry: Kubeflow Model Registry instance (Helm Chart)
+- kfp: Kubeflow Pipeline
+- kftraining: Kubeflow Training Operator (deprecated)
+- kubeflow-trainer: Kubeflow Training job management plugin, aka. Kubeflow Trainer v2 (replaces kftraining)
+
+
+## Environment Preparation
+
+1. A running ACP environment
+2. Ensure Alauda AI has been deployed (requires Alauda AI version >= 2.0)
+3. Deploy ASM in the business cluster where Kubeflow is to be deployed (if ASM was not deployed in the previous step) (Supports ASM v1 for now. ASM v2 support is expected in the future)
+4. Deploy LWS (Alauda Build of LeaderWorkerSet) plugin, which is a dependency of Kubeflow Trainer v2.
+5. Configure the oauth2-proxy plugin as described below
+
+### Configure oauth2-proxy Plugin
+
+Obtain the platform dex CA certificate for later use:
+
+```bash
+crt=$(kubectl get secret -n cpaas-system dex.tls -o jsonpath='{.data.tls\.crt}')
+echo -n $crt | base64 -d
+```
+
+Then go to the global cluster or in acp **Platform Management** -> **Resource Management** update the ServiceMesh resource, add the following content under the spec field:
+
+***Note: If `spec.values.pilot.jwksResolverExtraRootCA` has already been configured, you can only configure `spec.meshConfig.extensionProviders`, and only add new ones, do not delete the original `spec.meshConfig.extensionProviders`***
+
+```yaml
+spec:
+  overlays:
+    - kind: IstioOperator
+      patches:
+        - path: spec.values.pilot.env.PILOT_JWT_PUB_KEY_REFRESH_INTERVAL
+          value: 1m
+        - path: spec.values.pilot.jwksResolverExtraRootCA
+          value: |
+            -----BEGIN CERTIFICATE-----
+            <YOUR_DEX_CA_CERTIFICATE_BASE64_HERE>
+            -----END CERTIFICATE-----
+        - path: spec.meshConfig.extensionProviders
+          value:
+            envoyExtAuthzHttp:
+              headersToDownstreamOnDeny:
+                - content-type
+                - set-cookie
+              headersToUpstreamOnAllow:
+                - authorization
+                - path
+                - x-auth-request-user
+                - x-auth-request-email
+                - x-auth-request-access-token
+              includeAdditionalHeadersInCheck:
+                X-Auth-Request-Redirect: http://%REQ(Host)%%REQ(:PATH)%
+              includeRequestHeadersInCheck:
+                - authorization
+                - cookie
+                - accept
+              port: "80"
+              service: oauth2-proxy.kubeflow-oauth2-proxy.svc.cluster.local
+            name: oauth2-proxy-kubeflow
+```
+
+
+## Component Onboarding
+
+Obtain the installation packages for the following plugins and use the `violet` tool to complete onboarding.
+
+```bash
+# Note: replace your platform addr, username, password and cluster name.
+violet push --platform-address="https://192.168.171.123" \
+  --platform-username="admin@cpaas.io" \
+  --platform-password="<platform_password>" \
+  <your downloaded plugin package file>
+```
+
+- kfbase: Kubeflow Base functionality
+- chart-kubeflow-model-registry: Kubeflow Model Registry
+- kfp: Kubeflow Pipeline functionality
+- kftraining: Kubeflow Training Operator (deprecated)
+- kubeflow-trainer: Kubeflow Training job management plugin (replaces kftraining)
+
+***Note: For the kftraining plugin, if you want to enable volcano scheduler support, you need to deploy volcano first then deploy kftraining.***
+
+## Deployment Steps
+
+### 1. Deploy kfbase (Kubeflow Base)
+
+In *Cluster Plugins*, find the kfbase (Kubeflow Base) plugin, fill in the configuration according to the page prompts, and wait for the component deployment to complete. 
+
+After deployment, you need to perform the following operations to configure dex redirection:
+
+In **Administrator** - **Clusters** - **Resources**, select `Global` cluster,
+find the `ConfigMap` resource in the `cpaas-system` namespace, and click the
+edit button to add the following configuration under `redirectURIs`:
+
+> **Note:  note: the redirect host and port must be the same with `oidcRedirectURL` configured when installing the "Kubeflow Base" plugin.**
+
+```yaml
+      redirectURIs:
+      - ...
+      # Add the following line,
+      - https://192.168.139.133:30665/*
+```
+
+After deployment, you can find the Kubeflow menu item under the *Advanced* navigation in AML. Click to enter the Kubeflow interface.
+
+
+### 2. Create Kubeflow User and Bind to Namespace
+
+Before the first login to Kubeflow, you need to bind the ACP user to the namespace. Users can see the following example, create namespace `kubeflow-admin-cpaas-io` and bind user `admin@cpaas.io` as its owner.
+
+**Note: If this `Profile` resource was already deployed during AML deployment, you can skip this step**
+
+**Note: You may need to lower the `Pod Security Admission` level of the user namespace to create Notebook instances, etc.**
+
+```
+apiVersion: kubeflow.org/v1beta1
+kind: Profile
+metadata:
+  name: kubeflow-admin-cpaas-io
+spec:
+  owner:
+    kind: User
+    name: "admin@cpaas.io"
+```
+
+### 3. If binding user to an already created namespace, you also need to complete the following configuration:
+
+If in the previous step, AML has been deployed, and the `kubeflow-admin-cpaas-io` namespace has been created, the `Profile` resource has also been created, but still cannot select the namespace, you can refer to the following resource to create the account's role binding.
+
+```
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: user-admin-cpaas-io-clusterrole-admin
+  namespace: kubeflow-admin-cpaas-io
+  annotations:
+    role: admin
+    user: "admin@cpaas.io"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubeflow-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: "admin@cpaas.io"
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: user-admin-cpaas-io-clusterrole-admin
+  namespace: kubeflow-admin-cpaas-io
+  annotations:
+    role: admin
+    user: "admin@cpaas.io"
+spec:
+  rules:
+    - from:
+        - source:
+            ## for more information see the KFAM code:
+            ## https://github.com/kubeflow/kubeflow/blob/v1.8.0/components/access-management/kfam/bindings.go#L79-L110
+            principals:
+              ## required for Kubeflow notebooks
+              ## TEMPLATE: "cluster.local/ns/<ISTIO_GATEWAY_NAMESPACE>/sa/<ISTIO_GATEWAY_SERVICE_ACCOUNT>"
+              - "cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"
+
+              ## required for Kubeflow pipelines
+              ## TEMPLATE: "cluster.local/ns/<KUBEFLOW_NAMESPACE>/sa/<KFP_UI_SERVICE_ACCOUNT>"
+              - "cluster.local/ns/kubeflow/sa/ml-pipeline-ui"
+      when:
+        - key: request.headers[kubeflow-userid]
+          values:
+            - "admin@cpaas.io"
+```
+
+### 4. Deploy kfp (Kubeflow Pipeline) and kftrainer (Kubeflow Training Operator)
+
+As above, in **Cluster Plugins**, find kfp (Kubeflow Pipeline) and kftrainer (Kubeflow Training Operator).
+
+**Note: After Kubeflow Pipeline deployment, Pipeline related functions can be used in the Kubeflow interface.**
+**Note: Kubeflow Training Operator is a background task scheduler and will not appear in the UI menu and functions.**
+
+### 5. Deploy chart-kubeflow-model-registry (Kubeflow Model Registry)
+
+In **Catalog** or **Administrator** - **Marketplace** - **Chart Repositories**, find chart-kubeflow-model-registry, click the "Create" button, fill in the deployment name, project, namespace (example deployment location), Chart Version, then copy the `values.yaml` configuration information from the right to the left, modify the following content according to the cluster information:
+
+> **Note: Must install in a namespace that has already been bound to a Kubeflow user Profile, otherwise the Model Registry UI will not be displayed**
+
+- global.registry.address: The image registry address used by the current platform
+- mysqlStorageClass: The mysql storage class used by Model Registry. Needs to be a storage class supported by the target deployment cluster.
+- mysqlStorageSize: The mysql storage size used by Model Registry.
+- mysqlDataBase: Database name (will be created automatically).
+- modelRegistryDisplayName: The name of the Model Registry instance to be deployed
+- modelRegistryDescription: Brief description of the Model Registry instance to be deployed
+
+**Note: After the Model Registry instance starts, refresh the Model Registry menu in the left navigation of the Kubeflow page to see the instance deployed in the above steps. Before deploying the first instance, the Kubeflow Model Registry interface will display empty.**
+
+**Note: The Model Registry instance will restrict network requests from non-current namespaces. If you need to allow more namespaces to access, you need to manually modify `kubectl -n <your-namespace> edit authorizationpolicy model-registry-service` and according to the istio documentation, add the namespaces that are allowed to access.**
+
+**Note: You can install multiple Model Registry instances in different namespaces, each instance is independent of each other.**
+
+
+### 6. Deploy kubeflow-trainer (Kubeflow Trainer v2)
+
+> Note: You need to uninstall kftraining (Kubeflow Training Operator)
+before deploying kubeflow-trainer, if you have already deployed kftraining.
+
+> Note: make sure to install LWS (leader worker set) plugin before deploying
+kubeflow-trainer, as LWS is a dependency of kubeflow-trainer.
+
+In **Cluster Plugins**, find kubeflow-trainer (Kubeflow Trainer v2), 
+click the "Install" button, select the options of whether to enable `JobSet`
+and click the "Install" button to complete the deployment.
+
