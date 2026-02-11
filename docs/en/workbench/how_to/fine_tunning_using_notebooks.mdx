@@ -39,7 +39,7 @@ then create a new Notebook or use an existing one. Note that it is recommended t
 Notebook only use CPU resources. Submitting a cluster task from within the
 Notebook will request GPU resources within the cluster to improve resource utilization.
 
-see [Creating a Workbench](./creatings.mdx) for detailed steps to create a
+see [Creating a Workbench](./create_workbench.mdx) for detailed steps to create a
 Notebook/VSCode instance.
 
 ### Prepare the Model
@@ -77,7 +77,7 @@ You can use the following code to check whether the dataset directory format can
 import datasets
 
 ds_infos = datasets.get_dataset_infos(<dataset directory>)
-ds = datasets.load_dataset(<dataset directory>）
+ds = datasets.load_dataset(<dataset directory>)
 print(ds_infos)
 print(ds)
 ```
@@ -453,30 +453,30 @@ When using **NFS** as workspace or model cache PVC, you should make sure below o
 - All K8s nodes that can use the **NFS** PVC must install `nfs-utils`, e.g. `yum install -y nfs-utils`.
 - Add `mountPermissions: "0757"` settings when creating the **NFS** storage class, like: 
 
-```yaml
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: ai-nfs
-  labels:
-    project.cpaas.io/name: null
-    project.cpaas.io/ALL_ALL: "true"
-  annotations:
-    cpaas.io/display-name: ""
-    cpaas.io/access-mode: ReadWriteOnce,ReadWriteMany
-    cpaas.io/features: ""
-provisioner: nfs.csi.k8s.io
-parameters:
-  mountPermissions: "0757"
-  server: 192.168.17.28
-  share: /nfs_data/int/ai
-reclaimPolicy: Delete
-volumeBindingMode: Immediate
-mountOptions:
-  - hard
-  - nfsvers=4.1
-driverName: ""
-```
+  ```yaml
+  apiVersion: storage.k8s.io/v1
+  kind: StorageClass
+  metadata:
+    name: ai-nfs
+    labels:
+      project.cpaas.io/name: null
+      project.cpaas.io/ALL_ALL: "true"
+    annotations:
+      cpaas.io/display-name: ""
+      cpaas.io/access-mode: ReadWriteOnce,ReadWriteMany
+      cpaas.io/features: ""
+  provisioner: nfs.csi.k8s.io
+  parameters:
+    mountPermissions: "0757"
+    server: 192.168.17.28
+    share: /nfs_data/int/ai
+  reclaimPolicy: Delete
+  volumeBindingMode: Immediate
+  mountOptions:
+    - hard
+    - nfsvers=4.1
+  driverName: ""
+  ```
 
 Once you have completed above settings, open a terminal in Notebook and execute: `kubectl create -f vcjob_sft.yaml` to submit the `VolcanoJob` to the cluster.
 
