@@ -374,20 +374,20 @@ spec:
                     llamafactory-cli train lf-sft.yaml
                 fi
 
-                if [ ${DO_MERGE} == "true" ]; then
+                if [ "${DO_MERGE}" == "true" ]; then
                   # Merge LoRA adapters
                   cat >lf-merge-config.yaml <<EOL
-                  model_name_or_path: /mnt/models/${BASE_MODEL_NAME}
-                  adapter_name_or_path: output_models
-                  template: qwen
-                  finetuning_type: lora
-     
-                  ### export
-                  export_dir: output_models_merged
-                  export_size: 4
-                  export_device: cpu
-                  export_legacy_format: false
-                  EOL
+                model_name_or_path: /mnt/models/${BASE_MODEL_NAME}
+                adapter_name_or_path: output_models
+                template: qwen
+                finetuning_type: lora
+    
+                ### export
+                export_dir: output_models_merged
+                export_size: 4
+                export_device: cpu
+                export_legacy_format: false
+                EOL
                      
                   llamafactory-cli export lf-merge-config.yaml
                 else
