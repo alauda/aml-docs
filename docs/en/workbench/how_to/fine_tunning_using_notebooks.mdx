@@ -89,7 +89,7 @@ If you use the LLaMA-Factory tool in the examples to complete training, the data
 
 ### Prepare Runtime Image
 
-Use the following `Containerfile` to build the training runtime image, or use the pre-built image: `alaudadockerhub/fine_tune_with_llamafactory:v0.1.0`. If you wish to use a different training framework, such as YOLOv5, you may need to customize the image and install the required dependencies within it.
+Use the following `Containerfile` to build the training runtime image, or use the pre-built image: `alaudadockerhub/fine_tune_with_llamafactory:v0.1.1`. If you wish to use a different training framework, such as YOLOv5, you may need to customize the image and install the required dependencies within it.
 
 After building the image, you need to upload it to the image registry of the Alauda AI platform cluster and configure it in the following tasks.
 
@@ -116,7 +116,7 @@ cd LLaMA-Factory && git checkout ${LLAMA_FACTORY_VERSION} && \
 pip install --no-cache-dir -e ".[torch,metrics,deepspeed,awq,modelscope]" -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple \
-"transformers>=4.51.1" \
+"transformers>=4.51.1,<5" \
 "tokenizers>=0.21.1" \
 "sqlalchemy~=2.0.30" \
 "pymysql~=1.1.1" \
@@ -185,7 +185,7 @@ spec:
                 claimName: wy-model-cache
           initContainers:
             - name: prepare
-              image: alaudadockerhub/fine_tune_with_llamafactory:v0.1.0
+              image: alaudadockerhub/fine_tune_with_llamafactory:v0.1.1
               imagePullPolicy: IfNotPresent
               env:
               # Change BASE_MODEL_URL to the base model address, DATASET_URL to the dataset address
@@ -258,7 +258,7 @@ spec:
           containers:
             # Runtime environment image. You can refer to src/llm/Containerfile to build a similar image. This typically includes runtimes such as cuda, transformers, pytorch, datasets, evaluate, and git lfs.
             - name: train
-              image: alaudadockerhub/fine_tune_with_llamafactory:v0.1.0
+              image: alaudadockerhub/fine_tune_with_llamafactory:v0.1.1
               imagePullPolicy: IfNotPresent
               volumeMounts:
                 - mountPath: /dev/shm
