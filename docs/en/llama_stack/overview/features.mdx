@@ -1,0 +1,29 @@
+---
+weight: 20
+---
+
+# Main Features
+
+## Server-Based Architecture
+
+- **Centralized Server**: Llama Stack Server hosts inference, agents, safety, tool runtime, vector I/O, and files
+- **Remote or Inline Providers**: Support for remote APIs (e.g., OpenAI-compatible) and inline providers (e.g., meta-reference, sqlite-vec, localfs)
+- **Kubernetes Deployment**: Deploy via Llama Stack Operator using `LlamaStackDistribution` custom resources
+
+## AI Agents with Tools
+
+- **Agent Creation**: Create agents with model, instructions, and a list of tools
+- **Client-Side Tools**: Define tools with the `@client_tool` decorator; the client executes tool calls and returns results to the server
+- **Session Management**: Create sessions and run multi-turn conversations with streaming responses
+- **Streaming**: Support for streaming agent responses for real-time display
+
+## Configuration and Extensibility
+
+- **Stack Configuration**: YAML-based configuration for APIs, providers, persistence (e.g., kv_default, sql_default), and models
+- **Environment Fallbacks**: Use `${env.VAR:~default}` in config for flexible deployment
+- **Multiple Distributions**: Starter, postgres-demo, meta-reference-gpu and other distribution options
+
+## Integration
+
+- **Python Client**: `llama-stack-client` for Python 3.12+ with full agent and model APIs
+- **REST-Friendly**: Server exposes APIs for inference, agents, and tool runtime; can be wrapped in FastAPI or other web frameworks for production use
