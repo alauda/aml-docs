@@ -2,8 +2,8 @@
 weight: 10
 ---
 
-export const prevVersion = '1.4'
-export const curVer = '1.5'
+export const prevVersion = '1.5'
+export const curVer = '2.0'
 
 # Upgrade Alauda AI
 
@@ -22,6 +22,41 @@ Please ignore `Creating Alauda AI Cluster Instance` since we are upgrading **Ala
 1. [Downloading](../installation/ai-cluster.mdx#downloading) operator bundle packages for `Alauda AI Cluster` and `KServeless`.
 2. [Uploading](../installation/ai-cluster.mdx#uploading) operator bundle packages to the destination cluster.
 3. To upgrade, follow the process described below.
+
+## Pre-Upgrade Operations
+
+### Annotating Stopped Inference Services
+
+Starting from version {curVer}, the platform adopts the community-native stop capability provided by KServe. To ensure a smooth upgrade, all inference services that are currently in a **stopped** state must be explicitly annotated before upgrading.
+
+:::warning
+This step is **required** before upgrading. Failure to annotate stopped inference services may result in unexpected behavior after the upgrade.
+:::
+
+1. List all inference services that are currently stopped:
+
+   ```bash
+   kubectl get inferenceservices --all-namespaces
+   ```
+
+2. For each stopped inference service, add the following annotation:
+
+   ```bash
+   kubectl annotate inferenceservice <name> -n <namespace> serving.kserve.io/stop='true'
+   ```
+
+   Alternatively, you can edit the resource directly and add the annotation under `metadata.annotations`:
+
+   ```yaml
+   apiVersion: serving.kserve.io/v1beta1
+   kind: InferenceService
+   metadata:
+     name: <name>
+     annotations:
+       serving.kserve.io/stop: 'true' #[!code highlight]
+   ```
+
+3. Repeat this step for all stopped inference services across all namespaces.
 
 ## Upgrading
 
@@ -136,6 +171,48 @@ After enabling these features, ensure that the required cluster plugins are inst
 - **Volcano** cluster plugin for training job scheduling
 - **MLflow** cluster plugin for training experiment monitoring (requires PostgreSQL)
   :::
+
+## Post-Upgrade Operations
+
+### Updating Existing Inference Services
+
+Due to breaking changes in KServe's product mode definition and the `InferenceService` resource introduced in version {curVer}, all inference services that existed **before the upgrade** must be manually updated.
+
+:::warning
+This step is **required** for all pre-existing inference services. Failure to perform this update may cause inference services to behave unexpectedly.
+:::
+
+For each existing inference service, perform the following steps:
+
+1. Navigate to the inference service details page.
+2. Click **Update Inference Service**.
+3. In the update page, click the **YAML** toggle button in the upper-right corner to switch to the YAML view.
+4. Locate the `spec.predictor.model.name` field.
+5. Delete the `name` field and its value entirely.
+
+   For example, if the YAML contains:
+
+   ```yaml
+   spec:
+     predictor:
+       model:
+         name: kserve-container  #[!code --]
+         modelFormat:
+           name: sklearn
+   ```
+
+   After deletion, it should look like:
+
+   ```yaml
+   spec:
+     predictor:
+       model:
+         modelFormat:
+           name: sklearn
+   ```
+
+6. Click **Save** to apply the changes.
+7. Repeat this process for all inference services that existed before the upgrade.
 
 ## Verification
 
