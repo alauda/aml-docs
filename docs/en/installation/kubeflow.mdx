@@ -19,7 +19,7 @@ Deploy Kubeflow plugins in Alauda AI >= 2.0. Including:
 
 ### Configure oauth2-proxy Plugin
 
-Obtain the platform dex CA certificate for later use:
+Obtain the platform dex CA certificate for later use in **Global** cluster:
 
 ```bash
 crt=$(kubectl get secret -n cpaas-system dex.tls -o jsonpath='{.data.tls\.crt}')
