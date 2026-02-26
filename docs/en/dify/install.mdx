@@ -98,6 +98,9 @@ database:
   host: <postgres-host-without-port>
   secret:
     name: <dify-db-secret>
+  # Optional: enable when PostgreSQL uses SSL
+  # ssl:
+  #   enabled: true
 
 # Required: Redis 6.0+ (standalone only)
 redis:
@@ -111,9 +114,28 @@ vectorStore:
     host: <pgvector-host-without-port>
     secret:
       name: <dify-pgvector-secret>
+
+# If your cluster has no default StorageClass, configure storage.*.pvc.storageClass
+# storage:
+#   api:
+#     pvc:
+#       storageClass: <storage-class>
+#   plugin:
+#     pvc:
+#       storageClass: <storage-class>
 ```
 
 ## Optional Configuration
+
+### Database (SSL)
+
+When PostgreSQL requires SSL connection, enable it:
+
+```yaml
+database:
+  ssl:
+    enabled: true
+```
 
 ### Vector store (disable)
 
@@ -141,7 +163,9 @@ ingress:
 
 ### Storage (S3 and PVC)
 
-**PVC (default):** API and plugin daemon each use a PVC when enabled. Override storage class and size as needed:
+**PVC (default):** API and plugin daemon each use a PVC when enabled. Override storage class and size as needed.
+
+If your cluster has no default StorageClass, `storageClass` is required for each PVC:
 
 ```yaml
 storage:
