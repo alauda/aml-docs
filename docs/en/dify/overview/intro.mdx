@@ -1,0 +1,30 @@
+---
+weight: 15
+---
+# Introduction
+
+## Dify
+
+Dify is an open-source LLM application development platform that provides an intuitive interface for AI workflows, RAG pipelines, agent capabilities, and model management. It enables developers and non-technical users to build, deploy, and manage AI applications through a web UI.
+
+Dify helps teams quickly build and iterate on LLM-powered applications: from simple chatbots (Assistant) and text generators to complex RAG pipelines and multi-step agent workflows. For deployment components and prerequisites (API, Worker, Web, PostgreSQL, Redis, vector store, etc.), see [Install Dify](../install).
+
+## Core Concepts
+
+- **Application** – The basic unit for organizing LLM capabilities. Types include Assistant (chat), Text Generator, Agent (reasoning and tools), and Workflow/Chatflow (visual pipelines). Each app can be published as a Web App or consumed via API.
+- **Workflow** – Visual, node-based pipelines (LLM, retrieval, code, logic nodes) for building multi-step AI logic with drag-and-drop.
+- **Knowledge Base (RAG)** – Datasets built from documents or URLs, with chunking, embedding, and retrieval to ground LLM responses in your data. (In the Helm chart, **pgvector** is the supported vector store.)
+- **Agent** – Applications that use tools and multi-step reasoning; deploy as Web App or API.
+
+For a concise list of main features, see [Main Features](features). For installation and configuration on the platform, see [Install Dify](../install).
+
+## Documentation
+
+Dify provides comprehensive official documentation to help users understand and use the platform:
+
+### Official Documentation
+- **Main Documentation**: [https://docs.dify.ai/](https://docs.dify.ai/)
+  - Core concepts, quick start, and deployment guides
+  - Workflow design, RAG, and agent development
+  - API reference, SDK usage, and best practices
+  - Plugin development and marketplace: [Installing the Plugin](https://docs.dify.ai/en/develop-plugin/publishing/marketplace-listing/release-by-file#installing-the-plugin)
