@@ -58,7 +58,13 @@ The notebook demonstrates:
    python3 -m ipykernel install --user --name python312 --display-name "Python 3.12"
    ```
 
-4. Switch kernel in the notebook page.
+4. Switch kernel in the notebook page:
+
+   - Open your Notebook environment (e.g., Jupyter Notebook or JupyterLab) in the browser, then open an existing notebook or create a new one.
+   - In the notebook interface, find the current kernel name (usually shown in the **top-right corner** of the page, e.g., "Python 3" or "python3").
+   - Click that kernel name, or use the menu **Kernel → Change Kernel**.
+   - In the kernel list, select **"Python 3.12"** (the display name registered in step 3).
+   - After switching, new cells will run with Python 3.12.
 
 **Note**: When executing python and pip commands directly in the notebook page, the default python will still be used. You need to specify the full path to use the python312 version commands.
 
