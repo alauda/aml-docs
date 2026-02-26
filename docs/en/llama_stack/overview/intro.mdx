@@ -1,0 +1,28 @@
+---
+weight: 10
+---
+# Introduction
+
+## Llama Stack
+
+*Llama Stack* is a framework for building and running AI agents with tools. It provides a server-based architecture that enables developers to create agents that can interact with users, access external tools, and perform complex reasoning tasks.
+
+Main components and concepts include:
+
+- **Llama Stack Server**: Central service that hosts models, agents, and tool runtime. It can be deployed on Kubernetes via the Llama Stack Operator (see [Install Llama Stack](/en/llama_stack/install)).
+- **Client SDK** (`llama-stack-client`): Python client for connecting to the server, creating agents, defining tools with the `@client_tool` decorator, and managing sessions.
+- **Agents**: Configurable AI agents that use LLM models and can call tools (e.g., weather API, custom APIs) to answer user queries.
+- **Tools**: Functions exposed to the agent (e.g., weather query). Defined with `@client_tool` and passed to the agent at creation time.
+- **Configuration**: YAML stack configuration defines providers (inference, agents, safety, vector_io, files), persistence backends, and model registration (e.g., DeepSeek via OpenAI-compatible API).
+
+Llama Stack supports multiple API providers, storage and persistence backends, and distribution options (e.g., starter, postgres-demo, meta-reference-gpu), making it suitable for quick experiments and production deployments.
+
+## Documentation
+
+Llama Stack provides official documentation and resources for in-depth usage:
+
+### Official Documentation
+- **Main Documentation**: [https://llamastack.github.io/docs](https://llamastack.github.io/docs)
+  - Usage, API providers, and core concepts
+- **Core Concepts**: [https://llamastack.github.io/docs/concepts](https://llamastack.github.io/docs/concepts)
+  - Architecture, API stability, and resource management

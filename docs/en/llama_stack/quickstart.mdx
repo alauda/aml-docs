@@ -1,0 +1,78 @@
+---
+weight: 30
+---
+
+# Quickstart
+
+This section provides a quickstart example for creating an AI Agent with Llama Stack.
+
+## Prerequisites
+
+- Python 3.12 or higher (if not satisfied, refer to [FAQ: How to prepare Python 3.12 in Notebook](#how-to-prepare-python-312-in-notebook))
+- Llama Stack Server installed and running via Operator (see [Install Llama Stack](./install))
+- Access to a Notebook environment (e.g., Jupyter Notebook, JupyterLab)
+- Python environment with `llama-stack-client` and required dependencies installed
+- API key for the LLM provider (e.g., DeepSeek API key)
+
+## Quickstart Example
+
+A simple example of creating an AI Agent with Llama Stack is available in the following resources:
+
+- **Notebook**:[Llama Stack Quick Start Demo](/llama-stack/llama-stack_quickstart.ipynb)
+
+Download the notebook and upload it to a Notebook environment to run.
+
+The notebook demonstrates:
+
+- Connecting to Llama Stack Server and client setup
+- Tool definition using the `@client_tool` decorator (weather query tool example)
+- Client connection to Llama Stack Server
+- Model selection and Agent creation with tools and instructions
+- Agent execution with session management and streaming responses
+- Result handling and display
+- Optional FastAPI deployment example
+
+## FAQ
+
+### How to prepare Python 3.12 in Notebook
+
+1. Download the pre-compiled Python installation package:
+
+   ```bash
+   wget -O /tmp/python312.tar.gz https://github.com/astral-sh/python-build-standalone/releases/download/20260114/cpython-3.12.12+20260114-x86_64-unknown-linux-gnu-install_only.tar.gz
+   ```
+
+2. Extract with:
+
+   ```bash
+   mkdir -p ~/python312
+   tar -xzf /tmp/python312.tar.gz -C ~/python312 --strip-components=1
+   ```
+
+3. Install and Register Kernel:
+
+   ```bash
+   export PATH="${HOME}/python312/bin:${PATH}"
+
+   python3 -m pip install ipykernel
+   python3 -m ipykernel install --user --name python312 --display-name "Python 3.12"
+   ```
+
+4. Switch kernel in the notebook page:
+
+   - Open your Notebook environment (e.g., Jupyter Notebook or JupyterLab) in the browser, then open an existing notebook or create a new one.
+   - In the notebook interface, find the current kernel name (usually shown in the **top-right corner** of the page, e.g., "Python 3" or "python3").
+   - Click that kernel name, or use the menu **Kernel → Change Kernel**.
+   - In the kernel list, select **"Python 3.12"** (the display name registered in step 3).
+   - After switching, new cells will run with Python 3.12.
+
+**Note**: When executing python and pip commands directly in the notebook page, the default python will still be used. You need to specify the full path to use the python312 version commands.
+
+## Additional Resources
+
+For more resources on developing AI Agents with Llama Stack, see:
+
+- [Llama Stack Documentation](https://llamastack.github.io/docs) - The official Llama Stack documentation covering all usage-related topics, API providers, and core concepts.
+- [Llama Stack Core Concepts](https://llamastack.github.io/docs/concepts) - Deep dive into Llama Stack architecture, API stability, and resource management.
+- [Llama Stack GitHub Repository](https://github.com/llamastack/llama-stack) - Source code, example applications, distribution configurations, and how to add new API providers.
+- [Llama Stack Example Apps](https://github.com/llamastack/llama-stack-apps/) - Official examples demonstrating how to use Llama Stack in various scenarios.

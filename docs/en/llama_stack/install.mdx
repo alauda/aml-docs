@@ -1,0 +1,76 @@
+---
+weight: 20
+---
+
+# Install Llama Stack
+
+This document describes how to install and deploy Llama Stack Server on Kubernetes using the Llama Stack Operator.
+
+## Upload Operator
+
+Download the Llama Stack Operator installation file (e.g., `llama-stack-operator.alpha.ALL.v0.7.0.tgz`).
+
+Use the violet command to publish to the platform repository:
+
+```bash
+violet push --platform-address=platform-access-address --platform-username=platform-admin --platform-password=platform-admin-password llama-stack-operator.alpha.ALL.v0.7.0.tgz
+```
+
+## Install Operator
+
+1. Go to the `Administrator` view in the Alauda Container Platform.
+
+2. In the left navigation, select `Marketplace` / `Operator Hub`.
+
+3. In the right panel, find `Alauda build of Llama Stack` and click `Install`.
+
+4. Keep all parameters as default and complete the installation.
+
+## Deploy Llama Stack Server
+
+After the operator is installed, deploy Llama Stack Server by creating a `LlamaStackDistribution` custom resource:
+
+> **Note:** Prepare the following in advance; otherwise the distribution may not become ready:
+> - **Secret**: Create a Secret (e.g., `deepseek-api`) in the same namespace with the LLM API token. Example: `kubectl create secret generic deepseek-api -n default --from-literal=token=<LLM_API_KEY>`.
+> - **Storage Class**: Ensure the `default` Storage Class exists in the cluster; otherwise the PVC cannot be bound and the resource will not become ready.
+
+```yaml
+apiVersion: llamastack.io/v1alpha1
+kind: LlamaStackDistribution
+metadata:
+  annotations:
+    cpaas.io/display-name: ""
+  name: demo
+  namespace: default
+spec:
+  network:
+    exposeRoute: false                             # Whether to expose the route externally
+  replicas: 1                                      # Number of server replicas
+  server:
+    containerSpec:
+      env:
+        - name: VLLM_URL
+          value: "https://api.deepseek.com/v1"     # URL of the LLM API provider
+        - name: VLLM_MAX_TOKENS
+          value: "8192"                            # Maximum output tokens
+        - name: VLLM_API_TOKEN                     # Load LLM API token from secret
+          valueFrom:
+            secretKeyRef:                          # Create this Secret in the same namespace beforehand, e.g. kubectl create secret generic deepseek-api -n default --from-literal=token=<LLM_API_KEY>
+              key: token
+              name: deepseek-api
+      name: llama-stack
+      port: 8321
+    distribution:
+      name: starter                                # Distribution name (options: starter, postgres-demo, meta-reference-gpu)
+    storage:
+      mountPath: /home/lls/.lls
+      size: 20Gi                                   # Requires the "default" Storage Class to be configured beforehand
+```
+
+After deployment, the Llama Stack Server will be available within the cluster. The access URL is displayed in `status.serviceURL`, for example:
+
+```yaml
+status:
+  phase: Ready
+  serviceURL: http://demo-service.default.svc.cluster.local:8321
+```
