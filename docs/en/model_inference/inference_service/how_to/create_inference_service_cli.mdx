@@ -18,151 +18,151 @@ This document describes how to create [kserve](https://kserve.github.io/website/
 
 ## Create an InferenceService
 
-1. Create a YAML file named `qwen-2-vllm.yaml` with the following content:
+Create a YAML file named `qwen-2-vllm.yaml` with the following content:
 
-  ```yaml
-  apiVersion: serving.kserve.io/v1beta1
-  kind: InferenceService
-  metadata:
-    annotations:
-      # 1. Optional: Model Repo reference annotations
-      aml-model-repo: Qwen2.5-0.5B-Instruct
-      aml-model-repo-branch: main
-      aml-model-repo-id: "5010"
-      aml-model-repo-tag-commit: 81e07c4246b054b3f3bd2b2c998fdd6da98b1d7f
-      aml-pipeline-tag: text-generation
-      cpaas.io/description: ""
-      serving.knative.dev/progress-deadline: 2400s
-      serving.kserve.io/deploymentMode: Standard
-    labels:
-      # 2. Required: Model Repo related labels
-      aml-model-group: kubeflow-admin-cpaas-io
-      aml-model-repo: Qwen2.5-0.5B-Instruct
-      aml-model-subgroup: amlmodels
-      aml-pipeline-tag: text-generation
-      aml.cpaas.io/runtime-type: vllm
-      service.subdomain: "qwen-2-mlops-demo-ai-test"
-      # 3. Required: service name and namespace
-    name: qwen-2
-    namespace: mlops-demo-ai-test
-  spec:
-    predictor:
-      # 4. Affinity settings for GPU
-      affinity:
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - preference:
-              matchExpressions:
-              - key: nvidia.com/cuda.runtime.major
-                operator: In
-                values:
-                - "12"
-              - key: nvidia.com/cuda.runtime.minor
-                operator: Gt
-                values:
-                - "5"
-            weight: 100
-      maxReplicas: 1
-      minReplicas: 1
-      model:
-        command:
-        - bash
-        - -c
-        - |
-          set -ex
-          # 1. check num GPUs
-          GPU_COUNT=$(python3 -c "import torch; print(torch.cuda.device_count())")
-          echo "Starting serving model name: ${MODEL_NAME}, num gpus: ${GPU_COUNT}"
-          if [ ${GPU_COUNT} -lt 1 ]; then
-              echo "No GPUs found. Please check if the container have aquired any GPU device"
-              exit 1
-          fi
+```yaml
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  annotations:
+    # 1. Optional: Model Repo reference annotations
+    aml-model-repo: Qwen2.5-0.5B-Instruct
+    aml-model-repo-branch: main
+    aml-model-repo-id: "5010"
+    aml-model-repo-tag-commit: 81e07c4246b054b3f3bd2b2c998fdd6da98b1d7f
+    aml-pipeline-tag: text-generation
+    cpaas.io/description: ""
+    serving.knative.dev/progress-deadline: 2400s
+    serving.kserve.io/deploymentMode: Standard
+  labels:
+    # 2. Required: Model Repo related labels
+    aml-model-group: kubeflow-admin-cpaas-io
+    aml-model-repo: Qwen2.5-0.5B-Instruct
+    aml-model-subgroup: amlmodels
+    aml-pipeline-tag: text-generation
+    aml.cpaas.io/runtime-type: vllm
+    service.subdomain: "qwen-2-mlops-demo-ai-test"
+    # 3. Required: service name and namespace
+  name: qwen-2
+  namespace: mlops-demo-ai-test
+spec:
+  predictor:
+    # 4. Affinity settings for GPU
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - preference:
+            matchExpressions:
+            - key: nvidia.com/cuda.runtime.major
+              operator: In
+              values:
+              - "12"
+            - key: nvidia.com/cuda.runtime.minor
+              operator: Gt
+              values:
+              - "5"
+          weight: 100
+    maxReplicas: 1
+    minReplicas: 1
+    model:
+      command:
+      - bash
+      - -c
+      - |
+        set -ex
+        # 1. check num GPUs
+        GPU_COUNT=$(python3 -c "import torch; print(torch.cuda.device_count())")
+        echo "Starting serving model name: ${MODEL_NAME}, num gpus: ${GPU_COUNT}"
+        if [ ${GPU_COUNT} -lt 1 ]; then
+            echo "No GPUs found. Please check if the container have aquired any GPU device"
+            exit 1
+        fi
 
-          # 2. check model path
-          MODEL_DIR="/mnt/models/${MODEL_NAME}"
-          # a. using git lfs storage initializer, model will be in /mnt/models/<model_name>
-          # b. using hf storage initializer, model will be in /mnt/models
-          if [ ! -d "${MODEL_DIR}" ]; then
-              MODEL_DIR="/mnt/models"
-              echo "[WARNING] Model directory ${MODEL_DIR}/${MODEL_NAME} not found, using ${MODEL_DIR} instead"
-          fi
+        # 2. check model path
+        MODEL_DIR="/mnt/models/${MODEL_NAME}"
+        # a. using git lfs storage initializer, model will be in /mnt/models/<model_name>
+        # b. using hf storage initializer, model will be in /mnt/models
+        if [ ! -d "${MODEL_DIR}" ]; then
+            MODEL_DIR="/mnt/models"
+            echo "[WARNING] Model directory ${MODEL_DIR}/${MODEL_NAME} not found, using ${MODEL_DIR} instead"
+        fi
 
-          # 3. check if using gguf models
-          c=`find "${MODEL_DIR}" -maxdepth 1 -type f -name '*.gguf' | wc -l`
-          echo "find ${c} gguf files"
-          if [ "${c}" -gt 1 ]; then
-              echo "[ERROR] More than one gguf file found in ${MODEL_DIR}"
-              echo "Currently, vllm only supports loading single-file GGUF models. If you have a multi-files GGUF model, you can use gguf-split tool to merge them to a single-file model."
-              exit 1
-          elif [ "${c}" -eq 1 ]; then
-              n=`find "${MODEL_DIR}" -maxdepth 1 -type f -name '*.gguf' -print`
-              echo "[INFO] Using GGUF model file: ${n}"
-              MODEL_PATH="${n}"
-          else
-              echo "[INFO] Using standard model directory"
-              MODEL_PATH="${MODEL_DIR}"
-          fi
+        # 3. check if using gguf models
+        c=`find "${MODEL_DIR}" -maxdepth 1 -type f -name '*.gguf' | wc -l`
+        echo "find ${c} gguf files"
+        if [ "${c}" -gt 1 ]; then
+            echo "[ERROR] More than one gguf file found in ${MODEL_DIR}"
+            echo "Currently, vllm only supports loading single-file GGUF models. If you have a multi-files GGUF model, you can use gguf-split tool to merge them to a single-file model."
+            exit 1
+        elif [ "${c}" -eq 1 ]; then
+            n=`find "${MODEL_DIR}" -maxdepth 1 -type f -name '*.gguf' -print`
+            echo "[INFO] Using GGUF model file: ${n}"
+            MODEL_PATH="${n}"
+        else
+            echo "[INFO] Using standard model directory"
+            MODEL_PATH="${MODEL_DIR}"
+        fi
 
-          # 4. launch vllm server
-          if [ "$ENABLE_CHUNKED_PREFILL" = "False" ]; then
-              PARAM_ENABLE_CHUNKED_PREFILL="--no-enable-chunked-prefill"
-          else
-              PARAM_ENABLE_CHUNKED_PREFILL="--enable-chunked-prefill"
-          fi
-          if [ "$ENFORCE_EAGER" = "True" ]; then
-              PARAM_ENFORCE_EAGER="--enforce-eager"
-          else
-              PARAM_ENFORCE_EAGER=""
-          fi
-          python3 -m vllm.entrypoints.openai.api_server \
-          --port 8080 \
-          --served-model-name {{.Name}} {{.Namespace}}/{{.Name}} \
-          --model ${MODEL_PATH} \
-          --dtype ${DTYPE} \
-          --gpu-memory-utilization ${GPU_MEMORY_UTILIZATION} \
-          --tensor-parallel-size ${GPU_COUNT} \
-          ${PARAM_ENFORCE_EAGER} ${PARAM_ENABLE_CHUNKED_PREFILL} $@
-        - bash
-        env:
-        - name: DTYPE
-          value: half
-        - name: ENABLE_CHUNKED_PREFILL
-          value: "False"
-        - name: ENFORCE_EAGER
-          value: "True"
-        - name: GPU_MEMORY_UTILIZATION
-          value: "0.95"
-        - name: MODEL_NAME
-          value: '{{ index .Annotations "aml-model-repo" }}'
-        modelFormat:
-          name: transformers
-        name: ""
-        protocolVersion: v2
-        # 4. Required: set resources used by this service
-        resources:
-          limits:
-            cpu: "4"
-            ephemeral-storage: 10Gi
-            memory: 16Gi
-            nvidia.com/gpualloc: "1"
-            nvidia.com/gpucores: "50"
-            nvidia.com/gpumem: "8192"
-          requests:
-            cpu: "1"
-            memory: 2Gi
-        # 5. Required: select "ClusterServingRuntime" and the storageUri
-        runtime: aml-vllm-0.9.2-cuda-12.6
-        storageUri: hf://kubeflow-admin-cpaas-io/Qwen2.5-0.5B-Instruct:81e07c4246b054b3f3bd2b2c998fdd6da98b1d7f
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault 
-  ```
+        # 4. launch vllm server
+        if [ "$ENABLE_CHUNKED_PREFILL" = "False" ]; then
+            PARAM_ENABLE_CHUNKED_PREFILL="--no-enable-chunked-prefill"
+        else
+            PARAM_ENABLE_CHUNKED_PREFILL="--enable-chunked-prefill"
+        fi
+        if [ "$ENFORCE_EAGER" = "True" ]; then
+            PARAM_ENFORCE_EAGER="--enforce-eager"
+        else
+            PARAM_ENFORCE_EAGER=""
+        fi
+        python3 -m vllm.entrypoints.openai.api_server \
+        --port 8080 \
+        --served-model-name {{.Name}} {{.Namespace}}/{{.Name}} \
+        --model ${MODEL_PATH} \
+        --dtype ${DTYPE} \
+        --gpu-memory-utilization ${GPU_MEMORY_UTILIZATION} \
+        --tensor-parallel-size ${GPU_COUNT} \
+        ${PARAM_ENFORCE_EAGER} ${PARAM_ENABLE_CHUNKED_PREFILL} $@
+      - bash
+      env:
+      - name: DTYPE
+        value: half
+      - name: ENABLE_CHUNKED_PREFILL
+        value: "False"
+      - name: ENFORCE_EAGER
+        value: "True"
+      - name: GPU_MEMORY_UTILIZATION
+        value: "0.95"
+      - name: MODEL_NAME
+        value: '{{ index .Annotations "aml-model-repo" }}'
+      modelFormat:
+        name: transformers
+      name: ""
+      protocolVersion: v2
+      # 4. Required: set resources used by this service
+      resources:
+        limits:
+          cpu: "4"
+          ephemeral-storage: 10Gi
+          memory: 16Gi
+          nvidia.com/gpualloc: "1"
+          nvidia.com/gpucores: "50"
+          nvidia.com/gpumem: "8192"
+        requests:
+          cpu: "1"
+          memory: 2Gi
+      # 5. Required: select "ClusterServingRuntime" and the storageUri
+      runtime: aml-vllm-0.9.2-cuda-12.6
+      storageUri: hf://kubeflow-admin-cpaas-io/Qwen2.5-0.5B-Instruct:81e07c4246b054b3f3bd2b2c998fdd6da98b1d7f
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault 
+```
 
-2. Apply the YAML file to your cluster using `kubectl`:
+Then apply the YAML file to your cluster using `kubectl`:
 
-   ```bash
-   kubectl apply -f qwen-2-vllm.yaml -n <your-namespace>
-   ```
+```bash
+kubectl apply -f qwen-2-vllm.yaml -n <your-namespace>
+```
 
 ## Check InferenceService Status
 
