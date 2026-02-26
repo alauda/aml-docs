@@ -1,0 +1,36 @@
+---
+weight: 20
+---
+
+# Main Features
+
+A concise list of Dify capabilities. For concepts and deployment components, see [Introduction](intro).
+
+## LLM Application Development
+
+- **Low-Code Builder**: Build Assistant, Text Generator, Agent, and Workflow/Chatflow applications through the web UI
+- **App Types**: Assistant for chat, Text Generator for text generation, Agent for reasoning and tool use, Workflow for agentic automations
+- **Model Support**: Integration with multiple LLM providers (e.g. OpenAI, Azure, Anthropic); set up model provider in the console
+- **Prompt Management**: Visual prompt design, variables, and versioning
+
+## RAG (Retrieval-Augmented Generation)
+
+- **Knowledge Base**: Ingest documents and URLs, chunk and embed for retrieval
+- **Vector Store**: The Helm chart currently supports **pgvector** only (or disable when not using RAG); configure pgvector connection in values
+- **Retrieval Options**: Hybrid search, re-ranking, and configurable retrieval strategies
+- **Context Enrichment**: Parent-child and extended context for accurate answers
+- **Dataset Management**: Versioning, update, and quality control of knowledge datasets
+
+## Workflow & Agent
+
+- **Visual Workflow**: Node-based workflow editor with LLM, retrieval, code, and logic nodes; drag-and-drop agentic flows
+- **Agent Capabilities**: Tool use, multi-step reasoning, and conversation memory
+- **Error Handling**: Configurable error handling and retries for production reliability
+- **Observability**: Execution logs and debugging for workflows and agents
+
+## API & Integration
+
+- **Backend Service API**: REST endpoints for chat, completion, and workflow invocation; call your app from external systems (backend, scripts, other services).
+- **API Keys**: Create and manage API credentials per application in **API Access** (in the app sidebar); you can create multiple keys for different environments or users. See [Developing with APIs](https://docs.dify.ai/en/use-dify/publish/developing-with-apis).
+- **Web App**: Publish your app as a browser-based UI for end users: get a public URL, or embed the chat/completion widget in your site (iframe or script).
+- **SDK & Docs**: Client SDKs and API documentation for integration.
