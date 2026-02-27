@@ -1,47 +1,58 @@
 # Release Notes
 
-## AI 1.4.0
+## AI 2.0.0
 
 ### **New and Optimized Features**
 
-#### Inference Services Now Offer "Standard" and "Advanced" Modes
-When creating an inference service, users can now select either "Standard Mode" or "Advanced Mode," with "Standard Mode" being the default option.
+#### **NPU Support**
+By introducing the **NPU Operator**, NPU hardware management is supported, simplifying the setup for using NPUs and enhancing hardware acceleration.
 
-- Standard Mode: Ready to use out of the box. After successful deployment of Alauda AI, users can directly create an inference service in "Standard Mode".
-- Advanced Mode: Requires manual deployment of the "Alauda AI Model Serving" plugin. Supports serverless mode and enables the creation of inference services that can scale down to zero. This mode relies on Istio and provides additional monitoring metrics for inference services, such as "Traffic","QPS" and "Response time."
+#### **Queueing & Admission Control**
+By introducing the **Alauda Build of Kueue**, queue management and admission control are implemented, optimizing task scheduling and resource allocation.
 
-#### Customizable Monitoring Dashboards
-A new "Dashboards" feature has been introduced, allowing users to customize and add dashboard charts according to their needs. For example, projects using GPUs from vendors other than NVIDIA can add customized dashboards provided by the manufacturers.
+#### **Model Registry**
+The integration of **Kubeflow Model Registry** enhances model management and version control, simplifying the process of model registration and storage.
 
-#### Workbench Plugin
-The new "Alauda AI Workbench" plugin is available for installation, providing users with IDE environments such as Jupyter Notebook and VS Code.
-This plugin replaces the "advanced" capabilities of the previous version and streamlines unnecessary components and some functions originally found in Kubeflow.
+#### **Distributed Inference**
+With the addition of **llm-d**, distributed inference is now supported, improving the performance and resource efficiency of large-scale inference tasks.
 
-#### Kubeflow Solution
-A native Kubeflow solution has been launched to meet the needs of project clients who are accustomed to using the native capabilities of the Kubeflow community.
+#### **Leader-Worker Set Support**
+Through the introduction of the **Alauda Build of LeaderWorkerSet**, distributed training task management is supported, simplifying task distribution and coordination in a Leader-Worker model.
 
-#### Multi-Node Multi-GPU Solution
-A multi-node multi-GPU solution has been introduced to cater to users' requirements for deploying models with large parameter counts.
+#### **AI Gateway**
+The new **Alauda build of Envoy AI Gateway** optimizes traffic management and security, providing enhanced AI service proxy capabilities.
 
-#### Notebook-Based Pre-training and Fine-tuning Solutions
-Notebook-based solutions for model pre-training and fine-tuning have been launched to support users in optimizing their models.
+#### **Trainer Orchestration**
+By supporting **Kubeflow Trainer v2**, task scheduling and management for model training have been enhanced, enabling more flexible and efficient training workflows.
 
-#### Inference Service Authentication Solution
-An inference service authentication solution based on Enovy AI Gateway has been introduced, supporting the creation of API Keys for inference services to enhance permission control capabilities.
+#### **Pipelines Orchestration**
+Integration with **Kubeflow Pipeline** allows for more efficient pipeline orchestration and task management, improving automation across workflows.
 
-#### Enhanced Inference Service Logging
-The logging functionality for inference services has been enhanced, including features such as automatic log updates, pause updates, and container switching, maintaining consistency with Alauda Container Platform capabilities.
+#### **Vector Storage**
+The introduction of **Milvus** provides an efficient vector storage solution, supporting large-scale vector data storage and fast retrieval.
+
+#### **NVIDIA DRA**
+By introducing the **NVIDIA DRA Driver for GPUs**, GPU resource management and scheduling have been optimized, increasing GPU utilization and performance.
+
+#### **Node Feature Discovery**
+The **Alauda Build of Node Feature Discovery** enables automatic discovery of hardware features and node labeling, improving flexibility in node resource management.
+
+#### **Llama Stack Runtime**
+The introduction of **Llama Stack** enhances AI agent capabilities by providing an efficient runtime environment for supporting distributed AI tasks.
+
+#### **Generative AI**
+By introducing **Kserve's Generative AI section**, support for generative AI has been enhanced, optimizing model deployment and inference, especially for generative AI applications.
+
+#### **Low-Code Builder Integration**
+By updating the **Dify** version and providing deployable Charts, the low-code application building process has been simplified, further enhancing AI application development efficiency.
 
 ### **Deprecated Features**
 
-#### Downgrading mlserver Inference Runtime to a Solution
-Due to limited use cases and its impact on the user experience of large model inference services, the mlserver inference runtime has been downgraded to a solution. It is no longer included in the product by default, but a solution is provided to support specific scenarios, such as Small Language Model inference.
+#### **UI Fine-Tuning & Pretraining Deprecation**
+Due to the lack of general applicability, complex horizontal scaling, and the fact that this is not a mainstream method in the industry for model training and fine-tuning, this feature is deprecated. It is recommended to use notebook-based model fine-tuning and training instead.
 
-#### Discontinuation of the Apps Feature
-Both the Apps feature and Dify are positioned as AI Agent development capabilities, with Dify offering a simpler development approach through its low-code capabilities. In contrast, the pure customization and from-scratch development approach of the Apps feature is less convenient. Therefore, the Apps feature has been discontinued. Projects that require pure custom development of AI Agents can be accommodated through alternative solutions.
-
-#### Discontinuation of the Model Upload UI Feature
-There are two ways to upload models: via git push command-line or through the UI. Command-line uploads offer better performance and faster speeds. Although the UI upload is user-friendly, it tends to freeze when dealing with large model files, which are typically several hundred GB in size. Therefore, the UI upload feature has been discontinued. To facilitate user access, a documentation link has been added in place of the original feature, allowing users to quickly navigate to the user manual for operation commands.
+#### **Secret Manage Deprecation**
+The **Secret Manage** feature is deprecated due to the lack of a valid use case, as manual GitLab integration is no longer required and no longer applicable.
 
 ### **Fixed Issues**
 {/* release-notes-for-bugs?template=fixed&project=AI */}
