@@ -14,6 +14,6 @@ permission:
 releaseNotes:
   queryTemplates:
     fixed: |
-      filter = 16502 AND Feature not in ("AIT - 平台打包") AND (resolution not in ("By Design", "Not a Bug", Duplicate, Rejected, "Cannot Reproduce") OR resolution is EMPTY) AND (fixVersion in (AI-v1.4.0) OR fixVersion in versionMatch(AI-v1.4.0)) AND status in (Done, Resolved, 已完成) AND project = AI AND ReleaseNotesStatus = Publish
+      project = AI AND fixVersion = AI-v2.0.0 AND status not in (Blocked, Cancelled, 已取消, 已拒绝) AND (assignee not in membersOf(test) OR assignee is EMPTY) AND (issuetype = Epic OR issuetype in (Bug, Improvement) AND (issueFunction in linkedIssuesOf("affectedVersion in versionMatch('AI-v1.[0-5].[0-9]')", clones) OR issueFunction in linkedIssuesOf("affectedVersion in versionMatch('AI-v1.[0-5].[0-9]')", "is cloned by") OR affectedVersion in versionMatch("AI-v1.[0-5].[0-9]"))) AND issuetype = Bug AND ReleaseNotesStatus = Publish
     unfixed: |
-      (affectedVersion in versionMatch("AI-v1.[0-3]") OR affectedVersion in versionMatch("AI-v1.4.[0-0]")) AND NOT ((fixVersion in versionMatch("AI-v1.[0-3]") OR fixVersion in versionMatch("AI-v1.4.[0-0]")) AND status in (Done, Resolved)) AND (labels not in (安全问题) OR labels is EMPTY) AND project = AI AND ReleaseNotesStatus = Publish
+      type = Bug AND project = AI AND fixVersion = AI-v2.0.0 AND status NOT IN (Resolved, Closed, Done) AND labels not in (安全问题) AND (resolution IS EMPTY OR resolution IN ("Won't Do"))  AND ReleaseNotesStatus = Publish
