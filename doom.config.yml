@@ -14,6 +14,6 @@ permission:
 releaseNotes:
   queryTemplates:
     fixed: |
-      project = AI AND fixVersion = AI-v2.0.0 AND status not in (Blocked, Cancelled, 已取消, 已拒绝) AND (assignee not in membersOf(test) OR assignee is EMPTY) AND (issuetype = Epic OR issuetype in (Bug, Improvement) AND (issueFunction in linkedIssuesOf("affectedVersion in versionMatch('AI-v1.[0-5].[0-9]')", clones) OR issueFunction in linkedIssuesOf("affectedVersion in versionMatch('AI-v1.[0-5].[0-9]')", "is cloned by") OR affectedVersion in versionMatch("AI-v1.[0-5].[0-9]"))) AND issuetype = Bug ORDER BY issuetype DESC AND ReleaseNotesStatus = Publish
+      project = AI AND fixVersion = AI-v2.0.0 AND status not in (Blocked, Cancelled, 已取消, 已拒绝) AND (assignee not in membersOf(test) OR assignee is EMPTY) AND (issuetype = Epic OR issuetype in (Bug, Improvement) AND (issueFunction in linkedIssuesOf("affectedVersion in versionMatch('AI-v1.[0-5].[0-9]')", clones) OR issueFunction in linkedIssuesOf("affectedVersion in versionMatch('AI-v1.[0-5].[0-9]')", "is cloned by") OR affectedVersion in versionMatch("AI-v1.[0-5].[0-9]"))) AND issuetype = Bug AND ReleaseNotesStatus = Publish
     unfixed: |
       type = Bug AND project = AI AND fixVersion = AI-v2.0.0 AND status NOT IN (Resolved, Closed, Done) AND labels not in (安全问题) AND (resolution IS EMPTY OR resolution IN ("Won't Do"))  AND ReleaseNotesStatus = Publish
