@@ -2,11 +2,11 @@
 weight: 15
 i18n:
 title:
-en: Configure Accurately Scheduling Inference Services based on the CUDA version
-zh: 配置基于 CUDA 版本对推理服务进行精确调度
+en: Scheduling Inference Services based on the CUDA version
+zh: 基于 CUDA 版本调度推理服务
 ---
 
-# Configure Accurately Scheduling Inference Services based on the CUDA version
+# Scheduling Inference Services based on the CUDA version
 
 ## Introduction
 
@@ -18,7 +18,7 @@ In a Kubernetes cluster, inconsistencies in GPU models and CUDA driver versions 
 
 3. High maintenance overhead: Manually managing the CUDA version dependencies between nodes and applications increases operational complexity.
 
-This document provides a step-by-step guide for configuring accurately scheduling inference services based on the CUDA runtime version and Nvidia Driver version.
+This document provides a step-by-step guide for scheduling inference services based on the CUDA runtime version and Nvidia Driver version.
 With these settings, you can resolve the CUDA Runtime and CUDA Driver version mismatch at the Kubernetes scheduling level to ensure that applications are scheduled to compatible GPU nodes.
 
 
@@ -46,7 +46,7 @@ By deploying the Node Feature Discovery(NFD) cluster plugin and turning on the G
 :::
 
 
-#### Configure Accurately Scheduling Inference Services based on the CUDA version
+#### Scheduling Inference Services based on the CUDA version
   Starting from Alauda AI 1.5, the product will automatically schedule pod of inference services by the CUDA version. For earlier versions, you can follow the following steps:
   1. Determine which ClusterServingRuntime you need to select when creating an inference service.
   2. Parse the ClusterServingRuntime label:
