@@ -19,7 +19,7 @@ Deploy Kubeflow plugins in Alauda AI >= 2.0. Including:
 
 ### Configure oauth2-proxy Plugin
 
-Obtain the platform dex CA certificate for later use:
+Obtain the platform dex CA certificate for later use in **Global** cluster:
 
 ```bash
 crt=$(kubectl get secret -n cpaas-system dex.tls -o jsonpath='{.data.tls\.crt}')
@@ -94,27 +94,16 @@ In *Cluster Plugins*, find the kfbase (Kubeflow Base) plugin, fill in the config
 
 After deployment, you need to perform the following operations to configure dex redirection:
 
-In **Administrator** - **Clusters** - **Resources**, select `Global` cluster,
-find the `ConfigMap` resource in the `cpaas-system` namespace, and click the
-edit button to add the following configuration under `redirectURIs`:
+In **Administrator** - **System Settings** - **Platform Parameters**, click the "Edit" button on the right of **Platform Access URLs**, and add the redirect URL, the format is `https://<your-kubeflow-domain>:<port>/`, for example, `https://192.168.139.133:30443/`. Note the host is same as the `oidcRedirectURL` configured in the kfbase plugin deployment page, and the port is the same as `istioGatewayNodeportHTTPS`.
 
-> **Note:  note: the redirect host and port must be the same with `oidcRedirectURL` configured when installing the "Kubeflow Base" plugin.**
-
-```yaml
-      redirectURIs:
-      - ...
-      # Add the following line,
-      - https://192.168.139.133:30665/*
-```
-
-After deployment, you can find the Kubeflow menu item under the *Advanced* navigation in AML. Click to enter the Kubeflow interface.
+After deployment, you can find the Kubeflow menu item under the *Tools* navigation in Alauda AI. Click to enter the Kubeflow interface.
 
 
 ### 2. Create Kubeflow User and Bind to Namespace
 
 Before the first login to Kubeflow, you need to bind the ACP user to the namespace. Users can see the following example, create namespace `kubeflow-admin-cpaas-io` and bind user `admin@cpaas.io` as its owner.
 
-**Note: If this `Profile` resource was already deployed during AML deployment, you can skip this step**
+**Note: If this `Profile` resource was already deployed during Alauda AI deployment, you can skip this step**
 
 **Note: You may need to lower the `Pod Security Admission` level of the user namespace to create Notebook instances, etc.**
 
@@ -131,9 +120,29 @@ spec:
 
 ### 3. If binding user to an already created namespace, you also need to complete the following configuration:
 
-If in the previous step, AML has been deployed, and the `kubeflow-admin-cpaas-io` namespace has been created, the `Profile` resource has also been created, but still cannot select the namespace, you can refer to the following resource to create the account's role binding.
+If in the previous step, Alauda AI has been deployed, and the `kubeflow-admin-cpaas-io` namespace has been created, the `Profile` resource has also been created, but still cannot select the namespace, you can refer to the following resource to create the account's role binding.
 
 ```
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: default-editor
+  namespace: kubeflow-admin-cpaas-io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: default-editor
+  namespace: kubeflow-admin-cpaas-io
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubeflow-edit
+subjects:
+- kind: ServiceAccount
+  name: default-editor
+  namespace: kubeflow-admin-cpaas-io
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -211,7 +220,7 @@ In **Catalog** or **Administrator** - **Marketplace** - **Chart Repositories**, 
 > Note: You need to uninstall kftraining (Kubeflow Training Operator)
 before deploying kubeflow-trainer, if you have already deployed kftraining.
 
-> Note: make sure to install LWS (leader worker set) plugin before deploying
+> Note: make sure to install LWS (Alauda Build of LeaderWorkerSet) plugin before deploying
 kubeflow-trainer, as LWS is a dependency of kubeflow-trainer.
 
 In **Cluster Plugins**, find kubeflow-trainer (Kubeflow Trainer v2), 
