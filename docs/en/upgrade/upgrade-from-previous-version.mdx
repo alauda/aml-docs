@@ -132,46 +132,6 @@ Repeat this process for each plugin that you have deployed.
 Once the new version is uploaded and recognized by the platform, the **Upgrade** button will become available for each plugin on the **Features** tab of the cluster details page.
 :::
 
-### Enabling Fine-Tuning and Training Features
-
-:::info
-This step is **required if you want to use** the fine-tuning and training features in the upgraded version. If you do not need these features, you can skip this step.
-
-For detailed information about fine-tuning and training features, refer to <ExternalSiteLink name="acp" href="installation/fine-tuning.html" children="Enable Fine-Tuning and Training Features" />.
-:::
-
-To enable the fine-tuning and training features, you need to configure the `AmlCluster` resource by setting the `pretrain` and `tuneModels` flags to `true`.
-
-1. Navigate to **Administrator > Clusters > Resources**.
-2. Enter `amlcluster` in the search box on the left side.
-3. Click the **Correlated with Cluster** panel to find the `AmlCluster` resource named `default`.
-4. Edit the resource and set `pretrain` and `tuneModels` to `true` under `spec.values.experimentalFeatures`.
-
-   ```yaml
-   apiVersion: amlclusters.aml.dev/v1alpha2
-   kind: AmlCluster
-   metadata:
-     name: default
-   spec:
-     values:
-       experimentalFeatures:
-         pretrain: true #[!code callout]
-         tuneModels: true #[!code callout]
-   ```
-
-<Callouts>
-  1. When set to `true`, the **Training** item appears in the left navigation
-  menu. 2. When set to `true`, the **Fine-Tuning** item appears in the left
-  navigation menu.
-</Callouts>
-
-:::note
-After enabling these features, ensure that the required cluster plugins are installed:
-
-- **Volcano** cluster plugin for training job scheduling
-- **MLflow** cluster plugin for training experiment monitoring (requires PostgreSQL)
-  :::
-
 ## Post-Upgrade Operations
 
 ### Updating Existing Inference Services
