@@ -22,6 +22,7 @@ The diagram below illustrates the architecture of the Alauda AI platform.
 | Volcano (Alauda support for Volcano) | Batch job scheduling for AI workloads | Open source | Apache Version 2.0 |
 | Kueue (Alauda Build of Kueue) | Job scheduling for AI workloads | Open source | Apache Version 2.0 |
 | Milvus (Alauda Build of Milvus) | Vector database for embedding storage and retrieval | Open source | Apache Version 2.0 |
+| PGVector (Alauda support for PostgreSQL) | PostgreSQL extension for vector similarity search | Open source | The PostgreSQL License |
 
 
 ### Components in AI Platform Layer
@@ -32,7 +33,7 @@ The diagram below illustrates the architecture of the Alauda AI platform.
 | Model Registry (Alauda support for Kubeflow Model Registry) | Git-based storage for model files and versioning | Open source | Apache Version 2.0 |
 | Datasets (Alauda AI/Alauda AI Essentials) | Centralized repository for managing datasets and their metadata | Proprietary | Commercial |
 | Labeling (Alauda support for Label Studio) | Data labeling tool for creating labeled datasets | Open source | Apache Version 2.0 |
-| Feature Store (Alauda support for FeatureForm) | Centralized repository for managing and serving machine learning features | Open source | Apache Version 2.0 |
+| Feature Store (Alauda support for FeatureForm) | Centralized repository for managing and serving machine learning features | Open source | Mozilla Public License (MPL) |
 | Workbench (Alauda AI Workbench) | Web-based interface for managing AI projects, including model training and inference | Proprietary | Commercial |
 | Training Jobs (Alauda support for Kubeflow Trainer v2) | Kubernetes-native training job management | Open source | Apache Version 2.0 |
 | Kubeflow Pipelines (Alauda support for Kubeflow Base & Alauda support for Kubeflow Pipeline) | Workflow orchestration for AI pipelines | Open source | Apache Version 2.0 |
@@ -53,9 +54,9 @@ The diagram below illustrates the architecture of the Alauda AI platform.
 | Training (Alauda support for Kubeflow Trainer v2) | Kubernetes-native training job management | Open source | Apache Version 2.0 |
 | Model Quantization | Tools integrated with the workbench for model quantization, e.g. llm-compressor etc. | Open source | - |
 | Evaluation | Tools integrated with the workbench for evaluating model performance, e.g. lm-evaluation-harness etc. | Open source | - |
-| Llama Stack (Alauda build of Llama Stack) | Framework for building applications with large language models | Open source | - |
-| Langchain | Tools integrated with the workbench for building LLM applications using Langchain | Open source | - |
-| Dify (Alauda support for Dify) | Platform for building AI assistants and chatbots | Open source | - |
+| Llama Stack (Alauda build of Llama Stack) | Framework for building applications with large language models | Open source | MIT |
+| Langchain | Tools integrated with the workbench for building LLM applications using Langchain | Open source | MIT |
+| Dify (Alauda support for Dify) | Platform for building AI assistants and chatbots | Open source | Apache Version 2.0 (modified) |
 | MCP Servers | Can integrate with various MCP servers | - | - |
 | Agent Tracing (Alauda support for MLflow) | Tracing and monitoring for AI agents | Open source | Apache Version 2.0 |
 | Agent Evaluation | Tools integrated with the workbench for evaluating AI agents, e.g. RAGAS etc. | Open source | - |
