@@ -22,28 +22,6 @@ KServe Modelcar, also known as OCI container-based model storage, is a powerful 
 - Model files ready for packaging
 - Access to a container registry (e.g., Harbor, Quay)
 - Podman or Docker installed on your local machine
-- Administrator access to enable Modelcar in AmlCluster
-
-## Enabling Modelcar in Alauda AI Platform
-
-### Procedure to enable Modelcar in AmlCluster:
-
-1. Log in to the Alauda AI dashboard as an administrator.
-2. Navigate to **Marketplace / OperatorHub** and select **Alauda AI**.
-3. Click **All Instances** and select the **default** AmlCluster instance.
-4. From the **Actions** dropdown, select **Update** to open the update form.
-5. In the **Values** section, add the following configuration under `kserve.values`:
-   ```yaml
-   spec:
-     components:
-       kserve:
-         values:
-           kserve:
-             storage:
-               enableModelcar: true
-   ```
-6. Click **Update** to save the changes.
-7. Wait for the AmlCluster instance to reach the **Ready** status.
 
 ## Packaging Model as OCI Image
 
@@ -59,8 +37,8 @@ FROM busybox
 RUN mkdir -p /models && chmod 775 /models
  
 # Copy local model folder contents to /models directory in image
-# Note: This copies the contents of the folder
-COPY Qwen2.5-0.5B-Instruct/ /models/
+# Note: This copies the contents of the models folder
+COPY models/ /models/
  
 # According to KServe convention, model loader usually only needs image layers
 # No need to keep running, but can add CMD if debugging is needed
@@ -120,7 +98,7 @@ USER 65534
 
 ### Prerequisites for Deployment
 
-- Modelcar must be enabled in AmlCluster as described earlier
+No additional prerequisites are required beyond the general prerequisites listed above.
 
 ### Creating the InferenceService
 
@@ -164,7 +142,7 @@ spec:
 
 <Callouts>
 1. Replace `Qwen2.5-0.5B-Instruct` with your actual model name.
-2. `aml.cpaas.io/runtime-type: vllm` specifies the code runtime type. For more information about custom inference runtimes, see [Extend Inference Runtimes](./external_access_inference_service.mdx).
+2. `aml.cpaas.io/runtime-type: vllm` specifies the code runtime type. For more information about custom inference runtimes, see [Extend Inference Runtimes](./custom_inference_runtime.mdx).
 3. Replace `aml-vllm-0.11.2-cpu` with the runtime name that is already installed in your platform (corresponding to a ClusterServingRuntime CRD instance).
 4. `storageUri: oci://build-harbor.alauda.cn/test/qwen-oci:v1.0.0` specifies the OCI image URI with tag where the model is stored.
 </Callouts>
@@ -201,7 +179,6 @@ You should see the service in `Ready` state once the deployment is successful.
 
 1. **Permission Errors**: Ensure the model files in the image have proper permissions
 2. **Registry Authentication**: Verify that the cluster has access to the container registry
-3. **Modelcar Not Enabled**: Check that Modelcar is properly enabled in the AmlCluster configuration
 
 ### Debugging Steps
 
