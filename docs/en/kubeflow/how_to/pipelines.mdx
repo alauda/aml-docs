@@ -1,0 +1,145 @@
+---
+weight: 50
+---
+
+# Use Kubeflow Pipelines
+
+Kubeflow Pipelines (KFP) is a platform for building and deploying portable, scalable machine learning (ML) workflows based on Docker containers. The KFP SDK allows you to define and manipulate pipelines and components using Python.
+
+## Prerequisites
+
+### Install KFP SDK
+
+Start a Jupyter Notebook (or Workbench) in your namespace and install the KFP SDK:
+
+```bash
+python -m pip install kfp
+```
+
+### Configure KFP to Run with your Object Storage
+
+When you installed Kubeflow with an external S3/MinIO storage service, you need to add a "KFP Launcher" configmap to setup storage used by current namespace or user. You can checkout Kubeflow document https://www.kubeflow.org/docs/components/pipelines/operator-guides/configure-object-store/#s3-and-s3-compatible-provider for more details. If no configuation is set, the pipeline runs may still accessing the default service address like "minio-service.kubeflow:9000" which may not be correct.
+
+Below is a simple sample for you to start:
+
+```yaml
+apiVersion: v1
+data:
+  defaultPipelineRoot: s3://mlpipeline
+  providers: |-
+    s3:
+      default:
+        endpoint: minio.minio-system.svc:80
+        disableSSL: true
+        region: us-east-2
+        forcePathStyle: true
+        credentials:
+          fromEnv: false
+          secretRef:
+            secretName: mlpipeline-minio-artifact
+            accessKeyKey: accesskey
+            secretKeyKey: secretkey
+kind: ConfigMap
+metadata:
+  name: kfp-launcher
+  namespace: wy-testns
+```
+
+For example, you should setup below values in this configmap to point to your own S3/MinIO storage
+
+defaultPipelineRoot: where to store the pipeline intermediate data
+endpoint: s3/MinIO service endpoint. Note, should NOT start with "http" or "https"
+disableSSL: whether disable "https" access to the endpoint
+region: s3 region. If using MinIO, any value will be fine
+credentials: AK/SK in the secrets
+
+
+After add this configmap, the newly started Kubeflow Pipeline Runs will automatically read this configration, and save stuff that is used by Kubeflow Pipeline.
+
+## Quick Start Example
+
+A pipeline is a description of an ML workflow, including all of the components in the workflow and how they combine in the form of a graph.
+
+Below is a simple example of defining a pipeline that prints "Hello, World!" using the KFP SDK.
+
+```python
+from kfp import dsl
+from kfp import compiler
+from kfp.client import Client
+
+@dsl.component
+def say_hello(name: str) -> str:
+    hello_text = f'Hello, {name}!'
+    print(hello_text)
+    return hello_text
+
+@dsl.pipeline
+def hello_pipeline(recipient: str) -> str:
+    hello_task = say_hello(name=recipient)
+    return hello_task.output
+
+
+# Compile the pipeline to a YAML file
+compiler.Compiler().compile(hello_pipeline, 'pipeline.yaml')
+
+# Create a KFP client and submit the pipeline run
+client = Client(host='<MY-KFP-ENDPOINT>')
+run = client.create_run_from_pipeline_package(
+    'pipeline.yaml',
+    arguments={
+        'recipient': 'World',
+    },
+)
+```
+
+For more details about how to define and run pipelines, please refer to the official KFP documentation: https://www.kubeflow.org/docs/components/pipelines/user-guides/
+
+
+## Manage Pipelines in the UI
+
+You can also manage pipelines, experiments, and runs directly from the Kubeflow Dashboard.
+
+### Access the Pipelines Dashboard
+
+1. Log in to the Kubeflow central dashboard.
+2. Click **Pipelines** in the sidebar menu.
+
+### Upload a Pipeline
+
+If you have compiled your pipeline to a YAML file (e.g., `pipeline.yaml` from the example above), you can upload it:
+
+1. Click **Pipelines** -> **Upload Pipeline**.
+2. **Upload a file**: Select your `pipeline.yaml`.
+3. **Pipeline Name**: Give it a name (e.g., `Hello World Pipeline`).
+4. Click **Create**.
+
+### Create a Run
+
+To execute the pipeline you just uploaded:
+
+1. Click on the pipeline name to open its details.
+2. Click **Create Run**.
+3. **Run Name**: Enter a descriptive name.
+4. **Experiment**: Select an existing experiment or create a new one. Experiments help group related runs.
+5. **Run Parameters**: Enter values for any pipeline arguments (e.g., `recipient`: `World`).
+6. Click **Start**.
+
+### Inspect Run Details
+
+Once the run starts, you will be redirected to the **Run Details** page.
+
+- **Graph**: Visualize the steps (components) of your pipeline and their status (Running, Succeeded, Failed).
+- **Logs**: Click on a specific step in the graph to view its container logs in the side panel. This is crucial for debugging.
+- **Inputs/Outputs**: View the artifacts passed between steps or produced as final outputs.
+- **Visualizations**: If your pipeline generates metrics or plots, they will appear in the **Run Output** or **Visualizations** tab.
+
+### Recurring Runs
+
+You can schedule pipelines to run automatically at specific intervals:
+
+1. In the **Pipelines** list, identify your pipeline.
+2. Click **Create Run** but choose **Recurring Run** as the run type (or navigate to **Experiments (KFP)** -> **Create Recurring Run**).
+3. **Trigger**: Set the schedule (e.g., Periodic, Cron).
+4. **Parameters**: Configure the inputs that will be used for every scheduled execution.
+5. Click **Start**.
+

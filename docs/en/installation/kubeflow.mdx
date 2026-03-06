@@ -227,6 +227,8 @@ before deploying kubeflow-trainer, if you have already deployed kftraining.
 > Note: make sure to install LWS (Alauda Build of LeaderWorkerSet) plugin before deploying
 kubeflow-trainer, as LWS is a dependency of kubeflow-trainer.
 
+> Note: Kubeflow Trainer v2 requires minimum Kubernetes version `1.32.3`, older Kubernetes versions may cause unexpected issues.
+
 In **Cluster Plugins**, find kubeflow-trainer (Kubeflow Trainer v2), 
 click the "Install" button, select the options of whether to enable `JobSet`
 and click the "Install" button to complete the deployment.
