@@ -1,0 +1,79 @@
+---
+weight: 30
+---
+
+# Use Kubeflow Volumes
+
+Volumes in Kubeflow are managed as Kubernetes Persistent Volume Claims (PVCs). They provide persistent storage for your data, workspaces, and models, independent of the lifecycle of your Notebook servers or other workloads.
+
+## Create a Volume
+
+1. **Access the Dashboard**:
+   Click **Volumes** in the Kubeflow central dashboard sidebar.
+2. **New Volume**:
+   Click **New Volume**.
+3. **Configure**:
+   - **Name**: Enter a unique name for the volume.
+   - **Storage Class**: Select the Storage Class (e.g., topolvm, nfs) if multiple are available.
+   - **Size**: Specify the size of the volume in `Gi` (e.g., `10`).
+   - **Access Mode**:
+     - **ReadWriteOnce (RWO)**: Mounted by a single node (Common for block storage).
+     - **ReadWriteMany (RWX)**: Mounted by many nodes (Common for NFS/File storage).
+4. **Create**:
+   Click **Create**. The volume status will change to **Bound** once provisioned.
+
+## Manage Volumes
+
+- **Open PVC Viewer**: Click the "Folder" icon next to a volume to create a temporary Pod that mounts the volume and opens a file browser. This allows you to view/upload/download files directly to the volume. Click "Close" to delete the temporary Pod when done.
+- **Delete**: Click the delete icon (trash can) next to a volume to remove it. **Note**: This permanently deletes the data.
+- **Filter**: Filter volumes by name, status, or storage class using the search bar.
+
+## Use a Volume in Notebooks
+
+To use a volume in a Notebook Server:
+1. When creating a **New Notebook**, create a standard **Workspace Volume** (mounted at `/home/jovyan`) or...
+2. Scroll to **Data Volumes** to attach additional existing volumes. 
+3. Click **Attach Existing Volume** and select your volume.
+4. Specify the **Mount Path** (e.g., `/home/jovyan/data`).
+
+# Use Kubeflow KServe Endpoints
+
+The KServe Endpoints UI allows you to deploy, manage, and monitor inference services for your machine learning models directly from the Kubeflow dashboard.
+
+## Access the Endpoints UI
+
+1. Click **KServe Endpoints** in the central dashboard sidebar.
+2. Select your namespace at the top of the page.
+3. You will see a list of deployed InferenceServices with their status and URLs.
+
+## Deploy a New Model
+
+1. **New Endpoint**:
+   Click **New Endpoint**.
+2. **InferneceService YAML**:
+   - Provide the YAML definition for your InferenceService. You can use the sample YAML below as a template.
+3. **Deploy**:
+   Click **Create**.
+
+```yaml
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: my-model
+  namespace: my-namespace
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: "transformers"
+      runtime: aml-vllm-0.9.2-cuda-12.6
+      storageUri: "hf://model-repo/model-name"
+```
+
+## Monitor and Test
+
+After deployment, wait for the status to become **Ready**.
+- **Inspect**: Click on the model name to see YAML details, logs.
+- **Get URL**: Copy the provided endpoint URL (e.g., `http://model-name.namespace.svc.cluster.local/v1/models/model-name:predict` or external URL).
+- **Test**: Use `curl` or a Python client to send a prediction request.
+
