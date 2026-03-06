@@ -1,17 +1,19 @@
 {
-    "compilerOptions": {
-      "jsx": "react-jsx",
-      "module": "NodeNext",
-      "moduleResolution": "NodeNext",
-      "noUnusedLocals": true,
-      "noUnusedParameters": true,
-      "resolveJsonModule": true,
-      "skipLibCheck": true,
-      "strict": true,
-      "target": "ESNext",
-    },
-    "mdx": {
-      "checkMdx": true,
-    },
-  }
-  
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "jsx": "react-jsx",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ESNext",
+    "baseUrl": ".",
+    "paths": {
+      "i18n": ["./docs/i18n.json"]
+    }
+  },
+  "include": ["plugins/**/*", "theme/**/*", "*.d.ts", "virtual-modules.d.ts"]
+}
