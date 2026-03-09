@@ -2,15 +2,14 @@
 weight: 35
 ---
 
-# Install Alauda AI Generative
+# Install Alauda Build of KServe
 
-**Alauda AI Generative** is a cloud-native component built on **KServe** for serving generative AI models. As an extension of the Alauda AI ecosystem, it specifically optimizes for **Large Language Models (LLMs)**, offering essential features such as inference orchestration, streaming responses, and resource-based auto-scaling for generative workloads.
+**Alauda Build of KServe** is a cloud-native component built on **KServe** for serving generative AI models. As an extension of the Alauda AI ecosystem, it specifically optimizes for **Large Language Models (LLMs)**, offering essential features such as inference orchestration, streaming responses, and resource-based auto-scaling for generative workloads.
 
----
 
 ## Prerequisites
 
-Before installing **Alauda AI Generative**, you need to ensure the following dependencies are installed:
+Before installing **Alauda Build of KServe**, you need to ensure the following dependencies are installed:
 
 ### Required Dependencies
 
@@ -28,20 +27,20 @@ Before installing **Alauda AI Generative**, you need to ensure the following dep
 
 | Dependency | Type | Description |
 |------------|------|-------------|
-| GIE | Built-in | Integrated GIE (gateway-api-inference-extension) for enhanced AI capabilities. Can be enabled through the Alauda AI Generative UI. |
+| GIE | Built-in | Integrated GIE (gateway-api-inference-extension) for enhanced AI capabilities. Can be enabled through the Alauda Build of KServe UI. |
 | Alauda AI | Operator | Required only if you need to use KServe Predictive AI functionality. Can be disabled if you only need LLM Generative AI functionality. |
 
 ### Installation Notes
 
-1. **Required Dependencies**: All three required dependencies must be installed before installing Alauda AI Generative.
-2. **GIE Integration**: If you want to use GIE, you can enable it during the installation process by selecting the "Integrated GIE" option in the Alauda AI Generative UI.
+1. **Required Dependencies**: All three required dependencies must be installed before installing Alauda Build of KServe.
+2. **GIE Integration**: If you want to use GIE, you can enable it during the installation process by selecting the "Integrated GIE" option in the Alauda Build of KServe UI.
 3. **Alauda AI Integration**: If you don't need KServe Predictive AI functionality and only want to use LLM Generative AI, you can disable the "Integrated With Alauda AI" option during installation.
 
 ## Downloading Cluster Plugin
 
 :::info
 
-`Alauda AI Generative` cluster plugin can be retrieved from Customer Portal.
+`Alauda Build of KServe` cluster plugin can be retrieved from Customer Portal.
 
 Please contact Consumer Support for more information.
 
@@ -51,9 +50,9 @@ Please contact Consumer Support for more information.
 
 For more information on uploading the cluster plugin, please refer to <ExternalSiteLink name="acp" href="ui/cli_tools/index.html#uploading-cluster-plugins" children="Uploading Cluster Plugins" />
 
-## Installing Alauda AI Generative
+## Installing Alauda Build of KServe
 
-1. Go to the `Administrator` -> `Marketplace` -> `Cluster Plugin` page, switch to the target cluster, and then deploy the `Alauda AI Generative` Cluster plugin.
+1. Go to the `Administrator` -> `Marketplace` -> `Cluster Plugin` page, switch to the target cluster, and then deploy the `Alauda Build of KServe` Cluster plugin.
 
 2. In the deployment form, configure the following parameters as needed:
 
@@ -99,7 +98,7 @@ For more information on uploading the cluster plugin, please refer to <ExternalS
 
 4. Verify result. You can see the status of "Installed" in the UI.
 
-## Upgrading Alauda AI Generative
+## Upgrading Alauda Build of KServe
 
-1. Upload the new version for package of **Alauda AI Generative** plugin to ACP.
-2. Go to the `Administrator` -> `Clusters` -> `Target Cluster` -> `Functional Components` page, then click the `Upgrade` button, and you will see the `Alauda AI Generative` can be upgraded.
+1. Upload the new version for package of **Alauda Build of KServe** plugin to ACP.
+2. Go to the `Administrator` -> `Clusters` -> `Target Cluster` -> `Functional Components` page, then click the `Upgrade` button, and you will see the `Alauda Build of KServe` can be upgraded.
