@@ -1,58 +1,60 @@
 # Release Notes
 
-## AI 2.0.0
+## AI 2.1
 
-### **New and Optimized Features**
+### New and Optimized Features
 
-#### **NPU Support**
-By introducing the **NPU Operator**, NPU hardware management is supported, simplifying the setup for using NPUs and enhancing hardware acceleration.
+#### Image-Based Model Support
 
-#### **Queueing & Admission Control**
-By introducing the **Alauda Build of Kueue**, queue management and admission control are implemented, optimizing task scheduling and resource allocation.
+The platform now supports deploying models using container images. By leveraging the ModelCar capability in KServe, users can package models as OCI container images and create model inference services directly from these images without downloading model artifacts at runtime.
 
-#### **Model Registry**
-The integration of **Kubeflow Model Registry** enhances model management and version control, simplifying the process of model registration and storage.
+Using OCI containers for model storage and distribution provides several benefits:
 
-#### **Distributed Inference**
-With the addition of **llm-d**, distributed inference is now supported, improving the performance and resource efficiency of large-scale inference tasks.
+- **Reduced startup time** – Model artifacts are packaged within the container image, avoiding repeated downloads when deploying or scaling inference services.
+- **Lower disk space usage** – Container image layer reuse reduces redundant storage of identical model files across nodes.
+- **Improved inference performance stability** – Images can be pre-fetched and cached on nodes, enabling faster and more predictable service startup.
 
-#### **Leader-Worker Set Support**
-Through the introduction of the **Alauda Build of LeaderWorkerSet**, distributed training task management is supported, simplifying task distribution and coordination in a Leader-Worker model.
+This capability standardizes the model deployment workflow and leverages the container image ecosystem for efficient model versioning, distribution, and lifecycle management.
 
-#### **AI Gateway**
-The new **Alauda build of Envoy AI Gateway** optimizes traffic management and security, providing enhanced AI service proxy capabilities.
+#### Model Compression Toolkit
 
-#### **Trainer Orchestration**
-By supporting **Kubeflow Trainer v2**, task scheduling and management for model training have been enhanced, enabling more flexible and efficient training workflows.
+A Model Compression Toolkit has been introduced by integrating the llm-compressor library to provide model compression capabilities for large language models.
 
-#### **Pipelines Orchestration**
-Integration with **Kubeflow Pipeline** allows for more efficient pipeline orchestration and task management, improving automation across workflows.
+The toolkit supports advanced optimization techniques such as weight quantization, activation quantization, and model sparsification. These techniques enable users to reduce the computational and memory requirements of large models while maintaining model quality. Compression jobs can be executed within Notebook environments or automated pipelines, helping organizations reduce hardware costs and improve inference performance.
 
-#### **Vector Storage**
-The introduction of **Milvus** provides an efficient vector storage solution, supporting large-scale vector data storage and fast retrieval.
+#### Event-Driven Autoscaling
 
-#### **NVIDIA DRA**
-By introducing the **NVIDIA DRA Driver for GPUs**, GPU resource management and scheduling have been optimized, increasing GPU utilization and performance.
+Event-driven autoscaling capabilities have been introduced through integration with KEDA, enabling model inference services to automatically scale based on real-time workload signals.
 
-#### **Node Feature Discovery**
-The **Alauda Build of Node Feature Discovery** enables automatic discovery of hardware features and node labeling, improving flexibility in node resource management.
+Unlike traditional autoscaling strategies that rely solely on CPU or GPU utilization, event-driven autoscaling can react to metrics such as request rate, queue length, or message events. This enables more responsive scaling of inference services and improves overall resource efficiency and system stability.
 
-#### **Llama Stack Runtime**
-The introduction of **Llama Stack** enhances AI agent capabilities by providing an efficient runtime environment for supporting distributed AI tasks.
+#### Notebook Base Image Library
 
-#### **Generative AI**
-By introducing **Kserve's Generative AI section**, support for generative AI has been enhanced, optimizing model deployment and inference, especially for generative AI applications.
+A new Notebook base image library has been added to provide prebuilt development environments for data science and AI workloads.
 
-#### **Low-Code Builder Integration**
-By updating the **Dify** version and providing deployable Charts, the low-code application building process has been simplified, further enhancing AI application development efficiency.
+These images include commonly used machine learning frameworks, deep learning libraries, and data processing tools, allowing users to quickly start Notebook environments for experimentation and model development while reducing environment setup overhead.
 
-### **Deprecated Features**
+#### TrustyAI Drift Detection
 
-#### **UI Fine-Tuning & Pretraining Deprecation**
-Due to the lack of general applicability, complex horizontal scaling, and the fact that this is not a mainstream method in the industry for model training and fine-tuning, this feature is deprecated. It is recommended to use notebook-based model fine-tuning and training instead.
+The platform introduces model drift detection capabilities powered by TrustyAI.
 
-#### **Secret Manage Deprecation**
-The **Secret Manage** feature is deprecated due to the lack of a valid use case, as manual GitLab integration is no longer required and no longer applicable.
+This feature continuously monitors inference data distributions and model behavior to detect potential data drift or prediction drift in production environments. It helps teams identify model performance degradation early and maintain the reliability of deployed AI systems.
+
+#### Safety Guardrails
+
+Safety guardrails for generative AI applications have been introduced through TrustyAI.
+
+This feature enables policy-based monitoring and filtering of model outputs, allowing organizations to detect and restrict unsafe or non-compliant content generated by AI models. It helps improve the safety, governance, and compliance of generative AI services.
+
+#### Language Model Evaluation Harness
+
+A language model evaluation harness has been introduced to support standardized evaluation of large language models.
+
+The evaluation framework supports multiple benchmark tasks and datasets, enabling users to systematically measure model performance and make data-driven decisions when selecting or optimizing models.
+
+### Deprecated Features
+
+None.
 
 ### **Fixed Issues**
 {/* release-notes-for-bugs?template=fixed&project=AI */}
