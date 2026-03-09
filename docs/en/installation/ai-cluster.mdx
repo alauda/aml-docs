@@ -291,6 +291,9 @@ Once **Knative Operator** is installed, you need to create the `KnativeServing` 
      name: knative-serving
      namespace: knative-serving
    spec:
+     # For ACP 4.0, use version 1.18.1
+     # For ACP 4.1 and above, use version 1.19.6
+     version: "1.18.1" # [!code callout]
      config:
        deployment:
          registries-skipping-tag-resolving: kind.local,ko.local,dev.local,private-registry # [!code callout]
@@ -318,7 +321,11 @@ Once **Knative Operator** is installed, you need to create the `KnativeServing` 
 
 <Callouts>
 
-1. `private-registry` is a placeholder for your private registry address. You can find this in the **Administrator** view, then click **Clusters**, select `your cluster`, and check the **Private Registry** value in the **Basic Info** section.
+1. For ACP 4.0, keep the version as "1.18.1". For ACP 4.1 and above, change the version to "1.19.6".
+
+2. `private-registry` is a placeholder for your private registry address. You can find this in the **Administrator** view, then click **Clusters**, select `your cluster`, and check the **Private Registry** value in the **Basic Info** section.
+
+
 
 </Callouts>
 
