@@ -1,0 +1,245 @@
+---
+weight: 30
+---
+# Evaluate LLM
+
+LM-Eval provides a unified framework to test LLM on a wide range of evaluation tasks. The service is built on [EleutherAI's lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness) and [Unitxt](https://github.com/IBM/unitxt/). The TrustyAI Operator implements it via the **LMEvalJob** CRD so evaluation jobs can be created and managed on the cluster.
+
+This document describes running an evaluation job against an LLM served as a Kubernetes InferenceService (OpenAI API–compatible).
+
+## Prerequisites
+
+- TrustyAI Operator installed (see [Install TrustyAI](./install)).
+- An LLM deployed as an InferenceService in the target namespace (e.g. vLLM or Hugging Face runtime).
+- For tasks or tokenizers that require download from the internet (e.g. Hugging Face): **allowOnline** must be enabled on the LMEvalJob, and the cluster must permit it (e.g. `permitOnline: allow` in the DataScienceCluster TrustyAI eval config). Enabling online access has security implications; see the Red Hat documentation.
+
+## Run an evaluation job
+
+Create an **LMEvalJob** custom resource that points at the InferenceService and specifies the evaluation task(s). The operator runs the job in a pod; when the job finishes, results are written to **`status.results`**.
+
+Example: evaluate an in-cluster LLM with the **arc_easy** task (lm-evaluation-harness task name). The model is reached via the predictor service URL; the tokenizer is loaded from Hugging Face (requires **allowOnline: true** and cluster permission).
+
+```yaml
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: LMEvalJob
+metadata:
+  name: evaljob-sample
+  namespace: <your-namespace>
+spec:
+  model: local-completions
+  modelArgs:
+    - name: model
+      value: <inference-service-name>
+    - name: base_url
+      value: http://<inference-service-name>-predictor.<your-namespace>.svc/v1/completions
+    - name: num_concurrent
+      value: "1"
+    - name: max_retries
+      value: "3"
+    - name: tokenized_requests
+      value: "True"
+    - name: tokenizer
+      value: <huggingface-model-repo>             # e.g. Qwen/Qwen3.5-4B
+  taskList:
+    taskNames:
+      - arc_easy
+  allowOnline: true
+  allowCodeExecution: false
+  batchSize: "1"
+  limit: "2"
+  logSamples: true
+  chatTemplate:
+    enabled: false
+  outputs:
+    pvcManaged:
+      size: 10Mi
+  pod:
+    container:
+      env:
+        - name: HF_ENDPOINT
+          value: https://hf-mirror.com
+          # Optional: when direct access to Hugging Face is unreliable, use a mirror endpoint.
+```
+
+- **Model type (`model`)**
+  - `local-completions` or `local-chat-completions` for an OpenAI API–compatible server (e.g. InferenceService predictor).
+  - They map to the OpenAI endpoints:
+    - `local-completions` to `/v1/completions`
+    - `local-chat-completions` to `/v1/chat/completions`
+  - **modelArgs.base_url** must use the same path (e.g. `xxx/v1/completions` or `xxx/v1/chat/completions`).
+
+- **Model arguments (`modelArgs`)**
+  - **`base_url`**: predictor URL including the path
+    - `/v1/completions` for `local-completions`
+    - `/v1/chat/completions` for `local-chat-completions`
+  - **`model`**: usually matches the InferenceService name.
+  - **`tokenizer`**: Hugging Face model ID used for tokenization when **`tokenized_requests`** is true.
+  - Other parameters (e.g. `num_concurrent`, `max_retries`, `batch_size`) follow [lm-evaluation-harness Documention](https://github.com/EleutherAI/lm-evaluation-harness).
+
+- **Tasks (`taskList.taskNames`)**
+  - List of lm-evaluation-harness task names (e.g. `arc_easy`, `mmlu`).
+  - The full set of supported tasks and wildcards is defined by [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness) (Task Guide / available tasks).
+  - Alternatively, use **`taskRecipes`** with Unitxt card/template for custom tasks.
+
+- **Online mode and code execution**
+  - **`allowOnline`**: when `true`, the job can download datasets and tokenizers from the internet (e.g. Hugging Face); requires cluster-level permission.
+  - **`allowCodeExecution`**: when `true`, the job may run code from downloaded resources; default `false`, enable only if required and permitted.
+
+- **Outputs and limits**
+  - **`outputs.pvcManaged`**: creates an operator-managed PVC to store job results (size, e.g. `100Mi`). If only **size** is set, the PVC uses the cluster default `StorageClass`; if there is no default `StorageClass`, the PVC stays Pending and storage is not provisioned. Alternatively, use **`outputs.pvcName`** to bind an existing PVC.
+  - **`limit`**: optional cap on the number of samples (e.g. `"2"` for a quick run).
+  - **`logSamples`**: when `true`, per-prompt model inputs and outputs are saved for inspection.
+
+## Resource status
+
+The LMEvalJob **`status`** subresource reports the job state and, when finished, the evaluation results.
+
+- **`status.state`**: Current state of the job: `New`, `Scheduled`, `Running`, `Complete`, `Cancelled`, or `Suspended`. Wait for `Complete` before reading results.
+- **`status.reason`**: Set when the job ends (e.g. `Succeeded`, `Failed`).
+- **`status.results`**: When **state** is `Complete`, this field contains the evaluation results as a JSON string (metrics per task/recipe).
+- **`status.message`**: Human-readable message; **status.podName** is the name of the job pod.
+
+Traffic or result reads should be based on **status.state == Complete** (and, if applicable, **status.reason == Succeeded**).
+
+## Getting results
+
+When **status.state** is `Complete`, results are available in **status.results** (JSON string). Example:
+
+```bash
+kubectl get lmevaljob evaljob-sample -n <your-namespace> -o jsonpath='{.status.results}' | jq '.'
+```
+
+Example result shape for the `arc_easy` task (key fields; the full output includes `configs`, `config`, `n-shot`, `n-samples`, and environment info):
+
+<details>
+<summary>Example results (arc_easy)</summary>
+
+```json
+{
+  "results": {
+    "arc_easy": {
+      "alias": "arc_easy",
+      "acc,none": 0.5,
+      "acc_stderr,none": 0.5,
+      "acc_norm,none": 0.5,
+      "acc_norm_stderr,none": 0.5
+    }
+  },
+  "group_subtasks": {
+    "arc_easy": []
+  },
+  "configs": {
+    "arc_easy": {
+      "task": "arc_easy",
+      "tag": ["ai2_arc"],
+      "dataset_path": "allenai/ai2_arc",
+      "dataset_name": "ARC-Easy",
+      "training_split": "train",
+      "validation_split": "validation",
+      "test_split": "test",
+      "doc_to_text": "Question: {{question}}\nAnswer:",
+      "doc_to_target": "{{choices.label.index(answerKey)}}",
+      "unsafe_code": false,
+      "doc_to_choice": "{{choices.text}}",
+      "description": "",
+      "target_delimiter": " ",
+      "fewshot_delimiter": "\n\n",
+      "num_fewshot": 0,
+      "metric_list": [
+        { "metric": "acc", "aggregation": "mean", "higher_is_better": true },
+        { "metric": "acc_norm", "aggregation": "mean", "higher_is_better": true }
+      ],
+      "output_type": "multiple_choice",
+      "repeats": 1,
+      "should_decontaminate": true,
+      "doc_to_decontamination_query": "Question: {{question}}\nAnswer:",
+      "metadata": { "version": 1.0 }
+    }
+  },
+  "versions": { "arc_easy": 1.0 },
+  "n-shot": { "arc_easy": 0 },
+  "higher_is_better": { "arc_easy": { "acc": true, "acc_norm": true } },
+  "n-samples": {
+    "arc_easy": { "original": 2376, "effective": 2 }
+  },
+  "config": {
+    "model": "local-completions",
+    "model_args": "model=qwen-test,base_url=http://qwen-test-predictor.trustyai-e2e-test.svc/v1/completions,num_concurrent=1,max_retries=3,tokenized_requests=True,tokenizer=Qwen/Qwen2.5-0.5B",
+    "batch_size": "1",
+    "device": "cpu",
+    "limit": 2.0,
+    "bootstrap_iters": 100000,
+    "random_seed": 0,
+    "numpy_seed": 1234,
+    "torch_seed": 1234,
+    "fewshot_seed": 1234
+  },
+  "model_source": "local-completions",
+  "model_name": "qwen-test",
+  "start_time": 185129.71525112,
+  "end_time": 185190.022770961,
+  "total_evaluation_time_seconds": "60.307519840978784"
+}
+```
+
+</details>
+
+## Optional: offline storage and PVC
+
+In **offline** mode the evaluation job does not access the internet; models and datasets must be read from a PVC (or from the image). Use this when the cluster disallows online access or for air-gapped environments.
+
+### Spec settings for offline mode
+
+- **Job fields**
+  - **`allowOnline: false`**: the job does not download from the internet.
+  - **`offline.storage.pvcName`**: name of an existing PVC. The operator mounts this PVC into the job pod; the job loads models and datasets from paths under that mount.
+
+- **Paths in spec**
+  - Model / dataset loaders must point into the mounted PVC.
+  - For Hugging Face models, configure **`modelArgs`** so the model path is under the PVC mount (for example `/opt/app-root/src/hf_home/<model-dir>`).
+  - For **`taskRecipes`** or custom Unitxt cards that load from disk, set loader paths under the same mount.
+
+### Environment variables for offline caches
+
+Set environment variables in **`spec.pod.container.env`** so loaders use the PVC as cache/storage. For reliability, set all of the following to the same directory under the PVC mount (for example `/opt/app-root/src/hf_home`):
+
+- **`HF_DATASETS_CACHE`**: cache directory for Hugging Face `datasets`.
+- **`HF_HOME`**: Hugging Face home, used by tokenizers and other assets.
+- **`TRANSFORMERS_CACHE`**: cache directory for `transformers` models and tokenizers.
+
+Example snippet for offline mode:
+
+```yaml
+spec:
+  allowOnline: false
+  offline:
+    storage:
+      pvcName: my-offline-pvc
+  pod:
+    container:
+      env:
+        - name: HF_DATASETS_CACHE
+          value: /opt/app-root/src/hf_home
+        - name: HF_HOME
+          value: /opt/app-root/src/hf_home
+        - name: TRANSFORMERS_CACHE
+          value: /opt/app-root/src/hf_home
+```
+
+Use **`outputs.pvcName`** or **`outputs.pvcManaged`** only when storing **evaluation results**; **`offline.storage.pvcName`** is for **input** (models and datasets).
+
+### Preparing the PVC dataset for offline runs
+
+In offline mode, the **dataset** (and tokenizer/model files if using HF) must already exist under the PVC. The job does not fetch them from the network.
+
+One practical way to prepare the PVC is:
+
+1. **Online warm-up job**
+   - Create an LMEvalJob with **`allowOnline: true`**.
+   - Mount the target PVC (the one that will be used later in offline mode), for example via **`offline.storage.pvcName`** or an extra volume.
+   - Let this job download the required datasets/tokenizers/models so that they are stored under the PVC paths used by **`HF_DATASETS_CACHE`**, **`HF_HOME`**, and **`TRANSFORMERS_CACHE`**, and by the configured **`modelArgs`** / task loaders.
+
+2. **Offline evaluation job**
+   - Create the real evaluation job with **`allowOnline: false`** and **`offline.storage.pvcName`** pointing to the same PVC.
+   - The job now reads all models and datasets from the PVC without any external network access.
+

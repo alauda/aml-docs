@@ -1,0 +1,342 @@
+---
+weight: 40
+---
+# AI Guardrails for LLM safety
+
+The TrustyAI Guardrails Orchestrator runs detectors on LLM inputs and outputs to filter or flag content. It is based on the open-source [FMS-Guardrails](https://github.com/foundation-model-stack/fms-guardrails-orchestrator) project. The TrustyAI Operator provides the **GuardrailsOrchestrator** CRD to deploy and manage it.
+
+This document covers **AutoConfig** deployment and the **built-in regex detector** only.
+
+## Prerequisites
+
+- TrustyAI Operator installed (see [Install TrustyAI](./install)).
+- An LLM deployed as an InferenceService in the target namespace.
+
+## Deploy with AutoConfig
+
+With AutoConfig, the operator generates the orchestrator and gateway configuration from resources in the namespace; no manual ConfigMaps are required for a basic setup.
+
+Create a **GuardrailsOrchestrator** custom resource with `autoConfig` and the built-in detector and gateway enabled:
+
+```yaml
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: GuardrailsOrchestrator
+metadata:
+  name: guardrails-orchestrator
+  namespace: <your-namespace>
+  # Optional: enable auth for routes (Bearer token required)
+  annotations:
+    security.opendatahub.io/enable-auth: "false"
+spec:
+  autoConfig:
+    inferenceServiceToGuardrail: <inference-service-name>
+  enableBuiltInDetectors: true
+  enableGuardrailsGateway: true
+  replicas: 1
+```
+
+- **`inferenceServiceToGuardrail`**: Name of the InferenceService (LLM) to guardrail; must match the deployed model in the same namespace.
+- **`enableBuiltInDetectors`**: When `true`, a built-in regex detector sidecar is added.
+- **`enableGuardrailsGateway`**: When `true`, the gateway exposes preset routes (e.g. `/all/v1/chat/completions`).
+
+### Resource status
+
+The resource has a `status` subresource. **`status.phase`** can be `Progressing`, `Ready`, or `Error`. When using AutoConfig, **`status.autoConfigState`** holds the generated ConfigMap names (`generatedConfigMap`, `generatedGatewayConfigMap`), the detected services, and a `message`. Traffic should be sent only after `status.phase == Ready` and the corresponding Deployment is ready.
+
+The operator creates an orchestrator ConfigMap and a gateway ConfigMap named `<orchestrator-name>-gateway-auto-config`. The built-in detector is registered as `built-in-detector`.
+
+## Built-in regex detector
+
+The built-in detector provides regex-based algorithms. Supported algorithms include:
+
+| Category | Algorithms |
+|----------|------------|
+| **regex** | `email`, `us-social-security-number`, `credit-card`, `ipv4`, `ipv6`, `us-phone-number`, `uk-post-code`, or custom regex |
+
+The default gateway config uses a placeholder regex (`$^`). To enable a specific algorithm (e.g. `email`), patch the ConfigMap and set `detector_params.regex` to the algorithm name (e.g. `- email`).
+
+### Gateway ConfigMap structure
+
+ConfigMap name: `<orchestrator-name>-gateway-auto-config`. Example:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: guardrails-orchestrator-gateway-auto-config
+  namespace: <your-namespace>
+data:
+  config.yaml: |
+    orchestrator:
+      host: "localhost"
+      port: 8032
+    detectors:
+      - name: built-in-detector
+        input: true
+        output: true
+        detector_params:
+          regex:
+            - $^                          # change this placeholder, e.g. email
+    routes:
+      - name: all
+        detectors:
+          - built-in-detector
+      - name: passthrough
+        detectors:
+```
+
+Change `regex` under `built-in-detector` to the desired algorithm (e.g. `- email`). After updating, wait for the Deployment to be ready.
+
+## Service ports and API reference
+
+The Guardrails Orchestrator is exposed by a Service named `<orchestrator-name>-service`. Port numbers depend on whether authentication is enabled (annotation `security.opendatahub.io/enable-auth: "true"` on the GuardrailsOrchestrator).
+
+### Ports and roles
+
+| Port name              | Auth disabled | Auth enabled | Role |
+|------------------------|---------------|--------------|------|
+| **gateway**            | 8090          | 8490         | Guardrails Gateway: preset detector pipelines and OpenAI-style chat completion endpoints. Use this to send chat requests that are checked by the built-in (or configured) detectors before/after calling the LLM. |
+| **built-in-detector**  | 8080          | 8480         | Built-in regex detector API. Standalone content detection (no LLM call). Request body: `contents` (list of strings) and `detector_params` (e.g. `regex: ["email"]`). |
+| **https** (orchestrator) | 8032        | 8432         | Orchestrator API: direct access to orchestrator endpoints (e.g. custom detection flows, health). |
+| **health**             | 8034          | 8034         | Health check endpoint. |
+
+When auth is enabled, the gateway and built-in-detector ports require a Bearer token.
+
+### Authentication (auth enabled)
+
+Requests to the gateway or built-in-detector ports must include:
+
+`Authorization: Bearer <token>`
+
+The token must be a valid Kubernetes ServiceAccount token (or other token accepted by the cluster auth proxy) for a subject with access to the service (e.g. `services/proxy`). Unauthorized requests receive 401/403.
+
+**How to obtain a token**
+
+Create a ServiceAccount, a Role (with `get`, `create` on `services/proxy`), and a RoleBinding in the same namespace as the Guardrails Orchestrator; then create a token for the ServiceAccount:
+
+```bash
+# Replace <your-namespace> and optionally the ServiceAccount name (e.g. guardrails-client)
+kubectl create serviceaccount guardrails-client -n <your-namespace>
+kubectl create role -n <your-namespace> guardrails-client --verb=get,create --resource=services/proxy
+kubectl create rolebinding -n <your-namespace> guardrails-client --role=guardrails-client --serviceaccount=<your-namespace>:guardrails-client
+kubectl create token guardrails-client -n <your-namespace>
+```
+
+Optionally set token duration, e.g. `--duration=8760h` for one year. The last command outputs the token; set it as the `Authorization: Bearer <token>` header value.
+
+Clients inside the cluster can use the projected ServiceAccount token volume as the Bearer token.
+
+### Request path reference
+
+| Path | Port | Purpose |
+|------|------|---------|
+| `POST /all/v1/chat/completions` | gateway (8090 or 8490) | Chat completions through the guardrails: request is sent to the LLM after input checks and response is checked by detectors. Body: `model`, `messages` (OpenAI-style). Detector pipeline is fixed by the gateway config. |
+| `POST /api/v2/chat/completions-detection` | orchestrator (8032 or 8432) | Chat completions with **per-request** detector selection. Body: `model`, `messages`, and optionally `detectors` (e.g. `{"input": {"built-in-detector": {"regex": ["email"]}}, "output": {...}}`). Returns the model reply plus `detections` and `warnings` when detectors are specified. Use this when the caller needs to choose which detectors run on each request instead of using a preset gateway route. |
+| `POST /api/v1/text/contents` | built-in-detector (8080 or 8480) | Standalone content detection. Runs the built-in regex (or configured) detector on the given text; does not call the LLM. Body: `contents`, `detector_params`. |
+| `GET /health` | orchestrator (8032 or 8432) | Health check for the orchestrator. |
+
+Other gateway routes (e.g. `/<preset-name>/v1/chat/completions`) are defined in the gateway ConfigMap `routes`.
+
+## API usage and examples
+
+### Standalone detection (`/api/v1/text/contents`)
+
+Run the built-in regex detector on text without calling the LLM. Use the **built-in-detector** port (8080 or 8480). Request body: `contents` (list of strings), `detector_params` (e.g. `regex: ["email"]`).
+
+Use the service address (from inside the cluster: `<orchestrator-name>-service.<your-namespace>.svc.cluster.local`; from outside: Ingress host if exposed) and the **built-in-detector** port (see [Ports and roles](#ports-and-roles)).
+
+```bash
+# If auth is enabled, set TOKEN. Use port 8480 (auth) or 8080 (no auth).
+curl -k -s -X POST "https://<service-address>:8480/api/v1/text/contents" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"contents":["hello, my email is test@example.com"],"detector_params":{"regex":["email"]}}'
+```
+
+**Response:** array (one entry per `contents` item) of arrays of detection objects. Each object has `start`, `end`, `text`, `detection` (e.g. `EmailAddress`), `detection_type` (e.g. `pii`), and `score`.
+
+<details>
+<summary>Response example (standalone detection, email detected)</summary>
+
+```json
+[
+  [
+    {
+      "detection": "EmailAddress",
+      "detection_type": "pii",
+      "end": 35,
+      "score": 1.0,
+      "start": 19,
+      "text": "test@example.com"
+    }
+  ]
+]
+```
+
+</details>
+
+### Orchestrator API: per-request detectors (`/api/v2/chat/completions-detection`)
+
+Use the **orchestrator** port (8032 or 8432) when the caller must choose which detectors run on each request. Request body: `model`, `messages`, and optionally `detectors` (e.g. `input` / `output` with detector params).
+
+Example: run built-in detector with regex `email` on input and output:
+
+```bash
+# Use orchestrator port 8432 (auth) or 8032 (no auth).
+curl -k -s -X POST "https://<service-address>:8432/api/v2/chat/completions-detection" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "model": "<inference-service-name>",
+    "messages": [{"content": "my email is test@example.com", "role": "user"}],
+    "detectors": {
+      "input":  { "built-in-detector": { "regex": ["email"] } },
+      "output": { "built-in-detector": { "regex": ["email"] } }
+    }
+  }'
+```
+
+When the detector finds a match in the input (e.g. email), the response includes `detections` and `warnings`, and `choices` is empty:
+
+<details>
+<summary>Response example (input triggers detection)</summary>
+
+```json
+{
+  "id": "0c339dbab9ab45f59e6bf052d4fd78c6",
+  "object": "",
+  "created": 1773118440,
+  "model": "......",
+  "choices": [],
+  "usage": {
+    "prompt_tokens": 0,
+    "total_tokens": 0,
+    "completion_tokens": 0
+  },
+  "detections": {
+    "input": [
+      {
+        "message_index": 0,
+        "results": [
+          {
+            "start": 12,
+            "end": 28,
+            "text": "test@example.com",
+            "detection": "EmailAddress",
+            "detection_type": "pii",
+            "detector_id": "built-in-detector",
+            "score": 1.0
+          }
+        ]
+      }
+    ]
+  },
+  "warnings": [
+    {
+      "type": "UNSUITABLE_INPUT",
+      "message": "Unsuitable input detected. Please check the detected entities on your input and try again with the unsuitable input removed."
+    }
+  ]
+}
+```
+
+</details>
+
+Response shape matches gateway chat: `choices`, `detections`, `warnings`. Omit `detectors` for a plain chat completion with no detection.
+
+### Gateway API: preset pipeline (`/all/v1/chat/completions`)
+
+Use the **gateway** port (8090 or 8490) for chat with a fixed detector pipeline (defined in the gateway ConfigMap). Request body: `model`, `messages` (OpenAI-style). For per-request detector choice, use the [orchestrator API](#orchestrator-api-per-request-detectors) instead.
+
+Use the service address and **gateway** port (see [Ports and roles](#ports-and-roles)).
+
+```bash
+# Use port 8490 (auth) or 8090 (no auth).
+curl -k -s -X POST "https://<service-address>:8490/all/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"model":"<inference-service-name>","messages":[{"content":"my email is test@example.com","role":"user"}]}'
+```
+
+**When input/output pass:** `detections` and `warnings` are null, `choices` contains the model reply:
+
+<details>
+<summary>Response example (input/output pass)</summary>
+
+```json
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "......",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1773109415,
+  "detections": null,
+  "id": "chatcmpl-6d190200e68646bba140fa584ce5c301",
+  "model": "......",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 28,
+    "prompt_tokens": 30,
+    "total_tokens": 58
+  },
+  "warnings": null
+}
+```
+
+</details>
+
+**When input triggers a detection (e.g. PII):** `detections` and `warnings` are set, `choices` is empty:
+
+<details>
+<summary>Response example (input triggers detection)</summary>
+
+```json
+{
+  "choices": [],
+  "created": 1773109609,
+  "detections": {
+    "input": [
+      {
+        "message_index": 0,
+        "results": [
+          {
+            "detection": "EmailAddress",
+            "detection_type": "pii",
+            "detector_id": "built-in-detector",
+            "end": 28,
+            "score": 1.0,
+            "start": 12,
+            "text": "test@example.com"
+          }
+        ]
+      }
+    ],
+    "output": null
+  },
+  "id": "24dcf55e14344b4bbc760944eb6c1630",
+  "model": "......",
+  "object": "",
+  "usage": {
+    "completion_tokens": 0,
+    "prompt_tokens": 0,
+    "total_tokens": 0
+  },
+  "warnings": [
+    {
+      "type": "UNSUITABLE_INPUT",
+      "message": "Unsuitable input detected. Please check the detected entities on your input and try again with the unsuitable input removed."
+    }
+  ]
+}
+```
+
+</details>
