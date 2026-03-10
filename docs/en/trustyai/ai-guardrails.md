@@ -176,6 +176,7 @@ curl -k -s -X POST "https://<service-address>:8480/api/v1/text/contents" \
 
 </details>
 
+<a id="orchestrator-api-per-request-detectors"></a>
 ### Orchestrator API: per-request detectors (`/api/v2/chat/completions-detection`)
 
 Use the **orchestrator** port (8032 or 8432) when the caller must choose which detectors run on each request. Request body: `model`, `messages`, and optionally `detectors` (e.g. `input` / `output` with detector params).
