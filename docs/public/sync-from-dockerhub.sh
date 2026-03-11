@@ -8,14 +8,14 @@ RED='\033[31m'
 NC='\033[0m'
 
 # ==========================================
-# 环境变量配置
+# Environment Variable Configuration
 # ==========================================
 TARGET_REGISTRY="${TARGET_REGISTRY:-}"
 TARGET_PROJECT="${TARGET_PROJECT:-}"
 TARGET_USER="${TARGET_USER:-}"
 TARGET_PASSWORD="${TARGET_PASSWORD:-}"
 
-# 可选：配置 Docker Hub 的凭证以避免 pull 被限流，非强需求但可以预留
+# Optional: Configure Docker Hub credentials to avoid pull rate limiting. Not required but recommended.
 DOCKERHUB_USER="${DOCKERHUB_USER:-}"
 DOCKERHUB_PASSWORD="${DOCKERHUB_PASSWORD:-}"
 
@@ -25,8 +25,8 @@ SKOPEO_TIMEOUT="120m"
 
 WORK_DIR="/tmp/workbench-images-export-from-hub"
 
-# 全局清理机制 (Trap)
-trap 'log "${YELLOW}正在清理临时目录释放空间: ${WORK_DIR}${NC}"; rm -rf "${WORK_DIR}"' EXIT
+# Global cleanup mechanism (Trap)
+trap 'log "${YELLOW}Cleaning up temporary directory to free space: ${WORK_DIR}${NC}"; rm -rf "${WORK_DIR}"' EXIT
 
 declare -a WORKBENCH_IMAGES=(
   "docker.io/alaudadockerhub/odh-workbench-codeserver-datascience-cpu-py312-ubi9:3.4_ea1-v1.41"
@@ -39,7 +39,7 @@ declare -a WORKBENCH_IMAGES=(
 )
 
 # ==========================================
-# 通用工具函数
+# Utility Functions
 # ==========================================
 log() {
   printf "%b\n" "$1"
@@ -97,10 +97,10 @@ check_target_image_exists() {
 }
 
 login_target() {
-  log "${BLUE}登录私有镜像仓库: ${TARGET_REGISTRY}...${NC}"
-  # 大部分私有 Harbor 不需要代理，如果需要可以类似原脚本注入 HTTP_PROXY 或者让用户全局声明
+  log "${BLUE}Logging in to private registry: ${TARGET_REGISTRY}...${NC}"
+  # Most private Harbor registries don't require proxy. If needed, inject HTTP_PROXY similar to original script or let user declare globally
   skopeo login -u "$TARGET_USER" -p "$TARGET_PASSWORD" --tls-verify=false "$TARGET_REGISTRY" || {
-    log "${RED}私有镜像仓库 ${TARGET_REGISTRY} 登录失败，请检查凭据。${NC}"
+    log "${RED}Failed to log in to private registry ${TARGET_REGISTRY}. Please check your credentials.${NC}"
     exit 1
   }
 }
@@ -112,13 +112,13 @@ sync_image() {
 
   log "${BLUE}Syncing: ${SRC} -> ${DEST}${NC}"
 
-  # 1. 检查目标仓库是否已有该镜像
+  # 1. Check if image already exists in target registry
   if check_target_image_exists "$DEST"; then
     log "${GREEN}Image exists on target registry. Skipping.${NC}"
     return 0
   fi
 
-  # 2. 如果本地不存在该镜像先进行拉取
+  # 2. Pull image from DockerHub if not present locally
   if ! check_local_image "$SRC"; then
     log "${BLUE}Pulling original image from DockerHub (nerdctl pull)...${NC}"
     retry nerdctl pull "$SRC"
@@ -132,11 +132,11 @@ sync_image() {
 
   mkdir -p "$WORK_DIR"
 
-  # 3. 将单层极大（如 7G）的镜像保存到本地成为 tar 包，避免直接通过内存/管道传输引起的崩溃或超时
+  # 3. Save large single-layer images (e.g., 7GB) to local tar to avoid memory/pipe transfer crashes or timeouts
   log "${BLUE}Exporting to tarball via nerdctl save...${NC}"
   nerdctl save -o "$TAR_FILE" "$SRC"
 
-  # 4. 从本地 tar 包推送到目标仓库（兼容大容量镜像）
+  # 4. Push from local tar to target registry (compatible with large images)
   log "${BLUE}Pushing tarball to target registry via Skopeo...${NC}"
   retry skopeo copy \
     --command-timeout "$SKOPEO_TIMEOUT" \
@@ -146,42 +146,42 @@ sync_image() {
 
   log "${GREEN}Successfully synced ${SRC} to ${DEST}${NC}"
   
-  # 5. 推送成功后即刻清理以释放大容量的临时磁盘占用
+  # 5. Clean up immediately after successful push to free large temporary disk space
   rm -f "$TAR_FILE"
   return 0
 }
 
 main() {
   if [ -z "$TARGET_REGISTRY" ] || [ -z "$TARGET_PROJECT" ] || [ -z "$TARGET_USER" ] || [ -z "$TARGET_PASSWORD" ]; then
-    log "${RED}错误: 缺少必要的环境变量。${NC}"
-    log "请通过 export 的方式提供相关环境参数:"
+    log "${RED}Error: Missing required environment variables.${NC}"
+    log "Please provide the following environment parameters via export:"
     log "  export TARGET_REGISTRY=build-harbor.alauda.cn"
     log "  export TARGET_PROJECT=mlops/workbench-images"
     log "  export TARGET_USER=admin"
     log "  export TARGET_PASSWORD=your_password"
-    log "执行示例: ./$0"
+    log "Example: ./$0"
     exit 1
   fi
 
   if [ -n "$DOCKERHUB_USER" ] && [ -n "$DOCKERHUB_PASSWORD" ]; then
-    log "${BLUE}登录 DockerHub 以避免拉取限流...${NC}"
+    log "${BLUE}Logging in to DockerHub to avoid pull rate limiting...${NC}"
     nerdctl login -u "$DOCKERHUB_USER" -p "$DOCKERHUB_PASSWORD" docker.io || true
   fi
 
   login_target
 
-  log "${BLUE}=== 开始同步 Workbench 镜像至 ${TARGET_REGISTRY}/${TARGET_PROJECT} ===${NC}"
+  log "${BLUE}=== Starting Workbench image sync to ${TARGET_REGISTRY}/${TARGET_PROJECT} ===${NC}"
   local TOTAL=${#WORKBENCH_IMAGES[@]}
   local i=0 SRC
   for SRC in "${WORKBENCH_IMAGES[@]}"; do
     i=$((i + 1))
     echo -en "\n[${i}/${TOTAL}] "
     sync_image "$SRC" || {
-      log "${RED}同步失败：${SRC}${NC}"
+      log "${RED}Sync failed: ${SRC}${NC}"
       exit 1
     }
   done
-  log "${GREEN}=== 所有镜像同步完成 ===${NC}"
+  log "${GREEN}=== All images synced successfully ===${NC}"
 }
 
 main "$@"
