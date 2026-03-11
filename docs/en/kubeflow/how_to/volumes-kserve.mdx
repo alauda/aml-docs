@@ -55,19 +55,19 @@ The KServe Endpoints UI allows you to deploy, manage, and monitor inference serv
 3. **Deploy**:
    Click **Create**.
 
-```yaml
-apiVersion: serving.kserve.io/v1beta1
-kind: InferenceService
-metadata:
-  name: my-model
-  namespace: my-namespace
-spec:
-  predictor:
-    model:
-      modelFormat:
-        name: "transformers"
-      runtime: aml-vllm-0.9.2-cuda-12.6
-      storageUri: "hf://model-repo/model-name"
+   ```yaml
+   apiVersion: serving.kserve.io/v1beta1
+   kind: InferenceService
+   metadata:
+     name: my-model
+     namespace: my-namespace
+   spec:
+     predictor:
+       model:
+         modelFormat:
+           name: "transformers"
+         runtime: aml-vllm-0.9.2-cuda-12.6
+         storageUri: "hf://model-repo/model-name"
 ```
 
 ## Monitor and Test
