@@ -374,6 +374,12 @@ spec:
           REAL_SCRIPT=$(echo "$RAW_SCRIPT" | sed 's/__LT__/\x3c/g')
           echo "$REAL_SCRIPT" > /tmp/startup.sh
           chmod +x /tmp/startup.sh
+          
+          if [ ! -d "${MODEL_PATH}" ]; then
+              MODEL_DIR="/mnt/models"
+              echo "[WARNING] Model directory ${MODEL_PATH} not found, using ${MODEL_DIR} instead"
+              MODEL_PATH="${MODEL_DIR}"
+          fi
 
           CONFIG_FILE="${MODEL_PATH}/config.json"
           echo "Checking for file: ${CONFIG_FILE}"
