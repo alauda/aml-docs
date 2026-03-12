@@ -21,8 +21,8 @@ __metadata:
   linkType: hard
 
 "@alauda/doom@npm:^1.21.0":
-  version: 1.21.3
-  resolution: "@alauda/doom@npm:1.21.3"
+  version: 1.21.4
+  resolution: "@alauda/doom@npm:1.21.4"
   dependencies:
     "@alauda/doom-export": "npm:^0.4.1"
     "@cspell/eslint-plugin": "npm:^9.7.0"
@@ -41,6 +41,7 @@ __metadata:
     "@shikijs/transformers": "npm:^4.0.2"
     "@total-typescript/ts-reset": "npm:^0.6.1"
     "@types/react": "npm:^19.2.14"
+    "@typescript-eslint/utils": "npm:^8.57.0"
     ab64: "npm:^0.1.6"
     chokidar: "npm:^5.0.0"
     clsx: "npm:^2.1.1"
@@ -96,7 +97,7 @@ __metadata:
     yoctocolors: "npm:^2.1.2"
   bin:
     doom: lib/cli/index.js
-  checksum: 10c0/7d34a3369aef20c5434d3c25ee63b6819f5be65db936ef96da957d8c839638abbaea36836c95a6ef81c2a469d90e2372c63e96d9b0617f80aa4bb3b42404d34c
+  checksum: 10c0/e023a6d1817a879420a139e88344c4868ac80cb961d2e05fa838552444adbd5c030df3995edebc775c1dcea526b524739d4e0be2db50262b3e4ff79be6f0a18e
   languageName: node
   linkType: hard
 
@@ -3120,7 +3121,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@typescript-eslint/utils@npm:8.57.0, @typescript-eslint/utils@npm:^8.55.0":
+"@typescript-eslint/utils@npm:8.57.0, @typescript-eslint/utils@npm:^8.55.0, @typescript-eslint/utils@npm:^8.57.0":
   version: 8.57.0
   resolution: "@typescript-eslint/utils@npm:8.57.0"
   dependencies:
