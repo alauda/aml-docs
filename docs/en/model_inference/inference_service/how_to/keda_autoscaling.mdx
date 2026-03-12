@@ -1,0 +1,217 @@
+---
+weight: 16
+i18n:
+  title:
+    en: Set Up Autoscaling for Inference Services with KEDA
+    zh: 使用 KEDA 为推理服务配置自动扩缩容
+---
+
+# Set Up Autoscaling for Inference Services with KEDA
+
+## Introduction
+
+Deploying machine learning models in a production environment presents unique challenges, and one of the most critical is ensuring that your inference service can handle varying levels of traffic with efficiency and reliability. The unpredictable nature of AI workloads—where traffic can spike dramatically and resource needs fluctuate based on factors like input sequence lengths, token generation lengths, or the number of concurrent requests—often means that traditional autoscaling methods fall short.
+
+Relying solely on CPU or memory metrics can lead to either overprovisioning and wasted resources, or underprovisioning and poor user experience. Similarly, GPU utilization can indicate efficient usage or a saturated state. Industry best practices for LLM autoscaling have therefore shifted towards more workload-specific metrics.
+
+This guide walks through setting up KServe autoscaling by leveraging **KEDA** (Kubernetes Event-driven Autoscaling) and custom, application-specific metrics exported by **vLLM**. This combination allows inference services to scale based on actual workload signals rather than generic infrastructure metrics.
+
+:::info
+KEDA extends the standard Kubernetes Horizontal Pod Autoscaler (HPA), allowing applications to scale from zero to N instances and back down based on a wide variety of event sources—including Prometheus metrics. It introduces an open and extensible framework so that KServe can scale on virtually any signal relevant to your AI model's performance.
+:::
+
+
+## Prerequisites
+
+- `Alauda AI` Operator plugin installed.
+- `KEDA` Operator plugin installed.
+- An `InferenceService` using `Standard` mode with a vLLM serving runtime.
+- `Prometheus` installed and accessible in the cluster.
+
+
+
+### Grant KServe Access to KEDA Resources
+
+Before proceeding, apply the following RBAC resources to allow `kserve-controller-manager` to manage KEDA objects (`ScaledObject`, `TriggerAuthentication`, etc.):
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kserve-keda-manager-role
+rules:
+- apiGroups:
+  - keda.sh
+  resources:
+  - "*"
+  verbs:
+  - "*"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kserve-keda-manager-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kserve-keda-manager-role
+subjects:
+- kind: ServiceAccount
+  name: kserve-controller-manager
+  namespace: kserve
+```
+
+:::warning[Installation Order]
+If KEDA was installed **after** the **Alauda AI**, restart the `kserve-controller-manager` pod (in the `kserve` namespace) after applying the RBAC above, so it can discover the KEDA CRDs:
+
+```bash
+kubectl rollout restart deployment kserve-controller-manager -n kserve
+```
+:::
+
+
+## Steps
+
+<Steps>
+
+### Stop the Running InferenceService
+
+Before making changes, stop the running `InferenceService` to avoid conflicts between the existing HPA and the new KEDA-managed scaler. Add the following annotation to stop it:
+
+```bash
+kubectl annotate inferenceservice <your-isvc-name> -n <your-namespace> \
+  serving.kserve.io/stop='true'
+```
+
+:::warning
+If a running `InferenceService` already has an HPA resource, switching to KEDA without stopping it first will cause a resource conflict.
+:::
+
+
+
+### Create the Prometheus TriggerAuthentication
+
+KEDA requires a `TriggerAuthentication` resource in the same namespace as your `InferenceService` to authenticate with Prometheus.
+
+The Prometheus credentials are stored in the platform secret `kube-prometheus-alertmanager-basic-auth` in the `cpaas-system` namespace. Run the following command to copy them into your namespace:
+
+```bash
+kubectl create secret generic prom-basic-auth-secret \
+  --namespace=<your-namespace> \
+  --from-literal=username=$(kubectl get secret kube-prometheus-alertmanager-basic-auth \
+    -n cpaas-system -o jsonpath='{.data.username}' | base64 -d) \
+  --from-literal=password=$(kubectl get secret kube-prometheus-alertmanager-basic-auth \
+    -n cpaas-system -o jsonpath='{.data.password}' | base64 -d)
+```
+
+Then create the `TriggerAuthentication` that references it:
+
+```yaml
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: prom-basic-auth
+  namespace: <your-namespace>
+spec:
+  secretTargetRef:
+    - parameter: username
+      name: prom-basic-auth-secret
+      key: username
+    - parameter: password
+      name: prom-basic-auth-secret
+      key: password
+```
+
+:::tip
+The following names must be consistent across all resources:
+- `prom-basic-auth-secret` — the `Secret` name, must match `secretTargetRef.name` inside the `TriggerAuthentication`.
+- `prom-basic-auth` — the `TriggerAuthentication` name, must match `authenticationRef.authenticationRef.name` in the `InferenceService` spec.
+:::
+
+
+
+### Configure the InferenceService for KEDA
+
+After the service is stopped, update the `InferenceService` manifest with the KEDA autoscaling configuration:
+
+```yaml
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: <your-isvc-name>
+  namespace: <your-namespace>
+  annotations:
+    serving.kserve.io/deploymentMode: Standard
+    serving.kserve.io/autoscalerClass: keda # [!code callout]
+spec:
+  predictor:
+    maxReplicas: 2 # [!code callout]
+    autoScaling:
+      metrics:
+        - type: External
+          external:
+            authenticationRef:
+              authModes: basic
+              authenticationRef:
+                name: prom-basic-auth # [!code callout]
+            metric:
+              backend: prometheus
+              query: > # [!code callout]
+                sum(vllm:num_requests_running{isvc_name="<your-isvc-name>",namespace="<your-namespace>"})
+              serverAddress: http://prometheus-operated.cpaas-system.svc.cluster.local:9090 # [!code callout]
+            target:
+              type: Value
+              value: '1' # [!code callout]
+    # ... rest of your predictor configuration
+```
+<Callouts>
+1. Disables the built-in KServe HPA and delegates scaling to KEDA.
+2. Sets the maximum number of replicas. To enable the service to automatically scale out in response to increased traffic, ensure this value is greater than 1 (e.g., 2).
+3. References the `TriggerAuthentication` resource that holds the credentials for authenticating with Prometheus. Replace `prom-basic-auth` with the name of your actual `TriggerAuthentication`.
+4. A PromQL query that returns the current load as a single numeric value. Replace `<your-model-name>` and `<your-namespace>` with your actual values.
+5. The internal address of your Prometheus instance, e.g., `http://prometheus-operated.cpaas-system.svc.cluster.local:9090`.
+6. The per-replica target value. KEDA computes `ceil(metricValue / value)` to determine the desired number of replicas.
+</Callouts>
+
+
+### vLLM Metrics for Autoscaling
+
+vLLM metrics are automatically collected by the platform. Choosing the right metric is arguably the most crucial part of the setup—the Prometheus query must return a **single numeric value** that accurately reflects the current load on your model.
+
+The following vLLM metrics are commonly used for autoscaling:
+
+| Metric | Description |
+|---|---|
+| `vllm:num_requests_running` | Number of requests currently being processed by the model |
+| `vllm:num_requests_waiting` | Number of requests queued and waiting to be processed |
+| `vllm:gpu_cache_usage_perc` | Percentage of GPU KV cache currently in use |
+| `vllm:e2e_request_latency_seconds_bucket` | End-to-end request latency histogram |
+| `vllm:time_per_output_token_seconds_bucket` | Inter-token latency (Time Per Output Token, TPOT) |
+
+Use the `sum()` aggregation function to ensure the query returns a single value across all pods of your deployment. For example, to scale based on the number of waiting requests:
+
+```bash
+sum(vllm:num_requests_waiting{isvc_name="<your-isvc-name>", namespace="<your-namespace>"})
+```
+
+This sums up all pending requests across all predictor pods, giving KEDA a single aggregate signal to act on.
+
+
+### Verify the Setup
+
+After applying the updated `InferenceService`, KServe will automatically create a KEDA `ScaledObject` on your behalf. Verify that everything is working:
+
+```bash
+# Check the ScaledObject created by KServe
+kubectl get scaledobject -n <your-namespace>
+
+# Check the KEDA-managed HPA
+kubectl get hpa -n <your-namespace>
+
+# Watch replica counts in real time
+kubectl get hpa -n <your-namespace> -w
+```
+
+The HPA output will show the current metric value, the scaling threshold, and the current/desired replica counts. As inference traffic increases, the `TARGETS` value will rise and replicas will scale up automatically.
+
+</Steps>
