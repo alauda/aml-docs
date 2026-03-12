@@ -1,0 +1,121 @@
+---
+weight: 40
+---
+
+# Use Kubeflow Model Registry
+
+The Kubeflow Model Registry is a central repository for managing machine learning models, their versions, and associated metadata. It allows data scientists to publish models, track their lineage, and collaborate on model development.
+
+## Access the Model Registry
+
+1. **Open Dashboard**: Log in to the Kubeflow central dashboard.
+2. **Model Registry**: Click on **Model Registry** in the sidebar. This will take you to the list of registered models in your namespace.
+   > **Note**: If you do not see the Model Registry, ensure a Model Registry instance has been deployed in your namespace by the platform administrator.
+
+## Register a Model
+
+You can register models either through the user interface or programmatically using the Python client.
+
+### Option 1: Using the UI
+
+1. **Create Registered Model**:
+   - Click **Register Model**.
+   - **Model Name**: Enter a unique name (e.g., `fraud-detection`).
+   - **Description**: Add a description.
+   - **Version details**: Optionally add version information, tags, and metadata.
+   - **Model Location**: Provide the S3/URI to the model artifact (e.g., `s3://my-bucket/models/fraud-detection/v1/`).
+   - Click **Create**.
+
+2. **Create Version**:
+   - Click on drop down menu next to the **Registered Model** and select **Register New Version**.
+   - Enter version name, description, metadata and artifact URI.
+   - Click **Register new version**.
+
+### Option 2: Using Python Client
+
+You can register models directly from your Jupyter Notebook using the `model-registry` Python client.
+
+**Prerequisites**:
+- Install the client: `python -m pip install model-registry=="0.3.5" kserve=="0.13"`
+- Ensure you have access to the Model Registry service. If running inside a Kubeflow Notebook, you can use the internal service DNS (e.g. `http://model-registry-service.<namespace>.svc:8080`).
+
+**Sample Code**:
+
+The following example demonstrates how to register a model stored in S3.
+
+```python
+from model_registry import ModelRegistry
+
+# 1. Connect to the Model Registry
+# Replace with your actual Model Registry service host/port
+# Inside cluster, typically: "http://model-registry-service.<namespace>.svc.cluster.local:8080"
+registry = ModelRegistry(
+    server_address="http://model-registry-service.kubeflow.svc.cluster.local",
+    port=8080,
+    author="your name",
+    is_secure=False
+)
+
+# 2. Register a new Model
+rm = registry.register_model(
+    "iris",
+    "s3://kfserving-examples/models/sklearn/1.0/model",
+    model_format_name="sklearn",
+    model_format_version="1",
+    version="v1",
+    description="Iris scikit-learn model",
+    metadata={
+        "accuracy": 3.14,
+        "license": "BSD 3-Clause License",
+    }
+)
+
+# 3. Retrieve model information
+model = registry.get_registered_model("iris")
+print("Registered Model:", model, "with ID", model.id)
+
+version = registry.get_model_version("iris", "v1")
+print("Model Version:", version, "with ID", version.id)
+
+art = registry.get_model_artifact("iris", "v1")
+print("Model Artifact:", art, "with ID", art.id)
+
+```
+
+## Deploy a Registered Model
+
+Once a model is registered, you can deploy it as an **InferenceService** using KServe.
+
+To deploy, you typically need the URI of the model artifact. You can retrieve this from the Registry UI or via the Python API:
+
+```python
+from kubernetes import client
+import kserve
+
+isvc = kserve.V1beta1InferenceService(
+    api_version=kserve.constants.KSERVE_GROUP + "/v1beta1",
+    kind=kserve.constants.KSERVE_KIND,
+    metadata=client.V1ObjectMeta(
+        name="iris-model",
+        namespace=kserve.utils.get_default_target_namespace(),
+        labels={
+            "modelregistry/registered-model-id": model.id,
+            "modelregistry/model-version-id": version.id,
+        },
+    ),
+    spec=kserve.V1beta1InferenceServiceSpec(
+        predictor=kserve.V1beta1PredictorSpec(
+            model=kserve.V1beta1ModelSpec(
+                storage_uri=art.uri,
+                model_format=kserve.V1beta1ModelFormat(
+                    name=art.model_format_name, version=art.model_format_version
+                ),
+            )
+        )
+    ),
+)
+ks_client = kserve.KServeClient()
+ks_client.create(isvc)
+```
+
+Once deployed, the KServe controller will pull the model from the specified S3 URI and start the inference server.
