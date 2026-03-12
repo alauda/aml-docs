@@ -13,7 +13,7 @@ Deploy Kubeflow plugins in Alauda AI >= 2.0. Including:
 
 1. A running ACP environment
 2. Ensure Alauda AI has been deployed (requires Alauda AI version >= 2.0)
-3. Deploy ASM in the business cluster where Kubeflow is to be deployed (if ASM was not deployed in the previous step) (Supports ASM v1 for now. ASM v2 support is expected in the future)
+3. Deploy ASM in the business cluster where Kubeflow is to be deployed (if ASM was not deployed in the previous step) (Deploy with ASM v1 is deprecated, use ASM v2 instead, for more details about ASM v2 deployment, please refer to the ASM documentation)
 4. Deploy LWS (Alauda Build of LeaderWorkerSet) plugin, which is a dependency of Kubeflow Trainer v2.
 5. Configure the oauth2-proxy plugin as described below
 
@@ -25,6 +25,8 @@ Obtain the platform dex CA certificate for later use in **Global** cluster:
 crt=$(kubectl get secret -n cpaas-system dex.tls -o jsonpath='{.data.tls\.crt}')
 echo -n $crt | base64 -d
 ```
+
+#### Configure for ASM v1 (Deprecated)
 
 Then go to the global cluster or in acp **Platform Management** -> **Resource Management** update the ServiceMesh resource, add the following content under the spec field:
 
@@ -65,6 +67,42 @@ spec:
             name: oauth2-proxy-kubeflow
 ```
 
+#### Configure for ASM v2
+
+Go to **Administrator** - **MarketPlace** - **OperatorHub**, find `Alauda Service Mesh v2`, go to **All Instances** tab, find the instance of type **Istio** (like "default"), click the "Update" button, and add the following content under the `spec` field:
+
+```yaml
+spec:
+  values:
+    pilot:
+      env:
+        PILOT_JWT_PUB_KEY_REFRESH_INTERVAL: 1m
+      jwksResolverExtraRootCA: |
+        -----BEGIN CERTIFICATE-----
+        <YOUR_DEX_CA_CERTIFICATE_BASE64_HERE>
+        -----END CERTIFICATE-----
+    meshConfig:
+      extensionProviders:
+        - envoyExtAuthzHttp:
+            headersToDownstreamOnDeny:
+              - content-type
+              - set-cookie
+            headersToUpstreamOnAllow:
+              - authorization
+              - path
+              - x-auth-request-user
+              - x-auth-request-email
+              - x-auth-request-access-token
+            includeAdditionalHeadersInCheck:
+              X-Auth-Request-Redirect: http://%REQ(Host)%%REQ(:PATH)%
+            includeRequestHeadersInCheck:
+              - authorization
+              - cookie
+              - accept
+            port: 80
+            service: oauth2-proxy.kubeflow-oauth2-proxy.svc.cluster.local
+          name: oauth2-proxy-kubeflow
+```
 
 ## Component Onboarding
 
