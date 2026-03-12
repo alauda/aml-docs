@@ -152,7 +152,7 @@ spec:
 2. `aml.cpaas.io/runtime-type: vllm` specifies the code runtime type. For more information about custom inference runtimes, see [Extend Inference Runtimes](./custom_inference_runtime.mdx).
 3. Replace `demo-space` with an existing namespace, or create it first with `kubectl create namespace demo-space`.
 4. Replace `aml-vllm-0.11.2-cpu` with the runtime name that is already installed in your platform (corresponding to a ClusterServingRuntime CRD instance).
-5. `storageUri` specifies the OCI image URI with tag where the model is stored. Use a fully qualified registry URL. For example: `storageUri: oci://docker.io/alaudapublic/models-qwen2.5:v1`
+5. `storageUri` specifies the OCI image URI with tag where the model is stored. Use a fully qualified registry URL. For example: `storageUri: oci://docker.io/alaudadockerhub/models-qwen2.5:v1`
 
 </Callouts>
 
