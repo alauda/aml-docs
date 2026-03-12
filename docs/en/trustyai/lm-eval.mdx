@@ -56,9 +56,9 @@ spec:
   pod:
     container:
       env:
-        - name: HF_ENDPOINT
-          value: https://hf-mirror.com
-          # Optional: when direct access to Hugging Face is unreliable, use a mirror endpoint.
+        # Optional: only set HF_ENDPOINT if your organization provides a trusted mirror.
+        # - name: HF_ENDPOINT
+        #  value: https://<your-approved-hf-mirror>
 ```
 
 - **Model type (`model`)**
@@ -164,7 +164,7 @@ Example result shape for the `arc_easy` task (key fields; the full output includ
   },
   "config": {
     "model": "local-completions",
-    "model_args": "model=qwen-test,base_url=http://qwen-test-predictor.trustyai-e2e-test.svc/v1/completions,num_concurrent=1,max_retries=3,tokenized_requests=True,tokenizer=Qwen/Qwen2.5-0.5B",
+    "model_args": "model=<inference-service-name>,base_url=http://<inference-service-name>.trustyai-e2e-test.svc/v1/completions,num_concurrent=1,max_retries=3,tokenized_requests=True,tokenizer=......",
     "batch_size": "1",
     "device": "cpu",
     "limit": 2.0,
@@ -175,7 +175,7 @@ Example result shape for the `arc_easy` task (key fields; the full output includ
     "fewshot_seed": 1234
   },
   "model_source": "local-completions",
-  "model_name": "qwen-test",
+  "model_name": "<inference-service-name>",
   "start_time": 185129.71525112,
   "end_time": 185190.022770961,
   "total_evaluation_time_seconds": "60.307519840978784"
