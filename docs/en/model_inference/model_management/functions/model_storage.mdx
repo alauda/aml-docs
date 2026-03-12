@@ -1,0 +1,203 @@
+---
+weight: 20
+---
+
+# Model Storage
+
+To deploy your model, you must first store it in a storage type supported by Alauda AI. Supported storage types include:
+
+- **S3 Object Storage**: The most commonly used mode. It downloads data before the main container starts via a Storage Initializer (InitContainer).
+- **Persistent Volume Claim (PVC)**: Mounts data stored on a persistent volume before the main container starts via a Storage Initializer.
+- **Open Container Initiative (OCI) containers**: Also known as modelcars in KServe. This approach achieves second-level loading using the container runtime's layered caching capability via a Sidecar.
+
+## Using S3 Object Storage for model storage
+This is the most commonly used mode. It implements credential management through a Secret annotated with specific S3 configuration parameters.
+
+### Authentication Configuration
+It is recommended to create separate ServiceAccount and Secret for each project.
+
+#### S3 Key Configuration Parameters
+| Configuration Item | Actual Value | Description |
+|-------------------|-------------|-------------|
+| Endpoint | your-s3-service-ip:your-s3-port | IP and port pointing to private MinIO service |
+| Region | (Not specified) | Default is usually us-east-1, KServe will use default value if not detected |
+| HTTPS Enabled | 0 | Encryption disabled for internal test/Demo environment |
+| Authentication Method | Static Access Key / Secret Key | Managed through Secret named minio-creds |
+| Namespace Isolation | demo-space | Permissions limited to this namespace, following multi-tenant isolation principles |
+
+```yaml
+apiVersion: v1
+data:
+  AWS_ACCESS_KEY_ID: YOUR_BASE64_ENCODED_ACCESS_KEY # [!code callout]
+  AWS_SECRET_ACCESS_KEY: YOUR_BASE64_ENCODED_SECRET_KEY # [!code callout]
+kind: Secret
+metadata:
+  annotations:
+    serving.kserve.io/s3-endpoint: your_s3_service_ip:your_s3_port # [!code callout]
+    serving.kserve.io/s3-usehttps: "0" # [!code callout]
+  name: minio-creds
+  namespace: demo-space
+type: Opaque
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa-models
+  namespace: demo-space
+secrets:
+- name: minio-creds
+```
+
+<Callouts>
+1. Replace `YOUR_BASE64_ENCODED_ACCESS_KEY` with your actual Base64-encoded AWS access key ID.
+2. Replace `YOUR_BASE64_ENCODED_SECRET_KEY` with your actual Base64-encoded AWS secret access key.
+3. Replace `your_s3_service_ip:your_s3_port` with the actual IP address and port of your S3 service.
+4. Set `serving.kserve.io/s3-usehttps` to "1" if your S3 service uses HTTPS, or "0" if it uses HTTP.
+</Callouts>
+
+### Deploy Inference Service
+```yaml
+kind: InferenceService
+apiVersion: serving.kserve.io/v1beta1
+metadata:
+  annotations:
+    aml-model-repo: Qwen2.5-0.5B-Instruct # [!code callout]
+    aml-pipeline-tag: text-generation
+    serving.kserve.io/deploymentMode: Standard
+  labels:
+    aml.cpaas.io/runtime-type: vllm # [!code callout]
+  name: s3-demo
+  namespace: demo-space
+spec:
+  predictor:
+    maxReplicas: 1
+    minReplicas: 1
+    model:
+      modelFormat:
+        name: transformers
+      name: ''
+      protocolVersion: v2
+      resources:
+        limits:
+          cpu: '2'
+          ephemeral-storage: 10Gi
+          memory: 8Gi
+        requests:
+          cpu: '2'
+          memory: 4Gi
+      runtime: aml-vllm-0.11.2-cpu # [!code callout]
+      storageUri: s3://models/Qwen2.5-0.5B-Instruct # [!code callout]
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+    serviceAccountName: sa-models # [!code callout]
+```
+
+<Callouts>
+1. Replace `Qwen2.5-0.5B-Instruct` with your actual model name.
+2. `aml.cpaas.io/runtime-type: vllm` specifies the code runtime type. For more information about custom inference runtimes, see [Extend Inference Runtimes](../../inference_service/how_to/custom_inference_runtime.mdx).
+3. Replace `aml-vllm-0.11.2-cpu` with the runtime name that is already installed in your platform (corresponding to a ClusterServingRuntime CRD instance).
+4. `storageUri: s3://models/Qwen2.5-0.5B-Instruct` specifies the S3 bucket URI where the model is stored.
+5. `serviceAccountName: sa-models` specifies the service account with permissions to access the S3 credentials secret.
+</Callouts>
+
+## Using OCI containers for model storage
+
+As an alternative to storing a model in an S3 bucket or PVC, you can store models in Open Container Initiative (OCI) containers. Deploying models from OCI containers is also known as **modelcars** in KServe. This approach is ideal for offline environments and enterprise internal registries such as Quay or Harbor.
+
+For detailed instructions on packaging and deploying models using OCI containers, see [Using KServe Modelcar for Model Storage](../../inference_service/how_to/using_modelcar.mdx).
+
+## Using PVC for model storage
+
+### Uploading model files to a PVC
+When deploying a model, you can serve it from a preexisting Persistent Volume Claim (PVC) where your model files are stored. You can upload your local model files to a PVC in the IDE that you access from a running workbench.
+
+#### Prerequisites
+- You have access to the Alauda AI dashboard.
+- You have access to a project that has a running workbench.
+- You have created a persistent volume claim (PVC).
+- The workbench is attached to the persistent volume (PVC).
+  
+  For instructions on creating a workbench and attaching a PVC, see [Create Workbench](../../../../workbench/how_to/create_workbench.mdx).
+- You have the model files saved on your local machine.
+
+#### Procedure
+Follow these steps to upload your model files to the PVC within your workbench:
+
+1. From the Alauda AI dashboard, click **Workbench** to enter the workbench list page.
+
+2. Find your running workbench instance and click the **Connect** button to enter the workbench.
+
+3. In your workbench IDE, navigate to the file browser:
+   - In JupyterLab, this is the **Files** tab in the left sidebar.
+   - In code-server, this is the **Explorer** view in the left sidebar.
+
+4. In the file browser, navigate to the home directory. This directory represents the root of your attached PVC.
+   > **Note**
+   > Any files or folders that you create or upload to this folder persist in the PVC.
+
+5. Optional: Create a new folder to organize your models:
+   - In the file browser, right-click within the home directory and select **New Folder**.
+   - Name the folder (for example, models).
+   - Double-click the new models folder to enter it.
+
+6. Upload your model files to the current folder:
+   - Using JupyterLab:
+     - Click the **Upload** button in the file browser toolbar.
+     - In the file selection dialog, navigate to and select the model files from your local computer. Click **Open**.
+     - Wait for the upload to complete.
+   - Using code-server:
+     - Drag the model files directly from your local file explorer and drop them into the file browser pane in the target folder within code-server.
+     - Wait for the upload process to complete.
+
+#### Verification
+Confirm that your files appear in the file browser at the path where you uploaded them.
+
+#### Next Steps
+When deploying a model from a PVC, set the `storageUri` in the format `pvc://<pvc-name>/<optional-path>`. For example:
+- `pvc://model-pvc` — loads from the root of the PVC.
+- `pvc://model-pvc/models/Qwen2.5-0.5B-Instruct` — loads from a specific subdirectory.
+
+
+### Deploy Inference Service
+```yaml
+kind: InferenceService
+apiVersion: serving.kserve.io/v1beta1
+metadata:
+  annotations:
+    aml-model-repo: Qwen2.5-0.5B-Instruct # [!code callout]
+    aml-pipeline-tag: text-generation
+    serving.kserve.io/deploymentMode: Standard
+  labels:
+    aml.cpaas.io/runtime-type: vllm # [!code callout]
+  name: pvc-demo-1
+  namespace: demo-space
+spec:
+  predictor:
+    maxReplicas: 1
+    minReplicas: 1
+    model:
+      modelFormat:
+        name: transformers
+      protocolVersion: v2
+      resources:
+        limits:
+          cpu: '2'
+          ephemeral-storage: 10Gi
+          memory: 8Gi
+        requests:
+          cpu: '2'
+          memory: 4Gi
+      runtime: aml-vllm-0.11.2-cpu # [!code callout]
+      storageUri: pvc://model-pvc # [!code callout]
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+```
+
+<Callouts>
+1. Replace `Qwen2.5-0.5B-Instruct` with your actual model name.
+2. `aml.cpaas.io/runtime-type: vllm` specifies the code runtime type. For more information about custom inference runtimes, see [Extend Inference Runtimes](../../inference_service/how_to/custom_inference_runtime.mdx).
+3. Replace `aml-vllm-0.11.2-cpu` with the runtime name that is already installed in your platform (corresponding to a ClusterServingRuntime CRD instance).
+4. `storageUri: pvc://model-pvc` specifies the PVC name where the model is stored.
+</Callouts>
