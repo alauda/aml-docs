@@ -1,0 +1,159 @@
+---
+weight: 10
+---
+
+# Use Kubeflow Notebooks
+
+Kubeflow Notebooks provide a Kubernetes-native Jupyter environment for data scientists to develop, train, and deploy machine learning models. Each notebook server runs as a separate Pod in your namespace, ensuring isolation and dedicated resources.
+
+> **NOTE**: We recommend using Alauda AI Workbench for a more integrated experience with additional features like resource types, configurations, and better integration with other components. However, you can also use the native Kubeflow Notebooks if you prefer a more lightweight setup or need specific features from the upstream project.
+
+## Concepts
+
+- **Notebook Server**: A JupyterLab instance running in a container.
+- **Custom Image**: You can use standard pre-built images (e.g., containing TensorFlow, PyTorch) or provide your own custom Docker image with specific libraries.
+- **Persistent Storage**: By default, notebook servers are attached to Persistent Volume Claims (PVCs) to store your workspace directory (usually `/home/jovyan`). This ensures your notebooks and data are saved even if the server is restarted or updated.
+
+## Create a Notebook Server
+
+1. **Access the Dashboard**:
+   Navigate to the **Notebooks** section in the Kubeflow dashboard.
+
+2. **New Notebook**:
+   Click **New Notebook**. Make sure to select the correct namespace on top of the dashboard where you want to create the notebook server.
+
+3. **Configure the Server**:
+   - **Name**: Enter a unique name for your notebook server.
+   - **Image**:
+     - **Select Type**: Choose the type of image including JupyterLab, Visual Studio Code, or RStudio.
+     - **Select Image**: Choose from a list of pre-built images or specify a custom image by providing the Docker image URL.
+   - **CPU / RAM**: Allocate CPU and Memory resources based on your workload. Start small (e.g., 1 CPU, 2GB RAM) and increase if needed.
+   - **GPUs**: Request GPUs (e.g., NVIDIA) if you plan to run deep learning training or inference tasks that require acceleration.
+   - **Workspace Volume**: This volume mounts to your home directory (`/home/jovyan`). Create a new volume (default) or attach an existing one to access previous work.
+   - **Data Volumes**: (Optional) Attach additional existing PVCs to access large datasets without copying them to your workspace.
+   - **Configurations**: (Optional) Select PodDefaults (if available) to inject generic configurations like S3 credentials, Git config, or environment variables.
+
+4. **Launch**:
+   Click **Launch**. The server will be provisioned. Wait for the status display to turn **Running** (green).
+
+## Connect to the Notebook
+
+Once the server status is **Running**:
+1. Click **Connect**.
+2. This opens the **JupyterLab/VS Code/RStudio** interface in a new browser tab.
+3. You can now create Python 3 notebooks, open a terminal, or manage files.
+
+## Environment Management
+
+### Installing Python Packages
+
+While you can install packages in your home directory to persist them, it is best practice to use a custom image for reproducibility.
+
+Create an "venv" directory in your home and install packages there:
+
+```bash
+python -m venv ~/venv
+source ~/venv/bin/activate
+python -m pip install transformers datasets
+```
+
+When you start a new terminal session, remember to activate the virtual environment to access the installed packages.
+
+To use the virtual environment in Jupyter notebooks, you can install `ipykernel` and create a new kernel:
+
+```bash
+source ~/venv/bin/activate
+python -m pip install ipykernel
+python -m ipykernel install --user --name=venv --display-name "Python (venv)"
+```
+
+Then, in your Jupyter notebook, you can select the "Python (venv)" kernel to use the packages installed in your virtual environment.
+
+Virtual environments are persisted in your home directory, so they will remain available even if you stop and restart the notebook server. However, if you need to share the environment across multiple notebook servers or want better reproducibility, consider building a custom Docker image with the required packages pre-installed.
+
+### Using Custom Images
+
+For production environments or complex dependencies (e.g., system libraries), build a Docker image containing all required libraries and use it as your **Custom Image** when creating the notebook. This ensures exact reproducibility.
+
+## Manage Configurations (PodDefaults)
+
+Kubeflow uses `PodDefault` resources (often labeled as **Configurations** in the UI) to inject common configurations—such as environment variables, volumes, and volume mounts—into Notebooks. This is the standard way to securely provide credentials for Object Storage (S3, MinIO) without hardcoding them in your notebooks.
+
+### Create a PodDefault
+
+You can create a PodDefault by applying a YAML manifest.
+
+Define a `PodDefault` that selects pods with a specific label.
+
+
+```yaml
+apiVersion: kubeflow.org/v1alpha1
+kind: PodDefault
+metadata:
+  name: add-gcp-secret
+  namespace: MY_PROFILE_NAMESPACE
+spec:
+ selector:
+  matchLabels:
+    add-gcp-secret: "true"
+ desc: "add gcp credential"
+ volumeMounts:
+ - name: secret-volume
+   mountPath: /secret/gcp
+ volumes:
+ - name: secret-volume
+   secret:
+    secretName: gcp-secret
+```
+
+### Apply Configuration
+
+When creating a new Notebook Server:
+1. Scroll to the **Configurations** section.
+2. You will see a list of available PodDefaults (e.g., `s3-access`).
+3. Check the box to apply it.
+
+This will automatically inject the specified environment variables or volumes into your Notebook container.
+
+## Accessing Data
+
+### Using Mounted Volumes
+If you attached a data volume (PVC) during creation, it will be available at the specified mount point.
+
+```python
+import pandas as pd
+
+# Assuming you mounted a data volume at /home/jovyan/data
+df = pd.read_csv('/home/jovyan/data/dataset.csv')
+print(df.head())
+```
+
+### Using Object Storage (S3 / MinIO)
+To access data in S3-compatible storage, use libraries like `boto3` or `s3fs`. If your administrator has configured PodDefaults for credentials, environment variables (like `AWS_ACCESS_KEY_ID`) will be pre-populated.
+
+```python
+import os
+import s3fs
+import pandas as pd
+
+# Check if credentials are injected
+print(os.getenv("AWS_S3_ENDPOINT"))
+
+# Read directly from S3
+fs = s3fs.S3FileSystem(
+    client_kwargs={'endpoint_url': os.getenv('AWS_S3_ENDPOINT')},
+    key=os.getenv('AWS_ACCESS_KEY_ID'),
+    secret=os.getenv('AWS_SECRET_ACCESS_KEY')
+)
+
+with fs.open('s3://my-bucket/data/train.csv') as f:
+    df = pd.read_csv(f)
+```
+
+## Best Practices
+
+- **Stop Unused Servers**: Notebook servers consume cluster resources (especially GPUs) even when idle. Stop them when you are not actively working.
+- **Git Integration**: Use the Git extension in JupyterLab (or the terminal) to version control your notebooks. Avoid storing large datasets in Git.
+- **Resource Monitoring**: Monitor your resource usage. If your kernel crashes frequently (OOM), you may need to stop the server and restart it with more Memory limits.
+- **Clean Up**: Periodically delete old notebook servers and their associated PVCs if the data is no longer needed.
+
