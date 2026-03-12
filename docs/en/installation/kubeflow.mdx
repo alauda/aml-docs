@@ -3,7 +3,7 @@
 Deploy Kubeflow plugins in Alauda AI >= 2.0. Including:
 
 - kfbase: Kubeflow Base components, including authentication and authorization, central dashboard, notebook, pvc-viewer, tensorboards, volumes, model registry ui, kserve endpoints ui, model catalog API service, etc.
-- chart-kubeflow-model-registry: Kubeflow Model Registry instance (Helm Chart)
+- model-registry-operator: Kubeflow Model Registry Operator
 - kfp: Kubeflow Pipeline
 - kftraining: Kubeflow Training Operator (deprecated)
 - kubeflow-trainer: Kubeflow Training job management plugin, aka. Kubeflow Trainer v2 (replaces kftraining)
@@ -79,7 +79,7 @@ violet push --platform-address="https://192.168.171.123" \
 ```
 
 - kfbase: Kubeflow Base functionality
-- chart-kubeflow-model-registry: Kubeflow Model Registry
+- model-registry-operator: Kubeflow Model Registry Operator
 - kfp: Kubeflow Pipeline functionality
 - kftraining: Kubeflow Training Operator (deprecated)
 - kubeflow-trainer: Kubeflow Training job management plugin (replaces kftraining)
@@ -195,22 +195,26 @@ As above, in **Cluster Plugins**, find kfp (Kubeflow Pipeline) and kftrainer (Ku
 **Note: After Kubeflow Pipeline deployment, Pipeline related functions can be used in the Kubeflow interface.**
 **Note: Kubeflow Training Operator is a background task scheduler and will not appear in the UI menu and functions.**
 
-### 5. Deploy chart-kubeflow-model-registry (Kubeflow Model Registry)
+### 5. Deploy Kubeflow Model Registry
 
-In **Catalog** or **Administrator** - **Marketplace** - **Chart Repositories**, find chart-kubeflow-model-registry, click the "Create" button, fill in the deployment name, project, namespace (example deployment location), Chart Version, then copy the `values.yaml` configuration information from the right to the left, modify the following content according to the cluster information:
+In **Administrator** - **MarketPlace** - **OperatorHub**, find Model Registry Operator, click the "Install" button to complete the deployment of the operator.
 
-> **Note: Must install in a namespace that has already been bound to a Kubeflow user Profile, otherwise the Model Registry UI will not be displayed**
+After the operator is installed, you need to create a `ModelRegistry` instance in the user's namespace, switch to **All Instances** tab, click "Create" button to create the instance.
 
-- global.registry.address: The image registry address used by the current platform
-- mysqlStorageClass: The mysql storage class used by Model Registry. Needs to be a storage class supported by the target deployment cluster.
-- mysqlStorageSize: The mysql storage size used by Model Registry.
-- mysqlDataBase: Database name (will be created automatically).
-- modelRegistryDisplayName: The name of the Model Registry instance to be deployed
-- modelRegistryDescription: Brief description of the Model Registry instance to be deployed
+> **Note: Must create the instance in a namespace that has already been bound to a Kubeflow user Profile, otherwise the Model Registry UI will not be displayed**
+
+When creating the instance, configure the following parameters as needed:
+
+- **Name**: Configure the name of the Model Registry instance.
+- **Namespace**: Configure the namespace where the Model Registry instance is located, it must be a namespace that has been bound to a Kubeflow user Profile.
+- **MySQL Storage Class**: Configure the MySQL storage class, which is used to store the metadata of the Model Registry. Fill in according to the available storage classes in your cluster, for example, `standard`.
+- **MySQL Storage Size**: Configure the MySQL storage size, which is used to store the metadata of the Model Registry. The default value is `10Gi`, you can adjust it according to your needs.
+- **DisplayName**: The name of the Model Registry instance to be displayed.
+- **Description**: Brief description of the Model Registry instance.
 
 **Note: After the Model Registry instance starts, refresh the Model Registry menu in the left navigation of the Kubeflow page to see the instance deployed in the above steps. Before deploying the first instance, the Kubeflow Model Registry interface will display empty.**
 
-**Note: The Model Registry instance will restrict network requests from non-current namespaces. If you need to allow more namespaces to access, you need to manually modify `kubectl -n <your-namespace> edit authorizationpolicy model-registry-service` and according to the istio documentation, add the namespaces that are allowed to access.**
+**Note: The Model Registry instance will restrict network requests from non-current namespaces. If you need to allow more namespaces to access, you need to manually modify `kubectl -n <your-namespace> edit authorizationpolicy <model-registry-name>` and according to the istio documentation, add the namespaces that are allowed to access.**
 
 **Note: You can install multiple Model Registry instances in different namespaces, each instance is independent of each other.**
 
@@ -222,6 +226,8 @@ before deploying kubeflow-trainer, if you have already deployed kftraining.
 
 > Note: make sure to install LWS (Alauda Build of LeaderWorkerSet) plugin before deploying
 kubeflow-trainer, as LWS is a dependency of kubeflow-trainer.
+
+> Note: Kubeflow Trainer v2 requires minimum Kubernetes version `1.32.3`, older Kubernetes versions may cause unexpected issues.
 
 In **Cluster Plugins**, find kubeflow-trainer (Kubeflow Trainer v2), 
 click the "Install" button, select the options of whether to enable `JobSet`
