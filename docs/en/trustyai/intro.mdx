@@ -1,0 +1,26 @@
+---
+weight: 10
+---
+# Introduction
+
+## TrustyAI
+
+**Alauda Build of TrustyAI** is based on the TrustyAI Kubernetes operator.
+The operator simplifies the deployment and management of TrustyAI components on Kubernetes, including model explainability, fairness monitoring, LLM evaluation, and AI guardrails.
+
+Main components and capabilities include:
+
+- **TrustyAI Service**: A service that deploys alongside KServe models and collects inference data. It enables model explainability, fairness monitoring, and drift tracking.
+- **LM-Eval**: A job-based architecture for deploying and managing LLM evaluations, based on EleutherAI's lm-evaluation-harness. The operator provides the **LMEvalJob** CRD for running and managing evaluation tasks. See [Evaluate LLM](./lm-eval) for details.
+- **AI Guardrails (FMS-Guardrails)**: A modular framework for guardrailing LLMs. The operator provides the **GuardrailsOrchestrator** CRD for orchestrating guardrail policies and components. See [AI Guardrails for LLM safety](./ai-guardrails) for details.
+
+For installation on the platform, see [Install TrustyAI](./install).
+
+For usage of LMEvalJob and GuardrailsOrchestrator after installation, see the sections linked above.
+
+## Documentation
+
+TrustyAI upstream documentation and the operator repository:
+
+- **TrustyAI Operator (upstream)**: [https://github.com/trustyai-explainability/trustyai-service-operator](https://github.com/trustyai-explainability/trustyai-service-operator) — Overview, installation, and usage of the Kubernetes operator.
+- **TrustyAI Documentation**: [https://trustyai.org/](https://trustyai.org/) — TrustyAI project documentation.
