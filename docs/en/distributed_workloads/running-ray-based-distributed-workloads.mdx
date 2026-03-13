@@ -21,7 +21,7 @@ The demo Jupyter notebooks from the CodeFlare SDK provide guidelines on how to u
 #### Prerequisites
 
 - You can access a data science cluster that is configured to run distributed workloads as described in [Managing distributed workloads](../kueue/how_to/config_quotas.mdx).
-- You can access a namespace in Alauda AI then create a workbench, and the workbench is running a default workbench image that contains the CodeFlare SDK, for example, the **Standard Data Science** notebook. For information about create workbenches, see [Create Workbench](../workbench/how_to/create_workbench.mdx).
+- You can access a namespace in Alauda AI, create a workbench, and run a default workbench image that contains the CodeFlare SDK, for example, the **Standard Data Science** notebook. For information about creating workbenches, see [Create Workbench](../workbench/how_to/create_workbench.mdx).
 - You have logged in to Alauda AI, started your workbench, and logged in to JupyterLab.
 
 #### Procedure
@@ -138,7 +138,7 @@ In the examples in this procedure, you edit the demo Jupyter notebooks in Jupyte
 7. In the `2_basic_interactive.ipynb` Jupyter notebook, ensure that the following Ray cluster authentication code is included after the Ray cluster creation section:
 
     **Ray cluster authentication code**
-    ```bash
+    ```python
     from codeflare_sdk import generate_cert
     generate_cert.generate_tls_cert(cluster.config.name, cluster.config.namespace)
     generate_cert.export_env(cluster.config.name, cluster.config.namespace)
@@ -151,7 +151,7 @@ In the examples in this procedure, you edit the demo Jupyter notebooks in Jupyte
 8. Run the Jupyter notebooks in the order indicated by the file-name prefix (`0_`, `1_`, and so on).
     i. In each Jupyter notebook, run each cell in turn, and review the cell output.
     ii. If an error is shown, review the output to find information about the problem and the required corrective action. For example, replace any deprecated parameters as instructed.
-    iii. For more information about the interactive browser controls that you can use to simplify Ray cluster tasks when working within a Jupyter notebook, see [Managing Ray clusters from within a Jupyter notebook](#managing-ray-clusters-from-within-a-jupyter-notebook_distributed-workloads).
+    iii. For more information about the interactive browser controls that you can use to simplify Ray cluster tasks when working within a Jupyter notebook, see [Managing Ray clusters from within a Jupyter notebook](#managing-ray-clusters-from-within-a-jupyter-notebook).
 
 #### Verification
 
@@ -212,12 +212,12 @@ The `3_widget_example.ipynb` demo Jupyter notebook shows all of the available in
 
     iii. Add a new notebook cell, and add the following code to the new cell:
           **Code to view clusters in the current project**
-          ```bash
+          ```python
           view_clusters()
           ```
           When you run the `view_clusters()` command with no arguments specified, you generate a list of all of the Ray clusters in the *current* project, and display information similar to the `cluster.details()` function.
           If you have access to another namespace, you can list the Ray clusters in that namespace by specifying the namespace name as shown in the following example:
-          ```bash
+          ```python
           view_clusters("my_second_namespace")
           ```
     iv. Click **File > Save Notebook As**, enter `demo-notebooks/guided-demos/manage_ray_clusters.ipynb`, and click **Save**.
