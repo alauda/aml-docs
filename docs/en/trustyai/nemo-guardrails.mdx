@@ -172,7 +172,7 @@ In the example above, `config.yaml`:
 
 - Replace `<model-predictor-host>`, `<port>`, and `<model-name>` with the actual predictor service URL and model name.
 - Ensure the backend predictor implements an OpenAI-compatible `/v1/chat/completions` API.
-- For more advanced configuration of `config.yaml` (additional rail types, prompts, tracing, knowledge base, and integration with other safety providers), refer to the official NeMo Guardrails YAML configuration reference: [Nvidia NeMo Guardrails Confriguration](https://docs.nvidia.com/nemo/guardrails/latest/configure-rails/yaml-schema/index.html).
+- For more advanced configuration of `config.yaml` (additional rail types, prompts, tracing, knowledge base, and integration with other safety providers), refer to the official NeMo Guardrails YAML configuration reference: [Nvidia NeMo Guardrails Configuration](https://docs.nvidia.com/nemo/guardrails/latest/configure-rails/yaml-schema/index.html).
 
 ### `rails.co` basics
 
@@ -299,7 +299,7 @@ Create a ServiceAccount, a Role (with `get`, `create` on `services/proxy`), and 
 kubectl create serviceaccount -n <your-namespace> nemo-guardrails-client
 kubectl create role -n <your-namespace> nemo-guardrails-client --verb=get,create --resource=services/proxy
 kubectl create rolebinding -n <your-namespace> nemo-guardrails-client --role=nemo-guardrails-client --serviceaccount=<your-namespace>:nemo-guardrails-client
-kubectl create token -n <your-namespace> nemo-guardrails-service-client
+kubectl create token -n <your-namespace> nemo-guardrails-client
 ```
 
 Optionally set token duration, e.g. `--duration=8760h` for one year. The last command outputs the token; set it as the `Authorization: Bearer <token>` header value.
