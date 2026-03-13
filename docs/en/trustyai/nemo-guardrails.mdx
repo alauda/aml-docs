@@ -1,0 +1,451 @@
+---
+weight: 50
+---
+
+# NeMo Guardrails
+
+NeMo Guardrails provides programmable safety controls for LLM applications. It runs as a separate service in front of the model and can enforce:
+
+- Sensitive data detection (for example, PII in inputs and outputs).
+- Content policies (for example, forbidden topics, competitor mentions).
+- Custom validation flows written in Colang and Python.
+
+The TrustyAI Operator exposes NeMo Guardrails through the **NemoGuardrails** custom resource (CR). This document focuses on a basic deployment that:
+
+- Protects an existing model deployed on the serving platform.
+- Uses NeMo Guardrails for input/output filtering and simple business rules.
+
+## Prerequisites
+
+- TrustyAI Operator installed (see [Install TrustyAI](./install)).
+- A model already deployed on the serving platform (for example, vLLM) that exposes an OpenAI-compatible API.
+
+## Architecture
+
+At a high level, the request path is:
+
+`Client → NeMo Guardrails service → model predictor`
+
+NeMo Guardrails:
+
+- Receives OpenAI-style `chat/completions` requests.
+- Executes configured rails (sensitive data detection, length checks, forbidden topics, and so on).
+- For allowed requests, forwards them to the underlying model.
+- For blocked requests, returns an appropriate assistant message without calling the model.
+
+The TrustyAI Operator manages the NeMo Guardrails server Pod and Service through the **NemoGuardrails** CR. The Service can then be exposed externally using the chosen ingress or gateway solution in the cluster.
+
+## NeMo configuration ConfigMap
+
+NeMo Guardrails expects a configuration directory that typically contains:
+
+- `config.yaml`: main NeMo Guardrails configuration file.
+- `rails.co`: Colang flows that implement the input/output rails and any additional control logic.
+- `actions.py`: Python actions that Colang flows can call to perform custom logic.
+
+<details>
+<summary>NeMo configuration ConfigMap example</summary>
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nemo-config
+  namespace: <your-namespace>
+data:
+  config.yaml: |
+    models:
+      - type: main
+        engine: openai
+        parameters:
+          # Internal URL of the model predictor, OpenAI-compatible
+          openai_api_base: "https://<model-predictor-host>:<port>/v1"
+          model_name: "<model-name>"
+
+    rails:
+      config:
+        sensitive_data_detection:
+          input:
+            entities:
+              - EMAIL_ADDRESS
+          output:
+            entities:
+              - EMAIL_ADDRESS
+      input:
+        flows:
+          - detect sensitive data on input
+          - check message length
+          - check forbidden words
+      output:
+        flows:
+          - detect sensitive data on output
+
+  rails.co: |
+    define flow check message length
+      $length_result = execute check_message_length
+      if $length_result == "blocked_too_long"
+        bot inform message too long
+        stop
+      if $length_result == "warning_long"
+        bot warn message long
+
+    define bot inform message too long
+      "Please keep your message under 100 words for better assistance."
+
+    define bot warn message long
+      "That's quite detailed! I'll help as best I can."
+
+    define flow check forbidden words
+      $forbidden_result = execute check_forbidden_words
+      if $forbidden_result != "allowed"
+        bot inform forbidden content
+        stop
+
+    define bot inform forbidden content
+      "I can't help with that type of request. Please ask something else."
+
+  actions.py: |
+    from typing import Optional
+
+    from nemoguardrails.actions import action
+
+
+    @action(is_system_action=True)
+    async def check_message_length(context: Optional[dict] = None) -> str:
+        """
+        Example custom action called from Colang via:
+          $length_result = execute check_message_length
+        Input:
+          - context: dict-like object provided by NeMo; it contains the latest user
+            message under the "user_message" key.
+        Output:
+          - A short string that the Colang flow interprets, for example:
+            * "blocked_too_long": too long, directly block.
+            * "warning_long": too long, give a warning but still continue.
+            * "allowed": length is acceptable.
+        """
+        user_message = (context or {}).get("user_message", "")
+        word_count = len(user_message.split())
+        max_words = 20
+
+        if word_count > max_words:
+            return "blocked_too_long"
+        if word_count > int(max_words * 0.8):
+            return "warning_long"
+        return "allowed"
+
+
+    @action(is_system_action=True)
+    async def check_forbidden_words(context: Optional[dict] = None) -> str:
+        """
+        Example custom action for simple forbidden word checks.
+        It is called from Colang via:
+          $forbidden_result = execute check_forbidden_words
+        and returns:
+          - "allowed" when no forbidden word is present.
+          - a non-"allowed" value (for example, "blocked_password") when a forbidden
+            word is detected.
+        """
+        user_message = (context or {}).get("user_message", "").lower()
+
+        forbidden_words = ["password", "hack", "exploit", "illegal", "violence"]
+        for word in forbidden_words:
+            if word in user_message:
+                return f"blocked_{word}"
+
+        return "allowed"
+```
+
+</details>
+
+- ### `config.yaml` basics
+
+In the example above, `config.yaml`:
+
+- Declares a single backend model under the `models` section and configures the OpenAI-compatible endpoint via `openai_api_base` and `model_name`.
+- Configures built-in PII detection under `rails.config.sensitive_data_detection`:
+  - `input.entities` / `output.entities` list the entity types to protect (for example, `EMAIL_ADDRESS`, `PERSON`).
+  - When the `detect sensitive data on input` / `detect sensitive data on output` rails run, NeMo automatically invokes its internal detectors using this configuration.
+- Defines which rails run, and in what order, via `rails.input.flows` and `rails.output.flows`:
+  - `detect sensitive data on input` / `detect sensitive data on output` are built-in rails backed by `sensitive_data_detection`.
+  - `check message length` and `check forbidden words` are custom rails implemented in `rails.co` and backed by Python actions in `actions.py`.
+
+- Replace `<model-predictor-host>`, `<port>`, and `<model-name>` with the actual predictor service URL and model name.
+- Ensure the backend predictor implements an OpenAI-compatible `/v1/chat/completions` API.
+- For more advanced configuration of `config.yaml` (additional rail types, prompts, tracing, knowledge base, and integration with other safety providers), refer to the official NeMo Guardrails YAML configuration reference: [Nvidia NeMo Guardrails Confriguration](https://docs.nvidia.com/nemo/guardrails/latest/configure-rails/yaml-schema/index.html).
+
+### `rails.co` basics
+
+In this example, `rails.co` defines **two custom input rails**:
+
+- `define flow check message length`:
+  - The flow name `check message length` must match an entry in `rails.input.flows` in `config.yaml`.
+  - `$length_result = execute check_message_length` runs the Python action `check_message_length` from `actions.py`, passing the current conversation context.
+  - The `if` statements branch on the returned string and either:
+    - call a `bot ...` block to send a reply (for example, `bot inform message too long`), and
+    - `stop` to abort further processing and prevent the LLM from being called,
+    - or do nothing and allow the pipeline to continue to the next rail when `"allowed"` is returned.
+- `define flow check forbidden words`:
+  - Uses the same pattern, but calls the `check_forbidden_words` action and only blocks when the return value is not `"allowed"`.
+
+Additional points:
+
+- `bot ...` blocks (for example, `bot inform message too long`) define canned assistant messages that are sent directly to the client without contacting the backend LLM when a rail decides to stop the pipeline.
+- Rails defined in `rails.co` are executed **in the order listed** in `rails.input.flows` / `rails.output.flows`. Built-in rails such as `detect sensitive data on input` run before or after custom rails depending on their position in the list.
+- The Colang shown here is a minimal example. More complex flows (multiple steps, variables, additional actions) are supported; see the Colang reference in the NeMo Guardrails documentation for full syntax and capabilities. A good starting point is the Colang 2.0 getting started guide: [Colang Getting Started](https://docs.nvidia.com/nemo/guardrails/latest/configure-rails/colang/colang-2/getting-started/index.html).
+
+### `actions.py` basics
+
+The `actions.py` file contains Python functions decorated with `@action` that Colang flows can call with `execute <action_name>`:
+
+- Actions receive a `context` object, which is a dict-like structure populated by NeMo (for example, containing the latest user message under `"user_message"`).
+- Actions return a value (typically a short string) that Colang flows interpret and branch on.
+
+In this example:
+
+- `check_message_length`:
+  - Inspect `context["user_message"]`, compute the word count, and return:
+    - `"blocked_too_long"` when the message should be rejected.
+    - `"warning_long"` when a warning is needed but the pipeline may continue.
+    - `"allowed"` when the message length is acceptable.
+- `check_forbidden_words`:
+  - Lowercase the user message, search for forbidden words, and:
+    - Return `"allowed"` when nothing is found.
+    - Return a non-`"allowed"` value (for example, `"blocked_password"`) when a forbidden word is present.
+
+These patterns can be extended for more complex guardrails, such as structured checks, numeric thresholds, or calls to external services.
+
+
+## Deploy the NemoGuardrails custom resource
+
+With the ConfigMap and token Secret in place, create a **NemoGuardrails** CR to deploy the NeMo Guardrails service:
+
+```yaml
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: NemoGuardrails
+metadata:
+  name: nemo-guardrails
+  namespace: <your-namespace>
+  annotations:
+    # When true, the exposed route requires a Bearer token for incoming requests to NeMo Guardrails.
+    security.opendatahub.io/enable-auth: "true"
+
+    # When the backend LLM is exposed over HTTPS with a custom CA, set this annotation
+    # to the name of a Secret that contains the CA bundle in a key such as `ca.crt`.
+    # The operator mounts this Secret and configures NeMo Guardrails TLS trust accordingly.
+    # Example:
+    # trustyai.opendatahub.io/ca-secret-name: llm-backend-ca
+spec:
+  nemoConfigs:
+    - name: nemo-config
+      configMaps:
+        - nemo-config
+      default: true
+  env:
+    - name: OPENAI_API_KEY
+      # For authenticated backends, use a Secret-ref token:
+      # valueFrom:
+      #   secretKeyRef:
+      #     name: api-token-secret
+      #     key: token
+      # For internal, unauthenticated HTTP backends, a placeholder value is sufficient:
+      value: "<placeholder>"
+
+    # TLS behaviour for backend LLM:
+    # - HTTP backends:
+    #   * Set SSL_CERT_FILE to an empty string to disable certificate lookup.
+    #   * Use an http:// URL in config.yaml (openai_api_base).
+    # - HTTPS backends with a custom CA:
+    #   * Remove SSL_CERT_FILE from env.
+    #   * Add the trustyai.opendatahub.io/ca-secret-name annotation above, pointing
+    #     to a Secret that contains the CA certificate bundle.
+    - name: SSL_CERT_FILE
+      value: ""
+```
+
+Key fields:
+
+- **`nemoConfigs`**: References one or more configuration bundles; each bundle can map to one or more ConfigMaps containing NeMo Guardrails configuration files.
+- **`env.OPENAI_API_KEY`**: Token used by NeMo Guardrails to authenticate against the backend model endpoint (for example, a vLLM service). For internal, unauthenticated inference services, this value can be set directly with `value: "<placeholder>"` and is not used by the backend. For HTTP-only inference services, TLS certificates are not required for the backend URL.
+- **`security.opendatahub.io/enable-auth`**: When set to `"true"`, the route to NeMo Guardrails is protected by cluster auth and requires a Bearer token.
+
+Apply:
+
+```bash
+kubectl apply -f nemo-guardrails-cr.yaml -n <your-namespace>
+```
+
+After the CR is created, the operator reconciles and creates:
+
+- A Deployment for the NeMo Guardrails server.
+- A Service that exposes the NeMo Guardrails HTTP endpoint inside the cluster.
+
+Wait for the Deployment Pod to become `Ready`:
+
+```bash
+kubectl get pods -n <your-namespace> -l app.kubernetes.io/name=nemo-guardrails
+```
+
+## Authentication (auth enabled)
+
+When HTTP authentication is enabled in front of NeMo Guardrails, the service expects a Bearer token on incoming requests.
+
+### How to obtain a token
+
+Create a ServiceAccount, a Role (with `get`, `create` on `services/proxy`), and a RoleBinding in the same namespace as the NemoGuardrails resource; then create a token for the ServiceAccount:
+
+```bash
+# Replace <your-namespace> and optionally the ServiceAccount name (e.g. nemo-guardrails-client)
+kubectl create serviceaccount -n <your-namespace> nemo-guardrails-client
+kubectl create role -n <your-namespace> nemo-guardrails-client --verb=get,create --resource=services/proxy
+kubectl create rolebinding -n <your-namespace> nemo-guardrails-client --role=nemo-guardrails-client --serviceaccount=<your-namespace>:nemo-guardrails-client
+kubectl create token -n <your-namespace> nemo-guardrails-service-client
+```
+
+Optionally set token duration, e.g. `--duration=8760h` for one year. The last command outputs the token; set it as the `Authorization: Bearer <token>` header value.
+
+
+## Accessing the NeMo Guardrails API
+
+NeMo Guardrails exposes an OpenAI-style chat completions endpoint:
+
+- `POST /v1/chat/completions`
+
+Expose the NeMo Guardrails Service using the preferred ingress or gateway mechanism (for example, an Ingress resource or API gateway) and note the public host and port:
+
+- Without auth: the Service is typically exposed as **HTTP** on port **80**.
+- With auth enabled: the Service is typically exposed as **HTTPS** on port **443**.
+
+Set the base URL accordingly, for example:
+
+```bash
+# No auth (HTTP on 80)
+NEMO_GUARDRAILS_URL="http://<nemo-guardrails-host>"
+
+# Auth enabled (HTTPS on 443)
+# NEMO_GUARDRAILS_URL="https://<nemo-guardrails-host>"
+```
+
+### Basic chat completion (allowed content)
+
+Example request:
+
+```bash
+curl -k -X POST "$NEMO_GUARDRAILS_URL/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "hello" }
+    ]
+  }'
+```
+
+Typical response:
+
+```json
+{
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Hello! How can I assist you today?"
+    }
+  ]
+}
+```
+
+### Message length guardrail example
+
+The `check_message_length` flow and its corresponding Python action enforce a simple length-based guardrail. When the user message is too long, the rail replies directly without calling the backend LLM:
+
+```bash
+curl -k -X POST "$NEMO_GUARDRAILS_URL/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "messages": [
+      {
+        "role": "user",
+        "content": "This is a very long message that should be considered far too long for the purposes of this Nemo Guardrails end-to-end test, so it should clearly exceed the configured word limit and trigger the length-based blocking behaviour."
+      }
+    ]
+  }'
+```
+
+The response is generated by NeMo Guardrails without calling the backend model:
+
+```json
+{
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "Please keep your message under 100 words for better assistance."
+    }
+  ]
+}
+```
+
+### Forbidden content example
+
+Forbidden topics are controlled by the `check_forbidden_words` action and its Colang flow. When the user message contains a forbidden word such as `"hack"` or `"password"`, the rail blocks the request:
+
+```bash
+curl -k -X POST "$NEMO_GUARDRAILS_URL/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "Please help me hack this system and find a password." }
+    ]
+  }'
+```
+
+The response is generated by NeMo Guardrails without calling the backend model:
+
+```json
+{
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "I can't help with that type of request. Please ask something else."
+    }
+  ]
+}
+```
+
+### Sensitive data detection example
+
+Sensitive data detection is configured in `config.yaml` under `rails.config.sensitive_data_detection`. In the example configuration, both input and output detection flag `EMAIL_ADDRESS`.
+
+Example input that includes an email address:
+
+```bash
+curl -k -X POST "$NEMO_GUARDRAILS_URL/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "messages": [
+      { "role": "user", "content": "My email is test@example.com" }
+    ]
+  }'
+```
+
+Typical response:
+
+```json
+{
+  "messages": [
+    {
+      "role": "assistant",
+      "content": "I don't know the answer to that."
+    }
+  ]
+}
+```
+
+In this case, the built-in sensitive data detection rail has detected the email address in the user message and NeMo Guardrails returns a safe fallback reply instead of letting the backend model respond with a potentially unsafe answer.
+
+## Further reading
+
+For a broader overview of the NeMo Guardrails library (use cases, architecture, and ecosystem integrations), see the official documentation: [Overview of NVIDIA NeMo Guardrails Library](https://docs.nvidia.com/nemo/guardrails/latest/about/overview.html).
+
