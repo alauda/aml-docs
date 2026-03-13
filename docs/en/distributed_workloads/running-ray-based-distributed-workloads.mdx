@@ -122,14 +122,10 @@ In the examples in this procedure, you edit the demo Jupyter notebooks in Jupyte
         For example, set the `PIP_INDEX_URL` and `PIP_TRUSTED_HOST` environment variables for the Ray cluster, to specify the location of the Python dependencies, as shown in the following example:
 
         ```python
-        head_env={
+        envs={
             "PIP_INDEX_URL": "https://pypi.tuna.tsinghua.edu.cn/simple",
             "PIP_TRUSTED_HOST": "pypi.tuna.tsinghua.edu.cn"
         },
-        worker_env={
-            "PIP_INDEX_URL": "https://pypi.tuna.tsinghua.edu.cn/simple",
-            "PIP_TRUSTED_HOST": "pypi.tuna.tsinghua.edu.cn"
-        }
         ```
       where
        - `PIP_INDEX_URL` specifies the base URL of your private PyPI server (the default value is [https://pypi.org](https://pypi.org)).
