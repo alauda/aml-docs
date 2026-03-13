@@ -240,10 +240,10 @@ spec:
                 # Download dataset
                 DATASET_NAME=$(basename ${DATASET_URL})
                 DATASET_URL_NO_HTTPS="${DATASET_URL//https:\/\/}"
- 
+
                 rm -rf ${DATASET_NAME}
                 rm -rf data
-                 
+
                 if [ -d ${DATASET_NAME} ]; then
                     echo "dataset ${DATASET_NAME} already exists skipping download"
                 else
@@ -316,14 +316,14 @@ spec:
                     export NNODES=1
                     export MASTER_HOST=""
                 fi
- 
+
                 cd /mnt/workspace
                 BASE_MODEL_NAME=$(basename ${BASE_MODEL_URL})
                 DATASET_NAME=$(basename ${DATASET_URL})
- 
+
                 cat >lf-sft.yaml <<EOL
                 model_name_or_path: /mnt/models/${BASE_MODEL_NAME}
-   
+
                 stage: sft
                 do_train: true
                 finetuning_type: lora
@@ -331,7 +331,7 @@ spec:
                 lora_rank: 8
                 lora_alpha: 16
                 lora_dropout: 0.1
-   
+
                 dataset: identity_alauda
                 dataset_dir: /mnt/models/${DATASET_NAME}
                 template: qwen
@@ -339,13 +339,13 @@ spec:
                 max_samples: 1000
                 overwrite_cache: true
                 preprocessing_num_workers: 8
-   
+
                 output_dir: output_models
                 logging_steps: 10
                 save_steps: 500
                 plot_loss: true
                 overwrite_output_dir: true
-   
+
                 # global batch size: 8
                 per_device_train_batch_size: 2
                 gradient_accumulation_steps: 2
@@ -354,14 +354,14 @@ spec:
                 bf16: false
                 fp16: true
                 ddp_timeout: 180000000
-   
+
                 val_size: 0.1
                 per_device_eval_batch_size: 1
                 eval_strategy: steps
                 eval_steps: 500
                 report_to: mlflow
                 EOL
- 
+
                 # Run training
                 if [ ${NNODES} -gt 1 ]; then
                     echo "deepspeed: ds-z3-config.json" >> lf-sft.yaml
@@ -381,14 +381,14 @@ spec:
                 adapter_name_or_path: output_models
                 template: qwen
                 finetuning_type: lora
-    
+
                 ### export
                 export_dir: output_models_merged
                 export_size: 4
                 export_device: cpu
                 export_legacy_format: false
                 EOL
-                     
+
                   llamafactory-cli export lf-merge-config.yaml
                 else
                   # move output adapter for push
@@ -401,7 +401,7 @@ spec:
                 OUTPUT_MODEL_NO_HTTPS="${OUTPUT_MODEL_URL//https:\/\/}"
                 PUSH_URL="https://${gitauth}@${OUTPUT_MODEL_NO_HTTPS}"
                 push_branch=$(date +'%Y%m%d-%H%M%S')
- 
+
                 git init
                 git checkout -b sft-${push_branch}
                 git lfs track *.safetensors
@@ -446,12 +446,12 @@ In the YAML file above, modify the following settings before submitting the task
   2. The example script uses the `LLaMA-Factory` to launch the fine-tuning task, which can handle most LLM fine-tuning training scenarios.
 5. **Hyperparameters**: In the example above, the hyperparameters are defined directly in the startup script. You can also use environment variables to read hyperparameters that may be adjusted repeatedly, making it easier to run and configure multiple times.
 
-### Note about using **NFS** PVC 
+### Note about using **NFS** PVC
 
 When using **NFS** as workspace or model cache PVC, you should make sure below operations are performed to ensure the mounted NFS volume have correct filesystem permissions:
 
 - All K8s nodes that can use the **NFS** PVC must install `nfs-utils`, e.g. `yum install -y nfs-utils`.
-- Add `mountPermissions: "0757"` settings when creating the **NFS** storage class, like: 
+- Add `mountPermissions: "0757"` settings when creating the **NFS** storage class, like:
 
   ```yaml
   apiVersion: storage.k8s.io/v1
@@ -477,6 +477,10 @@ When using **NFS** as workspace or model cache PVC, you should make sure below o
     - nfsvers=4.1
   driverName: ""
   ```
+
+:::info
+The Workbench image does not come with `kubectl` pre-installed. You can use the upload button in the Jupyter interface to upload the `kubectl` binary downloaded from your local machine to the Jupyter environment.
+:::
 
 Once you have completed above settings, open a terminal in Notebook and execute: `kubectl create -f vcjob_sft.yaml` to submit the `VolcanoJob` to the cluster.
 

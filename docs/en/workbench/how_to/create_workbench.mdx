@@ -35,9 +35,158 @@ After creating a workbench instance, click `Workbench` in the left navigation ba
 
 :::info
 We have built-in WorkspaceKind resources that are ready to use out of the box; you can see the two options we provide in the dropdown menu.
-- [jupyter-lab](https://hub.docker.com/r/alaudadockerhub/base-notebook)
-- [codeserver](https://hub.docker.com/r/alaudadockerhub/base-codeserver)
+- [jupyter-lab](https://hub.docker.com/r/alaudadockerhub/odh-workbench-jupyter-datascience-cpu-py312-ubi9)
+- [codeserver](https://hub.docker.com/r/alaudadockerhub/odh-workbench-codeserver-datascience-cpu-py312-ubi9)
 :::
+
+The following additional workbench images are available but are **not built into the platform by default**:
+
+- [alaudadockerhub/odh-workbench-jupyter-tensorflow-cuda-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-workbench-jupyter-tensorflow-cuda-py312-ubi9)
+- [alaudadockerhub/odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-ubi9)
+- [alaudadockerhub/odh-workbench-jupyter-pytorch-cuda-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-workbench-jupyter-pytorch-cuda-py312-ubi9)
+- [alaudadockerhub/odh-workbench-jupyter-minimal-cpu-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-workbench-jupyter-minimal-cpu-py312-ubi9)
+- [alaudadockerhub/odh-workbench-jupyter-minimal-cuda-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-workbench-jupyter-minimal-cuda-py312-ubi9)
+
+If you want to use these images, you must first **manually synchronize them to your own image registry** (for example, by using a tool such as `skopeo`).
+
+## DockerHub Image Synchronization Script Guide
+
+[sync-from-dockerhub.sh](/sync-from-dockerhub.sh) is an automated tool designed to synchronize specific DockerHub images (especially those with ultra-large capacities, such as a single layer exceeding 7GB) to a private image registry (like Harbor).
+Because large-capacity images are highly susceptible to Out-Of-Memory (OOM) errors or timeout failures during direct transfer (via pipelines or memory) due to network fluctuations, this script adopts a relay strategy of **Pull to local -> Export as tar archive -> Push from tar archive to target registry**. This ensures stable synchronization even for files in the tens of gigabytes range. Additionally, it features an **automatic temporary file cleanup** mechanism that triggers upon task completion or unexpected errors, protecting your disk space.
+
+### Script Prerequisites
+Before running this script, ensure the following tools are installed and accessible on your execution machine:
+- `bash` (Execution environment)
+- `nerdctl` (For pulling images and exporting layers as tar archives)
+- `skopeo` (For pushing the tar image archives to the target private registry)
+
+## Environment Variables Configuration
+
+The script executes synchronization by reading environment variables, providing flexible usage without the need to modify the code.
+
+### Required Parameters (Target Private Registry Configuration)
+| Environment Variable | Description                                                           | Example Value            |
+|:---------------------|:----------------------------------------------------------------------|:-------------------------|
+| `TARGET_REGISTRY`    | Address of the target private image registry                          | `build-harbor.alauda.cn` |
+| `TARGET_PROJECT`     | Specific project/namespace in the target registry to store the images | `mlops/workbench-images` |
+| `TARGET_USER`        | Username for logging into the target registry                         | `admin`                  |
+| `TARGET_PASSWORD`    | Password for logging into the target registry                         | `YourSecretPassword`     |
+
+### Optional Parameters (Source DockerHub Configuration)
+To prevent triggering DockerHub's Rate Limit when pulling a large volume of images, you can provide your DockerHub credentials to log in prior to pulling. If unnecessary, leave these blank.
+| Environment Variable | Description | Example Value |
+| :--- | :--- | :--- |
+| `DOCKERHUB_USER` | DockerHub account username | `your_dockerhub_account` |
+| `DOCKERHUB_PASSWORD` | DockerHub password or Access Token | `dckr_pat_xxxxxx...` |
+
+---
+
+### Example 1: Basic Usage (Most Common)
+If you only need to synchronize the images defined within the script to your private Harbor:
+
+```bash
+# 1. Export environment variables for the target registry
+export TARGET_REGISTRY="build-harbor.alauda.cn"
+export TARGET_PROJECT="mlops/workbench-images"
+export TARGET_USER="admin"
+export TARGET_PASSWORD="YourHarborPassword"
+
+# 2. Grant execution permissions to the script (if not already done)
+chmod +x ./sync-from-dockerhub.sh
+
+# 3. Execute the synchronization
+./sync-from-dockerhub.sh
+```
+
+### Example 2: Single-Line Command Execution (Suitable for CI Environments)
+You can declare environment variables and run the script on the same line. This approach avoids polluting the current Shell environment variables:
+
+```bash
+TARGET_REGISTRY="build-harbor.alauda.cn" \
+TARGET_PROJECT="mlops/workbench-images" \
+TARGET_USER="admin" \
+TARGET_PASSWORD="YourHarborPassword" \
+./sync-from-dockerhub.sh
+```
+
+### Example 3: Full Execution with DockerHub Authentication (Rate-Limit Prevention)
+When pulling images frequently from the same machine, DockerHub might reject your requests. In this case, include your DockerHub credentials:
+
+```bash
+export TARGET_REGISTRY="build-harbor.alauda.cn"
+export TARGET_PROJECT="mlops/workbench-images"
+export TARGET_USER="admin"
+export TARGET_PASSWORD="YourHarborPassword"
+
+export DOCKERHUB_USER="alaudadockerhub"
+export DOCKERHUB_PASSWORD="dckr_pat_xxx_your_token_xxx"
+
+./sync-from-dockerhub.sh
+```
+
+---
+
+### Troubleshooting and Notes
+1. **Disk Space**: Since the script needs to temporarily store ultra-large images (e.g., 13GB) as `tar` archives, ensure that your system's `/tmp` directory (or its underlying root partition) has ample free space (at least 30GB recommended). The script's default staging directory is `/tmp/workbench-images-export-from-hub`.
+2. **Transfer Timeouts**: The current script sets a timeout of 120 minutes (`SKOPEO_TIMEOUT="120m"`) for pushing large files. If the process fails due to extremely slow network speeds, you can adjust this parameter value at the top of the script using any text editor.
+3. **Modifying the Image List**: If there are images you no longer wish to synchronize, simply open `sync-from-dockerhub.sh` and use a `#` to comment out those specific lines within the `WORKBENCH_IMAGES` array (similar to how the minimal images were filtered out in `sync.sh`).
+
+After the image is available in your registry, you also need to **add the corresponding configuration to the `imageConfig` field of the WorkspaceKind resource** that you plan to use. Below is an example patch YAML that adds a new image configuration to an existing WorkspaceKind:
+
+```json title=add-llmcompressor-image-patch.json
+[
+  {
+    "op": "add",
+    "path": "/spec/podTemplate/options/imageConfig/values/-",
+    "value": {
+      "id": "jupyter-pytorch-llmcompressor-cuda-py312",
+      "spawner": {
+        "displayName": "Jupyter | PyTorch LLM Compressor | CUDA | Python 3.12",
+        "description": "JupyterLab with PyTorch and LLM Compressor for CUDA",
+        "labels": [
+          {
+            "key": "python_version",
+            "value": "3.12"
+          },
+          {
+            "key": "framework",
+            "value": "pytorch"
+          },
+          {
+            "key": "accelerator",
+            "value": "cuda"
+          }
+        ]
+      },
+      "spec": {
+        "image": "build-harbor.alauda.cn/mlops/workbench-images/odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-ubi9:3.4_ea1-v1.41",
+        "imagePullPolicy": "IfNotPresent",
+        "ports": [
+          {
+            "id": "jupyterlab",
+            "displayName": "JupyterLab",
+            "port": 8888,
+            "protocol": "HTTP"
+          }
+        ]
+      }
+    }
+  }
+]
+```
+
+You can apply the patch to the WorkspaceKind you are using with a command similar to the following:
+
+```bash
+kubectl patch workspacekind jupyterlab-internal-3-4-ea1-v1-41 \
+  --type=json \
+  --patch-file add-llmcompressor-image-patch.json \
+  -o yaml
+```
+
+This command applies the JSON patch file to the specified WorkspaceKind and updates its `imageConfig` so the new workbench image becomes available in the workbench creation UI.
+
+In practice, you can adapt the `name`, `image`, and `description` fields according to the image you synchronized and the naming conventions used in your cluster.
 
 :::info
 We have also built in some resource options, which you can see in the dropdown menu.
