@@ -1,0 +1,34 @@
+---
+weight: 10
+---
+
+# Introduction
+
+Alauda Build of KubeRay Operator is a Kubernetes-native system that provides a comprehensive solution for running [Ray](https://github.com/ray-project/ray) applications on Kubernetes. Built on the open-source [KubeRay](https://github.com/ray-project/kuberay) project, it simplifies the deployment and management of Ray clusters, jobs, and services using Kubernetes Custom Resource Definitions (CRDs).
+
+## Overview
+
+Alauda Build of KubeRay Operator provides three core CRDs:
+
+- **RayCluster**: Fully manages the lifecycle of Ray clusters, including cluster creation/deletion, autoscaling, and fault tolerance.
+- **RayJob**: Automatically creates a RayCluster and submits jobs when the cluster is ready. Supports automatic cleanup after job completion.
+- **RayService**: Manages Ray Serve deployments with zero-downtime upgrades and high availability for production ML model serving.
+
+## Key Features
+
+- **Autoscaling**: Automatically adjusts the number of worker nodes based on workload requirements.
+- **Heterogeneous Compute**: Supports GPU and other accelerator resources for distributed training and inference.
+- **Multiple Ray Versions**: Run different Ray versions in the same Kubernetes cluster.
+- **Fault Tolerance**: Provides built-in mechanisms for handling node failures and job retries.
+- **Kubernetes Integration**: Seamlessly integrates with existing Kubernetes tools and workflows.
+- **Ecosystem Support**: Works with observability tools (Prometheus, Grafana), queuing systems (Kueue, Volcano), and ingress controllers.
+
+## Use Cases
+
+- **Distributed Machine Learning**: Scale ML training workloads across multiple nodes.
+- **Model Serving**: Deploy and serve ML models at scale using Ray Serve.
+- **Batch Inference**: Process large datasets with parallel inference workloads.
+- **Hyperparameter Tuning**: Run distributed hyperparameter optimization with Ray Tune.
+- **LLM Inference**: Deploy large language models for online inference.
+
+For more details, refer to [Ray on Kubernetes](https://docs.ray.io/en/latest/cluster/kubernetes/index.html).
