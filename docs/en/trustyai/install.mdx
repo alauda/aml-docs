@@ -1,0 +1,33 @@
+---
+weight: 20
+---
+
+# Install TrustyAI
+
+This document describes how to install TrustyAI operator.
+
+## Upload Operator
+
+Download the TrustyAI operator installation file (e.g., `trustyai-service-operator.alpha.ALL.xxxx.tgz`).
+
+Use the violet command to publish to the platform repository:
+
+```bash
+violet push --platform-address=platform-access-address --platform-username=platform-admin --platform-password=platform-admin-password trustyai-service-operator.alpha.ALL.xxxx.tgz
+```
+
+## Install Operator
+
+1. Go to the `Administrator` view in the Alauda Container Platform.
+
+2. In the left navigation, select `Marketplace` / `Operator Hub`.
+
+3. In the right panel, find `Alauda Build of TrustyAI` and click `Install`.
+
+4. Keep all parameters as default and complete the installation.
+
+## Next steps
+
+After the operator is installed, users can use CRDs such as **LMEvalJob** and **GuardrailsOrchestrator** to manage model evaluation tasks and AI guardrails orchestration.
+
+See the [Evaluate LLM](./lm-eval) and [AI Guardrails for LLM safety](./ai-guardrails) sections for details.
