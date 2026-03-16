@@ -4,16 +4,16 @@ weight: 30
 
 # Install Alauda AI
 
-**Alauda AI** now offers flexible deployment options. Starting with **Alauda AI** `1.4`, the **Serverless** capability is an optional feature, allowing for a more streamlined installation if it's not needed.
+**Alauda AI** now offers flexible deployment options. Starting with **Alauda AI** `1.4`, the **Knative** capability is an optional feature, allowing for a more streamlined installation if it's not needed.
 
-To begin, you will need to deploy the **Alauda AI Operator**. This is the core engine for all Alauda AI products. By default, it uses the **KServe** `Raw Deployment` mode for the inference backend, which is particularly recommended for resource-intensive generative workloads. This mode provides a straightforward way to deploy models and offers robust, customizable deployment capabilities by leveraging foundational Kubernetes functionalities.
+To begin, you will need to deploy the **Alauda AI Operator**. This is the core engine for all Alauda AI products. By default, it uses the **KServe** `Standard` mode for the inference backend, which is particularly recommended for resource-intensive generative workloads. This mode provides a straightforward way to deploy models and offers robust, customizable deployment capabilities by leveraging foundational Kubernetes functionalities.
 
-If your use case requires `Serverless` functionality, which enables advanced features like **scaling to zero on demand** for cost optimization, you can optionally install the **Knative Operator**. This operator is not part of the default installation and can be added at any time to enable `Serverless` functionality.
+If your use case requires `Knative` functionality, which enables advanced features like **scaling to zero on demand** for cost optimization, you can optionally install the **Knative Operator**. This operator is not part of the default installation and can be added at any time to enable `Knative` functionality.
 
 
 
 :::info
-    [Recommended deployment option](https://kserve.github.io/website/docs/admin-guide/overview#generative-inference): For generative inference workloads, the Raw Kubernetes Deployment approach is recommended as it provides the most control over resource allocation and scaling.
+    [Recommended deployment option](https://kserve.github.io/website/docs/admin-guide/overview#generative-inference): For generative inference workloads, the **Standard** approach (previously known as RawKubernetes Deployment) is recommended as it provides the most control over resource allocation and scaling.
 :::
 
 ## Downloading
@@ -114,7 +114,7 @@ violet push \
 3. `${PLATFORM_ADMIN_PASSWORD}` is the password of the ACP platform admin.
 4. `${CLUSTER}` is the name of the cluster to install the Alauda AI components into.
 5. `${AI_CLUSTER_OPERATOR_NAME}` is the path to the Alauda AI Cluster Operator package tarball.
-6. `${KNATIVE_OPERATOR_PKG_NAME}` is the path to the Knative CE Operator package tarball.
+6. `${KNATIVE_OPERATOR_PKG_NAME}` is the path to the Knative Operator package tarball.
 7. `${REGISTRY_ADDRESS}` is the address of the external registry.
 8. `${REGISTRY_USERNAME}` is the username of the external registry.
 9. `${REGISTRY_PASSWORD}` is the password of the external registry.
@@ -155,77 +155,13 @@ Confirm that the **Alauda AI** tile shows one of the following states:
 
 </Steps>
 
-## Creating Alauda AI Instance
+## Enabling Knative Functionality
 
-Once Alauda AI Operator is installed, you can create an Alauda AI instance.
+Knative functionality is an optional capability that requires an additional operator and instance to be deployed.
 
-<Steps>
-### Procedure
-
-In **Administrator** view:
-
-1. Click **Marketplace / OperatorHub**.
-2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install the Alauda AI Operator.
-3. Select **Alauda AI**, then **Click**.
-4. In the **Alauda AI** page, click **All Instances** from the tab.
-5. Click **Create**.
-
-    **Select Instance Type** window will pop up.
-
-6. Locate the **AmlCluster** tile in **Select Instance Type** window, then click **Create**.
-
-    **Create AmlCluster** form will show up.
-
-7. Keep `default` unchanged for **Name**.
-8. Select **Deploy Flavor** from dropdown:
-   1. `single-node` for non HA deployments.
-   2. `ha-cluster` for HA cluster deployments (**Recommended** for production).
-9.  Set **KServe Mode** to **Managed**.
-10. Input a valid domain for **Domain** field.
-
-    :::info
-    This domain is used by ingress gateway for exposing model serving services.
-    Most likely, you will want to use a wildcard name, like *.example.com.
-
-    You can specify the following certificate types by updating the **Domain Certificate Type** field:
-
-    - `Provided`
-    - `SelfSigned`
-    - `ACPDefaultIngress`
-
-    By default, the configuration uses `SelfSigned` certificate type for securing ingress traffic to your cluster, the certificate is
-    stored in the `knative-serving-cert` secret that is specified in the **Domain Certificate Secret** field.
-    :::
-
-11. In the **Serverless Configuration** section, set **Knative Serving Provider** to **Operator**; leave all other parameters blank.
-12. Under **Gitlab** section:
-    1.  Type the URL of self-hosted Gitlab for **Base URL**.
-    2.  Type `cpaas-system` for **Admin Token Secret Namespace**.
-    3.  Type `aml-gitlab-admin-token` for **Admin Token Secret Name**.
-
-13. Review above configurations and then click **Create**.
-
-### Verification
-
-Check the status field from the `AmlCluster` resource which named `default`:
-
-```bash
-kubectl get amlcluster default
-```
-
-Should returns `Ready`:
-
-```
-NAME      READY   REASON
-default   True    Succeeded
-```
-</Steps>
-
-Now, the core capabilities of Alauda AI have been successfully deployed. If you want to quickly experience the product, please refer to the [Quick Start](../../overview/quick_start.mdx).
-
-## Enabling Serverless Functionality
-
-Serverless functionality is an optional capability that requires an additional operator and instance to be deployed.
+:::warning
+If you plan to use Knative functionality, you **MUST** install the Knative Operator and create the Knative Serving instance **BEFORE** creating the Alauda AI instance to ensure the required CRDs are available in the cluster.
+:::
 
 ### 1. Installing the Knative Operator
 
@@ -233,7 +169,7 @@ Serverless functionality is an optional capability that requires an additional o
 <Steps>
 
 :::info
-Starting from **Knative CE Operator**, the Knative networking layer switches to **Kourier**, so installing **Istio** is no longer required.
+Starting from **Knative Operator**, the Knative networking layer switches to **Kourier**, so installing **Istio** is no longer required.
 :::
 
 #### Procedure
@@ -278,7 +214,7 @@ Once **Knative Operator** is installed, you need to create the `KnativeServing` 
    ```
 
 2. In the **Administrator** view, navigate to **Operators** -> **Installed Operators**.
-3. Select the **Knative CE Operator**.
+3. Select the **Knative Operator**.
 4. Under **Provided APIs**, locate **KnativeServing** and click **Create Instance**.
 5. Switch to **YAML view**.
 6. Replace the content with the following YAML:
@@ -331,23 +267,118 @@ Once **Knative Operator** is installed, you need to create the `KnativeServing` 
 
 </Steps>
 
-### 3. Integrate with AmlCluster
+## Creating Alauda AI Instance
 
-Configure the `AmlCluster` instance to integrate with the `KnativeServing` instance.
+Once Alauda AI Operator (and optionally, Knative Operator) is installed, you can create an Alauda AI instance.
+
+<Steps>
+### Procedure
+
+In **Administrator** view:
+
+1. Click **Marketplace / OperatorHub**.
+2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install the Alauda AI Operator.
+3. Select **Alauda AI**, then **Click**.
+4. In the **Alauda AI** page, click **All Instances** from the tab.
+5. Click **Create**.
+
+    **Select Instance Type** window will pop up.
+
+6. Locate the **AmlCluster** tile in **Select Instance Type** window, then click **Create**.
+
+    **Create AmlCluster** form will show up.
+
+7. Keep `default` unchanged for **Name**.
+8. Select **Deploy Flavor** from dropdown:
+   1. `single-node` for non HA deployments.
+   2. `ha-cluster` for HA cluster deployments (**Recommended** for production).
+9.  Set **KServe Mode** to **Managed**.
+10. Input a valid domain for **Domain** field.
+
+    :::info
+    This domain is used by ingress gateway for exposing model serving services.
+    Most likely, you will want to use a wildcard name, like *.example.com.
+
+    You can specify the following certificate types by updating the **Domain Certificate Type** field:
+
+    - `Provided`
+    - `SelfSigned`
+    - `ACPDefaultIngress`
+
+    By default, the configuration uses `SelfSigned` certificate type for securing ingress traffic to your cluster, the certificate is
+    stored in the `knative-serving-cert` secret that is specified in the **Domain Certificate Secret** field.
+    :::
+
+11. **(Optional)** If you want to enable Knative functionality, in the **Serverless Configuration** section, set **Knative Serving Provider** to **Operator**.
+
+    :::info
+    If you installed the Knative Operator to enable Serverless functionality in the previous steps, provide the following parameters to integrate it:
+
+    * **APIVersion**: `operator.knative.dev/v1beta1`
+    * **Kind**: `KnativeServing`
+    * **Name**: `knative-serving`
+    * **Namespace**: `knative-serving`
+
+    If you are not using Knative functionality, leave the **Knative Serving Provider** as `Removed` (or empty) and the remaining parameters blank.
+    :::
+
+12. Under **Gitlab** section:
+    1.  Type the URL of self-hosted Gitlab for **Base URL**.
+    2.  Type `cpaas-system` for **Admin Token Secret Namespace**.
+    3.  Type `aml-gitlab-admin-token` for **Admin Token Secret Name**.
+
+13. Review above configurations and then click **Create**.
+
+### Verification
+
+Check the status field from the `AmlCluster` resource which named `default`:
+
+```bash
+kubectl get amlcluster default
+```
+
+Should returns `Ready`:
+
+```
+NAME      READY   REASON
+default   True    Succeeded
+```
+</Steps>
+
+Now, the core capabilities of Alauda AI have been successfully deployed. If you want to quickly experience the product, please refer to the [Quick Start](../../overview/quick_start.mdx).
+
+## Migrating to Knative Operator
+
+In the 1.x series of products, the serverless capability for inference services was provided by the `Alauda AI Model Serving` operator. In the 2.x series, this capability is provided by the `Knative Operator`. This section guides you through migrating your serverless capability from the legacy operator to the new one.
+
+### 1. Remove Legacy Serving Instance
 
 <Steps>
 
-In the **AmlCluster** instance update window, you will need to fill in the required parameters in the **Serverless Configuration** section.
+#### Procedure
+
+In **Administrator** view:
+
+1. Click **Marketplace / OperatorHub**.
+2. At the top of the console, from the **Cluster** dropdown list, select the destination cluster where **Alauda AI** is installed.
+3. Select **Alauda AI**, then click the **All Instances** tab.
+4. Locate the `default` instance and click **Update**.
+5. In the update form, locate the **Serverless Configuration** section.
+6. Set **BuiltIn Knative Serving** to `Removed`.
+7. Click **Update** to apply the changes.
+
+</Steps>
+
+### 2. Install Knative Operator and Create Serving Instance
+
+Install the **Knative Operator** from the Marketplace and create the `KnativeServing` instance. For detailed instructions, refer to the [Enabling Knative Functionality](#enabling-knative-functionality) section.
 
 :::info
-After the initial installation, you will find that only the **Knative Serving Provider** is set to `Operator`. You will now need to provide values for the following parameters:
-:::
+Once the above steps are completed, the migration of the Knative serving control plane is complete.
 
-* **APIVersion**: `operator.knative.dev/v1beta1`
-* **Kind**: `KnativeServing`
-* **Name**: `knative-serving`
-* **Namespace**: `knative-serving`
-</Steps>
+- If you are migrating from the **Alauda AI 2.0** + **Alauda AI Model Serving** combination, the migration is fully complete here. Business services will automatically switch their configuration shortly.
+- If you are migrating from the **Alauda AI 1.x** + **Alauda AI Model Serving** combination, please ensure that **Alauda AI** is simultaneously upgraded to version **2.x**.
+:::
 
 ## Replace GitLab Service After Installation
 
@@ -384,6 +415,7 @@ If you want to replace GitLab Service after installation, follow these steps:
         - Recreate and re-upload in new GitLab OR
         - Manually transfer model files to new repository
    :::
+
 ## FAQ
 
 ### 1. Configure the audit output directory for aml-skipper
