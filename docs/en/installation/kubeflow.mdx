@@ -69,9 +69,15 @@ spec:
 
 #### Configure for ASM v2
 
-Go to **Administrator** - **MarketPlace** - **OperatorHub**, find `Alauda Service Mesh v2`, go to **All Instances** tab, find the instance of type **Istio** (like "default"), click the "Update" button, and add the following content under the `spec` field:
+> NOTE: delete ASM v1 webhooks using below commands to remove the old webhook if there is any, otherwise the old webhook will cause authentication failures for Kubeflow.
+ 
+```
+kubectl delete validatingwebhookconfigurations istiod-default-validator
+kubectl delete mutatingwebhookconfigurations istio-sidecar-injector-1-22
+kubectl delete mutatingwebhookconfigurations istio-revision-tag-default
+```
 
-> NOTE: delete ASM v1 webhooks using `kubectl delete validatingwebhookconfigurations istiod-default-validator` to remove the old webhook if there is any, otherwise the old webhook will cause authentication failures for Kubeflow.
+Go to **Administrator** - **MarketPlace** - **OperatorHub**, find `Alauda Service Mesh v2`, go to **All Instances** tab, find the instance of type **Istio** (like "default"), click the "Update" button, and add the following content under the `spec` field:
 
 ```yaml
 spec:
