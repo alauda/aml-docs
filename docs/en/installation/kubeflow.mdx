@@ -17,6 +17,16 @@ Deploy Kubeflow plugins in Alauda AI >= 2.0. Including:
 4. Deploy LWS (Alauda Build of LeaderWorkerSet) plugin, which is a dependency of Kubeflow Trainer v2.
 5. Configure the oauth2-proxy plugin as described below
 
+
+### Configure Dex Redirection
+
+> NOTE: You need to configure the platform access URL for dex redirection before installing Kubeflow Base plugin, since this operation may cause the CA certificate of the platform to be updated, which can cause below `Configure oauth2-proxy Plugin` step to fail if the platform CA certificate is updated after that step.
+
+In **Administrator** - **System Settings** - **Platform Parameters**, click the "Edit" button on the right of **Platform Access URLs**, and add the redirect URL, the format is `https://<your-kubeflow-domain>:<port>/`, for example, `https://192.168.139.133:30443/`.
+
+- `<your-kubeflow-domain>` can set to the master node IP where Kubeflow is deployed. It should be the same as the `oidcRedirectURL` configured in the kfbase plugin deployment page.
+- `<port>` can be any available port `>= 30000`, it should be the same as `istioGatewayNodeportHTTPS` configured in the kfbase plugin deployment page. Default is `30443`.
+
 ### Configure oauth2-proxy Plugin
 
 Obtain the platform dex CA certificate for later use in **Global** cluster:
@@ -140,7 +150,7 @@ In *Cluster Plugins*, find the kfbase (Kubeflow Base) plugin, fill in the config
 
 After deployment, you need to perform the following operations to configure dex redirection:
 
-In **Administrator** - **System Settings** - **Platform Parameters**, click the "Edit" button on the right of **Platform Access URLs**, and add the redirect URL, the format is `https://<your-kubeflow-domain>:<port>/`, for example, `https://192.168.139.133:30443/`. Note the host is same as the `oidcRedirectURL` configured in the kfbase plugin deployment page, and the port is the same as `istioGatewayNodeportHTTPS`.
+To Confirm: In **Administrator** - **System Settings** - **Platform Parameters**, click the "Edit" button on the right of **Platform Access URLs**, make sure there is an address with the format `https://<your-kubeflow-domain>:<port>/`, with the same `<your-kubeflow-domain>` and `<port>` as the `oidcRedirectURL` and `istioGatewayNodeportHTTPS` configured in the kfbase plugin deployment page.
 
 After deployment, you can find the Kubeflow menu item under the *Tools* navigation in Alauda AI. Click to enter the Kubeflow interface.
 
