@@ -1,0 +1,31 @@
+---
+weight: 90
+---
+
+# Fine-Tuning with Kubeflow Trainer v2
+
+This tutorial walks through how to use **Kubeflow Trainer v2** to run supervised fine-tuning (SFT) jobs with [LlamaFactory](https://github.com/hiyouga/LLaMA-Factory) on Kubernetes.
+
+## Overview
+
+Kubeflow Trainer v2 separates **job templates** (`TrainingRuntime`) from **job runs** (`TrainJob`), which lets you:
+
+- Define a reusable `TrainingRuntime` that captures the container image, training pipeline steps (dataset init → model init → trainer), and LlamaFactory configuration.
+- Submit many `TrainJob` runs referencing the same runtime, overriding only what changes per experiment — base model, dataset URL, hyperparameters, or GPU resources.
+
+## Prerequisites
+
+Before starting, make sure the following are in place:
+
+| Requirement | Details |
+|---|---|
+| Kubeflow Trainer v2 | Installed in your cluster (the `trainer.kubeflow.org` API group is available) |
+| A shared PVC | A `PersistentVolumeClaim` accessible by all pods (e.g., `team-model-cache-pvc`) backed by NFS, Ceph, or local storage like topolvm |
+| Git credentials | A Kubernetes `Secret` named `aml-image-builder-secret` with keys `MODEL_REPO_GIT_USER` and `MODEL_REPO_GIT_TOKEN` for accessing private Git repositories |
+| GPU nodes | Nodes with NVIDIA GPUs; the examples use `Tesla-T4` nodes — adjust `nodeSelector` to match your cluster |
+| `kubectl` access | `kubectl` configured with permission to create `TrainingRuntime` and `TrainJob` resources in your target namespace |
+
+## Download the notebook and run the example
+
+1. Download the [notebook](./fine-tune-with-trainer-v2.ipynb) to your current workbench in **Alauda AI**, create a new workbench if you don't have one, and open the notebook.
+2. Follow the instructions in the notebook to create a `TrainingRuntime` and submit a `TrainJob` for fine-tuning a LLaMA-Factory model. The notebook includes example configurations for using the `team-model-cache-pvc` shared PVC and Git credentials.
