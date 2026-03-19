@@ -41,7 +41,7 @@ Alternatively, you can use a **self-managed GitLab instance**, but it **must mee
 
 ### **GitLab Configuration**
 
-Before deploying Alauda AI, perform these GitLab configuration steps after service acquisition。
+Before deploying Alauda AI, perform these GitLab configuration steps after service acquisition.
 
 #### **1. Disable expiration dates for access tokens**
 
@@ -106,10 +106,12 @@ kubectl create secret generic aml-gitlab-admin-token \
 
 ## **Frequently Asked Questions (FAQ)**
 
-### **1. How to optimize GitLab 18.5 configuration for large LFS objects?**
+### **1. How to optimize GitLab 18.5 and later configuration for large LFS objects?**
 
 **Problem:**
-When pushing large LFS objects to GitLab 18.5, you may encounter an HTTP 413 error. For AI model management, you often need to upload large model files via LFS, which exceed the default `proxy-body-size` limit (typically 512M) in the Nginx ingress controller.
+When pushing large LFS objects to GitLab 18.5 and later, you may encounter an HTTP 413 error. For AI model management, you often need to upload large model files via LFS, which exceed the default `proxy-body-size` limit (typically 512M) in the Nginx ingress controller (these Nginx ingress annotations are generally version-agnostic and applicable to other GitLab versions experiencing LFS upload size limits).
+
+The following is authentic diagnostic output from the Git LFS client; the `%!!(string=...)` fragments are raw Go-formatting artifacts and can be ignored—focus on the `HTTP 413` response as the actionable error.
 
 ```bash
 # [!code highlight]
