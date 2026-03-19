@@ -251,6 +251,14 @@ spec:
       # For internal, unauthenticated HTTP backends, a placeholder value is sufficient:
       value: "<placeholder>"
 
+    # Optional: offline environments
+    # NeMo Guardrails may fetch the Public Suffix List via tldextract. In environments
+    # without Internet access, set TLDEXTRACT_CACHE to use the cached
+    # public_suffix_list data bundled in the NeMo Guardrails Server image. Note that
+    # the bundled list may not be the latest.
+    # - name: TLDEXTRACT_CACHE
+    #   value: "/app/.cache/"
+
     # TLS behaviour for backend LLM:
     # - HTTP backends:
     #   * Set SSL_CERT_FILE to an empty string to disable certificate lookup.
