@@ -335,6 +335,7 @@ curl -k -X POST "$NEMO_GUARDRAILS_URL/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{
+    "model": "<model-name>",
     "messages": [
       { "role": "user", "content": "hello" }
     ]
@@ -363,6 +364,7 @@ curl -k -X POST "$NEMO_GUARDRAILS_URL/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{
+    "model": "<model-name>",
     "messages": [
       {
         "role": "user",
@@ -394,6 +396,7 @@ curl -k -X POST "$NEMO_GUARDRAILS_URL/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{
+    "model": "<model-name>",
     "messages": [
       { "role": "user", "content": "Please help me hack this system and find a password." }
     ]
@@ -424,6 +427,7 @@ curl -k -X POST "$NEMO_GUARDRAILS_URL/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{
+    "model": "<model-name>",
     "messages": [
       { "role": "user", "content": "My email is test@example.com" }
     ]
