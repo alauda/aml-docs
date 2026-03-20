@@ -116,10 +116,10 @@ Create a ServiceAccount, a Role (with `get`, `create` on `services/proxy`), and 
 
 ```bash
 # Replace <your-namespace> and optionally the ServiceAccount name (e.g. guardrails-client)
-kubectl create serviceaccount guardrails-client -n <your-namespace>
+kubectl create serviceaccount -n <your-namespace> guardrails-client
 kubectl create role -n <your-namespace> guardrails-client --verb=get,create --resource=services/proxy
 kubectl create rolebinding -n <your-namespace> guardrails-client --role=guardrails-client --serviceaccount=<your-namespace>:guardrails-client
-kubectl create token guardrails-client -n <your-namespace>
+kubectl create token -n <your-namespace> guardrails-client
 ```
 
 Optionally set token duration, e.g. `--duration=8760h` for one year. The last command outputs the token; set it as the `Authorization: Bearer <token>` header value.
