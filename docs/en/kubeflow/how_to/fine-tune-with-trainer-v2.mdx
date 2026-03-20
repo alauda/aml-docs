@@ -25,7 +25,12 @@ Before starting, make sure the following are in place:
 | GPU nodes | Nodes with NVIDIA GPUs; the examples use `Tesla-T4` nodes — adjust `nodeSelector` to match your cluster |
 | `kubectl` access | `kubectl` configured with permission to create `TrainingRuntime` and `TrainJob` resources in your target namespace |
 
+## Build the Trainer Image or Use a Pre-Built Image
+
+Use our pre-built image `alaudadockerhub/fine_tune_with_llamafactory:v0.1.11` or you can build your own image with the provided `Containerfile` in [aml-docs](https://github.com/alauda/aml-docs/docs/en/kubeflow/how_to/assets/build-train-image). 
+
 ## Download the notebook and run the example
 
 1. Download the [notebook](./fine-tune-with-trainer-v2.ipynb) to your current workbench in **Alauda AI**, create a new workbench if you don't have one, and open the notebook.
 2. Follow the instructions in the notebook to create a `TrainingRuntime` and submit a `TrainJob` for fine-tuning a LLaMA-Factory model. The notebook includes example configurations for using the `team-model-cache-pvc` shared PVC and Git credentials.
+
