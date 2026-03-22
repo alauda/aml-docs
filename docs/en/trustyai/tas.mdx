@@ -1,0 +1,602 @@
+---
+weight: 60
+---
+# TrustyAI Service (TAS)
+
+## Overview
+
+TrustyAI Service (TAS) collects model inference data (request inputs and response outputs), persists it, and organizes it into datasets for analysis, including drift detection and bias evaluation against reference and live traffic.
+
+Key capabilities:
+
+- Capture and store inference records.
+- Organize records by `model_name` and `data_tag`.
+- Provide metadata APIs to inspect what has been collected.
+- Configure human-readable column names for recorded fields to make downstream analysis easier.
+- Run drift detection (for example KS test, mean shift) against a reference subset and current production data.
+- Run bias metrics (for example SPD and DIR) on protected attributes and outcomes.
+
+This page covers deploying the `TrustyAIService`, ingesting reference data via `POST /data/upload` and live inference via `POST /consumer/kserve/v2`, registering drift and bias metrics through the HTTP API, and exposing time series to Prometheus for monitoring dashboards.
+
+## Prerequisites
+
+- TrustyAI Operator installed (see [Install TrustyAI](./install)).
+- If `storage.format: DATABASE` is used, a MySQL 8.x database is required.
+- If `storage.format: PVC` is used, ensure the cluster has a working default `StorageClass` (backed by a CSI driver) for dynamic volume provisioning, so the operator-created PVC can be bound.
+
+## Deploy TrustyAIService
+
+Choose **one** storage layout: **DATABASE** (MySQL) or **PVC** (local file storage on a volume). The following two subsections are **alternatives**, not steps in a single flow.
+
+### DATABASE mode
+
+**MySQL credentials Secret**
+
+Create a secret that contains the keys required for the TAS deployment when using `storage.format: DATABASE`:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: <tas-name>-db-credentials
+  namespace: <your-namespace>
+type: Opaque
+stringData:
+  databaseKind: mysql
+  databaseUsername: <username>
+  databasePassword: <password>
+  databaseService: <mysql-service-name>
+  databasePort: "3306"
+  databaseName: <db-name>
+  # Database schema generation strategy used by TrustyAI when connecting to the database.
+  # It controls what TAS does to the database schema (tables) during startup:
+  # - none: do not manage schema
+  # - create: create schema from scratch
+  # - drop-and-create: drop existing schema, then create
+  # - drop: drop existing schema
+  # - update: update schema to match the expected model
+  # - validate: only validate that the schema matches the expected model
+  #
+  # Default: update
+  databaseGeneration: update
+```
+
+Notes:
+
+- The MySQL schema (database) referred to by `databaseName` must be created in advance. TAS does not create the database itself.
+- The database must be reachable from the TAS pod.
+- `databaseGeneration` controls how schema changes are handled when TAS starts.
+
+**TrustyAIService CR**
+
+Example:
+
+```yaml
+apiVersion: trustyai.opendatahub.io/v1
+kind: TrustyAIService
+metadata:
+  name: <tas-name>
+  namespace: <your-namespace>
+  annotations:
+    trustyai.cpaas.io/monitor-enable: "true"
+    trustyai.cpaas.io/monitor-interval: "30s"
+    trustyai.cpaas.io/monitor-metric-regex: "^trustyai_.*"
+spec:
+  storage:
+    format: DATABASE
+    databaseConfigurations: <tas-name>-db-credentials
+  metrics:
+    schedule: "5s"
+    batchSize: 5000
+  replicas: 1
+```
+
+In `DATABASE` mode, `storage.databaseConfigurations` must be set to the name of the MySQL credentials Secret created above in the same namespace as the `TrustyAIService`.
+
+`metadata.annotations` are optional and are used to let the operator create a `ServiceMonitor` for Prometheus scraping (so the platform can automatically collect monitoring data).
+
+- When `trustyai.cpaas.io/monitor-enable: "true"` is set, the operator generates a `ServiceMonitor`.
+- `trustyai.cpaas.io/monitor-interval` and `trustyai.cpaas.io/monitor-metric-regex` are optional; when not provided, the operator uses default values.
+
+`trustyai.cpaas.io/monitor-interval` controls how frequently Prometheus scrapes TAS metrics (default: `30s`).
+`trustyai.cpaas.io/monitor-metric-regex` controls which metric names are kept after scraping (default: `^trustyai_.*`).
+
+`spec.metrics` fields:
+
+- `schedule` (required): how often TAS runs the metric computation (for example, every `5s`). The value is a duration string.
+- `batchSize` (optional): how many inference records TAS includes in each metric computation run (a larger value uses more data per run). If not set, the operator uses a default value of `5000`.
+
+### PVC mode
+
+Use this path when `storage.format` is **PVC** (no MySQL Secret). Example:
+
+```yaml
+apiVersion: trustyai.opendatahub.io/v1
+kind: TrustyAIService
+metadata:
+  name: <tas-name>
+  namespace: <your-namespace>
+spec:
+  storage:
+    format: PVC
+    folder: /inputs
+    size: 1Gi
+  data:
+    filename: data.csv
+    format: CSV
+  metrics:
+    schedule: "5s"
+    batchSize: 5000
+  replicas: 1
+```
+
+In `PVC` mode:
+
+- `storage.folder`: the path inside the mounted PVC where TAS stores and reads its data.
+- `storage.size`: the requested PVC capacity (for example, `1Gi`).
+- The operator creates a PVC named `(<tas-name>-pvc)` automatically in the same namespace as the `TrustyAIService`. Since the PVC uses the cluster default `StorageClass` (no explicit `storageClassName` is set), the cluster should provide a working default `StorageClass` (otherwise the PVC may stay in `Pending`).
+
+When the `TrustyAIService` manifest for the chosen mode is ready, apply it (the same command applies to `DATABASE` or `PVC` YAML):
+
+```bash
+kubectl apply -f <trustyai-service>.yaml -n <your-namespace>
+```
+
+## Verify deployment readiness
+
+```bash
+kubectl get trustyaiservices -n <your-namespace> <tas-name>
+```
+
+The expected `status.phase` should be `Ready`.
+
+Also check the pods:
+
+```bash
+kubectl get pods -n <your-namespace> -l app.kubernetes.io/instance=<tas-name>
+```
+
+## Access the TAS API
+
+### Service overview and authentication
+
+In the TAS Deployment, `kube-rbac-proxy` runs as a sidecar to provide authentication.
+The operator creates two Services in the same namespace:
+
+- `<tas-name>`: routes traffic directly to the TAS container (raw service).
+- `<tas-name>-tls`: routes traffic to the `kube-rbac-proxy` sidecar; this is the authenticated endpoint that requires `Authorization: Bearer <token>`.
+
+### Obtain a token
+
+Create a ServiceAccount, a Role (with `get`, `create` on `services/proxy`), and a RoleBinding in the same namespace as the `TrustyAIService`; then create a token for the ServiceAccount:
+
+```bash
+# Replace <your-namespace> and optionally the ServiceAccount name (for example, `tas-client`)
+kubectl create serviceaccount -n <your-namespace> tas-client
+kubectl create role -n <your-namespace> tas-client --verb=get,create,delete --resource=services/proxy
+kubectl create rolebinding -n <your-namespace> tas-client --role=tas-client --serviceaccount=<your-namespace>:tas-client
+kubectl create token -n <your-namespace> tas-client
+```
+
+Optionally set token duration, e.g. `--duration=8760h` for one year. The last command outputs the token; set it as the `Authorization: Bearer <token>` header value.
+
+### Bearer token and base URL
+
+Use the token from the previous subsection as the **`Authorization: Bearer <token>`** header on every request to the protected TAS API.
+
+Choose the **base URL (host)** for calls:
+
+- Direct service (no proxy auth): `https://<tas-name>.<your-namespace>.svc.cluster.local`
+- Authenticated endpoint (`kube-rbac-proxy`): `https://<tas-name>-tls.<your-namespace>.svc.cluster.local` — use this host when the API requires `Authorization: Bearer <token>` (typically the `-tls` Service).
+
+For example, a GET `/info` request can be sent as:
+
+```bash
+curl -k -H "Authorization: Bearer $TOKEN" \
+  "https://<tas-host>/info"
+```
+
+Replace `<tas-host>` with the authenticated host (usually the `-tls` URL) when the header is required.
+
+## Data ingestion
+
+### Training and reference data (`POST /data/upload`)
+
+`POST /data/upload` is the JSON upload path for training and reference batches: each call carries a combined request and response for one record, with a `data_tag` such as `TRAINING` for the reference subset. Live production inference is ingested separately via `POST /consumer/kserve/v2` (see below).
+
+TAS can store inference records that are produced by model runs. A record contains:
+
+- `request`: the input features sent to the model
+- `response`: the output(s) returned by the model
+
+The dataset is defined by `model_name` and `data_tag`.
+
+**Prepare a dataset subset**
+
+1. Pick a `model_name` to group uploaded records.
+2. Pick a `data_tag` for the reference subset. For training/reference data, use `data_tag: TRAINING`.
+3. For each inference, upload one combined `request` + `response` payload.
+
+**Request body fields**
+
+The request body must include:
+
+- `model_name`: the model identifier to group collected records
+- `data_tag`: a dataset subset label
+- `is_ground_truth`: whether the uploaded output is ground truth (set to `false` when the payload records model outputs rather than verified labels)
+- `request`:
+  - `id`: an inference id for this record
+  - `inputs`: a list of input tensors
+- `response`:
+  - `model_name`: must match `model_name`
+  - `id`: must match `request.id`
+  - `outputs`: a list of output tensors
+
+**Semantics of one record:** TAS does not train models; it stores rows for monitoring. For `data_tag: TRAINING`, each upload is one **reference** sample. `request` carries the input features that would be sent to the model (same `id` ties the pair). `response` carries the outputs observed for that inference—typically the model's prediction tensors and any outcome fields used for fairness (for example approval score and decision). Drift and fairness metrics compare this reference subset to live data collected via `/consumer/kserve/v2`.
+
+The example below uses a small credit-style feature set: numeric inputs and a group field (`gender`), plus outputs named `predict-0` and `approved`.
+
+```json
+{
+  "model_name": "demo-model",
+  "data_tag": "TRAINING",
+  "is_ground_truth": false,
+  "request": {
+    "id": "training-1",
+    "inputs": [
+      { "name": "credit_inputs-0", "shape": [1, 1], "datatype": "FP32", "data": [21.0] },
+      { "name": "credit_inputs-1", "shape": [1, 1], "datatype": "FP32", "data": [605.0] },
+      { "name": "credit_inputs-2", "shape": [1, 1], "datatype": "FP32", "data": [12.0] },
+      { "name": "credit_inputs-3", "shape": [1, 1], "datatype": "FP32", "data": [5.0] },
+      { "name": "gender", "shape": [1, 1], "datatype": "INT64", "data": [0] }
+    ]
+  },
+  "response": {
+    "model_name": "demo-model",
+    "id": "training-1",
+    "outputs": [
+      { "name": "predict-0", "shape": [1, 1], "datatype": "FP32", "data": [0.301] },
+      { "name": "approved", "shape": [1, 1], "datatype": "INT64", "data": [0] }
+    ]
+  }
+}
+```
+
+**Upload with curl**
+
+```bash
+curl -k -X POST "https://<tas-host>/data/upload" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @<training-data.json>
+```
+
+### Live inference data (`POST /consumer/kserve/v2`)
+
+Inference-time data is sent to TAS through the KServe v2 consumer endpoint. Each logical inference uses **two** `POST` calls with the same correlation `id`: first the model input (`kind: "request"`), then the model output (`kind: "response"`). The request body is JSON; tensor payloads are **Base64-encoded** `ModelInferRequest` / `ModelInferResponse` protobuf messages as defined in [KServe prediction API v2 (`grpc_predict_v2.proto`)](https://github.com/kserve/kserve/blob/master/docs/predict-api/v2/grpc_predict_v2.proto), not the flat tensor JSON used by `/data/upload`.
+
+JSON fields:
+
+| Field     | Description |
+|-----------|-------------|
+| `id`      | Correlates the request/response pair (for example a prediction id). |
+| `kind`    | `"request"` or `"response"`. |
+| `modelid` | Model identifier for grouping stored rows; metric requests use the same `modelId`. The protobuf blobs may omit `model_name`; TrustyAI persists using this JSON `modelid`. |
+| `data`    | Base64 of the protobuf message for that `kind`. |
+
+Example sequence (placeholders for Base64 blobs):
+
+```bash
+# Request half of one inference
+curl -k -X POST "https://<tas-host>/consumer/kserve/v2" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"id":"<prediction-id>","kind":"request","modelid":"<modelId>","data":"<base64-ModelInferRequest>"}'
+
+# Response half (same id)
+curl -k -X POST "https://<tas-host>/consumer/kserve/v2" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"id":"<prediction-id>","kind":"response","modelid":"<modelId>","data":"<base64-ModelInferResponse>"}'
+```
+
+Drift metrics that set `referenceTag` to `TRAINING` compare that reference subset (from `/data/upload`) against organic rows collected through this consumer path. `GET /info/tags` can list tags such as `TRAINING` and the unlabeled/organic side for the live stream.
+
+### Column name mapping (`POST /info/names`)
+
+After ingesting training/reference data via `/data/upload` and live inference via `/consumer/kserve/v2`, TAS can report what was recorded and map recorded input/output column names to human-readable names with `POST /info/names`.
+
+Example:
+
+```bash
+curl -k -X POST "https://<tas-host>/info/names" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "modelId": "demo-model",
+  "inputMapping": {
+    "credit_inputs-0": "Age",
+    "credit_inputs-1": "Credit Score",
+    "credit_inputs-2": "Education",
+    "credit_inputs-3": "Employment",
+    "gender": "Gender"
+  },
+  "outputMapping": {
+    "predict-0-0": "Acceptance Probability",
+    "approved-0": "Approved"
+  }
+}'
+```
+
+## Data drift metrics
+
+Data drift metrics compare a **reference** subset (for example rows tagged `TRAINING` from `POST /data/upload`) against **current** production data (typically ingested via `POST /consumer/kserve/v2`). Registration, listing, and deletion follow the same request/response pattern as other scheduled metrics.
+
+### Drift metric types
+
+| Metric | Role |
+|--------|------|
+| **KSTest** | Kolmogorov–Smirnov–style comparison of empirical distributions on selected columns between reference and current data. |
+| **MeanShift** | Compares mean (and related statistics) of selected columns between reference and current data. |
+| **ApproxKSTest** | Approximate KS-style drift with tunable precision parameters (`epsilon`, `thresholdDelta`). |
+| **FourierMMD** | Drift via maximum mean discrepancy with random Fourier features (`gamma`, `parameters`). |
+
+`GET /metrics/drift/<name>/definition` returns human-readable documentation for each metric.
+
+### Register scheduled drift metrics
+
+Use `POST /metrics/drift/<metricName>/request` with a JSON body. Common fields:
+
+- `modelId`: dataset id (must match uploads / `modelid` on the consumer).
+- `requestName`: unique name for this scheduled job.
+- `metricName`: must match the path segment (`kstest`, `meanshift`, `approxkstest`, or `fouriermmd`).
+- `batchSize`: number of inference rows included in each computation run.
+- `referenceTag`: tag of the reference subset (commonly `TRAINING`).
+- `fitColumns`: input column names to evaluate (recorded field names, for example tensor names before `POST /info/names` mapping).
+
+**KSTest** — example:
+
+```bash
+curl -k -X POST "https://<tas-host>/metrics/drift/kstest/request" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "modelId": "<modelId>",
+  "requestName": "<requestName>",
+  "metricName": "kstest",
+  "batchSize": 20,
+  "referenceTag": "TRAINING",
+  "fitColumns": ["credit_inputs-0", "credit_inputs-1"]
+}'
+```
+
+**MeanShift** — example:
+
+```bash
+curl -k -X POST "https://<tas-host>/metrics/drift/meanshift/request" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "modelId": "<modelId>",
+  "requestName": "<requestName>",
+  "metricName": "meanshift",
+  "batchSize": 20,
+  "referenceTag": "TRAINING",
+  "fitColumns": ["credit_inputs-0", "credit_inputs-1", "credit_inputs-2", "credit_inputs-3"]
+}'
+```
+
+**ApproxKSTest** — adds `thresholdDelta` and `epsilon` (see `GET /metrics/drift/approxkstest/definition` for semantics):
+
+```bash
+curl -k -X POST "https://<tas-host>/metrics/drift/approxkstest/request" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "modelId": "<modelId>",
+  "requestName": "<requestName>",
+  "metricName": "approxkstest",
+  "batchSize": 20,
+  "thresholdDelta": 0.05,
+  "referenceTag": "TRAINING",
+  "fitColumns": ["credit_inputs-0", "credit_inputs-1"],
+  "epsilon": 0.01
+}'
+```
+
+**FourierMMD** — adds `thresholdDelta`, `gamma`, and a `parameters` object (see `GET /metrics/drift/fouriermmd/definition`):
+
+```bash
+curl -k -X POST "https://<tas-host>/metrics/drift/fouriermmd/request" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "modelId": "<modelId>",
+  "requestName": "<requestName>",
+  "metricName": "fouriermmd",
+  "batchSize": 20,
+  "thresholdDelta": 0.05,
+  "referenceTag": "TRAINING",
+  "fitColumns": ["credit_inputs-0", "credit_inputs-1"],
+  "gamma": 1.0,
+  "parameters": { "nWindow": 10, "nTest": 10, "nMode": 50, "randomSeed": 0, "sig": 1.0, "deltaStat": false, "epsilon": 0.01 }
+}'
+```
+
+### One-shot drift requests
+
+For a single on-demand run (not scheduled), `POST /metrics/drift/kstest` and `POST /metrics/drift/meanshift` accept the same JSON body shape as the scheduled registration, without the `/request` suffix path.
+
+### List and delete scheduled drift jobs
+
+List scheduled jobs:
+
+```bash
+curl -k -H "Authorization: Bearer $TOKEN" \
+  "https://<tas-host>/metrics/drift/kstest/requests"
+```
+
+Stop a job by `requestId` from the list response:
+
+```bash
+curl -k -X DELETE "https://<tas-host>/metrics/drift/kstest/request" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "requestId": "<requestId-uuid>"
+}'
+```
+
+Replace `kstest` in the path with `meanshift`, `approxkstest`, or `fouriermmd` for the other drift types. `GET /metrics/all/requests` lists scheduled metrics across categories.
+
+### Prometheus metrics (drift)
+
+Scheduled drift results are published as Micrometer gauges on `GET /q/metrics`, for example:
+
+- KSTest: `trustyai_kstest`
+- MeanShift: `trustyai_meanshift`
+- ApproxKSTest: `trustyai_approxkstest`
+- FourierMMD: `trustyai_fouriermmd`
+
+Each drift series carries labels that identify the scheduled job and what is being measured. Typical **semantic** labels on `trustyai_kstest` / `trustyai_meanshift` / `trustyai_approxkstest` / `trustyai_fouriermmd` include:
+
+| Label | Role |
+|-------|------|
+| `model` | Model dataset id (matches `modelId` from uploads / metric requests). |
+| `requestName` | Name of the scheduled drift request (from `POST .../kstest/request`, etc.). |
+| `metricName` | Metric kind exposed by the series (for example `KSTEST`, `MEANSHIFT`; exact casing depends on the TAS build). |
+| `batch_size` | Batch size configured for the scheduled request. |
+| `subcategory` | Feature or column the sample refers to (for example a mapped name such as `Acceptance Probability`, depending on metric and `fitColumns`). |
+| `request` | Internal id for the metric request instance (UUID), if present. |
+| `endpoint` | Transport or scrape path hint from Micrometer (for example `http`). |
+
+**Scrape / target** labels (names depend on the cluster and `ServiceMonitor` setup) often include `namespace`, `pod`, `service`, `job`, and `instance`. Actual values for a deployment should be read from Prometheus (for example label names on `trustyai_kstest` in the metrics UI or via `label_values()`), rather than copied from documentation—environment-specific ids and addresses change per cluster.
+
+Example PromQL (narrow to one model and request name):
+
+```text
+trustyai_kstest{model="<modelId>", requestName="<requestName>"}
+```
+
+To filter a single column or feature, add a matcher on `subcategory` when that label is present.
+
+## Bias metrics
+
+This section covers bias monitoring (group fairness metrics such as SPD and DIR) through the TAS HTTP API (`POST` / `GET` / `DELETE` on `/metrics/group/fairness/...`).
+
+### SPD and DIR
+
+TAS exposes two related **group fairness** metrics on the same protected attribute and outcome:
+
+| Abbreviation | Full name | Meaning (typical use) |
+|--------------|-----------|------------------------|
+| **SPD** | Statistical Parity Difference | Difference between the rate of favorable outcomes for the unprivileged group and the rate for the privileged group. Values closer to **0** indicate closer parity between groups. |
+| **DIR** | Disparate Impact Ratio | Ratio of the unprivileged group's favorable-outcome rate to the privileged group's rate. Values closer to **1** indicate closer balance (legacy-style “four-fifths” style checks often compare this ratio to a threshold). |
+
+Both use the same request fields (`protectedAttribute`, `outcomeName`, `favorableOutcome`, and so on). The HTTP path and `metricName` distinguish **SPD** (`spd`) from **DIR** (`dir`).
+
+### Register scheduled bias metrics
+
+Create a recurring bias metric request for a deployed model dataset by calling:
+
+- `POST /metrics/group/fairness/spd/request` (Statistical Parity Difference, SPD)
+- `POST /metrics/group/fairness/dir/request` (Disparate Impact Ratio, DIR)
+
+Example (SPD):
+
+```bash
+curl -k -X POST "https://<tas-host>/metrics/group/fairness/spd/request" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "modelId": "<modelId>",
+    "requestName": "<requestName>",
+    "metricName": "spd",
+    "batchSize": 20,
+    "protectedAttribute": "<protectedAttribute>",
+    "privilegedAttribute": <privilegedValue>,
+    "unprivilegedAttribute": <unprivilegedValue>,
+    "outcomeName": "<outcomeName>",
+    "favorableOutcome": <favorableOutcome>
+  }'
+```
+
+SPD request fields:
+
+- `modelId`: the id of the model dataset to compute the metric for (must match the dataset/model used in uploads).
+- `requestName`: a unique name for this scheduled metric request (used to distinguish periodic tasks).
+- `metricName`: the metric type name; for this endpoint use `spd`.
+- `batchSize`: number of inference records TAS includes when computing the scheduled metric.
+- `protectedAttribute`: the feature (after name mapping, if used) that defines the groups being compared.
+- `privilegedAttribute`: the value of `protectedAttribute` that represents the privileged group.
+- `unprivilegedAttribute`: the value of `protectedAttribute` that represents the unprivileged group.
+- `outcomeName`: the output field being evaluated for fairness (for example, a classification outcome).
+- `favorableOutcome`: the value of `outcomeName` considered as the favorable outcome.
+
+For **DIR**, use the same JSON body with `"metricName": "dir"` and call `POST /metrics/group/fairness/dir/request`. `GET /metrics/group/fairness/dir/definition` describes the metric textually.
+
+### List and delete scheduled bias jobs
+
+To stop a recurring computation, list jobs, then send the `requestId` from the response to the matching delete endpoint:
+
+| Metric | List | Delete |
+|--------|------|--------|
+| SPD | `GET /metrics/group/fairness/spd/requests` | `DELETE /metrics/group/fairness/spd/request` |
+| DIR | `GET /metrics/group/fairness/dir/requests` | `DELETE /metrics/group/fairness/dir/request` |
+
+Example (SPD):
+
+```bash
+curl -k -H "Authorization: Bearer $TOKEN" \
+  "https://<tas-host>/metrics/group/fairness/spd/requests"
+```
+
+```bash
+curl -k -X DELETE "https://<tas-host>/metrics/group/fairness/spd/request" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "requestId": "<requestId-uuid>"
+  }'
+```
+
+Use the same `requestId` JSON body with the `.../dir/request` delete URL for DIR jobs.
+
+### Prometheus metrics (bias)
+
+TAS exposes Prometheus metrics on `/q/metrics`. The TrustyAI Operator creates a `ServiceMonitor` that keeps bias-related metrics (by default, series matching `trustyai_(spd|dir).*`).
+
+Base metric names:
+
+- SPD (Statistical Parity Difference): `trustyai_spd`
+- DIR (Disparate Impact Ratio): `trustyai_dir`
+
+Each series carries labels that identify the scheduled computation and its fairness configuration. Typical **semantic** labels on `trustyai_spd` / `trustyai_dir` include:
+
+| Label | Role |
+|-------|------|
+| `model` | Model dataset id (matches `modelId` from uploads / metric requests). |
+| `requestName` | Name of the scheduled metric request (from `POST .../spd/request` or `POST .../dir/request`). |
+| `metricName` | Metric kind exposed by the series (for example `SPD` or `DIR`). |
+| `protected` | Protected attribute column (for example `Gender`). |
+| `outcome` | Outcome column (for example `Approved`). |
+| `favorable_value` | Value treated as the favorable outcome. |
+| `privileged` / `unprivileged` | Privileged and unprivileged group values on `protected`. |
+| `batch_size` | Batch size configured for the scheduled request. |
+| `request` | Internal id for the metric request instance (UUID), if present. |
+
+**Scrape / target** labels (names depend on the cluster and `ServiceMonitor` setup) often include `namespace`, `pod`, `service`, `job`, and `instance`.
+
+Example: select SPD for one model and one scheduled request name:
+
+```text
+trustyai_spd{model="demo-credit-model-1774142686-91294", requestName="demo-spd-1774142686-91294"}
+```
+
+Example: latest value over a window (align the range with scrape interval):
+
+```text
+max_over_time(trustyai_spd{model="<modelId>", requestName="<requestName>"}[15m])
+```
+
+The same label filters apply to `trustyai_dir` when a DIR scheduled job is registered.
