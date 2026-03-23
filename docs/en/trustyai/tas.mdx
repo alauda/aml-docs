@@ -134,7 +134,7 @@ In `PVC` mode:
 
 - `storage.folder`: the path inside the mounted PVC where TAS stores and reads its data.
 - `storage.size`: the requested PVC capacity (for example, `1Gi`).
-- The operator creates a PVC named `(<tas-name>-pvc)` automatically in the same namespace as the `TrustyAIService`. Since the PVC uses the cluster default `StorageClass` (no explicit `storageClassName` is set), the cluster should provide a working default `StorageClass` (otherwise the PVC may stay in `Pending`).
+- The operator creates a PVC named `<tas-name>-pvc` automatically in the same namespace as the `TrustyAIService`. Since the PVC uses the cluster default `StorageClass` (no explicit `storageClassName` is set), the cluster should provide a working default `StorageClass` (otherwise the PVC may stay in `Pending`).
 
 When the `TrustyAIService` manifest for the chosen mode is ready, apply it (the same command applies to `DATABASE` or `PVC` YAML):
 
