@@ -168,7 +168,7 @@ The operator creates two Services in the same namespace:
 
 ### Obtain a token
 
-Create a ServiceAccount, a Role (with `get`, `create` on `services/proxy`), and a RoleBinding in the same namespace as the `TrustyAIService`; then create a token for the ServiceAccount:
+Create a ServiceAccount, a Role (with `get`, `create`, `delete` on `services/proxy`), and a RoleBinding in the same namespace as the `TrustyAIService`; then create a token for the ServiceAccount:
 
 ```bash
 # Replace <your-namespace> and optionally the ServiceAccount name (for example, `tas-client`)
@@ -474,7 +474,7 @@ Each drift series carries labels that identify the scheduled job and what is bei
 
 Example PromQL (narrow to one model and request name):
 
-```text
+```bash
 trustyai_kstest{model="<modelId>", requestName="<requestName>"}
 ```
 
@@ -589,13 +589,13 @@ Each series carries labels that identify the scheduled computation and its fairn
 
 Example: select SPD for one model and one scheduled request name:
 
-```text
+```bash
 trustyai_spd{model="demo-credit-model-1774142686-91294", requestName="demo-spd-1774142686-91294"}
 ```
 
 Example: latest value over a window (align the range with scrape interval):
 
-```text
+```bash
 max_over_time(trustyai_spd{model="<modelId>", requestName="<requestName>"}[15m])
 ```
 
