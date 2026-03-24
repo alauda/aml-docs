@@ -23,7 +23,7 @@ If your use case requires `Serverless` functionality, which enables advanced fea
 - **Alauda AI Operator**
 
   Alauda AI Operator is the main engine that powers Alauda AI products. It focuses on two core functions: model management and inference services, and provides a flexible framework that can be easily expanded.
-  
+
   _Download package: aml-operator.xxx.tgz_
 
 - **Alauda AI Model Serving Operator**
@@ -292,7 +292,7 @@ In **Administrator** view:
 
 8. Leave all other parameters unchanged. Click **Update**.
 
-</Steps>    
+</Steps>
 
 #### **Manual Creation and Integration**
 
@@ -336,7 +336,7 @@ In **Administrator** view:
         2. Select your target **cluster**.
         3. On the **Overview** tab, find the `Private Registry address` value in the **Basic Info** section.
 
-</Steps>   
+</Steps>
 
 Configure the `AmlCluster` instance to integrate with a `KnativeServing` instance.
 
@@ -358,29 +358,29 @@ After the initial installation, you will find that only the **Knative Serving Pr
 
 If you want to replace GitLab Service after installation, follow these steps:
 
-1. **Reconfigure GitLab Service**  
+1. **Reconfigure GitLab Service**
    Refer to the [Pre-installation Configuration](./pre-configuration.mdx) and re-execute its steps.
 
-2. **Update Alauda AI Instance**  
-   - In Administrator view, navigate to **Marketplace > OperatorHub**  
-   - From the **Cluster** dropdown, select the target cluster  
-   - Choose **Alauda AI** and click the **All Instances** tab  
+2. **Update Alauda AI Instance**
+   - In Administrator view, navigate to **Marketplace > OperatorHub**
+   - From the **Cluster** dropdown, select the target cluster
+   - Choose **Alauda AI** and click the **All Instances** tab
    - Locate the **'default'** instance and click **Update**
 
-3. **Modify GitLab Configuration**  
-   In the **Update default** form:  
-   - Locate the **GitLab** section  
-   - Enter:  
-     - **Base URL**: The URL of your new GitLab instance  
-     - **Admin Token Secret Namespace**: `cpaas-system`  
+3. **Modify GitLab Configuration**
+   In the **Update default** form:
+   - Locate the **GitLab** section
+   - Enter:
+     - **Base URL**: The URL of your new GitLab instance
+     - **Admin Token Secret Namespace**: `cpaas-system`
      - **Admin Token Secret Name**: `aml-gitlab-admin-token`
 
-4. **Restart Components**  
+4. **Restart Components**
    Restart the `aml-controller` deployment in the `kubeflow` namespace.
 
-5. **Refresh Platform Data**  
+5. **Refresh Platform Data**
    In Alauda AI management view, re-manage all namespaces.
-   - In Alauda AI view, navigate to **Admin** view from **Business View**  
+   - In Alauda AI view, navigate to **Admin** view from **Business View**
    - On the **Namespace Management** page, delete all existing managed namespaces
    - Use "Managed Namespace" to add namespaces requiring Alauda AI integration
    :::info
@@ -389,3 +389,23 @@ If you want to replace GitLab Service after installation, follow these steps:
         - Recreate and re-upload in new GitLab OR
         - Manually transfer model files to new repository
    :::
+
+## FAQ
+
+1. **Why does `aml-api-deploy` fail to update the database after install or upgrade?**
+
+There is a known issue that the `aml-api-deploy` component may fail to initialize the database correctly after installation, and may also fail to migrate the database schema during upgrade. This can affect advanced features such as dataset preview and fine-tuning.
+
+To fix this issue, enter the Pod of the `aml-api-deploy` Deployment in the `kubeflow` namespace:
+
+```bash
+kubectl -n kubeflow exec -it deploy/aml-api-deploy -- /bin/bash
+```
+
+Then run the following commands in the container:
+
+```bash
+cd /work/aml_api
+alembic revision --autogenerate -m "initdb"
+alembic upgrade head
+```
