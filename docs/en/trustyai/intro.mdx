@@ -10,7 +10,7 @@ The operator simplifies the deployment and management of TrustyAI components on 
 
 Main components and capabilities include:
 
-- **TrustyAI Service**: A service that deploys alongside KServe models and collects inference data. It enables model explainability, fairness monitoring, and drift tracking.
+- **TrustyAI Service (TAS)**: A service that deploys alongside KServe models and collects inference data. It enables model explainability, fairness monitoring, and drift tracking. See [TrustyAI Service (TAS)](./tas) for deployment, data ingestion, and metrics.
 - **LM-Eval**: A job-based architecture for deploying and managing LLM evaluations, based on EleutherAI's lm-evaluation-harness. The operator provides the **LMEvalJob** CRD for running and managing evaluation tasks. See [Evaluate LLM](./lm-eval) for details.
 - **AI Guardrails (FMS-Guardrails)**: A modular framework for guardrailing LLMs. The operator provides the **GuardrailsOrchestrator** CRD for orchestrating guardrail policies and components. See [AI Guardrails for LLM safety](./ai-guardrails) for details.
 - **NeMo Guardrails**: Integration with NVIDIA NeMo Guardrails to define programmable rails for input/output filtering using YAML and Colang. The operator provides the **NemoGuardrails** CRD to deploy NeMo Guardrails as a service in the cluster. See [NeMo Guardrails](./nemo-guardrails) for details.
