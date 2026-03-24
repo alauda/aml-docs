@@ -64,24 +64,27 @@ A practical default for many RAG benchmarks is: **faithfulness**, **answer relev
 
 For modern Ragas usage, instantiate metrics from `ragas.metrics.collections` and score each row using `ascore()` (or `score()` in synchronous scripts).
 
-1. Prepare model clients and modern wrappers (`llm_factory`, `embedding_factory`).
+1. Prepare OpenAI-compatible clients (`AsyncOpenAI`) for LLM and embeddings, then wire `llm_factory` and `OpenAIEmbeddings` (see the sample notebook for environment-variable configuration).
 2. Instantiate metrics with explicit dependencies (`llm`, `embeddings` where required).
 3. Iterate through rows and call `metric.ascore(...)` with metric-specific arguments.
 
    ```python
    from openai import AsyncOpenAI
-   from ragas.embeddings import embedding_factory
+   from ragas.embeddings import OpenAIEmbeddings
    from ragas.llms import llm_factory
    from ragas.metrics.collections import AnswerRelevancy, Faithfulness
 
-   client = AsyncOpenAI(api_key="...", base_url="http://your-openai-compatible-endpoint/v1")
-   llm = llm_factory("your-llm-model", client=client)
-   embeddings = embedding_factory(
-       provider="openai",
-       model="your-embedding-model",
-       client=client,
-       interface="modern",
+   llm_client = AsyncOpenAI(
+       api_key="...",
+       base_url="https://your-openai-compatible-endpoint/v1",  # or None for provider default
    )
+   embed_client = AsyncOpenAI(
+       api_key="...",  # often same key as LLM when using one gateway
+       base_url="https://your-embedding-endpoint/v1",  # optional; can match llm_client
+   )
+
+   llm = llm_factory("your-llm-model", client=llm_client)
+   embeddings = OpenAIEmbeddings(model="your-embedding-model", client=embed_client)
 
    faithfulness = Faithfulness(llm=llm)
    answer_relevancy = AnswerRelevancy(llm=llm, embeddings=embeddings)
@@ -124,7 +127,7 @@ The notebook:
 
 ## Troubleshooting
 
-- **Credentials or endpoint configuration**: configure LLM API credentials (and an optional base URL for compatible gateways). If embeddings use a separate endpoint, configure embeddings credentials as well, then pass them to `llm_factory` / `embedding_factory`.
+- **Credentials or endpoint configuration**: configure LLM API credentials (and an optional base URL for compatible gateways). If embeddings use a separate endpoint, configure embeddings credentials as well, then pass separate `AsyncOpenAI` clients into `llm_factory` and `OpenAIEmbeddings`.
 - **Dataset validation errors**: verify required arguments for selected metrics and ensure dataset keys align with modern examples (`user_input`, `retrieved_contexts`, `response`, `reference`).
 - **Notebook async execution**: the sample notebook uses `await metric.ascore(...)`. For synchronous scripts, use `metric.score(...)` or wrap async code with `asyncio.run(...)`.
 - **Version-related warnings**: metric classes and signatures can change across Ragas versions. Pin package versions for reproducible runs and confirm behavior against the installed version documentation.
