@@ -1,0 +1,29 @@
+---
+weight: 10
+---
+
+# Introduction
+
+## LeaderWorkerSet
+
+**Alauda Build of LeaderWorkerSet** is based on the [LeaderWorkerSet (LWS)](https://github.com/kubernetes-sigs/lws) Kubernetes SIG project.
+LeaderWorkerSet provides a Kubernetes-native workload API for deploying groups of pods in a **Leader/Worker** pattern, enabling multi-node distributed workloads — particularly large AI model training and inference — to run as first-class citizens on Kubernetes.
+
+Main components and capabilities include:
+
+- **LeaderWorkerSet CRD**: The core API resource that defines a group of replicated Leader/Worker pod sets. Each replica consists of one leader pod and a configurable number of worker pods, co-scheduled and managed as a unit.
+- **Co-scheduling & Topology Awareness**: Leader and worker pods within a group are scheduled together, with support for topology spread constraints to co-locate pods on the same node, rack, or availability zone for low-latency inter-node communication (e.g., NVLink, InfiniBand).
+- **Multi-node LLM Inference**: Enables large language models that exceed single-node GPU memory (e.g., Llama 3.1 405B) to be served across multiple nodes using tensor parallelism or pipeline parallelism. LWS is a required dependency of **Alauda Build of KServe** for this use case.
+- **Multi-node Training**: Supports distributed training frameworks (PyTorch DDP, DeepSpeed, Megatron-LM) by providing stable, co-located leader/worker pod groups with predictable hostnames and network identities.
+- **Rolling Updates & Failure Recovery**: Supports rolling restarts and automatic pod replacement at the group level, ensuring the entire Leader/Worker group is recycled consistently when a failure or update occurs.
+- **Startup Sequencing**: The leader pod can act as the entry point and coordinator, with worker pods starting after the leader is ready — enabling frameworks that require a master process to be initialized before workers connect.
+
+For installation on the platform, see [Install LeaderWorkerSet](./install).
+
+## Documentation
+
+LeaderWorkerSet upstream documentation and related resources:
+
+- **LeaderWorkerSet Documentation**: [https://lws.sigs.k8s.io/](https://lws.sigs.k8s.io/) — Official documentation covering concepts, API reference, and usage guides.
+- **LeaderWorkerSet GitHub**: [https://github.com/kubernetes-sigs/lws](https://github.com/kubernetes-sigs/lws) — Source code, API reference, and examples for the LeaderWorkerSet Kubernetes SIG project.
+- **KServe (Alauda Build)**: [../kserve/intro](../kserve/intro) — KServe uses LeaderWorkerSet as a required dependency for multi-node LLM inference workloads.

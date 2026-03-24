@@ -1,0 +1,44 @@
+---
+weight: 10
+---
+
+# Introduction
+
+## KServe
+
+**Alauda Build of KServe** is based on the [KServe](https://kserve.github.io/website/).
+KServe provides a standardized, cloud-native interface for serving machine learning models at scale on Kubernetes.
+It has evolved around two primary scenarios: **Predictive AI** for traditional ML inference, and **Generative AI** for LLM-based workloads.
+
+### Generative AI
+
+Generative AI support is optimized for Large Language Model (LLM) serving with OpenAI-compatible APIs.
+
+- **llm-d (Distributed LLM Inference)**: A Kubernetes-native distributed inference framework that runs under the KServe control plane. llm-d orchestrates multi-node LLM inference using a Leader/Worker pattern and makes real-time routing decisions based on KV cache state and GPU load — enabling KV-cache-aware request scheduling, elastic tensor/pipeline parallelism, and cluster-wide inference that behaves like a single machine. This lowers cost per token and maximizes GPU utilization for large models (e.g., Llama 3.1 405B) that exceed single-node memory.
+- **LLM Inference & Streaming**: Native support for streaming responses (SSE / chunked transfer), enabling real-time token delivery for chat and completion workloads, with OpenAI-compatible `/chat/completions` and `/completions` APIs.
+- **vLLM Runtime**: First-class integration with vLLM as the high-performance LLM serving backend, with support for continuous batching and PagedAttention.
+- **Gateway Integration**: Native integration with Envoy Gateway and the Gateway API Inference Extension (GIE) for AI-aware traffic routing, load balancing, and per-model rate limiting across inference services.
+- **Autoscaling for LLMs**: Metrics-driven autoscaling policies tailored to LLM throughput characteristics, including scale-to-zero for cost efficiency.
+
+### Predictive AI
+
+Predictive AI covers traditional machine learning model serving with high throughput and low latency requirements.
+
+- **InferenceService**: The core CRD for deploying and managing model serving endpoints. Supports canary rollouts, traffic splitting across model versions, and A/B testing workflows.
+- **Model Serving Runtimes**: Pre-integrated runtimes for popular ML frameworks — TensorFlow Serving, TorchServe, Triton Inference Server, SKLearn, XGBoost, and more. Custom runtimes are supported via the **ClusterServingRuntime** and **ServingRuntime** CRDs.
+- **Inference Graph**: The **InferenceGraph** CRD enables composing multiple models into a pipeline, including pre/post-processing nodes, routing logic, and ensemble patterns.
+- **Autoscaling**: Scale-to-zero and scale-from-zero support via KEDA or Kubernetes HPA, with policies based on request rate, queue depth, or custom metrics.
+
+For installation on the platform, see [Install KServe](./install).
+
+## Documentation
+
+KServe upstream documentation and key dependencies:
+
+- **KServe Documentation**: [https://kserve.github.io/website/](https://kserve.github.io/website/) — Official documentation covering concepts, model serving runtimes, and API references.
+- **KServe GitHub**: [https://github.com/kserve/kserve](https://github.com/kserve/kserve) — Source code, release notes, and issues.
+- **llm-d**: [https://github.com/llm-d/llm-d](https://github.com/llm-d/llm-d) — Kubernetes-native distributed LLM inference framework with KV-cache-aware scheduling and elastic parallelism.
+- **LeaderWorkerSet (LWS)**: [https://github.com/kubernetes-sigs/lws](https://github.com/kubernetes-sigs/lws) — Kubernetes SIG workload controller for multi-node Leader/Worker patterns, required for multi-node LLM inference.
+- **Envoy Gateway**: [https://gateway.envoyproxy.io/](https://gateway.envoyproxy.io/) — Kubernetes-native gateway built on Envoy Proxy, providing the underlying traffic management for KServe inference services.
+- **Envoy AI Gateway**: [https://aigateway.envoyproxy.io/](https://aigateway.envoyproxy.io/) — AI-specific gateway capabilities layered on top of Envoy Gateway, including AI-aware routing and per-model policies.
+- **Gateway API Inference Extension (GIE)**: [https://gateway-api-inference-extension.sigs.k8s.io/](https://gateway-api-inference-extension.sigs.k8s.io/) — Kubernetes SIG project providing AI-aware routing and load balancing for inference services.
