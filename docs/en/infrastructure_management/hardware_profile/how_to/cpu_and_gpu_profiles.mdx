@@ -1,0 +1,104 @@
+---
+weight: 30
+i18n:
+  title:
+    en: Creating CPU-Only and GPU-Accelerated Profiles
+    zh: 创建纯 CPU 与 GPU 加速的 Hardware Profile
+---
+
+# Creating CPU-Only and GPU-Accelerated Profiles
+
+In a production AI platform, you often need to serve different types of machine learning workloads. For example, traditional machine learning models (like scikit-learn or XGBoost) or simple data processing tasks only require CPU resources, while Large Language Models (LLMs) or complex deep learning models require GPU acceleration.
+
+By creating distinct Hardware Profiles for CPU-only and GPU-accelerated workloads, you can effectively isolate these two types of services and prevent lightweight CPU models from unintentionally consuming expensive GPU resources.
+
+## Example 1: CPU-Only Hardware Profile
+
+A CPU-only profile omits any accelerator identifiers (such as `nvidia.com/gpu`) and strictly relies on `cpu` and `memory` identifiers.
+
+When creating a CPU-only profile, ensure that:
+1. The **Accelerator** resource type is entirely excluded.
+2. The Node Selector does not target any GPU-specific nodes.
+3. The name and description clearly indicate that this profile is meant for standard ML inference or lightweight models.
+
+Here is an example of a CPU-only hardware profile:
+
+```yaml
+apiVersion: infrastructure.opendatahub.io/v1alpha1
+kind: HardwareProfile
+metadata:
+  name: standard-cpu-profile
+  namespace: kube-public
+spec:
+  # Do not include nvidia.com/gpu
+  identifiers:
+    - identifier: "cpu"
+      displayName: "CPU"
+      minCount: "1"
+      maxCount: "8"
+      defaultCount: "2"
+      resourceType: CPU
+    - identifier: "memory"
+      displayName: "Memory"
+      minCount: "2Gi"
+      maxCount: "16Gi"
+      defaultCount: "4Gi"
+      resourceType: Memory
+  # Standard CPU nodes
+  scheduling:
+    type: Node
+    node:
+      nodeSelector:
+        node-role.kubernetes.io/worker: "true"
+```
+
+## Example 2: GPU-Accelerated Hardware Profile
+
+A GPU-accelerated profile explicitly requires the `nvidia.com/gpu` identifier, ensuring that any workload selecting this profile will be allocated physical GPU resources.
+
+When creating a GPU-accelerated profile:
+1. Include an identifier for the specific accelerator (e.g., `nvidia.com/gpu`).
+2. Add the corresponding Tolerations if your GPU nodes are tainted (e.g., `nvidia.com/gpu:NoSchedule`).
+3. Optionally add a Node Selector to target specific GPU architectures (e.g., `accelerator: nvidia-t4`).
+
+Here is an example of a GPU-accelerated hardware profile:
+
+```yaml
+apiVersion: infrastructure.opendatahub.io/v1alpha1
+kind: HardwareProfile
+metadata:
+  name: gpu-t4-profile
+  namespace: kube-public
+spec:
+  identifiers:
+    # Crucially include the GPU resource
+    - identifier: "nvidia.com/gpu"
+      displayName: "GPU"
+      minCount: "1"
+      maxCount: "4"
+      defaultCount: "1"
+      resourceType: Accelerator
+    - identifier: "cpu"
+      displayName: "CPU"
+      minCount: "4"
+      maxCount: "16"
+      defaultCount: "8"
+      resourceType: CPU
+    - identifier: "memory"
+      displayName: "Memory"
+      minCount: "16Gi"
+      maxCount: "64Gi"
+      defaultCount: "32Gi"
+      resourceType: Memory
+  scheduling:
+    type: Node
+    node:
+      nodeSelector:
+        accelerator: nvidia-t4
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+```
+
+By providing these two distinctly different profiles, platform administrators can ensure Data Scientists have the exact environment they need, without wasting high-value compute resources on simple tasks.

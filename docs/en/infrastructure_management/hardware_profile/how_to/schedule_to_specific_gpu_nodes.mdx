@@ -1,0 +1,45 @@
+---
+weight: 20
+i18n:
+  title:
+    en: Schedule Workloads to Specific GPU Nodes
+    zh: 将工作负载调度到特定的 GPU 节点
+---
+
+# Schedule Workloads to Specific GPU Nodes
+
+When defining a Hardware Profile, you often need to ensure that the AI inference workload is strictly scheduled onto nodes with a specific type of GPU (such as an NVIDIA A100 or H100) and that the workload tolerates the taints on those dedicated nodes to avoid regular CPU workloads taking over the GPU nodes.
+
+This guide demonstrates how to configure these constraints in a Hardware Profile so that your Data Scientists don't need to manually configure them.
+
+## Use Node Selectors
+
+Node selectors allow you to guide pods to specific nodes based on node labels.
+
+1. Find the exact Kubernetes label of the GPU nodes in your cluster. For example:
+   * `accelerator: nvidia-a100`
+   * `nvidia.com/gpu.present: "true"`
+2. Edit or create your Hardware Profile.
+3. In the **Node Selectors** section, add the Key-Value pair corresponding to the label:
+   * **Key**: `accelerator`
+   * **Value**: `nvidia-a100`
+
+Once saved, any Inference Service attempting to use this Hardware Profile will inherently receive this node selector, ensuring it only lands on a node with an A100 GPU.
+
+## Use Taints and Tolerations
+
+GPU nodes are frequently "tainted" by cluster administrators so that standard pods (like web servers or generic databases) are not scheduled on them, thereby reserving the GPU processing power for AI workloads.
+
+If your GPU nodes have a taint like `nvidia.com/gpu:NoSchedule`, your Hardware Profile must include a corresponding toleration.
+
+1. Under the **Tolerations** section of your Hardware Profile, add a new toleration.
+2. Configure it to match the taint on the GPU node:
+   * **Key**: `nvidia.com/gpu`
+   * **Operator**: `Exists` (This tolerates any value for the key `nvidia.com/gpu`. Alternatively, use `Equal` and explicitly set the **Value**).
+   * **Effect**: `NoSchedule` (Matches the restrictive effect of the taint).
+
+By adding this toleration to the Hardware Profile, the deployed Inference Service is explicitly granted "permission" to be scheduled on the dedicated GPU nodes.
+
+## Combined Configuration
+
+By combining both a **Node Selector** (to instruct the scheduler *where* to go) and a **Toleration** (to allow the scheduler to *place* it there), your Hardware Profile effectively acts as a reliable blueprint for heterogeneous node architectures.

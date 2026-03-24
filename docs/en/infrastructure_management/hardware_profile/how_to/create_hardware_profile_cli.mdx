@@ -1,0 +1,84 @@
+---
+weight: 15
+i18n:
+  title:
+    en: Create Hardware Profile using CLI
+    zh: 使用 CLI 创建 Hardware Profile
+---
+
+# Create Hardware Profile using CLI
+
+This document describes how to create `HardwareProfile` resources using the command line and provides a sample YAML.
+
+## Prerequisites
+
+- You have access to a Kubernetes cluster with the platform installed.
+- You have configured `kubectl` to communicate with your cluster.
+- You have a namespace where you have permissions to view or create `HardwareProfile` resources (typically a cluster-scoped resource or in a specific admin namespace).
+
+## Create a HardwareProfile
+
+Create a YAML file named `gpu-high-performance-profile.yaml` with the following content:
+
+```yaml
+apiVersion: infrastructure.opendatahub.io/v1alpha1
+kind: HardwareProfile
+metadata:
+  name: gpu-high-performance-profile
+  namespace: kube-public
+spec:
+  # Define resource limitations and defaults
+  identifiers:
+    - identifier: "nvidia.com/gpu"
+      displayName: "GPU"
+      minCount: "1"
+      maxCount: "8"
+      defaultCount: "1"
+      resourceType: Accelerator
+    - identifier: "cpu"
+      displayName: "CPU"
+      minCount: "4"
+      maxCount: "32"
+      defaultCount: "8"
+      resourceType: CPU
+    - identifier: "memory"
+      displayName: "Memory"
+      minCount: "16Gi"
+      maxCount: "128Gi"
+      defaultCount: "32Gi"
+      resourceType: Memory
+  # Configure Node Selectors and Tolerations for scheduling
+  scheduling:
+    type: Node
+    node:
+      nodeSelector:
+        accelerator: nvidia-a100
+        node-role.kubernetes.io/worker: "true"
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+```
+
+Then apply the YAML file to your cluster using `kubectl`:
+
+```bash
+kubectl apply -f gpu-high-performance-profile.yaml -n kube-public
+```
+
+## Check HardwareProfile Status
+
+You can check whether the `HardwareProfile` has been successfully created using the following command:
+
+```bash
+kubectl get hardwareprofile gpu-high-performance-profile -n kube-public
+```
+
+The output should look similar to this:
+
+```bash
+NAME                           AGE
+gpu-high-performance-profile   2m
+```
+
+Once correctly applied, your Data Scientists will be able to select **GPU High Performance** when deploying their Inference Services using the UI, and the constraints specified in the profile will automatically validate and inject into the deployed workloads.
