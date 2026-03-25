@@ -29,20 +29,14 @@ In Alauda AI, NVIDIA GPU accelerators are supported for distributed workloads.
 
 ### Procedure
 
-1. In a terminal window, if you are not already logged in to your Alauda Container Platform cluster as a cluster administrator, log in to the kubectl CLI as shown in the following example:
-
-   ```bash
-   kubectl config use-context <cluster_context>
-   ```
-
-2. Verify that a resource flavor exists or create a custom one, as follows:
+1. Verify that a resource flavor exists or create a custom one, as follows:
    1. Check whether a `ResourceFlavor` already exists:
 
       ```bash
       kubectl get resourceflavors
       ```
 
-   2. If a `ResourceFlavor` already exists and you need to modify it, edit it in place:
+   2. If a `ResourceFlavor` already exists and you need to modify it (for example, to change the resources), edit it in place:
 
       ```bash
       kubectl edit resourceflavor <existing_resourceflavor_name>
@@ -69,7 +63,7 @@ In Alauda AI, NVIDIA GPU accelerators are supported for distributed workloads.
         kubectl apply -f default_flavor.yaml
         ```
 
-3. Verify that a cluster queue exists or create a custom one.
+2. Verify that a cluster queue exists or create a custom one.
 
    Check whether a `ClusterQueue` already exists:
 
@@ -125,7 +119,7 @@ In Alauda AI, NVIDIA GPU accelerators are supported for distributed workloads.
    kubectl apply -f cluster_queue.yaml
    ```
 
-4. Verify that a local queue that points to your cluster queue exists for your project namespace, or create a custom one.
+3. Verify that a local queue that points to your cluster queue exists for your project namespace, or create a custom one.
 
    Check whether a `LocalQueue` already exists for your project namespace:
 
