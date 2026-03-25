@@ -1,0 +1,217 @@
+---
+weight: 10
+---
+
+# Managing workloads with Kueue
+
+As a cluster administrator, you can manage AI and machine learning workloads at scale by integrating Alauda Build of Kueue with Alauda AI. This integration provides capabilities for quota management, resource allocation, and prioritized job scheduling.
+
+## Overview of managing workloads with Kueue
+
+You can use Kueue in Alauda AI to manage AI and machine learning workloads at scale. Kueue controls how cluster resources are allocated and shared through hierarchical quota management, dynamic resource allocation, and prioritized job scheduling. These capabilities help prevent cluster contention, ensure fair access across teams, and optimize the use of heterogeneous compute resources, such as hardware accelerators.
+
+Kueue lets you schedule diverse workloads, including distributed training jobs (`RayJob`, `RayCluster`, `PyTorchJob`), workbenches (`Notebook`), and model serving (`InferenceService`).
+
+Using Kueue in Alauda AI provides these benefits:
+
+- Prevents resource conflicts and prioritizes workload processing
+- Manages quotas across teams and namespaces
+- Ensures consistent scheduling for all workload types
+- Maximizes GPU and other specialized hardware utilization
+
+### How Kueue manages workloads
+
+Kueue manages workloads through the `kueue.x-k8s.io/queue-name` label. When a workload has this label set to a valid LocalQueue name, Kueue will manage its admission based on the quota defined in the associated ClusterQueue.
+
+You can create cluster-scoped `ClusterQueue` and namespace-scoped `LocalQueue` resources to manage workloads. Cluster administrators can configure these resources to define quotas and resource allocation policies.
+
+Kueue supports managing the following workload types:
+
+| API Group                | Kind                                                     |
+| ------------------------ | -------------------------------------------------------- |
+| batch                    | Job                                                      |
+| kubeflow.org             | MPIJob, PyTorchJob, TFJob, XGBoostJob, PaddleJob, JAXJob |
+| trainer.kubeflow.org     | TrainJob                                                 |
+| ray.io                   | RayJob, RayCluster                                       |
+| jobset.x-k8s.io          | JobSet                                                   |
+| leaderworkerset.x-k8s.io | LeaderWorkerSet                                          |
+| workload.codeflare.dev   | AppWrapper                                               |
+| core                     | Pod                                                      |
+| apps                     | Deployment, StatefulSet                                  |
+
+### Default LocalQueue
+
+Kueue supports automatic queue assignment through the `LocalQueueDefaulting` feature. When a LocalQueue named `default` exists in a namespace, any new workload created in that namespace without the `kueue.x-k8s.io/queue-name` label will automatically have the label set to `default`.
+
+This feature allows batch administrators to enforce quota management for all workloads in a namespace without requiring users to explicitly specify a queue name.
+
+:::note
+
+- If a namespace has a LocalQueue named `default`, workloads without a queue-name label will automatically use it.
+- If a namespace does not have a LocalQueue named `default`, workloads without the `kueue.x-k8s.io/queue-name` label will not be managed by Kueue.
+  :::
+
+**Additional resources**
+
+- [Alauda Build of Kueue documentation](../kueue/index.mdx)
+
+### Kueue workflow
+
+Managing workloads with Kueue in Alauda AI involves tasks for Alauda Container Platform cluster administrators, Alauda AI administrators, and machine learning (ML) engineers or data scientists:
+
+**Cluster administrator**
+
+Installs and configures Kueue:
+
+1. Installs the Alauda Build of Kueue cluster plugin on the cluster, as described in [Install Alauda Build of Kueue](../kueue/install.mdx).
+2. Configures quotas to optimize resource allocation for user workloads, as described in [Configuring quotas](../kueue/how_to/config_quotas.mdx).
+
+:::note
+For workloads to be managed by Kueue, either add the `kueue.x-k8s.io/queue-name` label to the workload, or create a LocalQueue named `default` in the namespace to enable automatic queue assignment.
+:::
+
+**Alauda AI administrator**
+
+Prepares the Alauda AI environment:
+
+1. Creates Kueue-enabled hardware profiles so that users can submit workloads from the Alauda AI dashboard.
+
+**ML Engineer or data scientist**
+
+Submits workloads to the queuing system:
+
+1. For workloads created from the Alauda AI dashboard, such as workbenches and model servers, selects a Kueue-enabled hardware profile during creation.
+2. For workloads created by using a command-line interface or an SDK, such as distributed training jobs, adds the `kueue.x-k8s.io/queue-name` label to the workload's YAML manifest and sets its value to the target `LocalQueue` name.
+
+## Configuring workload management with Kueue
+
+To use workload queuing in Alauda AI, install the Alauda Build of Kueue cluster plugin and configure the Kueue resources.
+
+### Prerequisites
+
+- You have cluster administrator privileges for your Alauda Container Platform cluster.
+- You have installed the kubectl CLI.
+
+### Procedure
+
+1. Install the Alauda Build of Kueue cluster plugin on your Alauda Container Platform cluster as described in [Install Alauda Build of Kueue](../kueue/install.mdx).
+
+2. Verify that the Alauda Build of Kueue pods are running:
+
+   ```bash
+   kubectl get pods -n cpaas-system | grep kueue
+   ```
+
+   You should see output similar to the following example:
+
+   ```
+   kueue-controller-manager-d9fc745df-ph77w    1/1     Running
+   ```
+
+3. Configure quotas by creating `ResourceFlavor`, `ClusterQueue`, and `LocalQueue` objects. For details, see [Configuring quotas](../kueue/how_to/config_quotas.mdx).
+
+### Next steps
+
+- For advanced quota configuration examples, see [Example Kueue resource configurations](./managing-distributed-workloads.mdx#example-kueue-resource-configurations-for-distributed-workloads).
+
+## Troubleshooting common problems with Kueue
+
+If your users are experiencing errors in Alauda AI relating to Kueue workloads, read this section to understand what could be causing the problem, and how to resolve the problem.
+
+If the problem is not documented here or in the release notes, contact Alauda Support.
+
+### A user receives a "failed to call webhook" error message for Kueue
+
+**Problem**
+
+After the user runs the `cluster.apply()` command, the following error is shown:
+
+```
+ApiException: (500)
+Reason: Internal Server Error
+HTTP response body: {"kind":"Status","apiVersion":"v1","metadata":{},"status":"Failure","message":"Internal error occurred: failed calling webhook \"mraycluster.kb.io\": failed to call webhook: Post \"https://kueue-webhook-service.cpaas-system.svc:443/mutate-ray-io-v1-raycluster?timeout=10s\": no endpoints available for service \"kueue-webhook-service\"","reason":"InternalError","details":{"causes":[{"message":"failed calling webhook \"mraycluster.kb.io\": failed to call webhook: Post \"https://kueue-webhook-service.cpaas-system.svc:443/mutate-ray-io-v1-raycluster?timeout=10s\": no endpoints available for service \"kueue-webhook-service\""}]},"code":500}
+```
+
+**Diagnosis**
+
+The Kueue pod might not be running.
+
+**Resolution**
+
+1. In the Alauda Container Platform console, switch to **Administrator** perspective and select the target cluster from the **Cluster** dropdown.
+2. Navigate to **Clusters > Resources**, search for `Pod` in the resource list.
+3. Filter by **Namespace** `cpaas-system` and search for `kueue` to find the Kueue pod. Verify that the Kueue pod is running. If necessary, restart the Kueue pod.
+4. Review the logs for the Kueue pod to verify that the webhook server is serving, as shown in the following example:
+
+   ```
+   {"level":"info","ts":"2024-06-24T14:36:24.255137871Z","logger":"controller-runtime.webhook","caller":"webhook/server.go:242","msg":"Serving webhook server","host":"","port":9443}
+   ```
+
+### A user receives a "Default Local Queue ... not found" error message
+
+**Problem**
+
+After the user runs the `cluster.apply()` command, the following error is shown:
+
+```
+Default Local Queue with kueue.x-k8s.io/default-queue: true annotation not found please create a default Local Queue or provide the local_queue name in Cluster Configuration.
+```
+
+**Diagnosis**
+
+No default local queue is defined, and a local queue is not specified in the cluster configuration.
+
+**Resolution**
+
+1. Check whether a local queue exists in the user's namespace, as follows:
+   1. In the Alauda Container Platform console, switch to **Administrator** perspective and select the target cluster from the **Cluster** dropdown.
+   2. Navigate to **Clusters > Resources**, search for `LocalQueue` in the resource list, and filter by the user's **Namespace**.
+   3. If no local queues are found, create a local queue.
+   4. Provide the user with the details of the local queues in their namespace, and advise them to add a local queue to their cluster configuration.
+
+2. Define a default local queue.
+
+   For information about creating a local queue and defining a default local queue, see [Configuring quotas](../kueue/how_to/config_quotas.mdx).
+
+### A user receives a "local_queue provided does not exist" error message
+
+**Problem**
+
+After the user runs the `cluster.apply()` command, the following error is shown:
+
+```
+local_queue provided does not exist or is not in this namespace. Please provide the correct local_queue name in Cluster Configuration.
+```
+
+**Diagnosis**
+
+An incorrect value is specified for the local queue in the cluster configuration, or an incorrect default local queue is defined. The specified local queue either does not exist, or exists in a different namespace.
+
+**Resolution**
+
+1. In the Alauda Container Platform console, switch to **Administrator** perspective and select the target cluster from the **Cluster** dropdown.
+   1. Navigate to **Clusters > Resources**, search for `LocalQueue` in the resource list, and filter by the user's **Namespace**.
+   2. Resolve the problem in one of the following ways:
+      - If no local queues are found, create a local queue.
+      - If one or more local queues are found, provide the user with the details of the local queues in their namespace. Advise the user to ensure that they spelled the local queue name correctly in their cluster configuration, and that the `namespace` value in the cluster configuration matches their namespace name.
+
+   3. Define a default local queue.
+
+      For information about creating a local queue and defining a default local queue, see [Configuring quotas](../kueue/how_to/config_quotas.mdx).
+
+### The pod provisioned by Kueue is terminated before the image is pulled
+
+**Problem**
+
+Kueue waits for a period of time before marking a workload as ready for all of the workload pods to become provisioned and running. By default, Kueue waits for 5 minutes. If the pod image is very large and is still being pulled after the 5-minute waiting period elapses, Kueue fails the workload and terminates the related pods.
+
+**Diagnosis**
+
+1. In the Alauda Container Platform console, switch to **Administrator** perspective and select the target cluster from the **Cluster** dropdown.
+2. Navigate to **Clusters > Resources**, search for `Pod` in the resource list, and filter by the user's **Namespace**.
+3. Click the Ray head pod name to open the pod details page.
+4. Click the **Events** tab, and review the pod events to check whether the image pull completed successfully.
+
+**Resolution**
+
+If the pod takes more than 5 minutes to pull the image, contact your administrator to request assistance.
