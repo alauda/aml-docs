@@ -15,7 +15,7 @@ Kueue lets you schedule diverse workloads, including distributed training jobs (
 Using Kueue in Alauda AI provides these benefits:
 
 - Prevents resource conflicts and prioritizes workload processing
-- Manages quotas across teams and projects
+- Manages quotas across teams and namespaces
 - Ensures consistent scheduling for all workload types
 - Maximizes GPU and other specialized hardware utilization
 
@@ -163,11 +163,11 @@ No default local queue is defined, and a local queue is not specified in the clu
 
 **Resolution**
 
-1. Check whether a local queue exists in the user's project, as follows:
+1. Check whether a local queue exists in the user's namespace, as follows:
    1. In the Alauda Container Platform console, switch to **Administrator** perspective and select the target cluster from the **Cluster** dropdown.
    2. Navigate to **Clusters > Resources**, search for `LocalQueue` in the resource list, and filter by the user's **Namespace**.
    3. If no local queues are found, create a local queue.
-   4. Provide the user with the details of the local queues in their project, and advise them to add a local queue to their cluster configuration.
+   4. Provide the user with the details of the local queues in their namespace, and advise them to add a local queue to their cluster configuration.
 
 2. Define a default local queue.
 
@@ -193,7 +193,7 @@ An incorrect value is specified for the local queue in the cluster configuration
    1. Navigate to **Clusters > Resources**, search for `LocalQueue` in the resource list, and filter by the user's **Namespace**.
    2. Resolve the problem in one of the following ways:
       - If no local queues are found, create a local queue.
-      - If one or more local queues are found, provide the user with the details of the local queues in their project. Advise the user to ensure that they spelled the local queue name correctly in their cluster configuration, and that the `namespace` value in the cluster configuration matches their project name.
+      - If one or more local queues are found, provide the user with the details of the local queues in their namespace. Advise the user to ensure that they spelled the local queue name correctly in their cluster configuration, and that the `namespace` value in the cluster configuration matches their namespace name.
 
    3. Define a default local queue.
 
