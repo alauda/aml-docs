@@ -49,11 +49,14 @@ spec:
   replicas: 1                                      # Number of server replicas
   server:
     containerSpec:
+      name: llama-stack
+      port: 8321
       env:
         - name: VLLM_URL
-          value: "http://vllm-predictor.default.svc.cluster.local:8000/v1"   # vLLM OpenAI-compatible base URL
+          value: "http://vllm-predictor.default.svc.cluster.local/v1"   # vLLM OpenAI-compatible base URL
         - name: VLLM_MAX_TOKENS
           value: "8192"                            # Maximum output tokens
+
         # Optional: VLLM_API_TOKEN — add only when the vLLM endpoint requires authentication.
         # If vLLM is deployed without auth, omit the entire block below (do not set VLLM_API_TOKEN).
         # Example after creating: kubectl create secret generic vllm-api-token -n default --from-literal=token=<TOKEN>
@@ -62,8 +65,7 @@ spec:
         #     secretKeyRef:
         #       key: token
         #       name: vllm-api-token
-      name: llama-stack
-      port: 8321
+
     distribution:
       name: starter                                # Distribution name (options: starter, postgres-demo, meta-reference-gpu)
     storage:
