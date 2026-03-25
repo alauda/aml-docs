@@ -18,8 +18,15 @@ In **Administrator** view:
 2. At the top of the console, from the **Cluster** dropdown list, select the destination cluster where **Alauda AI** is installed.
 3. Select **Alauda AI**, then click the **All Instances** tab.
 4. Locate the `default` instance and click **Update**.
-5. In the update form, locate the **Serverless Configuration** section.
-6. Set **BuiltIn Knative Serving** to `Removed`.
+5. On the update page, switch to the **YAML** view.
+6. Set `spec.knativeServing.managementState` to `Removed`, for example:
+
+   ```yaml
+   spec:
+     knativeServing:
+       managementState: Removed
+   ```
+
 7. Click **Update** to apply the changes.
 
 </Steps>
