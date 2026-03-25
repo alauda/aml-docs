@@ -31,7 +31,8 @@ violet push --platform-address=platform-access-address --platform-username=platf
 After the operator is installed, deploy Llama Stack Server by creating a `LlamaStackDistribution` custom resource:
 
 > **Note:** Prepare the following in advance; otherwise the distribution may not become ready:
-> - **Secret**: Create a Secret (e.g., `deepseek-api`) in the same namespace with the LLM API token. Example: `kubectl create secret generic deepseek-api -n default --from-literal=token=<LLM_API_KEY>`.
+> - **Inference URL**: `VLLM_URL` must point at a **vLLM OpenAI-compatible** HTTP base URL (for example an in-cluster vLLM or KServe InferenceService) that serves the target model.
+> - **Secret (optional)**: `VLLM_API_TOKEN` is only needed when the vLLM endpoint requires authentication. If vLLM has no auth, do not set it. When required, create a Secret in the same namespace and reference it from `containerSpec.env` (see the commented example in the manifest below).
 > - **Storage Class**: Ensure the `default` Storage Class exists in the cluster; otherwise the PVC cannot be bound and the resource will not become ready.
 
 ```yaml
@@ -50,21 +51,24 @@ spec:
     containerSpec:
       env:
         - name: VLLM_URL
-          value: "https://api.deepseek.com/v1"     # URL of the LLM API provider
+          value: "http://vllm-predictor.default.svc.cluster.local:8000/v1"   # vLLM OpenAI-compatible base URL
         - name: VLLM_MAX_TOKENS
           value: "8192"                            # Maximum output tokens
-        - name: VLLM_API_TOKEN                     # Load LLM API token from secret
-          valueFrom:
-            secretKeyRef:                          # Create this Secret in the same namespace beforehand, e.g. kubectl create secret generic deepseek-api -n default --from-literal=token=<LLM_API_KEY>
-              key: token
-              name: deepseek-api
+        # Optional: VLLM_API_TOKEN — add only when the vLLM endpoint requires authentication.
+        # If vLLM is deployed without auth, omit the entire block below (do not set VLLM_API_TOKEN).
+        # Example after creating: kubectl create secret generic vllm-api-token -n default --from-literal=token=<TOKEN>
+        # - name: VLLM_API_TOKEN
+        #   valueFrom:
+        #     secretKeyRef:
+        #       key: token
+        #       name: vllm-api-token
       name: llama-stack
       port: 8321
     distribution:
       name: starter                                # Distribution name (options: starter, postgres-demo, meta-reference-gpu)
     storage:
       mountPath: /home/lls/.lls
-      size: 20Gi                                   # Requires the "default" Storage Class to be configured beforehand
+      size: 1Gi                                    # Requires the "default" Storage Class to be configured beforehand
 ```
 
 After deployment, the Llama Stack Server will be available within the cluster. The access URL is displayed in `status.serviceURL`, for example:
@@ -74,3 +78,16 @@ status:
   phase: Ready
   serviceURL: http://demo-service.default.svc.cluster.local:8321
 ```
+
+## Tool calling with vLLM on KServe
+
+The following applies to the **vLLM predictor** on KServe, not to the `LlamaStackDistribution` manifest. For agent flows that use **tools** (client-side tools or MCP), the vLLM process must expose tool-call support. Add predictor container `args` as required by upstream vLLM, for example:
+
+```yaml
+args:
+  - --enable-auto-tool-choice
+  - --tool-call-parser
+  - hermes
+```
+
+Choose `--tool-call-parser` (and any related flags) according to the **served model** and the vLLM documentation for that model family.
