@@ -1,61 +1,49 @@
 # Release Notes
 
-## AI 2.0.0
+## AI 2.2.0
 
 ### **New and Optimized Features**
 
-#### **NPU Support**
-By introducing the **NPU Operator**, NPU hardware management is supported, simplifying the setup for using NPUs and enhancing hardware acceleration.
+#### **Connection Hub**
 
-#### **Queueing & Admission Control**
-By introducing the **Alauda Build of Kueue**, queue management and admission control are implemented, optimizing task scheduling and resource allocation.
+**Connections** enable users to securely configure access to external data sources and model storage locations by encapsulating credentials and configuration parameters as reusable project resources. **Connection Types** provide templated forms with customizable fields and default values, streamlining connection creation for common storage protocols. Version 2.2 includes built-in connection types for **OCI-compliant registries** and **URI-based repositories**, enabling model deployment from container images and remote endpoints. S3-compatible object storage connection type is under development.
 
-#### **Model Registry**
-The integration of **Kubeflow Model Registry** enhances model management and version control, simplifying the process of model registration and storage.
+#### **NeMo Guardrails Integration**
 
-#### **Distributed Inference**
-With the addition of **llm-d**, distributed inference is now supported, improving the performance and resource efficiency of large-scale inference tasks.
+**NVIDIA NeMo Guardrails** provides programmable safety controls for LLM applications, running as a separate service in front of the model. It enforces sensitive data detection (PII), content policies, and custom validation flows written in Colang and Python, exposed through the TrustyAI Operator's NemoGuardrails custom resource.
 
-#### **Leader-Worker Set Support**
-Through the introduction of the **Alauda Build of LeaderWorkerSet**, distributed training task management is supported, simplifying task distribution and coordination in a Leader-Worker model.
+#### **RAG Evaluation with RAGAS**
 
-#### **AI Gateway**
-The new **Alauda build of Envoy AI Gateway** optimizes traffic management and security, providing enhanced AI service proxy capabilities.
+**RAGAS (Retrieval-Augmented Generation Assessment)** integration provides objective metrics for evaluating RAG applications, including retrieval quality, answer relevance, and factual consistency. Developers can automate quality gates and optimize RAG configurations using evaluation pipelines.
 
-#### **Trainer Orchestration**
-By supporting **Kubeflow Trainer v2**, task scheduling and management for model training have been enhanced, enabling more flexible and efficient training workflows.
+#### **LlamaFactory Fine-tuning**
 
-#### **Pipelines Orchestration**
-Integration with **Kubeflow Pipeline** allows for more efficient pipeline orchestration and task management, improving automation across workflows.
+**LlamaFactory** integration through Kubeflow Trainer v2 provides a streamlined solution for model fine-tuning, supporting SFT, LoRA, and QLoRA training algorithms. Users can customize foundation models with their own datasets through single-node and multi-node distributed training.
 
-#### **Vector Storage**
-The introduction of **Milvus** provides an efficient vector storage solution, supporting large-scale vector data storage and fast retrieval.
+#### **Hardware Profile Definitions & Templates**
 
-#### **NVIDIA DRA**
-By introducing the **NVIDIA DRA Driver for GPUs**, GPU resource management and scheduling have been optimized, increasing GPU utilization and performance.
+**Hardware Profiles** enable centralized management of hardware resource allocation for AI/ML workloads. Administrators can define custom hardware configurations with specific accelerator types, memory limits, and node placement rules, enabling GPU-as-a-Service capabilities with self-service provisioning.
 
-#### **Node Feature Discovery**
-The **Alauda Build of Node Feature Discovery** enables automatic discovery of hardware features and node labeling, improving flexibility in node resource management.
+#### **ServingRuntime Management**
 
-#### **Llama Stack Runtime**
-The introduction of **Llama Stack** enhances AI agent capabilities by providing an efficient runtime environment for supporting distributed AI tasks.
+Extend the AI Platform with custom inference runtimes to serve LLMs or other model types (image classification, object detection, etc.). Administrators can add custom runtimes such as MLServer, Triton, or Xinference through `ClusterServingRuntime` resources to support additional model frameworks, GPU types, and specialized inference scenarios beyond the default vLLM runtime.
 
-#### **Generative AI**
-By introducing **Kserve's Generative AI section**, support for generative AI has been enhanced, optimizing model deployment and inference, especially for generative AI applications.
+#### **Notebook Base Image Library for ARM**
 
-#### **Low-Code Builder Integration**
-By updating the **Dify** version and providing deployable Charts, the low-code application building process has been simplified, further enhancing AI application development efficiency.
+The **Notebook Base Image Library** now includes **minimal** and **datascience** notebook images for **ARM architecture**, expanding hardware compatibility for notebook-based development on ARM platforms.
 
-### **Deprecated Features**
+#### **Drift Detection with TrustyAI**
 
-#### **UI Fine-Tuning & Pretraining Deprecation**
-Due to the lack of general applicability, complex horizontal scaling, and the fact that this is not a mainstream method in the industry for model training and fine-tuning, this feature is deprecated. It is recommended to use notebook-based model fine-tuning and training instead.
+Monitor deployed models for data drift by detecting changes in input data distributions over time. **TrustyAI Drift Detection** compares real-world inference data against original training data using statistical metrics to identify shifts that could impact model performance, ensuring models remain accurate and reliable in production.
 
-#### **Secret Manage Deprecation**
-The **Secret Manage** feature is deprecated due to the lack of a valid use case, as manual GitLab integration is no longer required and no longer applicable.
+#### **MCP Integration with Llama Stack**
+
+Llama Stack Connectors provide a high-level abstraction for AI registries such as **Model Context Protocol (MCP)**. Platform Engineers can register connectors, and AI Engineers can consume pre-registered connectors without managing complex configurations, enabling AI agents to connect to external tools and data sources through standardized interfaces.
 
 ### **Fixed Issues**
+
 {/* release-notes-for-bugs?template=fixed&project=AI */}
 
 ### **Known Issues**
+
 {/* release-notes-for-bugs?template=unfixed&project=AI */}
