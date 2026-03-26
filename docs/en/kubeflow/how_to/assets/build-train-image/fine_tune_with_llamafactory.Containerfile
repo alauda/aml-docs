@@ -19,6 +19,6 @@ ENV UV_SYSTEM_PYTHON=1
 
 WORKDIR /opt
 COPY pyproject.toml uv.lock ./
-RUN HTTPS_PROXY=http://192.168.144.12:7890 uv sync --frozen
+RUN uv sync --frozen
 
 ENV PATH=$PATH:/opt/.venv/bin
