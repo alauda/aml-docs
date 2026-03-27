@@ -45,4 +45,5 @@ weight: 10
 ## Notes
 
 (1) 'Kubeflow Trainer v2' requires Alauda Container Platform 4.1.x or later
+
 (2) 'Kubeflow Model Registry' has been refactored from a Helm Charts (v2.0) to an Operator (v2.1)
