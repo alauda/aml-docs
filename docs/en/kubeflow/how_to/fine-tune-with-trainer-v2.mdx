@@ -1,0 +1,86 @@
+---
+weight: 90
+---
+
+# Fine-Tuning with Kubeflow Trainer v2
+
+This tutorial walks through how to use **Kubeflow Trainer v2** to run supervised fine-tuning (SFT) jobs with [LlamaFactory](https://github.com/hiyouga/LLaMA-Factory) on Kubernetes.
+
+## Overview
+
+Kubeflow Trainer v2 separates **job templates** (`TrainingRuntime`) from **job runs** (`TrainJob`), which lets you:
+
+- Define a reusable `TrainingRuntime` that captures the container image, training pipeline steps (dataset init → model init → trainer), and LlamaFactory configuration.
+- Submit many `TrainJob` runs referencing the same runtime, overriding only what changes per experiment — base model, dataset URL, hyperparameters, or GPU resources.
+
+## Prerequisites
+
+Before starting, make sure the following are in place:
+
+| Requirement | Details |
+|---|---|
+| Kubeflow Trainer v2 | Installed in your cluster (the `trainer.kubeflow.org` API group is available) |
+| Kueue | Installed in your cluster for job scheduling and quota management (optional but recommended) |
+| A shared PVC | A `PersistentVolumeClaim` accessible by all pods (e.g., `team-model-cache-pvc`) backed by NFS, Ceph, or local storage like topolvm |
+| Git credentials | A Kubernetes `Secret` named `aml-image-builder-secret` with keys `MODEL_REPO_GIT_USER` and `MODEL_REPO_GIT_TOKEN` for accessing private Git repositories |
+| GPU nodes | Nodes with NVIDIA GPUs; the examples use `Tesla-T4` nodes — adjust `nodeSelector` to match your cluster |
+| `kubectl` access | `kubectl` configured with permission to create `TrainingRuntime` and `TrainJob` resources in your target namespace |
+
+## Build the Trainer Image or Use a Pre-Built Image
+
+Use our pre-built image `alaudadockerhub/fine_tune_with_llamafactory:v0.1.11` or you can build your own image with the provided `Containerfile` in [aml-docs](https://github.com/alauda/aml-docs/docs/en/kubeflow/how_to/assets/build-train-image). 
+
+## Download the notebook and run the example
+
+1. Download the [notebook](https://github.com/alauda/aml-docs/docs/en/kubeflow/how_to/fine-tune-with-trainer-v2.ipynb) to your current workbench in **Alauda AI**, create a new workbench if you don't have one, and open the notebook.
+2. Follow the instructions in the notebook to create a `TrainingRuntime` and submit a `TrainJob` for fine-tuning a LLaMA-Factory model. The notebook includes example configurations for using the `team-model-cache-pvc` shared PVC and Git credentials.
+
+## Scheduling with Kueue
+
+[Kueue](https://kueue.sigs.k8s.io/) provides job queuing, quota management, and fair scheduling for Kubernetes workloads. When Kueue is installed in your cluster, TrainJobs are held in a **suspended** state until Kueue admits them based on available quota.
+
+### How it works
+
+1. A cluster admin creates a `ClusterQueue` with resource quotas (CPU, memory, GPU).
+2. A namespace admin creates a `LocalQueue` pointing to the `ClusterQueue`.
+3. Users label their `TrainJob` with `kueue.x-k8s.io/queue-name` to submit it to a `LocalQueue`.
+4. Kueue evaluates the resource request, admits the workload when quota is available, and unsuspends the job.
+
+Refer to [Kueue documentation](/kueue/intro.mdx) for more details on setting up `ClusterQueue` and `LocalQueue`.
+
+### Create a LocalQueue
+
+Before submitting TrainJobs with Kueue, create a `LocalQueue` in your namespace that references an existing `ClusterQueue`:
+
+```yaml
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: LocalQueue
+metadata:
+  name: local-queue
+  namespace: mlops-demo-ai-test
+spec:
+  clusterQueue: cluster-queue
+```
+
+```bash
+kubectl apply -f kf-local-queue.yaml
+```
+
+### Submit a TrainJob with Kueue
+
+To integrate with Kueue, add the `kueue.x-k8s.io/queue-name` label to your TrainJob's `metadata.labels`. This tells Kueue which `LocalQueue` the job belongs to:
+
+```yaml
+metadata:
+  generateName: trainjob-sft-qwen3-
+  namespace: mlops-demo-ai-test
+  labels:
+    kueue.x-k8s.io/queue-name: local-queue
+```
+
+The rest of the `TrainJob` spec remains the same. See the notebook for the full example.
+
+:::note
+When Kueue is enabled, the cluster may have a **PodsReady timeout** configured (e.g., 5 minutes). If your training image is large and not yet cached on the node, the first attempt may be evicted due to image pull timeout. Resubmitting the job usually succeeds since the image will be cached locally.
+:::
+
