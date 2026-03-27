@@ -46,6 +46,8 @@ Use our pre-built image `alaudadockerhub/fine_tune_with_llamafactory:v0.1.11` or
 3. Users label their `TrainJob` with `kueue.x-k8s.io/queue-name` to submit it to a `LocalQueue`.
 4. Kueue evaluates the resource request, admits the workload when quota is available, and unsuspends the job.
 
+Refer to [Kueue documentation](/kueue/intro.mdx) for more details on setting up `ClusterQueue` and `LocalQueue`.
+
 ### Create a LocalQueue
 
 Before submitting TrainJobs with Kueue, create a `LocalQueue` in your namespace that references an existing `ClusterQueue`:
