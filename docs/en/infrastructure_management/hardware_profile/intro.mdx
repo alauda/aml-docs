@@ -1,0 +1,35 @@
+---
+weight: 5
+---
+
+# Introduction
+
+Hardware profiles centrally allow platform administrators to provision specific and standardized hardware configurations. These configurations tightly encapsulate computing resource limits, node selectors, and node tolerations directly into a cohesive unit that platform users can effortlessly select when deploying varying model inference services.
+
+Utilizing hardware profiles significantly reduces manual errors resulting from raw configuration via YAML, prevents unintentional scheduling on wrong topology groups, and comprehensively ensures robust resource management on cluster workloads. 
+
+Hardware profiles natively support and interact prominently with the platform's `InferenceService` and `LLMInferenceService` resources.
+
+## Why do we need a Hardware Profile?
+
+While standard Kubernetes offers resource requests and limits through Pod specifications, constructing and deploying AI inference workloads (such as Large Language Models or specialized KServe predictors) introduces unique operational challenges. Our implementation of Hardware Profiles is tailored specifically to solve these challenges with the following platform-specific characteristics:
+
+1. **Topology & Specialized Accelerator Abstraction**  
+   Data scientists prioritize model performance and logic rather than the underlying cluster topology. They may not know the exact node labels or taints required to schedule workloads onto specific GPU nodes, vGPU resources, or interconnect networks. A Hardware Profile abstracts away these technical complexities. Administrators can embed precise `Node Selectors` and `Tolerations` directly into the profile, ensuring that when a user selects a "High-End NVIDIA A100" profile from the UI, the workload automatically targets the correct physical machine pools.
+
+2. **Dynamic Bounded Customization (Not Just Rigid Quotas)**  
+   Unlike platforms that strictly enforce a single, immutable resource size (t-shirt sizing), our system defines a dynamic, scalable boundary for each resource type. Administrators configure the **Minimum allowed**, **Default**, and **Maximum allowed** limits. When a user selects a profile, they inherit the *Default* settings immediately. However, through the **Customize Data** option, they retain the profound flexibility to manually fine-tune their specific Requests and Limits. As long as those values fall within the authorized profile boundaries, they succeed—allowing elasticity for distinct models without risking excessive cluster monopolization.
+
+3. **Smart Webhook Validation & Asymmetric Auto-Correction**  
+   Our platform employs a dedicated Mutating Webhook that deeply integrates with the model serving pipelines. Instead of relying on users to perfectly craft YAML manifests, the webhook gracefully intercepts the request and safely injects the profile's constraints into the workload runtime. Furthermore, it intelligently safeguards the cluster—for instance, if a user specifies limits but omits requests (or vice versa), the webhook natively performs smart semantic adjustments (capping requests to limits, or elevating defaults) and comprehensively blocks configurations that violate the profile's defined minimum or maximum limits before any Pods are spawned.
+
+4. **Native Interoperability with Custom Serving Engines**  
+   Whether deploying a standard `InferenceService` or a heavily customized `LLMInferenceService`, the hardware profile engine natively tracks the complex Pod/Container structures behind the scenes and injects exactly into the active predictive container's resources.
+
+### Key Aspects of a Hardware Profile
+
+* **Resource Identifiers (Limits & Requests):** Profiles securely govern native Kubernetes limitations (such as minimal CPU thresholds, default available Memory allocations, and strict maximum GPU acceleration limits) to prevent system overload while maintaining operational stability.
+* **Taints & Tolerations:** Hardware profiles inherently instruct workload pods precisely which nodes they are resilient enough to handle (e.g., tolerating dedicated heterogeneous hardware taints). 
+* **Node Selectors:** They strictly constrain workloads to distinct node label selectors to match the correct machine architectures without implicit guessing. 
+* **Backend Webhook Injection:** Through automated interception mechanisms installed in the cluster, hardware constraints transparently merge and attach to submitted workloads directly from the management namespace. 
+
