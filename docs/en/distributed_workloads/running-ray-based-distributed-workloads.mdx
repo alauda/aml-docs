@@ -1,0 +1,248 @@
+---
+weight: 30
+---
+
+# Running Ray-based distributed workloads
+
+In Alauda AI, you can run a Ray-based distributed workload from a Jupyter notebook or from a pipeline.
+
+You can run Ray-based distributed workloads in a disconnected environment if you can access all of the required software from that environment. For example, you must be able to access a Ray cluster image, and the data sets and Python dependencies used by the workload, from the disconnected environment.
+
+## Running distributed data science workloads from Jupyter notebooks
+
+To run a distributed workload from a Jupyter notebook, you must configure a Ray cluster.
+
+The examples in this section refer to the JupyterLab integrated development environment (IDE).
+
+### Downloading the demo Jupyter notebooks from the CodeFlare SDK
+
+The demo Jupyter notebooks from the CodeFlare SDK provide guidelines on how to use the CodeFlare stack in your own Jupyter notebooks.
+
+#### Prerequisites
+
+- You can access a data science cluster that is configured to run distributed workloads as described in [Managing distributed workloads](../kueue/how_to/config_quotas.mdx).
+- You can access a namespace in Alauda AI, create a workbench, and run a default workbench image that contains the CodeFlare SDK, for example, the **Standard Data Science** notebook. For information about creating workbenches, see [Create Workbench](../workbench/how_to/create_workbench.mdx).
+- You have logged in to Alauda AI, started your workbench, and logged in to JupyterLab.
+
+#### Procedure
+
+1. In the JupyterLab interface, click **File > New > Notebook**. Specify your preferred Python version, and then click **Select**.
+
+    A new Jupyter notebook file is created with the `.ipynb` file name extension.
+
+2. Add the following code to a cell in the new notebook:
+    **Code to download the demo Jupyter notebooks**
+
+    ```python
+    from codeflare_sdk import copy_demo_nbs
+    copy_demo_nbs()
+    ```
+
+3. Select the cell, and click **Run > Run selected cell**.
+
+    After a few seconds, the `copy_demo_nbs()` function copies the demo Jupyter notebooks that are packaged with the currently installed version of the CodeFlare SDK, and clones them into the `demo-notebooks` folder.
+
+4.  In the left navigation pane, right-click the new notebook and click **Move to Trash**.
+5.  Click **Delete** to confirm.
+
+#### Verification
+
+Locate the downloaded demo Jupyter notebooks in the JupyterLab interface, as follows:
+
+1. In the left navigation pane, double-click **demo-notebooks**.
+2. Double-click **additional-demos** and verify that the folder contains several demo Jupyter notebooks.
+3. Click **demo-notebooks**.
+4. Double-click **guided-demos** and verify that the folder contains several demo Jupyter notebooks.
+
+You can run these demo Jupyter notebooks as described in [Running the demo Jupyter notebooks from the CodeFlare SDK](#running-the-demo-jupyter-notebooks-from-the-codeflare-sdk).
+
+### Running the demo Jupyter notebooks from the CodeFlare SDK
+
+To run the demo Jupyter notebooks from the CodeFlare SDK, you must provide environment-specific information.
+
+In the examples in this procedure, you edit the demo Jupyter notebooks in JupyterLab to provide the required information, and then run the Jupyter notebooks.
+
+#### Prerequisites
+
+- You can access a data science cluster that is configured to run distributed workloads as described in [Managing distributed workloads](../kueue/how_to/config_quotas.mdx).
+- You have installed the `Alauda Build of KubeRay Operator` cluster plugin in your data science cluster, see [Install Alauda Build of KubeRay Operator](../kuberay/install.mdx).
+- You can access the following software from your data science cluster:
+    - A Ray cluster image that is compatible with your hardware architecture
+    - The data sets and models to be used by the workload
+    - The Python dependencies for the workload, either in a Ray image or in your own Python Package Index (PyPI) server
+- You can access a namespace in Alauda AI then create a workbench, and the workbench is running a default workbench image that contains the CodeFlare SDK, for example, the **Standard Data Science** notebook. For information about create workbenches, see [Create Workbench](../workbench/how_to/create_workbench.mdx).
+- You have logged in to Alauda AI, started your workbench, and logged in to JupyterLab.
+- You have downloaded the demo Jupyter notebooks provided by the CodeFlare SDK, as described in [Downloading the demo Jupyter notebooks from the CodeFlare SDK](#downloading-the-demo-jupyter-notebooks-from-the-codeflare-sdk).
+
+#### Procedure
+
+1. Check whether your cluster administrator has defined a **default** local queue for the Ray cluster.
+    You can use the `codeflare_sdk.list_local_queues()` function to view all local queues in your current namespace, and the resource flavors associated with each local queue.
+
+    :::note
+    If your cluster administrator does not define a default local queue, you must specify a local queue in each Jupyter notebook.
+    :::
+
+2. In the JupyterLab interface, open the **demo-notebooks > guided-demos** folder.
+3. Open all of the Jupyter notebooks by double-clicking each Jupyter notebook file.
+    Jupyter notebook files have the `.ipynb` file name extension.
+
+4. In each Jupyter notebook, ensure that the `import` section imports the required components from the CodeFlare SDK, as follows:
+
+    **Example import section**
+
+    ```python
+    from codeflare_sdk import Cluster, ClusterConfiguration, TokenAuthentication
+    ```
+
+5. In each Jupyter notebook, delete or comment out the `TokenAuthentication` section since the default `kubeconfig` is sufficient to meet the requirements.
+
+6. In each Jupyter notebook, update the cluster configuration section as follows:
+
+    i. If the `namespace` value is specified, replace the example value with the name of your namespace.
+        If you omit this line, the Ray cluster is created in the current namespace.
+
+    ii. If the `image` value is specified, replace the example value with a link to a suitable Ray cluster image. The Python version in the Ray cluster image must be the same as the Python version in the workbench.
+        If you omit this line, one of the following Ray cluster images is used by default, based on the Python version detected in the workbench:
+        - Python 3.9: `quay.io/modh/ray:2.35.0-py39-cu121`
+        - Python 3.11: `quay.io/modh/ray:2.47.1-py311-cu121`
+        The default Ray images are compatible with NVIDIA GPUs that are supported by the specified CUDA version. The default images are AMD64 images, which might not work on other architectures.
+        Additional ROCm-compatible Ray cluster images are available, which are compatible with AMD accelerators that are supported by the specified ROCm version. These images are AMD64 images, which might not work on other architectures.
+
+    iii. If your cluster administrator has not configured a default local queue, specify the local queue for the Ray cluster, as shown in the following example:
+          ```python
+          local_queue="your_local_queue_name"
+          ```
+
+    iv. Optional: Assign a dictionary of `labels` parameters to the Ray cluster for identification and management purposes, as shown in the following example:
+          ```python
+          labels = {"exampleLabel1": "exampleLabel1Value", "exampleLabel2": "exampleLabel2Value"}
+          ```
+    v. If any of the Python packages required by the workload are not available in the Ray cluster, configure the Ray cluster to download the Python packages from a private PyPI server.
+        For example, set the `PIP_INDEX_URL` and `PIP_TRUSTED_HOST` environment variables for the Ray cluster, to specify the location of the Python dependencies, as shown in the following example:
+
+        ```python
+        envs={
+            "PIP_INDEX_URL": "https://pypi.tuna.tsinghua.edu.cn/simple",
+            "PIP_TRUSTED_HOST": "pypi.tuna.tsinghua.edu.cn"
+        },
+        ```
+      where
+       - `PIP_INDEX_URL` specifies the base URL of your private PyPI server (the default value is [https://pypi.org](https://pypi.org)).
+       - `PIP_TRUSTED_HOST` configures Python to mark the specified host as trusted, regardless of whether that host has a valid SSL certificate or is using a secure channel.
+
+7. In the `2_basic_interactive.ipynb` Jupyter notebook, ensure that the following Ray cluster authentication code is included after the Ray cluster creation section:
+
+    **Ray cluster authentication code**
+    ```python
+    from codeflare_sdk import generate_cert
+    generate_cert.generate_tls_cert(cluster.config.name, cluster.config.namespace)
+    generate_cert.export_env(cluster.config.name, cluster.config.namespace)
+    ```
+
+    :::note
+    Mutual Transport Layer Security (mTLS) is enabled by default in the Ray component in Alauda AI. You must include the Ray cluster authentication code to enable the Ray client that runs within a Jupyter notebook to connect to a secure Ray cluster that has mTLS enabled.
+    :::
+
+8. Run the Jupyter notebooks in the order indicated by the file-name prefix (`0_`, `1_`, and so on).
+    i. In each Jupyter notebook, run each cell in turn, and review the cell output.
+    ii. If an error is shown, review the output to find information about the problem and the required corrective action. For example, replace any deprecated parameters as instructed.
+    iii. For more information about the interactive browser controls that you can use to simplify Ray cluster tasks when working within a Jupyter notebook, see [Managing Ray clusters from within a Jupyter notebook](#managing-ray-clusters-from-within-a-jupyter-notebook).
+
+#### Verification
+
+1. The Jupyter notebooks run to completion without errors.
+2. In the Jupyter notebooks, the output from the `cluster.status()` function or `cluster.details()` function indicates that the Ray cluster is `Active`.
+
+### Managing Ray clusters from within a Jupyter notebook
+
+You can use interactive browser controls to simplify Ray cluster tasks when working within a Jupyter notebook.
+
+The interactive browser controls provide an alternative to the equivalent commands, but do not replace them. You can continue to manage the Ray clusters by running commands within the Jupyter notebook, for ease of use in scripts and pipelines.
+
+Several different interactive browser controls are available:
+
+- When you run a cell that provides the cluster configuration, the Jupyter notebook automatically shows the controls for starting or deleting the cluster.
+- You can run the `view_clusters()` command to add controls that provide the following functionality:
+    - View a list of the Ray clusters that you can access.
+    - View cluster information, such as cluster status and allocated resources, for the selected Ray cluster. You can view this information from within the Jupyter notebook, without switching to the Alauda console or the Ray dashboard.
+    - Open the Ray dashboard directly from the Jupyter notebook, to view the submitted jobs.
+    - Refresh the Ray cluster list and the cluster information for the selected cluster.
+
+    You can add these controls to existing Jupyter notebooks, or manage the Ray clusters from a separate Jupyter notebook.
+
+The `3_widget_example.ipynb` demo Jupyter notebook shows all of the available interactive browser controls. In the example in this procedure, you create a new Jupyter notebook to manage the Ray clusters, similar to the example provided in the `3_widget_example.ipynb` demo Jupyter notebook.
+
+#### Prerequisites
+
+- You can access a data science cluster that is configured to run distributed workloads as described in [Managing distributed workloads](../kueue/how_to/config_quotas.mdx).
+- You have installed the `Alauda Build of KubeRay Operator` cluster plugin in your data science cluster, see [Install Alauda Build of KubeRay Operator](../kuberay/install.mdx).
+- You can access the following software from your data science cluster:
+    - A Ray cluster image that is compatible with your hardware architecture
+    - The data sets and models to be used by the workload
+    - The Python dependencies for the workload, either in a Ray image or in your own Python Package Index (PyPI) server
+- You can access a namespace in Alauda AI then create a workbench, and the workbench is running a default workbench image that contains the CodeFlare SDK, for example, the **Standard Data Science** notebook. For information about create workbenches, see [Create Workbench](../workbench/how_to/create_workbench.mdx).
+- You have logged in to Alauda AI, started your workbench, and logged in to JupyterLab.
+- You have downloaded the demo Jupyter notebooks provided by the CodeFlare SDK, as described in [Downloading the demo Jupyter notebooks from the CodeFlare SDK](#downloading-the-demo-jupyter-notebooks-from-the-codeflare-sdk).
+
+#### Procedure
+
+1. Run all of the demo Jupyter notebooks in the order indicated by the file-name prefix (`0_`, `1_`, and so on), as described in [Running the demo Jupyter notebooks from the CodeFlare SDK](#running-the-demo-jupyter-notebooks-from-the-codeflare-sdk).
+2. In each demo Jupyter notebook, when you run the cluster configuration step, the following interactive controls are automatically shown in the Jupyter notebook:
+    - **Cluster Up**: You can click this button to start the Ray cluster. This button is equivalent to the `cluster.up()` command. When you click this button, a message indicates whether the cluster was successfully created.
+    - **Cluster Down**: You can click this button to delete the Ray cluster. This button is equivalent to the `cluster.down()` command. The cluster is deleted immediately; you are not prompted to confirm the deletion. When you click this button, a message indicates whether the cluster was successfully deleted.
+    - **Wait for Cluster**: You can select this option to specify that the notebook cell should wait for the Ray cluster dashboard to be ready before proceeding to the next step. This option is equivalent to the `cluster.wait_ready()` command.
+
+3. In the JupyterLab interface, create a new Jupyter notebook to manage the Ray clusters, as follows:
+    i. Click **File > New > Notebook**. Specify your preferred Python version, and then click **Select**.
+        A new Jupyter notebook file is created with the `.ipynb` file name extension.
+
+    ii. Add the following code to a cell in the new Jupyter notebook:
+        **Code to import the required packages**
+
+        ```python
+        from codeflare_sdk import TokenAuthentication, view_clusters
+        ```
+
+        The `view_clusters` package provides the interactive browser controls for listing the clusters, showing the cluster details, opening the Ray dashboard, and refreshing the cluster data.
+
+    iii. Add a new notebook cell, and add the following code to the new cell:
+          **Code to view clusters in the current project**
+          ```python
+          view_clusters()
+          ```
+          When you run the `view_clusters()` command with no arguments specified, you generate a list of all of the Ray clusters in the *current* project, and display information similar to the `cluster.details()` function.
+          If you have access to another namespace, you can list the Ray clusters in that namespace by specifying the namespace name as shown in the following example:
+          ```python
+          view_clusters("my_second_namespace")
+          ```
+    iv. Click **File > Save Notebook As**, enter `demo-notebooks/guided-demos/manage_ray_clusters.ipynb`, and click **Save**.
+
+4. In the `demo-notebooks/guided-demos/manage_ray_clusters.ipynb` Jupyter notebook, select each cell in turn, and click **Run > Run selected cell**.
+5. When you run the cell with the `view_clusters()` function, the output depends on whether any Ray clusters exist.
+    If no Ray clusters exist, the following text is shown, where `_[namespace-name]_` is the name of the target project:
+    ```text
+    No clusters found in the [namespace-name] namespace.
+    ```
+
+    Otherwise, the Jupyter notebook shows the following information about the existing Ray clusters:
+
+    - **Select an existing cluster**
+        Under this heading, a toggle button is shown for each existing cluster. Click a cluster name to select the cluster. The cluster details section is updated to show details about the selected cluster; for example, cluster name, namespace name, cluster resource information, and cluster status.
+
+    - **Delete cluster**
+        Click this button to delete the selected cluster. This button is equivalent to the **Cluster Down** button. The cluster is deleted immediately; you are not prompted to confirm the deletion. A message indicates whether the cluster was successfully deleted, and the corresponding button is no longer shown under the **Select an existing cluster** heading.
+
+    - **View Jobs**
+        Click this button to open the **Jobs** tab in the Ray dashboard for the selected cluster, and view details of the submitted jobs. The corresponding URL is shown in the Jupyter notebook.
+
+    - **Open Ray Dashboard**
+        Click this button to open the **Overview** tab in the Ray dashboard for the selected cluster. The corresponding URL is shown in the Jupyter notebook.
+
+    -  **Refresh Data**
+        Click this button to refresh the list of Ray clusters, and the cluster details for the selected cluster, on demand. The cluster details are automatically refreshed when you select a cluster and when you delete the selected cluster.
+
+#### Verification
+
+1.  The demo Jupyter notebooks run to completion without errors.
+2.  In the `manage_ray_clusters.ipynb` Jupyter notebook, the output from the `view_clusters()` function is correct.
