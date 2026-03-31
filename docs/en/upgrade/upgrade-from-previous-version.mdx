@@ -3,7 +3,7 @@ weight: 10
 ---
 
 export const prevVersion = '1.5'
-export const curVer = '2.0'
+export const curVer = '2.2'
 
 # Upgrade Alauda AI
 
@@ -16,12 +16,13 @@ Upgrade from {prevVersion} to {curVer}
 Please visit [Alauda AI Cluster](../installation/ai-cluster.mdx) for:
 
 :::warning
-Please ignore `Creating Alauda AI Cluster Instance` since we are upgrading **Alauda AI** from a previously managed version.
+Please ignore `Creating Alauda AI Instance` since we are upgrading **Alauda AI** from a previously managed version.
 :::
 
-1. [Downloading](../installation/ai-cluster.mdx#downloading) operator bundle packages for `Alauda AI Cluster` and `KServeless`.
-2. [Uploading](../installation/ai-cluster.mdx#uploading) operator bundle packages to the destination cluster.
-3. To upgrade, follow the process described below.
+1. [Downloading](../installation/ai-cluster.mdx#downloading) operator bundle packages for `Alauda AI` and `Knative Operator` (Optional).
+2. [Downloading](../kserve/install.mdx#upload-operator) operator bundle packages for `Alauda Build of KServe`.
+3. [Uploading](../installation/ai-cluster.mdx#uploading) operator bundle packages to the destination cluster.
+4. To upgrade, follow the process described below.
 
 ## Pre-Upgrade Operations
 
@@ -76,18 +77,24 @@ After the upgrade is complete, please confirm that the status of **Alauda AI Ess
 
 ### Upgrading Alauda AI Operators
 
-The procedure for upgrading both operators is nearly identical, with only the target component being different.
+The procedure for upgrading the operator is nearly identical, with only the target component being different.
 
-| Step            | Alauda AI Operator                                                                                | Alauda AI Model Serving Operator                                                                  |
-|:----------------|:--------------------------------------------------------------------------------------------------|:--------------------------------------------------------------------------------------------------|
-| **1. Navigate** | Log into the Web Console, then go to **Marketplace > OperatorHub** in the **Administrator** view. | Log into the Web Console, then go to **Marketplace > OperatorHub** in the **Administrator** view. |
-| **2. Select**   | Select your target **cluster**.                                                                   | Select your target **cluster**.                                                                   |
-| **3. Click**    | Click the **Alauda AI** card.                                                                     | Click the **Alauda AI Model Serving** card.                                                       |
-| **4. Confirm**  | Click **Confirm** on the upgrade prompt.                                                          | Click **Confirm** on the upgrade prompt.                                                          |
+| Step            | Alauda AI Operator                                                                                | 
+|:----------------|:--------------------------------------------------------------------------------------------------|
+| **1. Navigate** | Log into the Web Console, then go to **Marketplace > OperatorHub** in the **Administrator** view. |
+| **2. Select**   | Select your target **cluster**.                                                                   |
+| **3. Click**    | Click the **Alauda AI** card.                                                                     |
+| **4. Confirm**  | Click **Confirm** on the upgrade prompt.                                                          |
 
 :::info
 Once the new version is uploaded and recognized by the platform, an upgrade prompt will appear at the top of the operator's page.
 :::
+
+### Installing Alauda Build of KServe Operator
+
+Starting from version {curVer}, **Alauda Build of KServe** is provided as a separate operator plugin to offer more specialized and flexible model serving capabilities. After completing the core AI operator upgrades, you must install the KServe operator to enable model serving functionality.
+
+For detailed installation and configuration steps, please refer to the [Alauda Build of KServe Installation Guide](../kserve/install.mdx).
 
 ### Upgrading Cluster Plugins
 
@@ -178,7 +185,7 @@ For each existing inference service, perform the following steps:
 
 <Steps>
 ### Alauda AI
-Check the status field from the `AmlCluster` resource which named `default`:
+Check the status field from the `AmlCluster` resource named `default`:
 
 ```bash
 kubectl get amlcluster default
@@ -191,22 +198,22 @@ NAME      READY   REASON
 default   True    Succeeded
 ```
 
-### Alauda AI Model Serving
+### Alauda Build of KServe
 
-Check the status field from the `KnativeServing` resource which named `default-knative-serving`:
+Check the status field from the `KServe` resource named `default-kserve`:
 
 ```bash
-kubectl get KnativeServing.components.aml.dev default-knative-serving
+kubectl get kserve default-kserve -n kserve-operator
 ```
 
-Should returns `InstallSuccessful`:
+Should return `DEPLOYED: True`:
 
 ```
-NAME                      DEPLOYED   REASON
-default-knative-serving   True       UpgradeSuccessful
+NAME             DEPLOYED   REASON
+default-kserve   True       UpgradeSuccessful
 ```
 
-### Alauda AI Cluster Plugins
+### Other Cluster Plugins
 
 In the **Administrator** view, navigate to **Marketplace > Cluster Plugins** and confirm that the following cluster plugins show `Installed` status with the new version:
 
@@ -215,3 +222,9 @@ In the **Administrator** view, navigate to **Marketplace > Cluster Plugins** and
 - Alauda AI Volcano (if deployed)
 
 </Steps>
+
+## Deprecating Alauda AI Model Serving
+
+Starting from the **Alauda AI 2.x** series, the legacy **Alauda AI Model Serving** operator is deprecated. We strongly recommend that users requiring serverless inference capabilities switch to the **Knative Operator** as soon as possible to ensure long-term support and access to the latest features.
+
+For guidance on how to move your serverless workloads to the new operator, please see the [Migrating to Knative Operator](./migrating-to-knative-operator.mdx) guide.

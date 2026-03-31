@@ -9,10 +9,9 @@ This section provides a quickstart example for creating an AI Agent with Llama S
 ## Prerequisites
 
 - Python 3.12 or higher (if not satisfied, refer to [FAQ: How to prepare Python 3.12 in Notebook](#how-to-prepare-python-312-in-notebook))
-- Llama Stack Server installed and running via Operator (see [Install Llama Stack](./install))
+- Llama Stack Server installed and running via Operator (see [Install Llama Stack](./install)), with **`VLLM_URL` pointing at a vLLM-served model endpoint** (see install notes)
 - Access to a Notebook environment (e.g., Jupyter Notebook, JupyterLab)
-- Python environment with `llama-stack-client` and required dependencies installed
-- API key for the LLM provider (e.g., DeepSeek API key)
+- Python environment with `llama-stack-client`, `fastmcp` (for the MCP section), and other notebook dependencies installed
 
 ## Quickstart Example
 
@@ -24,13 +23,10 @@ Download the notebook and upload it to a Notebook environment to run.
 
 The notebook demonstrates:
 
-- Connecting to Llama Stack Server and client setup
-- Tool definition using the `@client_tool` decorator (weather query tool example)
-- Client connection to Llama Stack Server
-- Model selection and Agent creation with tools and instructions
-- Agent execution with session management and streaming responses
-- Result handling and display
-- Optional FastAPI deployment example
+- **Two tool options:** client-side tools (`@client_tool`) and MCP tools (FastMCP + `toolgroups.register`)
+- **Shared agent flow:** connect to Llama Stack Server, select a model, create an `Agent` with `tools=AGENT_TOOLS`, then run sessions and streaming turns
+- Streaming responses and event logging
+- Optional FastAPI deployment of the `agent`
 
 ## FAQ
 
