@@ -26,6 +26,50 @@ Before starting, make sure the following are in place:
 | GPU nodes | Nodes with NVIDIA GPUs; the examples use `Tesla-T4` nodes — adjust `nodeSelector` to match your cluster |
 | `kubectl` access | `kubectl` configured with permission to create `TrainingRuntime` and `TrainJob` resources in your target namespace |
 
+### RBAC permissions
+
+If you encounter RBAC permission errors when creating or managing Kubeflow Trainer v2 resources, stop here and contact your cluster administrator before continuing. Ask the administrator to create a temporary role and bind it to your account or namespace so you have read and write permissions for the `trainjobs` and `trainingruntimes` custom resources.
+
+The following example shows how a cluster administrator can grant those permissions to the ServiceAccount used by a workbench named `aml-editor`:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: aml-editor-trainer-rw
+  namespace: mlops-demo-ai-test
+rules:
+  - apiGroups:
+      - trainer.kubeflow.org
+    resources:
+      - trainjobs
+      - trainingruntimes
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: aml-editor-trainer-rw
+  namespace: mlops-demo-ai-test
+subjects:
+  - kind: ServiceAccount
+    name: aml-editor
+    namespace: mlops-demo-ai-test
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: aml-editor-trainer-rw
+```
+
+Replace `mlops-demo-ai-test` with the namespace where the workbench and Trainer v2 resources run.
+
 ## Build the Trainer Image or Use a Pre-Built Image
 
 Use our pre-built image `alaudadockerhub/fine_tune_with_llamafactory:v0.1.11` or you can build your own image with the provided `Containerfile` in [aml-docs](https://github.com/alauda/aml-docs/docs/en/kubeflow/how_to/assets/build-train-image). 
@@ -48,7 +92,7 @@ Use our pre-built image `alaudadockerhub/fine_tune_with_llamafactory:v0.1.11` or
 
 Refer to [Kueue documentation](/kueue/intro.mdx) for more details on setting up `ClusterQueue` and `LocalQueue`.
 
-### Create a LocalQueue
+### Create a LocalQueue (optional)
 
 Before submitting TrainJobs with Kueue, create a `LocalQueue` in your namespace that references an existing `ClusterQueue`:
 
@@ -66,7 +110,7 @@ spec:
 kubectl apply -f kf-local-queue.yaml
 ```
 
-### Submit a TrainJob with Kueue
+### Submit a TrainJob with Kueue (optional)
 
 To integrate with Kueue, add the `kueue.x-k8s.io/queue-name` label to your TrainJob's `metadata.labels`. This tells Kueue which `LocalQueue` the job belongs to:
 
@@ -83,4 +127,3 @@ The rest of the `TrainJob` spec remains the same. See the notebook for the full 
 :::note
 When Kueue is enabled, the cluster may have a **PodsReady timeout** configured (e.g., 5 minutes). If your training image is large and not yet cached on the node, the first attempt may be evicted due to image pull timeout. Resubmitting the job usually succeeds since the image will be cached locally.
 :::
-
