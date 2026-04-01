@@ -1,0 +1,148 @@
+---
+weight: 20
+---
+
+# Model Download Fails Due to HTTPS Certificate Verification Errors
+
+## Problem Description
+
+When **Alauda Container Platform (ACP)** is configured to use a **user-provided HTTPS certificate**, model downloads may fail because the HTTPS certificate cannot be validated. In this case, workloads that download models (for example, pulling model artifacts during inference service startup) can hit TLS verification errors and fail to fetch model artifacts.
+
+Typical symptoms include errors similar to:
+
+- `x509: certificate signed by unknown authority`
+- `certificate verify failed`
+
+## Root Cause
+
+The `dex.tls` secret (on the **Global** cluster) contains `tls.crt`. HTTPS certificate verification errors can occur in either of the following cases:
+
+- `tls.crt` does not include a **complete certificate chain**, so clients cannot build a trust chain from the server certificate to a trusted root CA.
+- The certificate is **expired** (the current time is outside `Not Before` / `Not After`).
+
+`tls.crt` must be a single PEM file that concatenates the server certificate, optional intermediate certificate(s), and the root CA certificate, in order (server → intermediate(s) → root, with the root CA last).
+
+## Check the Current `dex.tls` Certificates
+
+The `dex.tls` secret should be checked in the `cpaas-system` namespace on the **Global** cluster.
+
+### Export `tls.crt` locally
+
+```bash
+kubectl get secret dex.tls -n cpaas-system -o jsonpath='{.data.tls\.crt}' | base64 -d > tls.crt
+```
+
+### Expected `tls.crt` format
+
+After exporting, open `tls.crt` and confirm it is a PEM file that contains **multiple** certificate blocks concatenated together (server → intermediate(s) → root). The intermediate CA certificate(s) may be absent, depending on the CA setup.
+
+At minimum, `tls.crt` should contain **at least two** certificates:
+
+- Server certificate
+- Root CA certificate
+
+```text
+-----BEGIN CERTIFICATE-----
+... server certificate ...
+-----END CERTIFICATE-----
+
+# (optional) intermediate CA certificate(s) may be absent
+-----BEGIN CERTIFICATE-----
+... intermediate certificate ...
+-----END CERTIFICATE-----
+
+-----BEGIN CERTIFICATE-----
+... root certificate ...
+-----END CERTIFICATE-----
+```
+
+### Quick checks
+
+```bash
+grep -n "BEGIN CERTIFICATE" tls.crt
+```
+
+If fewer than two `BEGIN CERTIFICATE` blocks are present, the certificate chain is incomplete.
+
+### Parse a certificate with OpenSSL
+
+To inspect a certificate in detail, paste it as PEM and parse it with OpenSSL:
+
+```bash
+echo '-----BEGIN CERTIFICATE-----
+xxxxxx
+-----END CERTIFICATE-----' | openssl x509 -text -noout
+```
+
+### Check the issuer/subject chain
+
+For each certificate, check `Issuer` and `Subject`:
+
+- For the server certificate, the **CN** in `Issuer` should match the **CN** in the next certificate's `Subject`.
+- Repeat this CN matching step until reaching the root CA certificate.
+- For the root CA certificate, the certificate is self-signed, so `Issuer` and `Subject` match. In particular, the **CN** in `Issuer` and `Subject` should be the same.
+
+### Check the certificate validity period
+
+Certificate expiration also causes HTTPS verification failures. Check `Not Before` / `Not After` and confirm the current time is within the validity period.
+
+
+## Example: Build a Full Chain PEM File
+
+Assuming the certificates are available as separate PEM files:
+
+- `server.crt`: server certificate
+- `intermediate.crt`: intermediate certificate (optional; there can be multiple)
+- `root.crt`: root certificate
+
+Create a full chain file `fullchain.crt`:
+
+```bash
+cat server.crt intermediate.crt root.crt > fullchain.crt
+```
+
+If there are multiple intermediate certificates:
+
+```bash
+cat server.crt intermediate-1.crt intermediate-2.crt root.crt > fullchain.crt
+```
+
+## Update the `dex.tls` Secret
+
+1. Concatenate the certificate chain into a single file:
+
+```bash
+cat server.crt intermediate.crt root.crt > fullchain.crt
+```
+
+If there is no intermediate CA certificate:
+
+```bash
+cat server.crt root.crt > fullchain.crt
+```
+
+2. Replace the `dex.tls` secret:
+
+```bash
+TLS_CRT_B64="$(base64 < fullchain.crt | tr -d '\n')"
+kubectl patch secret dex.tls -n cpaas-system \
+  --type merge \
+  -p "{\"data\":{\"tls.crt\":\"${TLS_CRT_B64}\"}}"
+```
+
+## Synchronization and Retry
+
+After `dex.tls` is updated, it will be synchronized to the namespace where the inference service runs (this may take a few minutes).
+
+After the secret is synchronized, restart the inference service to trigger a retry of the model download:
+
+- Stop the inference service.
+- Start the inference service.
+
+Alternatively, restart the workload from the command line:
+
+```bash
+kubectl rollout restart deploy/<deployment-name> -n <inference-namespace>
+```
+
+After the service restarts, check logs for TLS-related errors to confirm the issue is resolved.
