@@ -10,12 +10,12 @@ Before installing **Alauda Build of KServe**, you need to ensure the following d
 
 ### Required Dependencies
 
-| Dependency | Type | Description |
-|------------|------|-------------|
-| Alauda build of Envoy Gateway <ExternalSiteLink name="acp" href="/networking/operators/envoy_gateway_operator.mdx" children="install_envoy_gateway_operator" /> | Operator | Provides the underlying gateway functionality for AI services |
-| [Alauda Build of Envoy AI Gateway](../../envoy_ai_gateway/install.mdx) | Cluster Plugin | Provides AI-specific gateway capabilities |
-| [Alauda Build of LeaderWorkerSet](../../lws/install.mdx) | Cluster Plugin | Provides leader-worker set functionality for AI workloads |
-| GIE (gateway-api-inference-extension) | Built-in | Bundled with Alauda Build of KServe by default. If GIE is already installed in the cluster, the built-in installation can be disabled via the `gie.builtIn` parameter during operator configuration. |
+| Dependency                                                                                                                                                      | Type           | Description                                                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Alauda build of Envoy Gateway <ExternalSiteLink name="acp" href="/networking/operators/envoy_gateway_operator.mdx" children="install_envoy_gateway_operator" /> | Operator       | Provides the underlying gateway functionality for AI services                                                                                                                                        |
+| [Alauda Build of Envoy AI Gateway](../../envoy_ai_gateway/install.mdx)                                                                                          | Cluster Plugin | Provides AI-specific gateway capabilities                                                                                                                                                            |
+| [Alauda Build of LeaderWorkerSet](../../lws/install.mdx)                                                                                                        | Cluster Plugin | Provides leader-worker set functionality for AI workloads                                                                                                                                            |
+| GIE (gateway-api-inference-extension)                                                                                                                           | Built-in       | Bundled with Alauda Build of KServe by default. If GIE is already installed in the cluster, the built-in installation can be disabled via the `gie.builtIn` parameter during operator configuration. |
 
 :::info
 `Alauda build of Envoy Gateway` is natively integrated into ACP 4.2. For environments running earlier versions (including ACP 4.0 and 4.1), please contact Customer Support for compatibility and installation guidance.
@@ -26,7 +26,7 @@ Before installing **Alauda Build of KServe**, you need to ensure the following d
 1. **Required Dependencies**: All required dependencies must be installed before installing Alauda Build of KServe.
 2. **GIE Integration**: GIE is bundled and enabled by default. If your environment already has GIE installed separately, set `gie.builtIn` to `false` in the operator configuration to disable the built-in installation.
 
-## Upload Operator
+## Upload Operator \{#upload-operator}
 
 Download the Alauda Build of KServe Operator installation file (e.g., `kserve-operator.ALL.xxxx.tgz`).
 
@@ -44,7 +44,7 @@ In **Administrator** view:
 2. At the top of the console, from the **Cluster** dropdown list, select the destination cluster where you want to install the KServe Operator.
 3. Search for and select **Alauda Build of KServe**, then click **Install**.
 
-    **Install Alauda Build of KServe** window will pop up.
+   **Install Alauda Build of KServe** window will pop up.
 
 4. Leave **Channel** unchanged.
 5. Check whether the **Version** matches the **Alauda Build of KServe** version you want to install.
@@ -71,39 +71,39 @@ kind: KServe
 metadata:
   name: default-kserve
 spec:
-  namespace: kserve  # [!code callout]
+  namespace: kserve # [!code callout]
   values:
     global:
-      clusterName: <cluster-name>  # [!code callout]
-      deployFlavor: single-node  # [!code callout]
-      platformAddress: <platform-address>  # [!code callout]
+      clusterName: <cluster-name> # [!code callout]
+      deployFlavor: single-node # [!code callout]
+      platformAddress: <platform-address> # [!code callout]
       preset:
-        GIE:  # [!code callout]
+        GIE: # [!code callout]
           enabled: true
-        envoy_ai_gateway:  # [!code callout]
+        envoy_ai_gateway: # [!code callout]
           port: 1063
           service: ai-gateway-controller
-        envoy_gateway:  # [!code callout]
+        envoy_gateway: # [!code callout]
           create_instance: true
           deploy_type: ControllerNamespace
           instance_name: aieg
           sa_namespace: envoy-gateway-system
           service_account: envoy-gateway
-        kserve_gateway:  # [!code callout]
+        kserve_gateway: # [!code callout]
           enabled: true
-          gateway_class: ""
+          gateway_class: ''
           name: kserve-ingress-gateway
           namespace: kserve
           port: 80
       registry:
-        address: <registry-address>  # [!code callout]
+        address: <registry-address> # [!code callout]
     kserve:
       controller:
-        deploymentMode: Knative  # [!code callout]
+        deploymentMode: Knative # [!code callout]
         gateway:
-          domain: <inference-domain>  # [!code callout]
+          domain: <inference-domain> # [!code callout]
       storage:
-        caBundleConfigMapName: aml-global-ca-bundle  # [!code callout]
+        caBundleConfigMapName: aml-global-ca-bundle # [!code callout]
 ```
 
 <Callouts>
@@ -117,11 +117,10 @@ spec:
 7. `preset.envoy_gateway` — Underlying Envoy-based gateway infrastructure. See [Envoy Gateway Configuration](#envoy-gateway-configuration).
 8. `preset.kserve_gateway` — Ingress gateway for KServe inference services. See [KServe Gateway Configuration](#kserve-gateway-configuration).
 9. `global.registry.address` — The container registry endpoint used by the target cluster (`global.clusterName`) to pull KServe infrastructure and runtime images.
-Example: `registry.alauda.cn:60070`.
+   Example: `registry.alauda.cn:60070`.
 10. `kserve.controller.deploymentMode` — Set to `Knative` for serverless features like scale-to-zero, or `Standard` for native Kubernetes deployments
 11. `kserve.controller.gateway.domain` — Domain for the ingress gateway to expose inference service endpoints. Use a wildcard domain, e.g., `*.example.com`.
 12. `kserve.storage.caBundleConfigMapName` — ConfigMap name containing the CA bundle for storage connections.
-
 
 </Callouts>
 
@@ -135,38 +134,37 @@ kubectl get kserve default-kserve -n kserve-operator
 
 The instance is ready when the status shows `DEPLOYED: True`.
 
-### Envoy Gateway Configuration
+### Envoy Gateway Configuration \{#envoy-gateway-configuration}
 
-| Field | Description | Default |
-|-------|-------------|---------|
-| `preset.envoy_gateway.service_account` | Service account name used by Envoy Gateway. | `envoy-gateway` |
-| `preset.envoy_gateway.sa_namespace` | Namespace where the Envoy Gateway service account is located. | `envoy-gateway-system` |
-| `preset.envoy_gateway.create_instance` | Create an Envoy Gateway instance to manage inference traffic with bundled extensions. | `true` |
-| `preset.envoy_gateway.instance_name` | Name of the Envoy Gateway instance to create. | `aieg` |
+| Field                                  | Description                                                                           | Default                |
+| -------------------------------------- | ------------------------------------------------------------------------------------- | ---------------------- |
+| `preset.envoy_gateway.service_account` | Service account name used by Envoy Gateway.                                           | `envoy-gateway`        |
+| `preset.envoy_gateway.sa_namespace`    | Namespace where the Envoy Gateway service account is located.                         | `envoy-gateway-system` |
+| `preset.envoy_gateway.create_instance` | Create an Envoy Gateway instance to manage inference traffic with bundled extensions. | `true`                 |
+| `preset.envoy_gateway.instance_name`   | Name of the Envoy Gateway instance to create.                                         | `aieg`                 |
 
-### Envoy AI Gateway Configuration
+### Envoy AI Gateway Configuration \{#envoy-ai-gateway-configuration}
 
-| Field | Description | Default |
-|-------|-------------|---------|
+| Field                             | Description                                   | Default                 |
+| --------------------------------- | --------------------------------------------- | ----------------------- |
 | `preset.envoy_ai_gateway.service` | Kubernetes service name for Envoy AI Gateway. | `ai-gateway-controller` |
-| `preset.envoy_ai_gateway.port` | Port number used by Envoy AI Gateway. | `1063` |
+| `preset.envoy_ai_gateway.port`    | Port number used by Envoy AI Gateway.         | `1063`                  |
 
-### KServe Gateway Configuration
+### KServe Gateway Configuration \{#kserve-gateway-configuration}
 
-| Field | Description | Default |
-|-------|-------------|---------|
-| `preset.kserve_gateway.enabled` | Deploy a KServe Gateway instance for InferenceService traffic. | `true` |
-| `preset.kserve_gateway.name` | Name of the KServe Gateway. | `kserve-ingress-gateway` |
-| `preset.kserve_gateway.namespace` | Namespace where the KServe Gateway is deployed. | `kserve` |
-| `preset.kserve_gateway.gateway_class` | Optional custom GatewayClass name. If empty, derived as `{namespace}-{name}`. | `""` |
-| `preset.kserve_gateway.port` | Port number used by the KServe Gateway. | `80` |
+| Field                                 | Description                                                                   | Default                  |
+| ------------------------------------- | ----------------------------------------------------------------------------- | ------------------------ |
+| `preset.kserve_gateway.enabled`       | Deploy a KServe Gateway instance for InferenceService traffic.                | `true`                   |
+| `preset.kserve_gateway.name`          | Name of the KServe Gateway.                                                   | `kserve-ingress-gateway` |
+| `preset.kserve_gateway.namespace`     | Namespace where the KServe Gateway is deployed.                               | `kserve`                 |
+| `preset.kserve_gateway.gateway_class` | Optional custom GatewayClass name. If empty, derived as `{namespace}-{name}`. | `""`                     |
+| `preset.kserve_gateway.port`          | Port number used by the KServe Gateway.                                       | `80`                     |
 
-### GIE (gateway-api-inference-extension) Configuration
+### GIE (gateway-api-inference-extension) Configuration \{#gie-gateway-api-inference-extension-configuration}
 
-| Field | Description | Default |
-|-------|-------------|---------|
-| `preset.GIE.enabled` | Enable the bundled Gateway API Inference Extension. Set to `false` if GIE is already installed separately in the cluster. | `true` |
-
+| Field                | Description                                                                                                               | Default |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `preset.GIE.enabled` | Enable the bundled Gateway API Inference Extension. Set to `false` if GIE is already installed separately in the cluster. | `true`  |
 
 ## Upgrading Alauda Build of KServe
 

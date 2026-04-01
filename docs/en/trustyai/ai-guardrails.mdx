@@ -1,6 +1,7 @@
 ---
 weight: 40
 ---
+
 # AI Guardrails for LLM safety
 
 The TrustyAI Guardrails Orchestrator runs detectors on LLM inputs and outputs to filter or flag content. It is based on the open-source [FMS-Guardrails](https://github.com/foundation-model-stack/fms-guardrails-orchestrator) project. The TrustyAI Operator provides the **GuardrailsOrchestrator** CRD to deploy and manage it.
@@ -26,7 +27,7 @@ metadata:
   namespace: <your-namespace>
   # Optional: enable auth for routes (Bearer token required)
   annotations:
-    security.opendatahub.io/enable-auth: "false"
+    security.opendatahub.io/enable-auth: 'false'
 spec:
   autoConfig:
     inferenceServiceToGuardrail: <inference-service-name>
@@ -49,8 +50,8 @@ The operator creates an orchestrator ConfigMap and a gateway ConfigMap named `<o
 
 The built-in detector provides regex-based algorithms. Supported algorithms include:
 
-| Category | Algorithms |
-|----------|------------|
+| Category  | Algorithms                                                                                                              |
+| --------- | ----------------------------------------------------------------------------------------------------------------------- |
 | **regex** | `email`, `us-social-security-number`, `credit-card`, `ipv4`, `ipv6`, `us-phone-number`, `uk-post-code`, or custom regex |
 
 The default gateway config uses a placeholder regex (`$^`). To enable a specific algorithm (e.g. `email`), patch the ConfigMap and set `detector_params.regex` to the algorithm name (e.g. `- email`).
@@ -91,14 +92,14 @@ Change `regex` under `built-in-detector` to the desired algorithm (e.g. `- email
 
 The Guardrails Orchestrator is exposed by a Service named `<orchestrator-name>-service`. Port numbers depend on whether authentication is enabled (annotation `security.opendatahub.io/enable-auth: "true"` on the GuardrailsOrchestrator).
 
-### Ports and roles
+### Ports and roles \{#ports-and-roles}
 
-| Port name              | Auth disabled | Auth enabled | Role |
-|------------------------|---------------|--------------|------|
-| **gateway**            | 8090          | 8490         | Guardrails Gateway: preset detector pipelines and OpenAI-style chat completion endpoints. Use this to send chat requests that are checked by the built-in (or configured) detectors before/after calling the LLM. |
-| **built-in-detector**  | 8080          | 8480         | Built-in regex detector API. Standalone content detection (no LLM call). Request body: `contents` (list of strings) and `detector_params` (e.g. `regex: ["email"]`). |
-| **https** (orchestrator) | 8032        | 8432         | Orchestrator API: direct access to orchestrator endpoints (e.g. custom detection flows, health). |
-| **health**             | 8034          | 8034         | Health check endpoint. |
+| Port name                | Auth disabled | Auth enabled | Role                                                                                                                                                                                                              |
+| ------------------------ | ------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **gateway**              | 8090          | 8490         | Guardrails Gateway: preset detector pipelines and OpenAI-style chat completion endpoints. Use this to send chat requests that are checked by the built-in (or configured) detectors before/after calling the LLM. |
+| **built-in-detector**    | 8080          | 8480         | Built-in regex detector API. Standalone content detection (no LLM call). Request body: `contents` (list of strings) and `detector_params` (e.g. `regex: ["email"]`).                                              |
+| **https** (orchestrator) | 8032          | 8432         | Orchestrator API: direct access to orchestrator endpoints (e.g. custom detection flows, health).                                                                                                                  |
+| **health**               | 8034          | 8034         | Health check endpoint.                                                                                                                                                                                            |
 
 When auth is enabled, the gateway and built-in-detector ports require a Bearer token.
 
@@ -128,12 +129,12 @@ Clients inside the cluster can use the projected ServiceAccount token volume as 
 
 ### Request path reference
 
-| Path | Port | Purpose |
-|------|------|---------|
-| `POST /all/v1/chat/completions` | gateway (8090 or 8490) | Chat completions through the guardrails: request is sent to the LLM after input checks and response is checked by detectors. Body: `model`, `messages` (OpenAI-style). Detector pipeline is fixed by the gateway config. |
-| `POST /api/v2/chat/completions-detection` | orchestrator (8032 or 8432) | Chat completions with **per-request** detector selection. Body: `model`, `messages`, and optionally `detectors` (e.g. `{"input": {"built-in-detector": {"regex": ["email"]}}, "output": {...}}`). Returns the model reply plus `detections` and `warnings` when detectors are specified. Use this when the caller needs to choose which detectors run on each request instead of using a preset gateway route. |
-| `POST /api/v1/text/contents` | built-in-detector (8080 or 8480) | Standalone content detection. Runs the built-in regex (or configured) detector on the given text; does not call the LLM. Body: `contents`, `detector_params`. |
-| `GET /health` | orchestrator (8032 or 8432) | Health check for the orchestrator. |
+| Path                                      | Port                             | Purpose                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /all/v1/chat/completions`           | gateway (8090 or 8490)           | Chat completions through the guardrails: request is sent to the LLM after input checks and response is checked by detectors. Body: `model`, `messages` (OpenAI-style). Detector pipeline is fixed by the gateway config.                                                                                                                                                                                       |
+| `POST /api/v2/chat/completions-detection` | orchestrator (8032 or 8432)      | Chat completions with **per-request** detector selection. Body: `model`, `messages`, and optionally `detectors` (e.g. `{"input": {"built-in-detector": {"regex": ["email"]}}, "output": {...}}`). Returns the model reply plus `detections` and `warnings` when detectors are specified. Use this when the caller needs to choose which detectors run on each request instead of using a preset gateway route. |
+| `POST /api/v1/text/contents`              | built-in-detector (8080 or 8480) | Standalone content detection. Runs the built-in regex (or configured) detector on the given text; does not call the LLM. Body: `contents`, `detector_params`.                                                                                                                                                                                                                                                  |
+| `GET /health`                             | orchestrator (8032 or 8432)      | Health check for the orchestrator.                                                                                                                                                                                                                                                                                                                                                                             |
 
 Other gateway routes (e.g. `/<preset-name>/v1/chat/completions`) are defined in the gateway ConfigMap `routes`.
 
@@ -177,7 +178,8 @@ curl -k -s -X POST "https://<service-address>:8480/api/v1/text/contents" \
 </details>
 
 <a id="orchestrator-api-per-request-detectors"></a>
-### Orchestrator API: per-request detectors (`/api/v2/chat/completions-detection`)
+### Orchestrator API: per-request detectors
+(`/api/v2/chat/completions-detection`)
 
 Use the **orchestrator** port (8032 or 8432) when the caller must choose which detectors run on each request. Request body: `model`, `messages`, and optionally `detectors` (e.g. `input` / `output` with detector params).
 

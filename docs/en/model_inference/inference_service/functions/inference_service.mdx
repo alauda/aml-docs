@@ -8,39 +8,40 @@ The core definition of the inference service feature is to deploy trained machin
 
 ## Advantages
 
-* Simplifies the model deployment process, reducing deployment complexity.
-* Provides high-availability, high-performance online and batch inference services.
-* Supports dynamic model updates and version management.
-* Realizes automated operation, maintenance, and monitoring of model inference services.
+- Simplifies the model deployment process, reducing deployment complexity.
+- Provides high-availability, high-performance online and batch inference services.
+- Supports dynamic model updates and version management.
+- Realizes automated operation, maintenance, and monitoring of model inference services.
 
 ## Core Features
 
 **Direct Model Deployment for Inference Services**
 
-* Allows users to directly select specific versions of model files from the model repository and specify the inference runtime image to quickly deploy online inference services. The system automatically downloads, caches, and loads the model, starting the inference service. This simplifies the model deployment process and lowers the deployment threshold.
+- Allows users to directly select specific versions of model files from the model repository and specify the inference runtime image to quickly deploy online inference services. The system automatically downloads, caches, and loads the model, starting the inference service. This simplifies the model deployment process and lowers the deployment threshold.
 
 **Application for Inference Services**
 
-* Use Kubernetes applications as inference services. This approach provides greater flexibility, allowing users to customize the inference environment according to their needs.
+- Use Kubernetes applications as inference services. This approach provides greater flexibility, allowing users to customize the inference environment according to their needs.
 
 **Inference Service Template Management**
-* Supports the creation, management, and deletion of inference service templates, allowing users to quickly deploy inference services based on predefined templates.
+
+- Supports the creation, management, and deletion of inference service templates, allowing users to quickly deploy inference services based on predefined templates.
 
 **Batch Operation of Inference Services**
 
-* Supports batch operations on multiple inference services, such as batch starting, stopping, updating, and deleting.
-* Able to support the creation, monitoring, and result export of batch inference tasks.
-* Provides batch resource management, which can allocate and adjust the resources of inference services in batches.
+- Supports batch operations on multiple inference services, such as batch starting, stopping, updating, and deleting.
+- Able to support the creation, monitoring, and result export of batch inference tasks.
+- Provides batch resource management, which can allocate and adjust the resources of inference services in batches.
 
 **Inference Experience**
 
-* Provides an interactive interface to facilitate user testing and experience of inference services.
-* Supports multiple input and output formats to meet the needs of different application scenarios.
-* Provides model performance evaluation tools to help users optimize model deployment.
+- Provides an interactive interface to facilitate user testing and experience of inference services.
+- Supports multiple input and output formats to meet the needs of different application scenarios.
+- Provides model performance evaluation tools to help users optimize model deployment.
 
 **Inference Runtime Support**
 
-* Integrates a variety of mainstream inference frameworks, such as vLLM, Seldon MLServer, etc., and supports user-defined inference runtimes.
+- Integrates a variety of mainstream inference frameworks, such as vLLM, Seldon MLServer, etc., and supports user-defined inference runtimes.
 
 :::tip
 
@@ -51,17 +52,17 @@ The core definition of the inference service feature is to deploy trained machin
 
 **Access Methods, Logs, Swagger, Monitoring, etc.**
 
-* Provides multiple access methods, such as HTTP API and gRPC.
-* Supports detailed log recording and analysis to facilitate user troubleshooting.
-* Automatically generates Swagger documentation to facilitate user integration and invocation of inference services.
-* Provides real-time monitoring and alarm features to ensure stable service operation.
+- Provides multiple access methods, such as HTTP API and gRPC.
+- Supports detailed log recording and analysis to facilitate user troubleshooting.
+- Automatically generates Swagger documentation to facilitate user integration and invocation of inference services.
+- Provides real-time monitoring and alarm features to ensure stable service operation.
 
-
-## Create inference service
+## Create inference service \{#create-inference-service}
 
 <Steps>
 
 ### Step 1: Navigate to Model Repository
+
 In the left navigation bar, click **Model Repository**
 
 :::tip
@@ -69,56 +70,58 @@ Custom publishing inference service requires manual setting of parameters. You c
 :::
 
 ### Step 2: Initiate Inference Service Publishing
+
 Click the model name to enter the model details page, and click **Publish Inference Service** in the upper right corner.
 
 ### Step 3: Configure Model Metadata (if needed)
+
 If the **"Publish Inference Service"** button is not clickable, go to the **"File Management"** tab, click "Edit Metadata", and select **"Task Type"** and **"Framework"** based on the actual model information. (You must edit the metadata of the default branch for it to take effect.)
 
 ### Step 4: Select Publish Mode and Configure
+
 Enter the **Publish Mode Selection** page. AML provides **Custom Publish** and **Template Publish** options.
 
 1. Template Publish:
-
    - Select the model and click **Template Name**
    - Enter the template publish form, where parameters from the template are preloaded but can be manually edited
    - Click **Publish** to deploy the inference service
+
 2. Custom Publish：
    - Click **Custom Publish**
    - Enter the custom publish form and configure the parameters
    - Click **Publish** to deploy the inference service
 
 ### Step 5: Monitor and Manage Inference Service
+
 You can view the status, logs, and other details of the published inference service under Inference Service in the left navigation. **If the inference service fails to start or the running resources are insufficient, you may need to update or republish the inference service and modify the configuration that may cause the startup failure.**
 
 **Note:** The inference service will automatically scale up and down between the "minimum number of replicas" and "maximum number of replicas" according to the request traffic. If the "minimum number of replicas" is set to 0, the inference service will automatically pause and release resources when there is no request for a period of time. At this time, if a request comes, the inference service can automatically start and load the model cached in the PVC.
 
 AML completes the release and operation of cloud native inference services based on [kserve](https://github.com/kserve/kserve) InferenceService CRD. If you are familiar with the use of kserve, you can also click the "YAML" button in the upper right corner when "Publish inference service directly from model" to directly modify the YAML file to complete more advanced release operations.
 
-
 **Parameter Descriptions for model publishing**
 
-| Parameters   | Description                               |
-| :----- | :--------------------------------- |
-| Name | Required, The name of the inference API. |
-| Description | A detailed description of the inference API, explaining its functionality and purpose. |
-| Model | Required, The name of the model used for inference. |
-| Version | Required, The version of the model. options include Branch and Tag.|
-| Inference Runtimes | Required, The engine used for inference runtime |
-| Requests CPU | Required, The amount of CPU resources requested by the inference service.|
-| Requests Memory | Required, The amount of memory resources requested by the inference service.|
-| Limits CPU | Required, The maximum amount of CPU resources that the inference service can use.|
-| Limits Memory | Required, The maximum amount of memory resources that the inference service can use.|
-| GPU Acceleration Type | The type of GPU acceleration.|
-| GPU Acceleration Value | The value of GPU acceleration.|
-| Temporary storage | Temporary storage space used by the inference service.|
-| Mount existing PVC | Mount an existing Kubernetes Persistent Volume Claim (PVC) as storage.|
-| Capacity | Required, The capacity size of temporary storage or PVC.|
-| Auto scaling | Enable or disable auto-scaling functionality.|
-| Number of instances | Required, The number of instances running the inference service.|
-| Environment variables | Key-value pairs injected into the container runtime environment.|
-| Add parameters | Parameters passed to the container's entrypoint executable. Array of strings (e.g. ["--port=8080", "--batch_size=4"]).|
-| Startup command | Overrides the default ENTRYPOINT instruction in the container image. Executable + arguments (e.g. ["python", "serve.py"])|
-
+| Parameters             | Description                                                                                                               |
+| :--------------------- | :------------------------------------------------------------------------------------------------------------------------ |
+| Name                   | Required, The name of the inference API.                                                                                  |
+| Description            | A detailed description of the inference API, explaining its functionality and purpose.                                    |
+| Model                  | Required, The name of the model used for inference.                                                                       |
+| Version                | Required, The version of the model. options include Branch and Tag.                                                       |
+| Inference Runtimes     | Required, The engine used for inference runtime                                                                           |
+| Requests CPU           | Required, The amount of CPU resources requested by the inference service.                                                 |
+| Requests Memory        | Required, The amount of memory resources requested by the inference service.                                              |
+| Limits CPU             | Required, The maximum amount of CPU resources that the inference service can use.                                         |
+| Limits Memory          | Required, The maximum amount of memory resources that the inference service can use.                                      |
+| GPU Acceleration Type  | The type of GPU acceleration.                                                                                             |
+| GPU Acceleration Value | The value of GPU acceleration.                                                                                            |
+| Temporary storage      | Temporary storage space used by the inference service.                                                                    |
+| Mount existing PVC     | Mount an existing Kubernetes Persistent Volume Claim (PVC) as storage.                                                    |
+| Capacity               | Required, The capacity size of temporary storage or PVC.                                                                  |
+| Auto scaling           | Enable or disable auto-scaling functionality.                                                                             |
+| Number of instances    | Required, The number of instances running the inference service.                                                          |
+| Environment variables  | Key-value pairs injected into the container runtime environment.                                                          |
+| Add parameters         | Parameters passed to the container's entrypoint executable. Array of strings (e.g. ["--port=8080", "--batch_size=4"]).    |
+| Startup command        | Overrides the default ENTRYPOINT instruction in the container image. Executable + arguments (e.g. ["python", "serve.py"]) |
 
 </Steps>
 
@@ -129,38 +132,40 @@ AML introduces **Template Publish** for quickly deploying inference services. Yo
 <Steps>
 
 ### Step 1: Create a Template
-  - In the left navigation bar, click **Inference Service > Create Inference Service**
-  - Click **Custom Publish**
-  - Enter the form page and configure parameters
-  - Click **Create Template**
+
+- In the left navigation bar, click **Inference Service > Create Inference Service**
+- Click **Custom Publish**
+- Enter the form page and configure parameters
+- Click **Create Template**
 
 ### Step 2: Create a New Template from Existing
-  - In the left navigation bar, click **Inference Service > Create Inference Service**
-  - Select the model and click **Template Name**
-  - Edit the parameters as needed
-  - Click **Create Template** to save as a new template
+
+- In the left navigation bar, click **Inference Service > Create Inference Service**
+- Select the model and click **Template Name**
+- Edit the parameters as needed
+- Click **Create Template** to save as a new template
 
 ### Step 3: Delete a Template
-  - In the left navigation bar, click **Inference Service > Create Inference Service**
-  - On the template card, click **Actions > Delete**
-  - Confirm the deletion
+
+- In the left navigation bar, click **Inference Service > Create Inference Service**
+- On the template card, click **Actions > Delete**
+- Confirm the deletion
 
 </Steps>
 
-
 ## Inference service update
+
 1. In the left navigation bar, click **Inference Service.**
 2. Click the **inference service name.**
 3. On the inference service detail page, click **Actions > Update** in the upper right to enter the update page.
 4. Modify the necessary fields and click **Update**. The system will perform a rolling update to avoid disrupting existing client requests.
 
-
-
-
 ## Calling the published inference service
+
 AML provides a visual **"Inference Experience"** method for common task types to access the published inference service; you can also use the HTTP API method to call the inference service.
 
 ### Inference Experience
+
 AML supports the following task type inference service inference demonstration (the task type is specified in the model metadata):
 
 - Text generation
@@ -171,7 +176,6 @@ AML supports the following task type inference service inference demonstration (
 After successfully publishing the inference service of the above task types, you can display the **"Inference Experience"** dialog box on the right side of the model details page and the inference service details page. Depending on the type of inference task, the input and output data types may be different. Taking text generation as an example, enter text, and you can append the model-generated text in blue font after the text entered in the text box.
 Inference experience supports selecting different inference services deployed in different clusters and published multiple times by the same model. After selecting an inference service, this inference service will be called to return the inference result.
 
-
 ### Calling by HTTP API
 
 After publishing the inference service, you can call this inference service in applications or other services. This document will take Python code as an example to show how to call the published inference API.
@@ -180,9 +184,10 @@ After publishing the inference service, you can call this inference service in a
 2. Click the **Access Method** tab to get the in-cluster or out-cluster access method. The in-cluster access method can be accessed directly from Notebook or other containers in this K8s cluster. If you need to access it from a location outside the cluster (such as a local laptop), you need to use the out-cluster access method.
 3. Click Call Example to view the sample code.
 
-    ***Note: The code provided in the call example is only the API call protocol supported by the inference service published using the mlserver runtime (Seldon MLServer). In addition, the Swagger tab also only supports access to the inference service published by the mlserver runtime.***
+   **_Note: The code provided in the call example is only the API call protocol supported by the inference service published using the mlserver runtime (Seldon MLServer). In addition, the Swagger tab also only supports access to the inference service published by the mlserver runtime._**
 
 ### Inference parameter description
+
 When calling the inference service, you can adjust the model output effect by adjusting the model inference parameters.
 In the **Inference Experience** interface, common parameters and default values are pre-made, and any custom parameters can also be added.
 
@@ -192,33 +197,33 @@ In the **Inference Experience** interface, common parameters and default values 
 
 ##### Preset Parameters
 
-| Parameter | Data Type | Description |
-|---|---|---|
-| `do_sample` | bool | Whether to use sampling; if not, greedy decoding is used. |
-| `max_new_tokens` | int | The maximum number of tokens to generate, ignoring tokens in the prompt. |
-| `repetition_penalty` | float | Repetition penalty to control repeated content in the generated text; 1.0 means no repetition, 0 means repetition. |
-| `temperature` | float | The randomness of the model for the next token when generating text; 1.0 is high randomness, 0 is low randomness. |
-| `top_k` | int | When calculating the probability distribution of the next token, only consider the top k tokens with the highest probability. |
-| `top_p` | float | Controls the cumulative probability distribution considered by the model when selecting the next token. |
-| `use_cache` | bool | Whether to use the intermediate results calculated by the model during the generation process. |
+| Parameter            | Data Type | Description                                                                                                                   |
+| -------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `do_sample`          | bool      | Whether to use sampling; if not, greedy decoding is used.                                                                     |
+| `max_new_tokens`     | int       | The maximum number of tokens to generate, ignoring tokens in the prompt.                                                      |
+| `repetition_penalty` | float     | Repetition penalty to control repeated content in the generated text; 1.0 means no repetition, 0 means repetition.            |
+| `temperature`        | float     | The randomness of the model for the next token when generating text; 1.0 is high randomness, 0 is low randomness.             |
+| `top_k`              | int       | When calculating the probability distribution of the next token, only consider the top k tokens with the highest probability. |
+| `top_p`              | float     | Controls the cumulative probability distribution considered by the model when selecting the next token.                       |
+| `use_cache`          | bool      | Whether to use the intermediate results calculated by the model during the generation process.                                |
 
 ##### Other Parameters
 
-| Parameter | Data Type | Description |
-|---|---|---|
-| `max_length` | int | The maximum number of generated tokens. Corresponds to the number of tokens in the input prompt + `max_new_tokens`. If `max_new_tokens` is set, its effect is overridden by `max_new_tokens`. |
-| `min_length` | int | The minimum number of generated tokens. Corresponds to the number of tokens in the input prompt + `min_new_tokens`. If `min_new_tokens` is set, its effect is overridden by `min_new_tokens`. |
-| `min_new_tokens` | int | The minimum number of generated tokens, ignoring tokens in the prompt. |
-| `early_stop` | bool | Controls the stopping condition for beam-based methods. True: generation stops when `num_beams` complete candidates appear. False: applies heuristics to stop generation when it is unlikely to find better candidates. |
-| `num_beams` | int | Number of beams used for beam search. 1 means no beam search. |
-| `max_time` | int | The maximum time allowed for calculation to run, in seconds. |
-| `num_beam_groups` | int | Divides `num_beams` into groups to ensure diversity among different beam groups. |
-| `diversity_penalty` | float | Effective when `num_beam_groups` is enabled. This parameter applies a diversity penalty between groups to ensure that the content generated by each group is as different as possible. |
-| `penalty_alpha` | float | Contrastive search is enabled when `penalty_alpha` is greater than 0 and `top_k` is greater than 1. The larger the `penalty_alpha` value, the stronger the contrastive penalty, and the more likely the generated text is to meet expectations. If the `penalty_alpha` value is set too large, it may cause the generated text to be too uniform. |
-| `typical_p` | float | Local typicality measures the similarity between the conditional probability of predicting the next target token and the expected conditional probability of predicting the next random token given the generated partial text. If set to a floating-point number less than 1, the smallest set of locally typical tokens whose probabilities add up to or exceed `typical_p` will be retained for generation. |
-| `epsilon_cutoff` | float | If set to a floating-point number strictly between 0 and 1, only tokens with conditional probabilities greater than `epsilon_cutoff` will be sampled. Suggested values range from {/* lint ignore unit-case */} 3e-4 to 9e-4, depending on the model size. |
-| `eta_cutoff` | float | Eta sampling is a hybrid of local typical sampling and epsilon sampling. If set to a floating-point number strictly between 0 and 1, a token will only be considered if it is greater than `eta_cutoff` or sqrt(`eta_cutoff`) * exp(-entropy(softmax(next_token_logits))). Suggested values range from {/* lint ignore unit-case */} 3e-4 to 2e-3, depending on the model size. |
-| `repetition_penalty` | float | Parameter for repetition penalty. 1.0 means no penalty. |
+| Parameter            | Data Type | Description                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_length`         | int       | The maximum number of generated tokens. Corresponds to the number of tokens in the input prompt + `max_new_tokens`. If `max_new_tokens` is set, its effect is overridden by `max_new_tokens`.                                                                                                                                                                                                                  |
+| `min_length`         | int       | The minimum number of generated tokens. Corresponds to the number of tokens in the input prompt + `min_new_tokens`. If `min_new_tokens` is set, its effect is overridden by `min_new_tokens`.                                                                                                                                                                                                                  |
+| `min_new_tokens`     | int       | The minimum number of generated tokens, ignoring tokens in the prompt.                                                                                                                                                                                                                                                                                                                                         |
+| `early_stop`         | bool      | Controls the stopping condition for beam-based methods. True: generation stops when `num_beams` complete candidates appear. False: applies heuristics to stop generation when it is unlikely to find better candidates.                                                                                                                                                                                        |
+| `num_beams`          | int       | Number of beams used for beam search. 1 means no beam search.                                                                                                                                                                                                                                                                                                                                                  |
+| `max_time`           | int       | The maximum time allowed for calculation to run, in seconds.                                                                                                                                                                                                                                                                                                                                                   |
+| `num_beam_groups`    | int       | Divides `num_beams` into groups to ensure diversity among different beam groups.                                                                                                                                                                                                                                                                                                                               |
+| `diversity_penalty`  | float     | Effective when `num_beam_groups` is enabled. This parameter applies a diversity penalty between groups to ensure that the content generated by each group is as different as possible.                                                                                                                                                                                                                         |
+| `penalty_alpha`      | float     | Contrastive search is enabled when `penalty_alpha` is greater than 0 and `top_k` is greater than 1. The larger the `penalty_alpha` value, the stronger the contrastive penalty, and the more likely the generated text is to meet expectations. If the `penalty_alpha` value is set too large, it may cause the generated text to be too uniform.                                                              |
+| `typical_p`          | float     | Local typicality measures the similarity between the conditional probability of predicting the next target token and the expected conditional probability of predicting the next random token given the generated partial text. If set to a floating-point number less than 1, the smallest set of locally typical tokens whose probabilities add up to or exceed `typical_p` will be retained for generation. |
+| `epsilon_cutoff`     | float     | If set to a floating-point number strictly between 0 and 1, only tokens with conditional probabilities greater than `epsilon_cutoff` will be sampled. Suggested values range from {/* lint ignore unit-case */} 3e-4 to 9e-4, depending on the model size.                                                                                                                                                     |
+| `eta_cutoff`         | float     | Eta sampling is a hybrid of local typical sampling and epsilon sampling. If set to a floating-point number strictly between 0 and 1, a token will only be considered if it is greater than `eta_cutoff` or sqrt(`eta_cutoff`) _ exp(-entropy(softmax(next_token_logits))). Suggested values range from {/_ lint ignore unit-case \*/} 3e-4 to 2e-3, depending on the model size.                               |
+| `repetition_penalty` | float     | Parameter for repetition penalty. 1.0 means no penalty.                                                                                                                                                                                                                                                                                                                                                        |
 
 For more parameters, please refer to [Text Generation Parameter Configuration](https://huggingface.co/docs/transformers/main/en/main_classes/text_generation#transformers.GenerationConfig).
 
@@ -226,19 +231,19 @@ For more parameters, please refer to [Text Generation Parameter Configuration](h
 
 ##### Preset Parameters
 
-| Parameter | Data Type | Description |
-|---|---|---|
-| `num_inference_steps` | int | The number of denoising steps. More denoising steps usually result in higher quality images but slower inference. |
-| `use_cache` | bool | Whether to use the intermediate results calculated by the model during the generation process. |
+| Parameter             | Data Type | Description                                                                                                       |
+| --------------------- | --------- | ----------------------------------------------------------------------------------------------------------------- |
+| `num_inference_steps` | int       | The number of denoising steps. More denoising steps usually result in higher quality images but slower inference. |
+| `use_cache`           | bool      | Whether to use the intermediate results calculated by the model during the generation process.                    |
 
 ##### Other Parameters
 
-| Parameter | Data Type | Description |
-|---|---|---|
-| `height` | int | The height of the generated image, in pixels. |
-| `width` | int | The width of the generated image, in pixels. |
-| `guidance_scale` | float | Used to adjust the balance between quality and diversity of the generated image. Larger values increase diversity but reduce quality; suggested range is 7 to 8.5. |
-| `negative_prompt` | str or List[str] | Used to guide what content should not be included in the image generation. |
+| Parameter         | Data Type        | Description                                                                                                                                                        |
+| ----------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `height`          | int              | The height of the generated image, in pixels.                                                                                                                      |
+| `width`           | int              | The width of the generated image, in pixels.                                                                                                                       |
+| `guidance_scale`  | float            | Used to adjust the balance between quality and diversity of the generated image. Larger values increase diversity but reduce quality; suggested range is 7 to 8.5. |
+| `negative_prompt` | str or List[str] | Used to guide what content should not be included in the image generation.                                                                                         |
 
 For more parameters, please refer to [Text-to-Image Parameter Configuration](https://huggingface.co/docs/diffusers/main/en/api/pipelines/stable_diffusion/text2img#diffusers.StableDiffusionPipeline).
 
@@ -246,10 +251,10 @@ For more parameters, please refer to [Text-to-Image Parameter Configuration](htt
 
 ##### Preset Parameters
 
-| Parameter | Data Type | Description |
-|---|---|---|
-| `top_k` | int | The number of top-scoring type labels. If the provided number is None or higher than the number of labels available in the model configuration, the default is to return the number of labels. |
-| `use_cache` | bool | Whether to use the intermediate results calculated by the model during the generation process. |
+| Parameter   | Data Type | Description                                                                                                                                                                                    |
+| ----------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `top_k`     | int       | The number of top-scoring type labels. If the provided number is None or higher than the number of labels available in the model configuration, the default is to return the number of labels. |
+| `use_cache` | bool      | Whether to use the intermediate results calculated by the model during the generation process.                                                                                                 |
 
 For more parameters, please refer to [Text Classification Parameter Configuration](https://huggingface.co/docs/transformers/v4.36.1/en/main_classes/pipelines#transformers.TextClassificationPipeline.__call__)
 

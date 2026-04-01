@@ -10,13 +10,11 @@ To begin, you will need to deploy the **Alauda AI Operator**. This is the core e
 
 If your use case requires `Knative` functionality, which enables advanced features like **scaling to zero on demand** for cost optimization, you can optionally install the **Knative Operator**. This operator is not part of the default installation and can be added at any time to enable `Knative` functionality.
 
-
-
 :::info
-    [Recommended deployment option](https://kserve.github.io/website/docs/admin-guide/overview#generative-inference): For generative inference workloads, the **Standard** approach (previously known as RawKubernetes Deployment) is recommended as it provides the most control over resource allocation and scaling.
+[Recommended deployment option](https://kserve.github.io/website/docs/admin-guide/overview#generative-inference): For generative inference workloads, the **Standard** approach (previously known as RawKubernetes Deployment) is recommended as it provides the most control over resource allocation and scaling.
 :::
 
-## Downloading
+## Downloading \{#downloading}
 
 **Operator Components**:
 
@@ -36,7 +34,7 @@ If your use case requires `Knative` functionality, which enables advanced featur
 You can download the app named 'Alauda AI' and 'Knative Operator' from the Marketplace on the Customer Portal website.
 :::
 
-## Uploading
+## Uploading \{#uploading}
 
 We need to upload both `Alauda AI` and `Knative Operator` to the cluster where Alauda AI is to be used.
 
@@ -134,10 +132,10 @@ After configuration, execute the script file using `bash ./uploading-ai-cluster-
 In **Administrator** view:
 
 1. Click **Marketplace / OperatorHub**.
-2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install Alauda AI.
+2. At the top of the console, from the **Cluster** dropdown list, select the destination cluster where you want to install Alauda AI.
 3. Select **Alauda AI**, then click **Install**.
 
-    **Install Alauda AI** window will pop up.
+   **Install Alauda AI** window will pop up.
 
 4. Then in the **Install Alauda AI** window.
 5. Leave **Channel** unchanged.
@@ -159,7 +157,7 @@ Confirm that the **Alauda AI** tile shows one of the following states:
 
 For detailed installation steps, see [Install KServe](../kserve/install.mdx) in Alauda Build of KServe.
 
-## Enabling Knative Functionality
+## Enabling Knative Functionality \{#enabling-knative-functionality}
 
 Knative functionality is an optional capability that requires an additional operator and instance to be deployed.
 
@@ -168,7 +166,6 @@ If you plan to use Knative functionality, you **MUST** install the Knative Opera
 :::
 
 ### 1. Installing the Knative Operator
-
 
 <Steps>
 
@@ -181,10 +178,10 @@ Starting from **Knative Operator**, the Knative networking layer switches to **K
 In **Administrator** view:
 
 1. Click **Marketplace / OperatorHub**.
-2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install.
+2. At the top of the console, from the **Cluster** dropdown list, select the destination cluster where you want to install.
 3. Search for and select **Knative Operator**, then click **Install**.
 
-    **Install Knative Operator** window will pop up.
+   **Install Knative Operator** window will pop up.
 
 4. Then in the **Install Knative Operator** window.
 5. Leave **Channel** unchanged.
@@ -201,7 +198,6 @@ Confirm that the **Knative Operator** tile shows one of the following states:
 - `Installed`: installation is complete.
 
 </Steps>
-
 
 ### 2. Creating Knative Serving Instance
 
@@ -224,7 +220,6 @@ Once **Knative Operator** is installed, you need to create the `KnativeServing` 
 6. Replace the content with the following YAML:
 7. Click **Create**.
 
-
    ```yaml
    apiVersion: operator.knative.dev/v1beta1
    kind: KnativeServing
@@ -234,12 +229,12 @@ Once **Knative Operator** is installed, you need to create the `KnativeServing` 
    spec:
      # For ACP 4.0, use version 1.18.1
      # For ACP 4.1 and above, use version 1.19.6
-     version: "1.18.1" # [!code callout]
+     version: '1.18.1' # [!code callout]
      config:
        deployment:
          registries-skipping-tag-resolving: kind.local,ko.local,dev.local,private-registry # [!code callout]
        domain:
-         example.com: ""
+         example.com: ''
        features:
          kubernetes.podspec-affinity: enabled
          kubernetes.podspec-hostipc: enabled
@@ -259,18 +254,18 @@ Once **Knative Operator** is installed, you need to create the `KnativeServing` 
        kourier:
          enabled: true
    ```
-:::warning
+
+   :::warning
+
 - For ACP 4.0, use version **1.18.1**
 - For ACP 4.1 and above, use version **1.19.6**
-:::
+  :::
 
 <Callouts>
 
 1. Specify the version of Knative Serving to be deployed.
 
 2. `private-registry` is a placeholder for your private registry address. You can find this in the **Administrator** view, then click **Clusters**, select `your cluster`, and check the **Private Registry** value in the **Basic Info** section.
-
-
 
 </Callouts>
 
@@ -286,30 +281,29 @@ Once Alauda AI Operator (and optionally, Knative Operator) is installed, you can
 In **Administrator** view:
 
 1. Click **Marketplace / OperatorHub**.
-2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install the Alauda AI Operator.
+2. At the top of the console, from the **Cluster** dropdown list, select the destination cluster where you want to install the Alauda AI Operator.
 3. Select **Alauda AI**, then **Click**.
 4. In the **Alauda AI** page, click **All Instances** from the tab.
 5. Click **Create**.
 
-    **Select Instance Type** window will pop up.
+   **Select Instance Type** window will pop up.
 
 6. Locate the **AmlCluster** tile in **Select Instance Type** window, then click **Create**.
 
-    **Create AmlCluster** form will show up.
+   **Create AmlCluster** form will show up.
 
 7. Keep `default` unchanged for **Name**.
 8. Select **Deploy Flavor** from dropdown:
    1. `single-node` for non HA deployments.
    2. `ha-cluster` for HA cluster deployments (**Recommended** for production).
-9.  Set **KServe Mode** to **Managed**.
+9. Set **KServe Mode** to **Managed**.
 10. Input a valid domain for **Domain** field.
 
     :::info
     This domain is used by ingress gateway for exposing model serving services.
-    Most likely, you will want to use a wildcard name, like *.example.com.
+    Most likely, you will want to use a wildcard name, like \*.example.com.
 
     You can specify the following certificate types by updating the **Domain Certificate Type** field:
-
     - `Provided`
     - `SelfSigned`
     - `ACPDefaultIngress`
@@ -322,19 +316,18 @@ In **Administrator** view:
 
     :::info
     If you installed the Knative Operator to enable Serverless functionality in the previous steps, provide the following parameters to integrate it:
-
-    * **APIVersion**: `operator.knative.dev/v1beta1`
-    * **Kind**: `KnativeServing`
-    * **Name**: `knative-serving`
-    * **Namespace**: `knative-serving`
+    - **APIVersion**: `operator.knative.dev/v1beta1`
+    - **Kind**: `KnativeServing`
+    - **Name**: `knative-serving`
+    - **Namespace**: `knative-serving`
 
     If you are not using Knative functionality, leave the **Knative Serving Provider** as `Removed` (or empty) and the remaining parameters blank.
     :::
 
 12. Under **Gitlab** section:
-    1.  Type the URL of self-hosted Gitlab for **Base URL**.
-    2.  Type `cpaas-system` for **Admin Token Secret Namespace**.
-    3.  Type `aml-gitlab-admin-token` for **Admin Token Secret Name**.
+    1. Type the URL of self-hosted Gitlab for **Base URL**.
+    2. Type `cpaas-system` for **Admin Token Secret Namespace**.
+    3. Type `aml-gitlab-admin-token` for **Admin Token Secret Name**.
 
 13. Review above configurations and then click **Create**.
 
@@ -352,6 +345,7 @@ Should returns `Ready`:
 NAME      READY   REASON
 default   True    Succeeded
 ```
+
 </Steps>
 
 Now, the core capabilities of Alauda AI have been successfully deployed. If you want to quickly experience the product, please refer to the [Quick Start](../../overview/quick_start.mdx).

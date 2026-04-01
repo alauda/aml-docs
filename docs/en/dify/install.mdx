@@ -90,8 +90,8 @@ Minimal Custom Values (fill in your hosts and secret names):
 ```yaml
 # Required: base URLs for console and app (no path suffix)
 urls:
-  consoleUrl: <https://console-domain>   # or http://
-  appUrl: <https://app-domain>           # or http://
+  consoleUrl: <https://console-domain> # or http://
+  appUrl: <https://app-domain> # or http://
 
 # Required: main database (PostgreSQL 12+)
 database:
@@ -143,7 +143,7 @@ When not using RAG/vector search:
 
 ```yaml
 vectorStore:
-  type: ""
+  type: ''
 ```
 
 ### Ingress (host and TLS)
@@ -161,7 +161,7 @@ ingress:
         - <dify.example.com>
 ```
 
-### Storage (S3 and PVC)
+### Storage (S3 and PVC) \{#storage-s3-and-pvc}
 
 **PVC (default):** API and plugin daemon each use a PVC when enabled. Override storage class and size as needed.
 
@@ -196,10 +196,10 @@ storage:
   api:
     type: s3
     s3:
-      endpoint: <s3-endpoint>   # empty for AWS default; MinIO e.g. http://minio:9000
+      endpoint: <s3-endpoint> # empty for AWS default; MinIO e.g. http://minio:9000
       region: <region>
       bucket: <bucket>
-      addressStyle: path   # "path" for MinIO; "virtual" for AWS
+      addressStyle: path # "path" for MinIO; "virtual" for AWS
       secret:
         name: <dify-s3-secret>
   plugin:
@@ -218,10 +218,10 @@ When the cluster cannot access PyPI (e.g. offline or restricted network), set a 
 
 ```yaml
 pluginDaemon:
-  pipMirrorUrl: "<mirror-url>"   # e.g. https://mirrors.aliyun.com/pypi/simple/
+  pipMirrorUrl: '<mirror-url>' # e.g. https://mirrors.aliyun.com/pypi/simple/
 
 sandbox:
-  pipMirrorUrl: "<mirror-url>"
+  pipMirrorUrl: '<mirror-url>'
 ```
 
 For a simple self-hosted PyPI proxy you can use [devpi](https://devpi.net/); then set `pipMirrorUrl` to that proxy URL (e.g. `http://<host>:3141/root/pypi/+simple/`).
