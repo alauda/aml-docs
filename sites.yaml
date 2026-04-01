@@ -3,7 +3,7 @@
   version: "4.2"
 - name: alauda-build-of-gitlab
   base: /alauda-build-of-gitlab
-  version: v18.2
+  version: v18.5
 - name: servicemeshv1
   base: /servicemeshv1
   version: "4.2"
@@ -19,5 +19,5 @@
     en: Alauda Build of NVIDIA GPU Device Plugin
     zh: Alauda Build of NVIDIA GPU Device Plugin
   base: /pgpu
-  version: "0.17"
+  version: "0.18"
   repo: https://github.com/alauda/pgpu-doc
