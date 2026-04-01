@@ -36,10 +36,7 @@ kubectl get secret dex.tls -n cpaas-system -o jsonpath='{.data.tls\.crt}' | base
 
 After exporting, open `tls.crt` and confirm it is a PEM file that contains **multiple** certificate blocks concatenated together (server → intermediate(s) → root). The intermediate CA certificate(s) may be absent, depending on the CA setup.
 
-At minimum, `tls.crt` should contain **at least two** certificates:
-
-- Server certificate
-- Root CA certificate
+At minimum, `tls.crt` should contain **at least two** certificates: the server certificate and the root CA certificate.
 
 ```text
 -----BEGIN CERTIFICATE-----
@@ -109,7 +106,7 @@ cat server.crt intermediate-1.crt intermediate-2.crt root.crt > fullchain.crt
 
 ## Update the `dex.tls` Secret
 
-1. Concatenate the certificate chain into a single file:
+Step 1. Concatenate the certificate chain into a single file:
 
 ```bash
 cat server.crt intermediate.crt root.crt > fullchain.crt
@@ -121,7 +118,7 @@ If there is no intermediate CA certificate:
 cat server.crt root.crt > fullchain.crt
 ```
 
-2. Replace the `dex.tls` secret:
+Step 2. Replace the `dex.tls` secret:
 
 ```bash
 TLS_CRT_B64="$(base64 < fullchain.crt | tr -d '\n')"
