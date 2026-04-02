@@ -1,0 +1,128 @@
+---
+weight: 10
+---
+
+# Hardware Profile Management
+
+To configure specific hardware configurations and constraints for your data scientists and engineers to use when deploying model inference services on the platform, you must create and manage associated hardware profiles. The hardware profile encapsulates node affinities, tolerations, and resource constraints into a single, reusable entity.
+
+## Create a hardware profile
+
+**Prerequisites**
+
+* You have logged in to the platform as a user with administrator privileges.
+* You have verified your desired computing resources, including CPU, memory, and any specialized accelerators (e.g., GPU models) available in the underlying Kubernetes cluster.
+* You are familiar with Kubernetes scheduling concepts such as Node Selectors, Taints, and Tolerations.
+
+**Procedure**
+
+<Steps>
+
+### Step 1: Navigate to Hardware Profile
+From the main navigation menu, go to **Hardware Profile**. The Hardware Profiles page opens, displaying existing hardware profiles in the system.
+
+### Step 2: Initiate hardware profile creation
+Click **Create hardware profile** in the top right corner. The Create hardware profile configuration page opens.
+
+### Step 3: Configure basic details
+In the Basic Details section, provide identifying information for the profile:
+* **Name**: Enter a unique and descriptive name for the hardware profile (e.g., `gpu-high-performance-profile`). 
+* **Description**: (Optional) Enter a clear description of the hardware profile to help other users understand its intended use case.
+
+### Step 4: Configure resource identifiers (requests and limits)
+You can define constraints for compute resources, such as CPU, memory, or specific accelerators (e.g., `nvidia.com/gpu`). Click **Add Identifier** or modify the pre-existing resource fields. You can add two types of identifiers:
+
+- **Built-in Identifiers**: Select from a dropdown list of standard resource types configured by the platform (e.g., `cpu`, `memory`, `nvidia.com/gpu`). For these built-in types, the **Identifier**, **Display Name**, and **Resource Type** are strictly predefined by the platform and cannot be altered.
+- **Custom Identifiers**: Enter your own unique resource parameters. You must manually define:
+  * **Identifier**: The exact Kubernetes resource key (e.g., `nvidia.com/a100` or a custom vendor ASIC).
+  * **Display Name**: A human-readable name for the resource that will appear on the UI (e.g., `NVIDIA A100 GPU`).
+  * **Resource Type**: Categorize the resource accurately for the cluster:
+    * **`CPU` / `Memory`**: Select to define standard compute boundaries.
+    * **`Accelerator`**: Select this primarily for any specialized AI chips (like NVIDIA GPUs, AMD GPUs, or Intel Gaudi accelerators) used for model training or heavy inference tasks. By setting the type to Accelerator, the platform explicitly recognizes the dependency as a core AI computing engine.
+    * **`Other`**: Select this for non-AI auxiliary devices attached to nodes (such as high-speed network interfaces for RDMA, infiniband, or unique storage parameters).
+
+For both built-in and custom identifiers, you must configure the exact allocation boundaries:
+* **Default**: Set the baseline amount of this resource to allocate. This is initially injected into the user's workload when they select the profile.
+* **Minimum allowed**: Define the minimum acceptable request amount. This acts as a hard lower bound to prevent users from requesting insufficient resources for critical models.
+* **Maximum allowed**: (Optional) Specify an absolute maximum limit. This firmly prevents users from reserving excessive cluster resources beyond the defined capacity threshold.
+
+### Step 5: Configure node scheduling rules
+To rigidly control which nodes the inference workload schedule applies to, set Node Selectors and Tolerations. This ensures high-performance workloads land on the physically correct node pools.
+* **Node Selectors**: Under the Node Selectors section, click **Add Node Selector**. Enter the **Key** and **Value** constraints. The platform will automatically inject these key-value pairs to restrict workloads solely to nodes with matching labels.
+* **Tolerations**: Under the Tolerations section, click **Add Toleration** to explicitly allow scheduling workloads onto nodes with matching taints. Define the **Key**, **Operator** (e.g., `Equal`, `Exists`), **Value**, **Effect** (e.g., `NoSchedule`, `NoExecute`), and optional **Toleration Seconds**. Like native Kubernetes tolerations, you can add multiple tolerations to a single hardware profile.
+
+### Step 6: Finalize creation
+Review the configurations you have entered to ensure accuracy. Click **Create** to finalize the hardware profile creation.
+
+</Steps>
+
+## Updating a hardware profile
+
+You can update the existing hardware profiles in your deployment to adapt to new infrastructure changes, hardware upgrades, or iteratively revised resource policies. You can reliably change important identifying information, minimum and maximum resource constraints, or adjust cluster node placements via node selectors and tolerations.
+
+<Steps>
+
+### Step 1: Locate the hardware profile
+From the navigation menu, click **Hardware Profile**. Locate the hardware profile you want to update from the list.
+
+### Step 2: Edit the hardware profile
+On the right side of the row containing the relevant hardware profile, click the Action menu (⋮) and select **Update**.
+
+### Step 3: Modify the configurations
+Make the necessary modifications to your hardware profile configurations:
+* Safely adjust the **Description**.
+* Update the **Default**, **Minimum**, or **Maximum allowed** thresholds for specific resource identifiers to strictly match your modern cluster capacity.
+* Modify the **Node Selectors** to target different node labels, or update **Tolerations** to align with newly tainted worker nodes.
+
+### Step 4: Apply changes
+Click **Update** to permanently apply your changes.
+
+</Steps>
+
+*Note: Updating a hardware profile typically affects solely newly configured workloads going forward. Active deployments previously instantiated using this hardware profile will firmly preserve their originally injected constraints. To enforce the new hardware profile settings on an already-running workload, you must explicitly edit or redeploy the corresponding inference service.*
+
+## Deleting a hardware profile
+
+When a specific hardware configuration becomes outdated or spans obsolete Kubernetes nodes, you can safely delete its hardware profile. This ensures no future data scientists can incorrectly select obsolete node configurations or unmanageable limits.
+
+<Steps>
+
+### Step 1: Locate the hardware profile
+From the main navigation menu, click **Hardware Profile**. Locate the hardware profile you want to delete.
+
+### Step 2: Delete
+Click the Action menu (⋮) on the far right side of the relevant hardware profile row, and securely select **Delete**.
+
+### Step 3: Confirm deletion
+A warning dialog will appear asking you to confirm the deletion context. Click **Delete**.
+
+</Steps>
+
+*Note: Deleting a hardware profile does not delete or actively disrupt running inference services that previously deployed with this profile. They will continue to operate flawlessly with the resource limitations and topology constraints initially injected by the platform's webhook. However, the deleted hardware profile will immediately disappear from the profile selection dropdown for all newly created deployments.*
+
+## Using a hardware profile for inference services
+
+When users (such as data scientists, AI engineers, and developers) dynamically create or configure model inference services (both `InferenceService` and `LLMInferenceService`), they can leverage predefined hardware profiles efficiently.
+
+A hardware profile seamlessly streamlines the tedious task of manually configuring intricate node scheduling rules and setting explicit resource limitations. Depending on your workload specifics, you have the flexibility to accept the strict default configurations or finely customize your limits within the officially boundaries authorized by the selected profile.
+
+<Steps>
+
+### Step 1: Launch deployment form
+From the navigation menu, go to **Service Manage**. Click **Create** to launch the form for deploying a brand-new model inference service.
+
+### Step 2: Select a Hardware Profile
+In the deployment form, scroll down and navigate to the **Deployment Resources** section. Here, you can define your resource limits by first choosing a **Config Type**:
+* By default, it is set to **Hardware Profile**. You can then click the **Profile** drop-down menu to select a specific hardware profile that is currently enabled by the platform administrator for your desired compute environment.
+* Alternatively, you can choose **Custom** if you prefer to bypass predefined profiles and manually supply raw Kubernetes resource limits.
+
+### Step 3: Review and customize resource allocations
+Once you've selected a hardware profile, the form safely locks in corresponding baseline definitions curated by the administrator. However, you are empowered to refine your exact resource limits:
+* To view the administrator's designated boundaries, click the **View Detail** button adjacent to the profile dropdown. This opens an informative drawer or modal explicitly highlighting the hardware profile specifics, including the configured node rules and the absolute limits for CPU, Memory, and GPUs.
+* Depending on your precise workload needs, click the **Custom Configuration** button displayed dynamically below the hardware profile section. Custom requests and limits strictly must conceptually remain *within the range* defined by the hardware profile's minimum and maximum constraints.
+* By triggering this customization, you unlock the ability to directly modify the final **Requests** and **Limits** configuration for the inference service. If you submit an invalid request parameter, the validation engine will elegantly catch the divergence and present you with a validation error.
+
+### Step 4: Deploy
+Populate the remaining parameters for your service and click **Deploy**.
+
+</Steps>
