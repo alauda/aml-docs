@@ -26,7 +26,7 @@ Before installing **Alauda Build of KServe**, you need to ensure the following d
 1. **Required Dependencies**: All required dependencies must be installed before installing Alauda Build of KServe.
 2. **GIE Integration**: GIE is bundled and enabled by default. If your environment already has GIE installed separately, set `gie.builtIn` to `false` in the operator configuration to disable the built-in installation.
 
-## Upload Operator
+## Upload Operator \{#upload-operator}
 
 Download the Alauda Build of KServe Operator installation file (e.g., `kserve-operator.ALL.xxxx.tgz`).
 
@@ -135,7 +135,7 @@ kubectl get kserve default-kserve -n kserve-operator
 
 The instance is ready when the status shows `DEPLOYED: True`.
 
-### Envoy Gateway Configuration
+### Envoy Gateway Configuration \{#envoy-gateway-configuration}
 
 | Field | Description | Default |
 |-------|-------------|---------|
@@ -144,14 +144,14 @@ The instance is ready when the status shows `DEPLOYED: True`.
 | `preset.envoy_gateway.create_instance` | Create an Envoy Gateway instance to manage inference traffic with bundled extensions. | `true` |
 | `preset.envoy_gateway.instance_name` | Name of the Envoy Gateway instance to create. | `aieg` |
 
-### Envoy AI Gateway Configuration
+### Envoy AI Gateway Configuration \{#envoy-ai-gateway-configuration}
 
 | Field | Description | Default |
 |-------|-------------|---------|
 | `preset.envoy_ai_gateway.service` | Kubernetes service name for Envoy AI Gateway. | `ai-gateway-controller` |
 | `preset.envoy_ai_gateway.port` | Port number used by Envoy AI Gateway. | `1063` |
 
-### KServe Gateway Configuration
+### KServe Gateway Configuration \{#kserve-gateway-configuration}
 
 | Field | Description | Default |
 |-------|-------------|---------|
@@ -161,7 +161,7 @@ The instance is ready when the status shows `DEPLOYED: True`.
 | `preset.kserve_gateway.gateway_class` | Optional custom GatewayClass name. If empty, derived as `{namespace}-{name}`. | `""` |
 | `preset.kserve_gateway.port` | Port number used by the KServe Gateway. | `80` |
 
-### GIE (gateway-api-inference-extension) Configuration
+### GIE (gateway-api-inference-extension) Configuration \{#gie-gateway-api-inference-extension-configuration}
 
 | Field | Description | Default |
 |-------|-------------|---------|
