@@ -1,0 +1,177 @@
+---
+weight: 20
+---
+
+# Installation
+
+## Prerequisites
+
+- **NvidiaDriver v565+**
+- **Kubernetes v1.32+**
+- **ACP v4.1+**
+- **Cluster administrator access to your ACP cluster**
+- **CDI must be enabled in the underlying container runtime (such as containerd, see [Enable CDI](how_to/cdi_enable_containerd.mdx))**
+- **DRA and corresponding API groups must be enabled(see [Enable DRA](how_to/k8s_dra_enable.mdx)).**
+
+## Procedure
+
+### Installing Nvidia driver in your gpu node
+Prefer to [Installation guide of Nvidia Official website](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/)
+
+### Installing Nvidia Container Runtime
+Prefer to [Installation guide of Nvidia Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+
+### Downloading Cluster plugin
+
+:::info
+
+`Alauda Build of NVIDIA DRA Driver for GPUs` cluster plugin can be retrieved from Customer Portal.
+
+Please contact Consumer Support for more information.
+
+:::
+
+### Uploading the Cluster plugin
+
+For more information on uploading the cluster plugin, please refer to <ExternalSiteLink name="acp" href="ui/cli_tools/index.html#uploading-cluster-plugins" children="Uploading Cluster Plugins" />
+
+### Installing Alauda Build of NVIDIA DRA Driver for GPUs
+
+1. Add label "nvidia-device-enable=pgpu-dra" in your GPU node for `nvidia-dra-driver-gpu-kubelet-plugin` schedule.
+    ```bash
+     kubectl label nodes {nodeid} nvidia-device-enable=pgpu-dra
+    ```
+    :::info
+    **Note: On the same node, you can only set one of the following labels: `gpu=on`, `nvidia-device-enable=pgpu`, or `nvidia-device-enable=pgpu-dra`.**
+    :::
+
+2. Go to the `Administrator` -> `Marketplace` -> `Cluster Plugin` page, switch to the target cluster, and then deploy the `Alauda Build of NVIDIA DRA Driver for GPUs` Cluster plugin.
+
+
+### Verify DRA setup
+
+1. Check DRA driver and DRA controller pods:
+
+    ```bash
+    kubectl get pods -n kube-system | grep "nvidia-dra-driver-gpu"
+    ```
+    You should get results similar to:
+    ```
+     nvidia-dra-driver-gpu-controller-675644bfb5-c2hq4   1/1     Running   0              18h
+     nvidia-dra-driver-gpu-kubelet-plugin-65fjt          2/2     Running   0              18h
+    ```
+
+2. Verify ResourceSlice objects:
+    ```bash
+    kubectl get resourceslices -o yaml
+    ```
+
+    For GPU nodes, you should see output similar to:
+
+    ```yaml
+    apiVersion: resource.k8s.io/v1beta1
+    kind: ResourceSlice
+    metadata:
+      generateName: 192.168.140.59-gpu.nvidia.com-
+      name: 192.168.140.59-gpu.nvidia.com-gbl46
+      ownerReferences:
+      - apiVersion: v1
+        controller: true
+        kind: Node
+        name: 192.168.140.59
+        uid: 4ab2c24c-fc35-4c75-bcaf-db038356575c
+    spec:
+      devices:
+      - basic:
+          attributes:
+            architecture:
+              string: Pascal
+            brand:
+              string: Tesla
+            cudaComputeCapability:
+              version: 6.0.0
+            cudaDriverVersion:
+              version: 12.8.0
+            driverVersion:
+              version: 570.124.6
+            pcieBusID:
+              string: 0000:00:0b.0
+            productName:
+              string: Tesla P100-PCIE-16GB
+            resource.kubernetes.io/pcieRoot:
+              string: pci0000:00
+            type:
+              string: gpu
+            uuid:
+              string: GPU-b87512d7-c8a6-5f4b-8d3f-68183df62d66
+          capacity:
+            memory:
+              value: 16Gi
+        name: gpu-0
+      driver: gpu.nvidia.com
+      nodeName: 192.168.140.59
+      pool:
+        generation: 1
+        name: 192.168.140.59
+        resourceSliceCount: 1
+    ```
+3. Deploy workloads with DRA.
+    :::info
+    **Note:Fill in the `selector` field of the following `ResourceClaimTemplate` resource according to your specific GPU model.You can use [common expression language (CEL)](https://cel.dev) to select devices based on specific attributes.**
+    :::
+    Create spec file:
+    ```bash
+    cat <<EOF > dra-gpu-test.yaml
+    ---
+    apiVersion: resource.k8s.io/v1beta1
+    kind: ResourceClaimTemplate
+    metadata:
+      name: gpu-template
+    spec:
+      spec:
+        devices:
+          requests:
+          - name: gpu
+            deviceClassName: gpu.nvidia.com
+            selectors:
+            - cel:
+                expression: "device.attributes['gpu.nvidia.com'].productName == 'Tesla P100-PCIE-16GB'" # [!code callout]
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: dra-gpu-workload
+    spec:
+      tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+      runtimeClassName: nvidia
+      restartPolicy: OnFailure
+      resourceClaims:
+      - name: gpu-claim
+        resourceClaimTemplateName: gpu-template
+      containers:
+      - name: cuda-container
+        image: "ubuntu:22.04"
+        command: ["bash", "-c"]
+        args: ["nvidia-smi -L; trap 'exit 0' TERM; sleep 9999 & wait"]
+        resources:
+          claims:
+          - name: gpu-claim
+    ```
+    Apply spec:
+
+    ```bash
+    kubectl apply -f dra-gpu-test.yaml
+    ```
+
+    Obtain output of container in the pod:
+    ```bash
+    kubectl logs pod -n dra-gpu-workload -f
+    ```
+    The output is expected to show the GPU UUID from the container. Example:
+
+    ```text
+    GPU 0: Tesla P100-PCIE-16GB (UUID: GPU-b87512d7-c8a6-5f4b-8d3f-68183df62d66)
+    ```
