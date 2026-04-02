@@ -1,0 +1,144 @@
+---
+weight: 100
+---
+# Evaluating RAG with Ragas
+
+Retrieval-Augmented Generation (RAG) systems combine a retriever and a generator. Measuring quality on the final answer alone is often insufficient: failures may come from irrelevant or incomplete retrieval, from generation that drifts away from sources, or from both.
+
+[Ragas](https://docs.ragas.io/) (Retrieval-Augmented Generation Assessment) is a Python framework that scores RAG behavior with metrics for faithfulness to context, answer relevance, retrieval quality, and more—depending on which metrics are enabled and which columns are available in the evaluation set.
+
+This page focuses on **using the Ragas SDK directly** in a notebook or batch job. Integration with other evaluation platforms is optional and not covered here.
+
+## What to record for each evaluation example
+
+A typical single-turn row includes:
+
+| Field | Role |
+| --- | --- |
+| `user_input` | User query (or equivalent). |
+| `retrieved_contexts` | Retrieved passages as a **list of strings** for that row. |
+| `response` | Model output to score. |
+| `reference` | Reference answer or key facts; required only for some metrics (for example context recall). |
+
+## Ragas metrics overview
+
+Ragas exposes a large catalog of metrics. Only a subset is needed for a typical RAG evaluation pass. Each metric expects specific dataset columns (for example `question`, `contexts`, `answer`, `ground_truth`) and may require an **LLM**, **embeddings**, both, or neither. Names and import paths evolve across releases; confirm the installed-version guidance in the [Ragas metrics documentation](https://docs.ragas.io/).
+
+The lists below summarize **intent** and common use; they are not a substitute for upstream API details.
+
+### Core RAG metrics
+
+These metrics are most directly aligned with retrieval-augmented generation quality and are usually the first set to track:
+
+Unless otherwise noted, classes in this section are from `ragas.metrics.collections`.
+
+| Metric | Python class | Required arguments | Evaluation target |
+| --- | --- | --- | --- |
+| **Faithfulness** | `Faithfulness` | `user_input`, `retrieved_contexts`, `response` | Whether claims in the answer are supported by retrieved contexts (grounding / hallucination control). |
+| **Answer relevancy** / **Response relevancy** | `AnswerRelevancy` | `user_input`, `response` | Whether the generated answer addresses the user query. |
+| **Context precision** | `ContextPrecision` | `user_input`, `retrieved_contexts`, `reference` | Whether retrieved chunks are relevant and useful for answering the query. |
+| **Context recall** | `ContextRecall` | `user_input`, `retrieved_contexts`, `reference` | Whether retrieved contexts cover the information required to answer correctly. |
+| **Context entity recall** | `ContextEntityRecall` | `reference`, `retrieved_contexts` | Whether key entities from the reference are present in retrieved contexts. |
+| **Context utilization** | `ContextUtilization` | `user_input`, `response`, `retrieved_contexts` | How much retrieved context is actually used by the answer. |
+
+Field and import requirements can vary by Ragas version and metric variant. Confirm against the installed version in the [Ragas metrics documentation](https://docs.ragas.io/).
+
+### Optional RAG metrics
+
+These metrics are useful in specific evaluation setups, especially when reference answers are available or when robustness checks are needed:
+
+| Metric | Python class | Required arguments | Evaluation target |
+| --- | --- | --- | --- |
+| **Answer correctness** | `AnswerCorrectness` | `user_input`, `response`, `reference` | Alignment of the generated answer with a reference answer. |
+| **Answer similarity** / **Semantic similarity** | `SemanticSimilarity` | `response`, `reference` | Semantic closeness between generated and reference answers (embedding-based). |
+| **Factual correctness** | `FactualCorrectness` | `response`, `reference` | Fact-level agreement with a reference or expected facts. |
+| **Noise sensitivity** | `NoiseSensitivity` | `user_input`, `response`, `reference`, `retrieved_contexts` | Stability when distractors or noise are introduced into context or inputs. |
+
+For metrics that are weakly related to RAG core evaluation (for example generic text-overlap metrics, rubric-based custom metrics, agent/tool metrics, SQL metrics, or multimodal metrics), refer to the [Ragas metrics documentation](https://docs.ragas.io/).
+
+### Choosing a minimal RAG set
+
+A practical default for many RAG benchmarks is: **faithfulness**, **answer relevancy**, **context precision**, and **context recall** (recall and some precision variants need `ground_truth` or equivalent). Add **answer correctness** or **semantic similarity** when a reference answer is available. Match metrics to the columns present in the dataset and to cost constraints (LLM-heavy metrics are slower and more expensive).
+
+## Calling the Ragas SDK
+
+For modern Ragas usage, instantiate metrics from `ragas.metrics.collections` and score each row using `ascore()` (or `score()` in synchronous scripts).
+
+1. Prepare OpenAI-compatible clients (`AsyncOpenAI`) for LLM and embeddings, then wire `llm_factory` and `OpenAIEmbeddings` (see the sample notebook for environment-variable configuration).
+2. Instantiate metrics with explicit dependencies (`llm`, `embeddings` where required).
+3. Iterate through rows and call `metric.ascore(...)` with metric-specific arguments.
+
+   ```python
+   from openai import AsyncOpenAI
+   from ragas.embeddings import OpenAIEmbeddings
+   from ragas.llms import llm_factory
+   from ragas.metrics.collections import AnswerRelevancy, Faithfulness
+
+   llm_client = AsyncOpenAI(
+       api_key="...",
+       base_url="https://your-openai-compatible-endpoint/v1",  # or None for provider default
+   )
+   embed_client = AsyncOpenAI(
+       api_key="...",  # often same key as LLM when using one gateway
+       base_url="https://your-embedding-endpoint/v1",  # optional; can match llm_client
+   )
+
+   llm = llm_factory("your-llm-model", client=llm_client)
+   embeddings = OpenAIEmbeddings(model="your-embedding-model", client=embed_client)
+
+   faithfulness = Faithfulness(llm=llm)
+   answer_relevancy = AnswerRelevancy(llm=llm, embeddings=embeddings)
+   ```
+
+When selecting metrics, the following differences affect how the scoring call is prepared:
+
+| Aspect | How it varies |
+| --- | --- |
+| **Required columns** | Each metric expects specific arguments (for example `reference` for many reference-based retrieval metrics). Missing fields cause validation errors before scoring starts. |
+| **LLM vs embeddings vs neither** | LLM-based metrics need a language model; embedding metrics need an embedding model; lexical metrics may need no model. In the modern API, dependencies are passed explicitly when creating metric instances. |
+| **Metric variants** | Different classes implement the same intent with different scorers (for example LLM vs non-LLM context precision). Metric imports and selection change accordingly. |
+| **Constructor configuration** | Rubrics, aspect critics, discrete/numeric custom metrics, or specialized faithfulness variants require **instantiation arguments** or extra setup. |
+| **ID-based or multi-turn data** | ID-based precision/recall expect ID columns in the dataset; multi-turn or agent/tool metrics require different sample layouts. These are outside the single-turn notebook flow. |
+
+In practice, this means the main work is to align dataset fields and metric selection, then score rows with the chosen metric instances.
+
+## Prerequisites
+
+- Python 3.10+ recommended.
+- Network access to an LLM API (and to an embeddings API for metrics that need embeddings). The sample notebook assumes an OpenAI-compatible setup and supports configuring credentials and an optional base URL for compatible gateways.
+- Awareness that evaluation **issues many model calls**; cost and latency scale with rows and metrics.
+- **Version pinning**: Ragas APIs and metric classes change between releases. For reproducible benchmarks, pin `ragas` (and related packages) in the environment or notebook; see the commented install line in the sample notebook.
+
+## Runnable notebook
+
+Download and open the notebook in JupyterLab or another Jupyter environment:
+
+- [ragas-rag-eval.ipynb](/ragas-rag-eval.ipynb)
+
+The notebook opens with a short SDK recap focused on modern metrics (`ragas.metrics.collections`) and explicit LLM/embedding setup. The canonical explanation is the **Calling the Ragas SDK** section on this page.
+
+The notebook:
+
+1. Installs dependencies (with an optional commented version pin for reproducibility).
+2. Creates a small `datasets.Dataset` with `user_input`, `retrieved_contexts`, `response`, and `reference`.
+3. Runs baseline evaluation with **faithfulness** and **answer relevancy** using modern metric classes.
+4. Adds optional retrieval-focused metrics (**context precision** and **context recall**) using modern metric classes.
+5. Shows aggregate and per-row results, followed by a short troubleshooting section.
+
+## Troubleshooting
+
+- **Credentials or endpoint configuration**: configure LLM API credentials (and an optional base URL for compatible gateways). If embeddings use a separate endpoint, configure embeddings credentials as well, then pass separate `AsyncOpenAI` clients into `llm_factory` and `OpenAIEmbeddings`.
+- **Dataset validation errors**: verify required arguments for selected metrics and ensure dataset keys align with modern examples (`user_input`, `retrieved_contexts`, `response`, `reference`).
+- **Notebook async execution**: the sample notebook uses `await metric.ascore(...)`. For synchronous scripts, use `metric.score(...)` or wrap async code with `asyncio.run(...)`.
+- **Version-related warnings**: metric classes and signatures can change across Ragas versions. Pin package versions for reproducible runs and confirm behavior against the installed version documentation.
+
+## Interpreting results
+
+- Compare scores only under the same dataset and evaluation configuration (judge LLM, embeddings, and prompts); otherwise shifts may reflect configuration changes rather than RAG quality.
+- For retrieval-oriented evaluation, use the same embedding model as the production RAG retriever whenever possible to reduce metric drift caused by mismatched embedding spaces.
+- Use aggregate scores for trend tracking or quality gates, and per-row scores for diagnosis (for example missing context, hallucination, or irrelevant retrieval). Treat metric values as directional signals, not absolute truth.
+
+## Further reading
+
+- Ragas documentation: [https://docs.ragas.io/](https://docs.ragas.io/)
+- Ragas GitHub repository: [https://github.com/vibrantlabsai/ragas](https://github.com/vibrantlabsai/ragas)

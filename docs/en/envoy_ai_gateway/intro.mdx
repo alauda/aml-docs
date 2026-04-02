@@ -1,0 +1,33 @@
+---
+weight: 10
+---
+
+# Introduction
+
+## Envoy AI Gateway
+
+**Alauda Build of Envoy AI Gateway** is based on the [Envoy AI Gateway](https://aigateway.envoyproxy.io/) project.
+Envoy AI Gateway is a Kubernetes-native, AI-specific gateway layer built on top of [Envoy Gateway](https://gateway.envoyproxy.io/), providing intelligent traffic management, routing, and policy enforcement for AI inference workloads.
+
+Main components and capabilities include:
+
+- **AI-Aware Routing**: Routes inference requests to the appropriate backend model service based on request content, model name, and backend availability — enabling transparent multi-model serving behind a single endpoint.
+- **OpenAI-Compatible API**: Exposes a unified, OpenAI-compatible API surface (`/v1/chat/completions`, `/v1/completions`, `/v1/models`) for all downstream inference services, regardless of the underlying runtime.
+- **Per-Model Rate Limiting & Policies**: Enforces fine-grained rate limiting, token quotas, and traffic policies at the individual model level, preventing resource starvation and ensuring fair usage across tenants.
+- **Backend Load Balancing**: Distributes inference requests across multiple replicas of the same model using configurable load-balancing strategies, with health checking and automatic failover.
+- **Envoy Gateway Integration**: Runs as an extension of Envoy Gateway, inheriting its Kubernetes Gateway API-native control plane, TLS termination, and observability features (metrics, access logs, distributed tracing).
+- **Gateway API Inference Extension (GIE)**: Integrates with the Kubernetes SIG Gateway API Inference Extension for advanced, inference-aware scheduling and load balancing decisions based on real-time backend state.
+
+Envoy AI Gateway is a required dependency of **Alauda Build of KServe** for exposing inference services.
+
+For installation on the platform, see [Install Envoy AI Gateway](./install).
+
+## Documentation
+
+Envoy AI Gateway upstream documentation and related resources:
+
+- **Envoy AI Gateway Documentation**: [https://aigateway.envoyproxy.io/](https://aigateway.envoyproxy.io/) — Official documentation covering architecture, configuration, and API references.
+- **Envoy AI Gateway GitHub**: [https://github.com/envoyproxy/ai-gateway](https://github.com/envoyproxy/ai-gateway) — Source code, release notes, and issues.
+- **Envoy Gateway**: [https://gateway.envoyproxy.io/](https://gateway.envoyproxy.io/) — The underlying gateway infrastructure that Envoy AI Gateway extends.
+- **Gateway API Inference Extension (GIE)**: [https://gateway-api-inference-extension.sigs.k8s.io/](https://gateway-api-inference-extension.sigs.k8s.io/) — Kubernetes SIG project for AI-aware routing integrated with Envoy AI Gateway.
+- **KServe (Alauda Build)**: [../kserve/intro](../kserve/intro) — KServe uses Envoy AI Gateway as a required dependency for exposing and routing inference services.

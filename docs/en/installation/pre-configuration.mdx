@@ -4,16 +4,6 @@ weight: 5
 
 # Pre-installation Configuration
 
-## **Deploy Service Mesh**
-
-Since Alauda AI leverages Service Mesh capabilities for model inference services, Service Mesh must be deployed in the cluster before deploying Alauda AI. For detailed deployment procedures, refer to <ExternalSiteLink name="servicemeshv1" href="/install/create_service_mesh/index.mdx" children="Create Service Mesh v1" />.
-
-:::info
-
-After completing the **Prerequisites** on the **Create Service Mesh** page, proceed to the **Creating a Service Mesh** page and follow the on-screen instructions to finalize the deployment of the Service Mesh.
-
-:::
-
 ## **Preparing the GitLab Service**
 
 In Alauda AI, GitLab is the core component for **Model Management**. Before deploying Alauda AI, you **must prepare** a GitLab service.
@@ -41,7 +31,7 @@ Alternatively, you can use a **self-managed GitLab instance**, but it **must mee
 
 ### **GitLab Configuration**
 
-Before deploying Alauda AI, perform these GitLab configuration steps after service acquisition。
+Before deploying Alauda AI, perform these GitLab configuration steps after service acquisition.
 
 #### **1. Disable expiration dates for access tokens**
 
@@ -101,5 +91,108 @@ kubectl create secret generic aml-gitlab-admin-token \
 1. Create a gitlab admin token secret named **aml-gitlab-admin-token**
 2. The token is saved under **password** key, please replace `${TOKEN}` with the real token saved previously.
 3. The secret is created under **cpaas-system** namespace.
+
+</Callouts>
+
+## **Frequently Asked Questions (FAQ)**
+
+### **1. How to optimize GitLab 18.5 and later configuration for large LFS objects?**
+
+**Problem:**
+When pushing large LFS objects to GitLab 18.5 and later, you may encounter an HTTP 413 error. For AI model management, you often need to upload large model files via LFS, which exceed the default `proxy-body-size` limit (typically 512M) in the Nginx ingress controller (these Nginx ingress annotations are generally version-agnostic and applicable to other GitLab versions experiencing LFS upload size limits).
+
+The following is authentic diagnostic output from the Git LFS client; the `%!!(string=...)` fragments are raw Go-formatting artifacts and can be ignored—focus on the `HTTP 413` response as the actionable error.
+
+```bash
+# [!code highlight]
+❯ git push origin main
+Locking support detected on remote "origin". Consider enabling it with:
+  $ git config lfs.https://gitlab-18-5-aml.alaudatech.net/mlops-demo-ai-test/amlmodels/qa.git/info/lfs.locksverify true
+LFS: Client error &{%!!(string=https) %!!(string=) %!!(*url.Userinfo=<nil>) %!!(string=gitlab-18-5-aml.alaudatech.net) %!!(string=/mlops-demo-ai-test/amlmodels/qa.git/gitlab-lfs/objects/fdf756fa7fcbe7404d5c60e26bff1a0c8b8aa1f72ced49e7dd0210fe288fb7fe/988097824) %!!(string=) %!!(bool=false) %!!(bool=false) %!!(string=) %!!(string=) %!!(string=)}s(MISSING) from HTTP 413
+Uploading LFS objects:   0% (0/1), 0 B | 0 B/s, done.
+error: failed to push some refs to 'https://gitlab-18-5-aml.alaudatech.net/mlops-demo-ai-test/amlmodels/qa.git'
+```
+
+**Solution:**
+To handle large file uploads and improve overall performance, you need to configure specific Nginx Ingress annotations on your GitLab service.
+
+#### **Ingress Annotation Parameters**
+
+Below is a list of recommended Ingress parameters and their functionality:
+
+| Parameter | Recommended Value | Description |
+|-----------|-------------------|-------------|
+| `nginx.ingress.kubernetes.io/proxy-body-size` | `"0"` | Disables the client request body size limit, allowing arbitrarily large file uploads (crucial for AI models). |
+| `nginx.ingress.kubernetes.io/proxy-buffering` | `"off"`| Disables proxy buffering, improving response times for large requests and allowing data to stream directly to the client/server. |
+| `nginx.ingress.kubernetes.io/proxy-read-timeout` | `"3600"` | Increases the timeout (in seconds) for reading a response from the proxied server to 1 hour, preventing timeouts during long-running operations. |
+| `nginx.ingress.kubernetes.io/proxy-request-buffering`| `"off"`  | Disables buffering of the client request body, passing data directly to the upstream server to reduce memory usage on the ingress controller. |
+| `nginx.ingress.kubernetes.io/proxy-send-timeout` | `"3600"` | Increases the timeout (in seconds) for transmitting a request to the proxied server to 1 hour, supporting prolonged uploads. |
+
+#### **Configuration Steps**
+
+You can apply these optimizations by updating the `GitLabOfficial` Custom Resource (CR).
+
+**1. Apply via `kubectl patch` command**
+
+Use the following command to directly update the ingress annotations in your GitLabOfficial CR:
+
+```bash
+# [!code highlight]
+# Update GitLabOfficial CR with optimized ingress annotations
+# [!code callout:1,2]
+kubectl patch gitlabofficial your-instance-name -n your-instance-namespace --type=merge -p '{
+  "spec": {
+    "helmValues": {
+      "global": {
+        "ingress": {
+          "annotations": {
+            "nginx.ingress.kubernetes.io/proxy-body-size": "0",
+            "nginx.ingress.kubernetes.io/proxy-buffering": "off",
+            "nginx.ingress.kubernetes.io/proxy-read-timeout": "3600",
+            "nginx.ingress.kubernetes.io/proxy-request-buffering": "off",
+            "nginx.ingress.kubernetes.io/proxy-send-timeout": "3600"
+          }
+        }
+      }
+    }
+  }
+}'
+```
+
+<Callouts>
+
+1. Replace `your-instance-name` with the name of your GitLabOfficial instance (e.g., `gitlab-aml`).
+2. Replace `your-instance-namespace` with the namespace where your GitLabOfficial instance is deployed (e.g., `gitlab-system-aml`).
+
+</Callouts>
+
+**2. YAML Hierarchy Reference**
+
+For reference, the hierarchical structure of the `ingress.annotations` within the `GitLabOfficial` CR `spec` is as follows:
+
+```yaml
+# [!code highlight]
+apiVersion: gitlab.alauda.io/v1alpha1
+kind: GitLabOfficial
+metadata:
+  name: gitlab-aml
+  namespace: gitlab-system-aml
+spec:
+  # ... other specs ...
+  helmValues:
+    global:
+      ingress:
+        annotations:
+          nginx.ingress.kubernetes.io/proxy-body-size: "0"
+          nginx.ingress.kubernetes.io/proxy-buffering: "off"
+          nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+          nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+          nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+```
+
+<Callouts>
+
+1. These optimizations ensure GitLab 18.5 can seamlessly handle large AI model uploads via Git LFS and improve overall data transfer stability.
+2. We highly recommend applying these configurations during the initial GitLab deployment to prevent post-deployment operational issues.
 
 </Callouts>

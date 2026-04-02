@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
@@ -9,11 +8,9 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
-    "target": "ESNext",
-    "baseUrl": ".",
-    "paths": {
-      "i18n": ["./docs/i18n.json"]
-    }
+    "target": "ESNext"
   },
-  "include": ["plugins/**/*", "theme/**/*", "*.d.ts", "virtual-modules.d.ts"]
+  "mdx": {
+    "checkMdx": true
+  }
 }

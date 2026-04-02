@@ -1,0 +1,43 @@
+---
+weight: 20
+---
+
+# Migrating to Knative Operator
+
+In the 1.x series of products, the serverless capability for inference services was provided by the `Alauda AI Model Serving` operator. In the 2.x series, this capability is provided by the `Knative Operator`. This section guides you through migrating your serverless capability from the legacy operator to the new one.
+
+## 1. Remove Legacy Serving Instance
+
+<Steps>
+
+### Procedure
+
+In **Administrator** view:
+
+1. Click **Marketplace / OperatorHub**.
+2. At the top of the console, from the **Cluster** dropdown list, select the destination cluster where **Alauda AI** is installed.
+3. Select **Alauda AI**, then click the **All Instances** tab.
+4. Locate the `default` instance and click **Update**.
+5. On the update page, switch to the **YAML** view.
+6. Set `spec.knativeServing.managementState` to `Removed`, for example:
+
+   ```yaml
+   spec:
+     knativeServing:
+       managementState: Removed
+   ```
+
+7. Click **Update** to apply the changes.
+
+</Steps>
+
+## 2. Install Knative Operator and Create Serving Instance
+
+Install the **Knative Operator** from the Marketplace and create the `KnativeServing` instance. For detailed instructions, refer to the [Enabling Knative Functionality](../installation/ai-cluster.mdx#enabling-knative-functionality) section.
+
+:::info
+Once the above steps are completed, the migration of the Knative serving control plane is complete.
+
+- If you are migrating from the **Alauda AI 2.0** + **Alauda AI Model Serving** combination, the migration is fully complete here. Business services will automatically switch their configuration shortly.
+- If you are migrating from the **Alauda AI 1.x** + **Alauda AI Model Serving** combination, please ensure that **Alauda AI** is simultaneously upgraded to version **2.x**.
+:::
