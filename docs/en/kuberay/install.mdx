@@ -1,0 +1,32 @@
+---
+weight: 20
+---
+
+# Installation
+
+## Prerequisites
+- **ACP version: v4.0 or later**
+
+### Downloading Cluster Plugin
+
+:::info
+
+Download `Alauda Build of KubeRay Operator` package from the <Term name="company" /> Customer Portal or contact support.
+
+:::
+
+### Uploading the Cluster Plugin
+
+The platform provides the **`violet`** command-line tool for uploading packages downloaded from the Customer Portal Marketplace.
+
+### Installing Alauda Build of KubeRay Operator
+
+1. Go to the `Administrator` -> `Marketplace` -> `Cluster Plugin` page, switch to the target cluster, and then deploy the `Alauda Build of KubeRay Operator` Cluster plugin.
+
+2. Verify the installation. You can check the pod status:
+
+   ```bash
+   kubectl get pods -n cpaas-system | grep "kuberay-operator"
+   ```
+
+   You should see the KubeRay operator pods running.
