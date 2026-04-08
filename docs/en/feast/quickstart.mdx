@@ -1,0 +1,728 @@
+---
+weight: 30
+---
+
+# Quickstart
+
+This page focuses on the `FeatureStore` custom resource, which is the main interface for deploying and configuring Feast after the operator is installed.
+
+## Prerequisites
+
+- Feast Operator is installed. See [Install Feast](./install).
+- For PVC-backed examples, the cluster should have a default `StorageClass`, or the target `storageClassName` should be known in advance.
+- For external backends instead of PVC-backed file storage, prepare the required services in advance:
+  - PostgreSQL 16 is recommended. PostgreSQL is used for the SQL registry and optionally for the PostgreSQL online store.
+  - Redis 6.0 or later is recommended. Redis is used for the Redis online store. Feast supports a single Redis instance, Redis Cluster, and Redis Sentinel.
+  - Prepare Kubernetes Secrets that contain backend connection parameters before they are referenced from the `FeatureStore` CR.
+
+For the PostgreSQL and Redis examples in this page, the backend service, database or schema, credentials, and Kubernetes Secrets are assumed to already exist. Connectivity and driver compatibility should still be validated in the target cluster.
+
+## FeatureStore CR Overview
+
+The most commonly used fields in a `FeatureStore` CR are:
+
+| Field                        | Purpose                               | Common Usage                                                                                  |
+| ---------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `spec.feastProject`          | Feast project name                    | Required. Used to organize feature definitions and metadata.                                  |
+| `spec.feastProjectDir`       | How the feature repository is created | Use the default `feast init`, an init template, or a Git repository.                          |
+| `spec.services.offlineStore` | Offline store configuration           | Historical data storage and optional remote offline server.                                   |
+| `spec.services.onlineStore`  | Online store configuration            | Low-latency online feature reads.                                                             |
+| `spec.services.registry`     | Registry configuration                | Metadata storage for entities, feature views, feature services, and permissions.              |
+| `spec.services.ui`           | UI service                            | Enable the Feast UI.                                                                          |
+| `spec.authz`                 | Authorization configuration           | Usually Kubernetes-based roles or OIDC-based access control.                                  |
+| `spec.replicas`              | Pod replicas                          | Keep `1` for simple deployments. For multiple replicas, use durable store-backed persistence. |
+
+## Common Service Configuration
+
+### Offline Store
+
+`offlineStore` controls where historical feature data is stored and whether a remote offline server is exposed.
+
+Common options:
+
+- `persistence.file`: file-based storage, typically DuckDB on a PVC, suitable for local development and evaluation
+- `persistence.store`: external offline backend such as BigQuery or another supported Feast offline store
+- `server: {}`: creates a remote offline server Service for network access
+
+PVC-backed DuckDB example:
+
+```yaml
+services:
+  offlineStore:
+    persistence:
+      file:
+        type: duckdb
+        pvc:
+          create:
+            storageClassName: fast
+            resources:
+              requests:
+                storage: 10Gi
+          mountPath: /data/offline
+    server: {}
+```
+
+Store-backed example:
+
+```yaml
+services:
+  offlineStore:
+    persistence:
+      store:
+        type: bigquery
+        secretRef:
+          name: feast-data-stores
+    server: {}
+```
+
+### Online Store
+
+`onlineStore` is used for low-latency feature serving.
+
+Common options:
+
+- `persistence.file`: file-based local storage, usually for development only
+- `persistence.store`: Redis, PostgreSQL, or another supported Feast online store backend
+- `server`: optional extra server settings such as `env`, `envFrom`, `resources`, `tls`, or `volumeMounts`
+
+Recommended backend versions for the examples in this page:
+
+- Redis 6.0 or later
+- PostgreSQL 16
+
+PVC-backed file example:
+
+```yaml
+services:
+  onlineStore:
+    persistence:
+      file:
+        path: online_store.db
+        pvc:
+          create:
+            resources:
+              requests:
+                storage: 5Gi
+          mountPath: /data/online
+```
+
+Redis-backed example:
+
+```yaml
+services:
+  onlineStore:
+    persistence:
+      store:
+        type: redis
+        secretRef:
+          name: feast-data-stores
+```
+
+PostgreSQL-backed example:
+
+```yaml
+services:
+  onlineStore:
+    persistence:
+      store:
+        type: postgres
+        secretRef:
+          name: feast-data-stores
+    server:
+      envFrom:
+        - secretRef:
+            name: postgres-secret
+```
+
+### Registry
+
+`registry` stores Feast metadata. It can be local to the current `FeatureStore`, or it can reuse a remote registry.
+
+Common options:
+
+- `registry.local.persistence.file`: file-based registry on PVC or object storage
+- `registry.local.persistence.store`: SQL-backed registry
+- `registry.local.server: {}`: exposes the registry server for remote access
+- `registry.remote`: reuses the registry from another `FeatureStore` or an external hostname
+
+For SQL-backed registry examples in this page, PostgreSQL 16 is recommended.
+
+PVC-backed registry example:
+
+```yaml
+services:
+  registry:
+    local:
+      persistence:
+        file:
+          path: registry.db
+          pvc:
+            create:
+              resources:
+                requests:
+                  storage: 5Gi
+            mountPath: /data/registry
+      server: {}
+```
+
+SQL-backed registry example:
+
+```yaml
+services:
+  registry:
+    local:
+      persistence:
+        store:
+          type: sql
+          secretRef:
+            name: feast-data-stores
+      server: {}
+```
+
+Remote-registry example:
+
+```yaml
+services:
+  registry:
+    remote:
+      feastRef:
+        name: <shared-featurestore-name>
+        namespace: <shared-namespace>
+```
+
+### UI
+
+To enable the Feast UI, set:
+
+```yaml
+services:
+  ui: {}
+```
+
+Without `ui: {}`, the UI Service is not created.
+
+## Common Persistence Patterns
+
+### PVC-backed Configuration
+
+This is the simplest pattern for evaluation, local testing, and single-replica deployments:
+
+```yaml
+apiVersion: feast.dev/v1
+kind: FeatureStore
+metadata:
+  name: <featurestore-name>
+  namespace: <namespace>
+spec:
+  feastProject: <feast-project>
+  replicas: 1
+  services:
+    offlineStore:
+      persistence:
+        file:
+          type: duckdb
+          pvc:
+            create:
+              resources:
+                requests:
+                  storage: 10Gi
+            mountPath: /data/offline
+      server: {}
+    onlineStore:
+      persistence:
+        file:
+          path: online_store.db
+          pvc:
+            create:
+              resources:
+                requests:
+                  storage: 5Gi
+            mountPath: /data/online
+    registry:
+      local:
+        persistence:
+          file:
+            path: registry.db
+            pvc:
+              create:
+                resources:
+                  requests:
+                    storage: 5Gi
+              mountPath: /data/registry
+        server: {}
+    ui: {}
+```
+
+### Redis Online Store + SQL Registry
+
+This is a common pattern for a durable online store and a database-backed registry.
+
+Create the Secret first:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: feast-data-stores
+  namespace: <namespace>
+type: Opaque
+stringData:
+  redis: |
+    connection_string: redis.<namespace>.svc.cluster.local:6379,password=<redis-password>
+  sql: |
+    path: postgresql+psycopg://<user>:<password>@postgres.<namespace>.svc.cluster.local:5432/feast
+    cache_ttl_seconds: 60
+    sqlalchemy_config_kwargs:
+      pool_pre_ping: true
+      echo: false
+```
+
+Then reference it from the `FeatureStore`:
+
+```yaml
+apiVersion: feast.dev/v1
+kind: FeatureStore
+metadata:
+  name: <featurestore-name>
+  namespace: <namespace>
+spec:
+  feastProject: <feast-project>
+  services:
+    offlineStore:
+      persistence:
+        file:
+          type: duckdb
+          pvc:
+            create: {}
+            mountPath: /data/offline
+      server: {}
+    onlineStore:
+      persistence:
+        store:
+          type: redis
+          secretRef:
+            name: feast-data-stores
+    registry:
+      local:
+        persistence:
+          store:
+            type: sql
+            secretRef:
+              name: feast-data-stores
+        server: {}
+    ui: {}
+```
+
+### PostgreSQL Online Store + SQL Registry
+
+For PostgreSQL as the online store backend, the Secret can include both `postgres` and `sql` entries:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: feast-data-stores
+  namespace: <namespace>
+type: Opaque
+stringData:
+  postgres: |
+    host: postgres.<namespace>.svc.cluster.local
+    port: 5432
+    database: feast
+    db_schema: public
+    user: <user>
+    password: <password>
+  sql: |
+    path: postgresql+psycopg://<user>:<password>@postgres.<namespace>.svc.cluster.local:5432/feast
+    cache_ttl_seconds: 60
+    sqlalchemy_config_kwargs:
+      pool_pre_ping: true
+      echo: false
+```
+
+Then use:
+
+```yaml
+services:
+  onlineStore:
+    persistence:
+      store:
+        type: postgres
+        secretRef:
+          name: feast-data-stores
+  registry:
+    local:
+      persistence:
+        store:
+          type: sql
+          secretRef:
+            name: feast-data-stores
+      server: {}
+```
+
+### Registry in Object Storage
+
+The registry file can also be placed in S3 or GCS:
+
+```yaml
+services:
+  registry:
+    local:
+      persistence:
+        file:
+          path: s3://bucket/registry.db
+          cache_ttl_seconds: 60
+          cache_mode: sync
+```
+
+## Notes on Secrets
+
+When `persistence.store` is used, the operator reads backend parameters from a Kubernetes Secret.
+
+Important points:
+
+- by default, the Secret key name matches the configured `type`
+- for `type: redis`, the operator reads the `redis` key
+- for `type: postgres`, the operator reads the `postgres` key
+- for `type: sql`, the operator reads the `sql` key
+- if required, the key can be overridden with `secretKeyName`
+
+The Secret content should follow the backend configuration style used in `feature_store.yaml`, but omit the backend `type` field itself.
+
+## Feature Repository Initialization
+
+The operator can initialize the feature repository in three common ways.
+
+### Default Initialization
+
+If `spec.feastProjectDir` is not set, the operator runs a default `feast init <project>` and creates a repository under:
+
+```text
+<offline mount path>/<feastProject>/feature_repo
+```
+
+### Init Template
+
+An init template can be used when the operator should bootstrap a specific Feast template:
+
+```yaml
+spec:
+  feastProject: <feast-project>
+  feastProjectDir:
+    init:
+      template: spark
+```
+
+### Git Repository
+
+Git can be used when feature definitions are already maintained in source control:
+
+```yaml
+spec:
+  feastProject: <feast-project>
+  feastProjectDir:
+    git:
+      url: https://github.com/feast-dev/feast-credit-score-local-tutorial
+      ref: 598a270
+```
+
+If the feature repository is not located in the default `feature_repo` subdirectory, set `featureRepoPath`.
+
+## Deploy FeatureStore
+
+Apply the PVC-backed example:
+
+```bash
+kubectl apply -f featurestore.yaml
+```
+
+The main readiness field is `status.phase`. When the deployment is ready, this field becomes `Ready`.
+
+Check it directly with:
+
+```bash
+kubectl get featurestore <featurestore-name> -n <namespace> -o jsonpath='{.status.phase}'
+```
+
+## Services and Access
+
+The operator writes connection information to the `FeatureStore` status:
+
+```bash
+kubectl get featurestore <featurestore-name> -n <namespace> -o jsonpath='{.status.serviceHostnames}'
+kubectl get featurestore <featurestore-name> -n <namespace> -o jsonpath='{.status.clientConfigMap}'
+```
+
+The operator creates Service names using the pattern `feast-<featurestore-name>-<component>`. Common examples are:
+
+- `feast-<featurestore-name>-online`
+- `feast-<featurestore-name>-offline`
+- `feast-<featurestore-name>-registry`
+- `feast-<featurestore-name>-ui`
+
+The generated `clientConfigMap` contains a client-side `feature_store.yaml` for the current `FeatureStore` deployment. The configuration is stored under the `feature_store.yaml` key and can be loaded directly by Feast clients, including Python applications and in-cluster jobs.
+
+Common access patterns:
+
+- use the generated Service names inside the cluster
+- use the generated client ConfigMap as Feast client configuration
+- expose the Services through the access method used in the target environment
+
+If network access to the offline server or registry server is required, `offlineStore.server: {}` or `registry.local.server: {}` should be set in the CR.
+
+## Use Feast SDK and CLI
+
+Feature definitions are typically maintained outside the `FeatureStore` workload, in a local repository, Git repository, CI job, or another SDK-based workflow. The generated client `feature_store.yaml` is used to connect the Feast CLI or Python SDK to the deployed services.
+
+When `feast apply` is run from a client environment, the registry service must be reachable from the Feast client. For the local registry mode used in this page, set:
+
+```yaml
+services:
+  registry:
+    local:
+      server: {}
+```
+
+If remote materialization or remote historical retrieval is also required, expose the offline server as well:
+
+```yaml
+services:
+  offlineStore:
+    server: {}
+```
+
+### Repository Layout
+
+Prepare a feature repository in the Feast client environment and place the generated client configuration in that repository as `feature_store.yaml`. The configuration can be read from the `ConfigMap` named in `.status.clientConfigMap`.
+
+Example repository layout:
+
+```text
+<feature-repo>/
+  feature_store.yaml
+  driver_repo.py
+  data/
+```
+
+The repository root is the directory that contains `feature_store.yaml`.
+
+The same repository root is used by both the Feast CLI and the Python SDK. For Python code, load it with:
+
+```python
+from feast import FeatureStore
+
+store = FeatureStore(repo_path=".")
+```
+
+### Example Feature Definitions
+
+The following example defines one entity, one file-based batch source, two feature views, one push source, and one feature service. Together, these objects are enough to demonstrate registration, online serving, materialization, and push-based updates in a single repository.
+
+`driver_stats_source` reads batch data from `data/driver_stats.parquet`. `driver_hourly_stats` exposes those fields for normal batch-to-online materialization. `driver_stats_push_source` and `driver_hourly_stats_fresh` show how the same entity can also receive fresh values through push. `driver_activity_v1` groups the feature view into a reusable serving definition.
+
+Example feature definition file:
+
+```python
+from datetime import timedelta
+
+from feast import Entity, FeatureService, FeatureView, Field, FileSource, PushSource
+from feast.data_format import ParquetFormat
+from feast.types import Float32, Int64
+from feast.value_type import ValueType
+
+driver = Entity(name="driver", join_keys=["driver_id"], value_type=ValueType.INT64)
+
+driver_stats_source = FileSource(
+    name="driver_stats_source",
+    path="data/driver_stats.parquet",
+    file_format=ParquetFormat(),
+    timestamp_field="event_timestamp",
+    created_timestamp_column="created",
+)
+
+driver_hourly_stats = FeatureView(
+    name="driver_hourly_stats",
+    entities=[driver],
+    ttl=timedelta(days=365),
+    schema=[
+        Field(name="conv_rate", dtype=Float32),
+        Field(name="acc_rate", dtype=Float32),
+        Field(name="avg_daily_trips", dtype=Int64),
+    ],
+    online=True,
+    source=driver_stats_source,
+)
+
+driver_stats_push_source = PushSource(
+    name="driver_stats_push_source",
+    batch_source=driver_stats_source,
+)
+
+driver_hourly_stats_fresh = FeatureView(
+    name="driver_hourly_stats_fresh",
+    entities=[driver],
+    ttl=timedelta(days=365),
+    schema=[
+        Field(name="conv_rate", dtype=Float32),
+        Field(name="acc_rate", dtype=Float32),
+        Field(name="avg_daily_trips", dtype=Int64),
+    ],
+    online=True,
+    source=driver_stats_push_source,
+)
+
+driver_activity_v1 = FeatureService(
+    name="driver_activity_v1",
+    features=[driver_hourly_stats],
+)
+```
+
+### CLI
+
+Run `feast apply` from the root directory of the feature repository. In the example above, the command is run in `<feature-repo>`, not in the `data/` subdirectory.
+
+`feast apply` reads `feature_store.yaml` from the repository root and scans Python files in that repository recursively. If feature definitions are stored in subdirectories, the command is still run from the repository root, as long as those files are inside the repository and not excluded by `.feastignore`.
+
+If the command is run from another working directory, specify the repository explicitly:
+
+```bash
+feast --chdir /path/to/<feature-repo> apply
+```
+
+The default form is:
+
+```bash
+feast apply
+```
+
+## Configure Authorization
+
+Kubernetes-based authorization in Feast has three parts:
+
+1. Declare role names in the `FeatureStore` CR.
+2. Define Feast `Permission` objects in the feature repository using the same role names.
+3. Bind Kubernetes users or ServiceAccounts to those roles with `RoleBinding`.
+
+Declaring `feast-reader` and `feast-writer` in the `FeatureStore` CR and binding subjects to those roles is not sufficient on its own. Feast authorization decisions also require matching `Permission` definitions in the feature repository.
+
+Example `FeatureStore` fragment:
+
+```yaml
+spec:
+  authz:
+    kubernetes:
+      roles:
+        - feast-reader
+        - feast-writer
+```
+
+Example `Permission` definitions in the feature repository:
+
+```python
+from feast import Entity, FeatureService, FeatureView
+from feast.permissions.action import ALL_ACTIONS, READ
+from feast.permissions.permission import Permission
+from feast.permissions.policy import RoleBasedPolicy
+
+reader_perm = Permission(
+    name="reader_perm",
+    types=[Entity, FeatureView, FeatureService],
+    policy=RoleBasedPolicy(roles=["feast-reader"]),
+    actions=READ,
+)
+
+writer_perm = Permission(
+    name="writer_perm",
+    types=[Entity, FeatureView, FeatureService],
+    policy=RoleBasedPolicy(roles=["feast-writer"]),
+    actions=ALL_ACTIONS,
+)
+```
+
+After adding or updating `Permission` objects, run `feast apply` so the authorization metadata is registered in Feast.
+
+Example `RoleBinding` configuration:
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: feast-reader-sa
+  namespace: <namespace>
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: feast-writer-sa
+  namespace: <namespace>
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: feast-reader-binding
+  namespace: <namespace>
+subjects:
+  - kind: ServiceAccount
+    name: feast-reader-sa
+    namespace: <namespace>
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: feast-reader
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: feast-writer-binding
+  namespace: <namespace>
+subjects:
+  - kind: ServiceAccount
+    name: feast-writer-sa
+    namespace: <namespace>
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: feast-writer
+```
+
+Create example ServiceAccount tokens:
+
+```bash
+READER_TOKEN=$(kubectl create token feast-reader-sa -n <namespace>)
+WRITER_TOKEN=$(kubectl create token feast-writer-sa -n <namespace>)
+```
+
+If a custom token lifetime is required, add `--duration` to the command.
+
+### SDK Token Configuration
+
+When `authz.kubernetes` is enabled, the Feast Python client sends the token as a bearer token automatically. For clients running in the same cluster with a mounted ServiceAccount token, no additional SDK setting is usually required.
+
+For external clients, provide the token in one of these ways:
+
+- set `authz_config.user_token` in `feature_store.yaml`
+- set the `LOCAL_K8S_TOKEN` environment variable
+
+Example `feature_store.yaml` fragment:
+
+```yaml
+authz_config:
+  type: kubernetes
+  user_token: <kubernetes-token>
+```
+
+Example environment variable:
+
+```bash
+export LOCAL_K8S_TOKEN=<kubernetes-token>
+```
+
+## Further Reading
+
+For end-to-end Feast workflows and broader product usage, continue with the official Feast documentation:
+
+- [Concepts](https://docs.feast.dev/getting-started/concepts): core Feast objects and data model
+- [Architecture](https://docs.feast.dev/getting-started/architecture): deployment model, retrieval paths, and serving patterns
+- [Quickstart](https://docs.feast.dev/getting-started/quickstart): end-to-end local workflow with SDK usage
+- [Sample use-case tutorials](https://docs.feast.dev/tutorials/tutorials-overview): scenario-based tutorials for common ML workflows
+- [Running Feast in production](https://docs.feast.dev/how-to-guides/running-feast-in-production): production patterns and operational guidance
