@@ -13,19 +13,19 @@ Deploy Kubeflow plugins in Alauda AI >= 2.0. Including:
 
 1. A running ACP environment
 2. Ensure Alauda AI has been deployed (requires Alauda AI version >= 2.0)
-3. Deploy ASM in the business cluster where Kubeflow is to be deployed (if ASM was not deployed in the previous step) (Deploy with ASM v1 is deprecated, use ASM v2 instead, for more details about ASM v2 deployment, please refer to the ASM documentation)
-4. Deploy LWS (Alauda Build of LeaderWorkerSet) plugin, which is a dependency of Kubeflow Trainer v2.
-5. Configure the oauth2-proxy plugin as described below
+3. Ensure Alauda Build of KServe is installed
+4. Deploy ASM in the business cluster where Kubeflow is to be deployed (if ASM was not deployed in the previous step) (Deploy with ASM v1 is deprecated, use ASM v2 instead, for more details about ASM v2 deployment, please refer to the ASM documentation)
+5. Deploy LWS (Alauda Build of LeaderWorkerSet) plugin, which is a dependency of Kubeflow Trainer v2.
+6. Configure the oauth2-proxy plugin as described below
 
 
 ### Configure Dex Redirection
 
 > NOTE: You need to configure the platform access URL for dex redirection before installing Kubeflow Base plugin, since this operation may cause the CA certificate of the platform to be updated, which can cause below `Configure oauth2-proxy Plugin` step to fail if the platform CA certificate is updated after that step.
 
-In **Administrator** - **System Settings** - **Platform Parameters**, click the "Edit" button on the right of **Platform Access URLs**, and add the redirect URL, the format is `https://<your-kubeflow-domain>:<port>/`, for example, `https://192.168.139.133:30443/`.
+In **Administrator** - **System Settings** - **Platform Parameters**, click the "Edit" button on the right of **Platform Access URLs**, and add the redirect URL, the format is `https://<your-kubeflow-domain>`, for example, `https://kubeflow.example.com`.
 
-- `<your-kubeflow-domain>` can set to the master node IP where Kubeflow is deployed. It should be the same as the `oidcRedirectURL` configured in the kfbase plugin deployment page.
-- `<port>` can be any available port `>= 30000`, it should be the same as `istioGatewayNodeportHTTPS` configured in the kfbase plugin deployment page. Default is `30443`.
+- `<your-kubeflow-domain>` should set to `kubeflowDomain` configured in the kfbase plugin deployment page.
 
 ### Configure oauth2-proxy Plugin
 
@@ -150,7 +150,11 @@ In *Cluster Plugins*, find the kfbase (Kubeflow Base) plugin, fill in the config
 
 After deployment, you need to perform the following operations to configure dex redirection:
 
-To Confirm: In **Administrator** - **System Settings** - **Platform Parameters**, click the "Edit" button on the right of **Platform Access URLs**, make sure there is an address with the format `https://<your-kubeflow-domain>:<port>/`, with the same `<your-kubeflow-domain>` and `<port>` as the `oidcRedirectURL` and `istioGatewayNodeportHTTPS` configured in the kfbase plugin deployment page.
+To Confirm: In **Administrator** - **System Settings** - **Platform Parameters**, click the "Edit" button on the right of **Platform Access URLs**, make sure there is an address with the format `https://<your-kubeflow-domain>`, which `<your-kubeflow-domain>` is the `kubeflowDomain` configured in the kfbase plugin deployment page.
+
+**Configure DNS Resolution or Host File for `<your-kubeflow-domain>`**: Configure the DNS resolution for `<your-kubeflow-domain>` to point to the IP address of the gateway assigned IP address by `kubectl -n istio-system get gateway kubeflow-external-gateway`, or simply add an entry in the host file of your local machine to map `<your-kubeflow-domain>` to the gateway assigned IP address.
+
+> Note: if you are upgrading from `v1.10.13` or older versions of kfbase plugin, the old versions of kfbase use `NodePort` to access the Kubeflow dashboard. After the upgrade, you should configure the DNS resolution or host file for `<your-kubeflow-domain>` to point to the IP address of the gateway assigned IP address, which is different from the old `NodePort` way of accessing. You can get the domain name in the `kubeflowDomain` field of the kfbase plugin configuration, and get the gateway assigned IP address by `kubectl -n istio-system get gateway kubeflow-external-gateway`.
 
 After deployment, you can find the Kubeflow menu item under the *Tools* navigation in Alauda AI. Click to enter the Kubeflow interface.
 
