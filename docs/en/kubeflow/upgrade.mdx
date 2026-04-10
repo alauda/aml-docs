@@ -1,0 +1,35 @@
+# Upgrade Kubeflow Plugins
+
+This page describes the manual actions that may be required after upgrading the `kfbase` plugin.
+
+For installation steps, see [Kubeflow Chart Plugins](./install).
+
+## Upgrade Notes for `kfbase`
+
+### Upgrading from `v1.10.13` or earlier
+
+Versions up to `v1.10.13` expose the Kubeflow dashboard through `NodePort`. After the upgrade, the
+recommended access method is through the gateway endpoint instead.
+
+After the upgrade:
+
+- Check the `kubeflowDomain` field in the `kfbase` plugin configuration to get `<your-kubeflow-domain>`.
+- Run `kubectl -n istio-system get gateway kubeflow-external-gateway` to get the gateway IP address.
+- Update DNS resolution, or your local hosts file, so that `<your-kubeflow-domain>` resolves to the gateway IP address.
+
+If you still need to use `NodePort`, manually change the `istio-system/kubeflow-istio-ingressgateway`
+service to type `NodePort`, then get the assigned port for `443` by running:
+
+```bash
+kubectl -n istio-system get service kubeflow-istio-ingressgateway
+```
+
+You can then access the dashboard through:
+
+```text
+https://<ip-of-master-node-of-the-cluster>:<NodePort>/
+```
+
+### Upgrading from `v1.10.9` or earlier
+
+Before the upgrade, set a default storage class in your cluster, which will be used for the `pgStorageClass` parameter in the `kfbase` plugin configuration. If no default storage class is set, the upgrade may fail due to missing required parameters. These parameters were introduced in version `v1.10.10`.
