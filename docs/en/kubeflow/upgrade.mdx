@@ -33,4 +33,17 @@ https://<ip-of-master-node-of-the-cluster>:<NodePort>/
 ### Upgrading from `v1.10.9` or earlier
 
 After the upgrade, manually configure the `pgStorageClass` and `pgStorageSize` parameters. These
-parameters were introduced in version `v1.10.10`.
+parameters were introduced in version `v1.10.10`. Then execute the following commands to update the `kf-catalog-pg` deployment and PVC to use the new storage class:
+
+```shell
+kubectl -n kubeflow scale deploy kf-catalog-pg --replicas=0
+# Check until the `kf-catalog-pg` pods are terminated
+kubectl -n kubeflow get po | grep kf-catalog-pg
+# Remove the existing PVC, which is not compatible with the new storage class
+kubectl -n kubeflow delete pvc kf-catalog-pg-pvc
+# Delete the ResourcePatch to recreate PVC with the new storage class
+kubectl -n cpaas-system get resourcepatch | grep kfbase
+kubectl -n cpaas-system delete resourcepatch <resourcepatch-name>
+# Scale up the deployment again
+kubectl -n kubeflow scale deploy kf-catalog-pg --replicas=1
+```
