@@ -154,11 +154,15 @@ To confirm: In **Administrator** - **System Settings** - **Platform Parameters**
 
 **Configure DNS Resolution or Host File for `<your-kubeflow-domain>`**: Configure the DNS resolution for `<your-kubeflow-domain>` to point to the IP address of the gateway assigned IP address by `kubectl -n istio-system get gateway kubeflow-external-gateway`, or simply add an entry in the host file of your local machine to map `<your-kubeflow-domain>` to the gateway assigned IP address.
 
-> Note: if you are upgrading from `v1.10.13` or older versions of kfbase plugin, the old versions of kfbase use `NodePort` to access the Kubeflow dashboard. After the upgrade, you should configure the DNS resolution or host file for `<your-kubeflow-domain>` to point to the IP address of the gateway assigned IP address, which is different from the old `NodePort` way of accessing. You can get the domain name in the `kubeflowDomain` field of the kfbase plugin configuration, and get the gateway assigned IP address by `kubectl -n istio-system get gateway kubeflow-external-gateway`.
+After deployment, you can find the Kubeflow menu item under the *Tools* navigation in Alauda AI. Click to enter the Kubeflow interface.
+
+#### Upgrading kfbase plugin (Kubeflow Base)
+
+> **Note (UPGRADING)**: if you are upgrading from `v1.10.13` or older versions of kfbase plugin, the old versions of kfbase use `NodePort` to access the Kubeflow dashboard. After the upgrade, you should configure the DNS resolution or host file for `<your-kubeflow-domain>` to point to the IP address of the gateway assigned IP address, which is different from the old `NodePort` way of accessing. You can get the domain name in the `kubeflowDomain` field of the kfbase plugin configuration, and get the gateway assigned IP address by `kubectl -n istio-system get gateway kubeflow-external-gateway`.
 
 > Note: if you still need to access the Kubeflow dashboard through `NodePort` after the upgrade, you manually modify the service `istio-system/kubeflow-istio-ingressgateway` to type `NodePort`, and get the NodePort assigned port by `kubectl -n istio-system get service kubeflow-istio-ingressgateway` (nodeport for 443 port). Then you can access the Kubeflow dashboard through `https://<ip-of-master-node-of-the-cluster>:<NodePort>/`.
 
-After deployment, you can find the Kubeflow menu item under the *Tools* navigation in Alauda AI. Click to enter the Kubeflow interface.
+> **Note (UPGRADING)**: if you are upgrading from `v1.10.9` or older versions of kfbase plugin, after the upgrade, you need to manually edit the parameter `pgStorageClass`, `pgStorageSize`, since these parameters are newly added in version `v1.10.10`.
 
 
 ### 2. Create Kubeflow User and Bind to Namespace
