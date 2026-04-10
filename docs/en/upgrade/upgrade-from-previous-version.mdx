@@ -128,28 +128,34 @@ Navigate to **Administrator > Marketplace > Upload Packages** and switch to the 
 
 ##### New version not visible after upload (ACP 4.0.x)
 
-On **ACP 4.0.x**, the Web Console may fail to show a newly uploaded cluster plugin version even though the upload succeeded. This behavior is a known **ACP** limitation; it has been addressed in newer **ACP** releases.
+On **Alauda Container Platform (ACP) 4.0.x**, the Web Console may fail to show a newly uploaded cluster plugin version even though the upload succeeded. This behavior is a known **ACP** limitation; it has been addressed in newer **ACP** releases.
 
 If the new version does not appear after waiting for synchronization, the following workaround can be used to set the target version on the corresponding `ModuleInfo` and trigger the plugin upgrade directly.
 
 The following `kubectl` commands must run on the **global** cluster.
 
-| Plugin (UI / product name) | Value for `cpaas.io/module-name` |
-|:---------------------------|:----------------------------------|
+| Plugin (UI / product name) | Plugin Identifier |
+|:---------------------------|:------------------|
 | Alauda AI Workbench | `workbench` |
 | Volcano | `volcano` |
 | MLflow | `mlflow` |
 | Kubeflow Training Operator | `kftraining` |
 
-1. Resolve the `ModuleInfo` resource name. Replace `<Cluster Name>` with the target cluster name and `<Plugin Name>` with the module name from the table above:
+1. Resolve the `ModuleInfo` resource name. Replace `<Cluster Name>` with the target cluster name. For `<Plugin Identifier>`, use the value in the **Plugin Identifier** column of the table above:
 
    ```bash
    kubectl get moduleinfoes \
-     -l cpaas.io/cluster-name=<Cluster Name>,cpaas.io/module-name=<Plugin Name> \
+     -l cpaas.io/cluster-name=<Cluster Name>,cpaas.io/module-name=<Plugin Identifier> \
      -o jsonpath='{.items[*].metadata.name}'
    ```
 
-2. Patch the `ModuleInfo` to the desired plugin version (replace `<ModuleInfo Name>` and `<New Version>` accordingly):
+2. Get `<New Version>` from the `ModulePlugin` status, using the same `<Plugin Identifier>` value as in step 1 (see the table above):
+
+   ```bash
+   kubectl get moduleplugins <Plugin Identifier> -o jsonpath='{.status.latestVersion}'
+   ```
+
+3. Patch the `ModuleInfo`. Replace `<ModuleInfo Name>` with the name from step 1 and `<New Version>` with the value from step 2:
 
    ```bash
    kubectl patch moduleinfoes <ModuleInfo Name> --type merge -p '{"spec":{"version":"<New Version>"}}'
