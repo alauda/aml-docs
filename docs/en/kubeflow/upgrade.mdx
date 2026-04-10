@@ -32,41 +32,4 @@ https://<ip-of-master-node-of-the-cluster>:<NodePort>/
 
 ### Upgrading from `v1.10.9` or earlier
 
-After the upgrade, manually configure the `pgStorageClass` and `pgStorageSize` parameters. These
-parameters were introduced in version `v1.10.10`. Then execute the following commands to update the `kf-catalog-pg` deployment and PVC to use the new storage class:
-
-```shell
-kubectl -n kubeflow scale deploy kf-catalog-pg --replicas=0
-# Check until the `kf-catalog-pg` pods are terminated
-kubectl -n kubeflow get po | grep kf-catalog-pg
-# Remove the existing PVC, which is not compatible with the new storage class
-kubectl -n kubeflow delete pvc kf-catalog-pg-pvc
-# Create a new PVC with the new storage class
-kubectl -n kubeflow apply -f - <<EOF
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: kf-catalog-pg-pvc
-  namespace: kubeflow
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: <pgStorageSize>
-  storageClassName: <pgStorageClass>
-EOF
-# Scale up the deployment and wait until it's running to make the upgrade complete
-kubectl -n kubeflow scale deploy kf-catalog-pg --replicas=1
-kubectl -n kubeflow get po | grep kf-catalog-pg
-
-# Ensure the plugin upgrade is successful and execute below scripts to clean up temporary resources
-kubectl -n kubeflow delete pvc kf-catalog-pg-pvc
-kubectl -n kubeflow scale deploy kf-catalog-pg --replicas=0
-
-# Delete the ResourcePatch to recreate PVC with the new storage class
-kubectl -n cpaas-system get resourcepatch | grep kfbase
-kubectl -n cpaas-system delete resourcepatch <resourcepatch-name>
-# Scale up the deployment again
-kubectl -n kubeflow scale deploy kf-catalog-pg --replicas=1
-```
+Before the upgrade, set a default storage class in your cluster, which will be used for the `pgStorageClass` parameter in the `kfbase` plugin configuration. If no default storage class is set, the upgrade may fail due to missing required parameters. These parameters were introduced in version `v1.10.10`.
