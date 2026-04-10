@@ -41,6 +41,29 @@ kubectl -n kubeflow scale deploy kf-catalog-pg --replicas=0
 kubectl -n kubeflow get po | grep kf-catalog-pg
 # Remove the existing PVC, which is not compatible with the new storage class
 kubectl -n kubeflow delete pvc kf-catalog-pg-pvc
+# Create a new PVC with the new storage class
+kubectl -n kubeflow apply -f - <<EOF
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kf-catalog-pg-pvc
+  namespace: kubeflow
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: <pgStorageSize>
+  storageClassName: <pgStorageClass>
+EOF
+# Scale up the deployment and wait until it's running to make the upgrade complete
+kubectl -n kubeflow scale deploy kf-catalog-pg --replicas=1
+kubectl -n kubeflow get po | grep kf-catalog-pg
+
+# Ensure the plugin upgrade is successful and execute below scripts to clean up temporary resources
+kubectl -n kubeflow delete pvc kf-catalog-pg-pvc
+kubectl -n kubeflow scale deploy kf-catalog-pg --replicas=0
+
 # Delete the ResourcePatch to recreate PVC with the new storage class
 kubectl -n cpaas-system get resourcepatch | grep kfbase
 kubectl -n cpaas-system delete resourcepatch <resourcepatch-name>
