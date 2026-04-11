@@ -2,7 +2,7 @@
   "name": "aml-docs",
   "type": "module",
   "dependencies": {
-    "@alauda/doom": "^1.13.0"
+    "@alauda/doom": "^2.1.0"
   },
   "scripts": {
     "dev": "doom dev",
