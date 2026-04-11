@@ -18,7 +18,7 @@ Alauda AI Model Serving Operator provides serverless model inference.
     During the deployment process of the Alauda AI, the Alauda AI Model Serving Operator will be automatically deployed, without requiring manual operation or configuration changes.
 :::
 
-## Downloading
+## Downloading \{#downloading}
 
 :::info
 You can download 'Alauda AI' and 'Alauda AI Model Serving' from the Marketplace on the Customer Portal website. Follow these steps:
@@ -27,7 +27,7 @@ You can download 'Alauda AI' and 'Alauda AI Model Serving' from the Marketplace 
 2. Unzip the downloaded file to obtain the `aml-operator.xxx.tgz` and `kserveless-operator.xxx.tgz` packages.
 :::
 
-## Uploading
+## Uploading \{#uploading}
 
 We need to upload both `Alauda AI` and `Alauda AI Model Serving` to the cluster where Alauda AI is to be used.
 
@@ -116,7 +116,7 @@ After configuration, execute the script file using `bash ./uploading-ai-cluster-
 
 </Steps>
 
-## Install Alauda AI Operator
+## Install Alauda AI Operator \{#install-the-alauda-ai-cluster-operator}
 
 <Steps>
 
@@ -150,7 +150,7 @@ Confirm that the **Alauda AI** tile shows one of the following states:
 
 Once Alauda AI Operator is installed, you can create an Alauda AI instance.
 
-### Procedure
+### Procedure \{#procedure-1}
 
 In **Administrator** view:
 
@@ -234,29 +234,29 @@ Now, the core capabilities of Alauda AI have been successfully deployed. If you 
 
 If you want to replace GitLab Service after installation, follow these steps:
 
-1. **Reconfigure GitLab Service**  
+1. **Reconfigure GitLab Service**
    Refer to the [Pre-installation Configuration](./pre-configuration.mdx) and re-execute its steps.
 
-2. **Update Alauda AI Instance**  
-   - In Administrator view, navigate to **Marketplace > OperatorHub**  
-   - From the **Cluster** dropdown, select the target cluster  
-   - Choose **Alauda AI** and click the **All Instances** tab  
+2. **Update Alauda AI Instance**
+   - In Administrator view, navigate to **Marketplace > OperatorHub**
+   - From the **Cluster** dropdown, select the target cluster
+   - Choose **Alauda AI** and click the **All Instances** tab
    - Locate the **'default'** instance and click **Update**
 
-3. **Modify GitLab Configuration**  
-   In the **Update default** form:  
-   - Locate the **GitLab** section  
-   - Enter:  
-     - **Base URL**: The URL of your new GitLab instance  
-     - **Admin Token Secret Namespace**: `cpaas-system`  
+3. **Modify GitLab Configuration**
+   In the **Update default** form:
+   - Locate the **GitLab** section
+   - Enter:
+     - **Base URL**: The URL of your new GitLab instance
+     - **Admin Token Secret Namespace**: `cpaas-system`
      - **Admin Token Secret Name**: `aml-gitlab-admin-token`
 
-4. **Restart Components**  
+4. **Restart Components**
    Restart the `aml-controller` deployment in the `kubeflow` namespace.
 
-5. **Refresh Platform Data**  
+5. **Refresh Platform Data**
    In Alauda AI management view, re-manage all namespaces.
-   - In Alauda AI view, navigate to **Admin** view from **Business View**  
+   - In Alauda AI view, navigate to **Admin** view from **Business View**
    - On the **Namespace Management** page, delete all existing managed namespaces
    - Use "Managed Namespace" to add namespaces requiring Alauda AI integration
    :::info

@@ -1,6 +1,8 @@
 {
-  "devDependencies": {
-    "@alauda/doom": "^1.12.1"
+  "name": "aml-docs",
+  "type": "module",
+  "dependencies": {
+    "@alauda/doom": "^2.5.0"
   },
   "scripts": {
     "dev": "doom dev",
@@ -10,5 +12,5 @@
     "translate": "doom translate",
     "export": "doom export"
   },
-  "packageManager": "yarn@4.9.4"
+  "packageManager": "yarn@4.14.1"
 }
