@@ -10,6 +10,8 @@ To deploy your model, you must first store it in a storage type supported by Ala
 - **Persistent Volume Claim (PVC)**: Mounts data stored on a persistent volume before the main container starts via a Storage Initializer.
 - **Open Container Initiative (OCI) containers**: Also known as modelcars in KServe. This approach achieves second-level loading using the container runtime's layered caching capability via a Sidecar.
 
+If you want to manage reusable project-level S3, URI, or OCI endpoints in the UI, see [Using Connections](../../../connections/how_to/using_connections.mdx).
+
 ## Using S3 Object Storage for model storage
 This is the most commonly used mode. It implements credential management through a Secret annotated with specific S3 configuration parameters.
 
