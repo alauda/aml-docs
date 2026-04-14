@@ -1,0 +1,145 @@
+---
+weight: 27
+---
+
+# Fine-tune and Pretrain LLMs on Ascend NPU Using Workbench
+
+## Background
+
+This guide describes a Workbench-based solution for running large model fine-tuning and pretraining on `arm64` nodes with Huawei Ascend NPU. The solution uses the `PyTorch CANN` workbench image, which is built for Ascend environments and includes `Python 3.12`, `CANN 8.5.0`, `PyTorch 2.9.0`, and `torch_npu 2.9.0`.
+
+The workflow is centered on two verification notebooks:
+
+- [Download `qwen3_finetune_verify.ipynb`](/qwen3_finetune_verify.ipynb) for full-parameter supervised fine-tuning of `Qwen3-8B`
+- [Download `qwen25_pretrain_verify.ipynb`](/qwen25_pretrain_verify.ipynb) for pretraining `Qwen2.5-7B`
+
+Both notebooks use `MindSpeed-LLM` and are designed as validation-first examples. They begin with a lightweight configuration so that you can confirm the runtime, model loading, preprocessing, and distributed launch path before scaling the same workflow to a real training run.
+
+Unlike the VolcanoJob-based flow used in some other examples, this solution runs training directly inside a single Workbench container with multiple Ascend NPUs attached.
+
+## Before You Begin
+
+Make sure the cluster already provides an operational Ascend runtime. In practice, this means the Ascend driver, CANN runtime, and Kubernetes device plugin are already installed and working, and your workbench can be scheduled to an `arm64` node with Ascend NPU resources.
+
+Create the workbench with the `PyTorch CANN` image described in [Creating a Workbench](./create_workbench.mdx). For the default notebook settings, plan for at least `4` NPUs. The verification notebooks also create converted model weights, preprocessing outputs, logs, and checkpoints, so the workspace should use persistent storage with enough free capacity for both the original HuggingFace model and the converted Megatron/MCore weights.
+
+The notebooks clone `MindSpeed-LLM` from `https://gitcode.com/ascend/MindSpeed-LLM.git` during execution. If the workbench cannot reach that repository, place a local copy in the workspace and update the notebook path in the first parameter cell.
+
+## Create the Workbench
+
+Create a JupyterLab workbench on the Ascend node pool and select the `PyTorch CANN` image. Keep the workspace on persistent storage so that notebooks, converted weights, and training outputs remain available after restart. If you follow the notebook defaults, request enough NPU resources to satisfy the configured tensor and pipeline parallelism.
+
+For the detailed creation steps and image selection, see [Creating a Workbench](./create_workbench.mdx).
+
+## Import the Verification Notebooks
+
+Upload the two notebooks into the JupyterLab workspace and open them there. If your image distribution already exposes the notebooks in the workspace, you can use them directly. Otherwise, download them from the links above and upload them through the JupyterLab file browser. The JupyterLab upload workflow is described in [Creating a Workbench](./create_workbench.mdx).
+
+## Prepare the Base Model
+
+Both notebooks expect a HuggingFace-format base model in the workspace. The default paths are:
+
+| Notebook | Variable | Default path |
+|----------|----------|--------------|
+| Fine-tuning | `HF_MODEL_DIR` | `/opt/app-root/src/models/Qwen3-8B` |
+| Pretraining | `HF_MODEL_DIR` | `/opt/app-root/src/models/Qwen2.5-7B` |
+
+You can place the model files in those directories or change `HF_MODEL_DIR` in the first parameter cell. Before running the notebook, verify that the target directory contains the expected model configuration, tokenizer files, and weight files.
+
+If you want the model to be versioned and reusable across workbenches, upload it to the platform model repository first and then clone or copy it into the workspace. The repository-based upload flow is documented in [Upload Models Using Notebook](../../model_inference/model_management/how_to/upload_models_using_notebook.mdx).
+
+> **Note:** Both notebooks convert HuggingFace weights to Megatron/MCore format before training starts. This conversion creates another large set of files, so storage planning matters.
+
+## Prepare the Dataset
+
+The fine-tuning and pretraining notebooks expect different kinds of input data.
+
+### Fine-tuning Data
+
+The fine-tuning notebook uses instruction-tuning data. Its validation path is based on Alpaca-style samples, and it can also consume a real dataset when you place the files in the workspace and update the path variables in the parameter cell.
+
+By default, the notebook looks for:
+
+- `ALPACA_PARQUET = /opt/app-root/src/datasets/alpaca/train-00000-of-00001-a09b74b3ef9c3b56.parquet`
+- `RAW_DATA_FILE = /opt/app-root/src/Qwen3-8B-work-dir/finetune_dataset/alpaca_sample.jsonl`
+
+If the parquet file exists, the notebook converts it to JSONL automatically. If you already have JSONL instruction data, place it at `RAW_DATA_FILE` or update the variable to your actual path.
+
+The expected Alpaca-style JSONL record is:
+
+```json
+{"instruction": "...", "input": "...", "output": "..."}
+```
+
+The notebook can also be adapted to other instruction formats such as ShareGPT or Pairwise datasets by changing the handler in the parameter section.
+
+### Pretraining Data
+
+The pretraining notebook uses raw text data. `MindSpeed-LLM` preprocessing supports `.parquet`, `.json`, `.jsonl`, and `.txt`. For structured formats such as parquet, json, or jsonl, the data should include a `text` field. For plain text input, provide one text segment per line.
+
+The validation notebook uses the following default input path:
+
+- `ALPACA_PARQUET = /opt/app-root/src/datasets/alpaca/train-00000-of-00001-a09b74b3ef9c3b56.parquet`
+
+If that file is absent, the notebook falls back to a small built-in sample so that the preprocessing and training flow can still be verified.
+
+### Getting Data into the Workspace
+
+For small test files, uploading directly in JupyterLab is usually enough. For larger datasets, it is more practical to mount a PVC or pull the data from the platform dataset repository into the workspace. If you want a repository-based dataset workflow, see [Fine-tuning LLMs using Workbench](./fine_tunning_using_notebooks.mdx).
+
+## Run the Fine-tuning Notebook
+
+Open `qwen3_finetune_verify.ipynb` and start with the first parameter cell. That cell controls the model path, dataset path, output location, sequence length, training iterations, and the tensor and pipeline parallelism used during both weight conversion and training.
+
+The notebook follows a straightforward progression. It first checks the Ascend runtime and confirms that `torch_npu`, `MindSpeed`, and `MindSpeed-LLM` are available. It then prepares a small Alpaca-style dataset or loads your real one, clones the `MindSpeed-LLM` repository, converts the HuggingFace checkpoint into Megatron/MCore format, preprocesses the data into the format required by `MindSpeed-LLM`, launches full-parameter SFT with `posttrain_gpt.py`, and finally runs an inference check against the generated checkpoint.
+
+The default configuration is intentionally conservative. It uses a short sequence length and a small number of iterations so that the notebook can serve as an environment verification tool rather than a long production run. Once that path is working, move to a real dataset and tune the parameters for the actual workload.
+
+The most important parameters to review are:
+
+- `HF_MODEL_DIR`
+- `ALPACA_PARQUET` or `RAW_DATA_FILE`
+- `OUTPUT_DIR`
+- `TP` and `PP`
+- `SEQ_LENGTH`
+- `TRAIN_ITERS`
+- `ENABLE_THINKING`
+
+For real fine-tuning, the notebook guidance is to increase `SEQ_LENGTH` to match the model context window, increase `TRAIN_ITERS` to a production-sized value, and adjust parallelism and batch sizing according to the available NPUs and the size of the training set. If you want periodic checkpoints, also update the save interval in the training cell.
+
+## Run the Pretraining Notebook
+
+Open `qwen25_pretrain_verify.ipynb` and review the first parameter cell in the same way. This notebook uses a raw text corpus rather than instruction-response records, but the overall structure is similar.
+
+It begins with an environment check, prepares a sample text dataset or loads your real one, clones the `MindSpeed-LLM` repository, converts the HuggingFace checkpoint into Megatron/MCore format, preprocesses the raw text into `.bin` and `.idx` files, and launches pretraining with `pretrain_gpt.py`.
+
+The validation configuration is again intentionally small. It is useful for verifying that preprocessing, checkpoint conversion, distributed launch, and output writing all work correctly on the Ascend runtime before you commit to a much longer run.
+
+The main parameters to review are:
+
+- `HF_MODEL_DIR`
+- dataset path variables such as `ALPACA_PARQUET`
+- `OUTPUT_DIR`
+- `TP` and `PP`
+- `SEQ_LENGTH`
+- `TRAIN_ITERS`
+
+When you move from validation to a real pretraining job, increase the sequence length and iteration count, set the global batch size according to the available NPUs and corpus size, and revisit the save interval. If you change `TP` or `PP`, rerun the weight conversion step so that the converted checkpoint matches the training layout.
+
+## Output and Persistence
+
+By default, the notebooks write their outputs to the following locations:
+
+| Notebook | Default output path |
+|----------|---------------------|
+| Fine-tuning | `/opt/app-root/src/Qwen3-8B-work-dir/output/qwen3_8b_finetuned` |
+| Pretraining | `/opt/app-root/src/Qwen2.5-7B-work-dir/output/qwen25_7b_pretrained` |
+
+Keep these directories on persistent storage. The outputs can be large, and in most real workflows you will want to preserve them after the workbench restarts or publish them for later use. If you want to push the resulting model back to the model repository, follow the Git LFS workflow in [Upload Models Using Notebook](../../model_inference/model_management/how_to/upload_models_using_notebook.mdx).
+
+## Operational Notes
+
+- These notebooks are verification examples first. Do not leave the default iteration count and sequence length unchanged for real training.
+- The fine-tuning notebook runs full-parameter SFT rather than LoRA.
+- The selected parallel configuration affects memory usage, weight conversion, and runtime layout. If you change `TP` or `PP`, reconvert the weights before training.
+- In offline or restricted environments, prepare the `MindSpeed-LLM` repository and required model and dataset files in advance and place them directly in the workspace.
