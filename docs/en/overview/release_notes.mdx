@@ -1,44 +1,28 @@
 # Release Notes
 
-## AI 2.2.0
+## AI 2.3.0
 
 ### **New and Optimized Features**
 
-#### **Connection Hub**
+#### **Ray-based Distributed Workloads**
 
-**Connections** enable users to securely configure access to external data sources and model storage locations by encapsulating credentials and configuration parameters as reusable project resources. **Connection Types** provide templated forms with customizable fields and default values, streamlining connection creation for common storage protocols. Version 2.2 includes built-in connection types for **OCI-compliant registries** and **URI-based repositories**, enabling model deployment from container images and remote endpoints. S3-compatible object storage connection type is under development.
+**KubeRay** and **CodeFlare SDK** enable developers to run Ray-based distributed workloads from **Workbench** and manage remote Ray clusters on Kubernetes. Developers can create and monitor `RayCluster` resources, submit `RayJob` workloads, and define distributed compute jobs for Python-based environments.
 
-#### **NeMo Guardrails Integration**
+#### **Feast Feature Store**
 
-**NVIDIA NeMo Guardrails** provides programmable safety controls for LLM applications, running as a separate service in front of the model. It enforces sensitive data detection (PII), content policies, and custom validation flows written in Colang and Python, exposed through the TrustyAI Operator's NemoGuardrails custom resource.
+**Feast Feature Store** provides a consistent way to manage reusable machine learning features across training, batch scoring, and online inference. Administrators can deploy Feast on Kubernetes through the **FeatureStore** custom resource, which manages core services such as the online store, offline store, registry, UI, and client configuration.
 
-#### **RAG Evaluation with RAGAS**
+#### **Connection Hub S3 Support**
 
-**RAGAS (Retrieval-Augmented Generation Assessment)** integration provides objective metrics for evaluating RAG applications, including retrieval quality, answer relevance, and factual consistency. Developers can automate quality gates and optimize RAG configurations using evaluation pipelines.
+**Connection Hub** supports **S3** connection types, expanding the set of reusable connection configurations for AI workflows. It enables users to configure S3-compatible object storage access once and reuse the connection across supported model, data, and development workflows.
 
-#### **LlamaFactory Fine-tuning**
+#### **TrainingHub Fine-Tuning and Post-Tuning**
 
-**LlamaFactory** integration through Kubeflow Trainer v2 provides a streamlined solution for model fine-tuning, supporting SFT, LoRA, and QLoRA training algorithms. Users can customize foundation models with their own datasets through single-node and multi-node distributed training.
+**TrainingHub** provides a unified high-level API for model fine-tuning and post-tuning in **Workbench** environments. It supports **SFT** and **OSFT** workflows across single-GPU, multi-GPU, and multi-node execution, simplifying distributed training configuration, memory management, checkpointing, and experiment tracking.
 
-#### **Hardware Profile Definitions & Templates**
+#### **Expanded Notebook Base Image Library for ARM**
 
-**Hardware Profiles** enable centralized management of hardware resource allocation for AI/ML workloads. Administrators can define custom hardware configurations with specific accelerator types, memory limits, and node placement rules, enabling GPU-as-a-Service capabilities with self-service provisioning.
-
-#### **ServingRuntime Management**
-
-Extend the AI Platform with custom inference runtimes to serve LLMs or other model types (image classification, object detection, etc.). Administrators can add custom runtimes such as MLServer, Triton, or Xinference through `ClusterServingRuntime` resources to support additional model frameworks, GPU types, and specialized inference scenarios beyond the default vLLM runtime.
-
-#### **Notebook Base Image Library for ARM**
-
-The **Notebook Base Image Library** now includes **minimal** and **datascience** notebook images for **ARM architecture**, expanding hardware compatibility for notebook-based development on ARM platforms.
-
-#### **Drift Detection with TrustyAI**
-
-Monitor deployed models for data drift by detecting changes in input data distributions over time. **TrustyAI Drift Detection** compares real-world inference data against original training data using statistical metrics to identify shifts that could impact model performance, ensuring models remain accurate and reliable in production.
-
-#### **MCP Integration with Llama Stack**
-
-Llama Stack Connectors provide a high-level abstraction for AI registries such as **Model Context Protocol (MCP)**. Platform Engineers can register connectors, and AI Engineers can consume pre-registered connectors without managing complex configurations, enabling AI agents to connect to external tools and data sources through standardized interfaces.
+The **Notebook Base Image Library for ARM** now includes **minimal CANN**, **PyTorch CANN**, **MindSpore CANN**, and **datascience code-server** images. The **CANN**-based images provide framework support for **Ascend NPUs**, expanding ARM-based development options for notebook and code-server environments.
 
 ### **Deprecated Features**
 
