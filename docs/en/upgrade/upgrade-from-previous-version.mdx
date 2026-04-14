@@ -3,7 +3,7 @@ weight: 10
 ---
 
 export const prevVersion = '1.5'
-export const curVer = '2.2'
+export const curVer = '2.3'
 
 # Upgrade Alauda AI
 
@@ -99,7 +99,7 @@ For detailed installation and configuration steps, please refer to the [Alauda B
 ### Upgrading Cluster Plugins
 
 :::info
-This step is **only required if you have deployed** any of the following cluster plugins: **Alauda AI Workbench**, **Alauda AI MLflow**, or **Alauda AI Volcano**. If you have not deployed any of these plugins, you can skip this step.
+This step is **only required if you have deployed** any of the following cluster plugins: **Alauda AI Workbench**, **MLflow**, or **Volcano**. If you have not deployed any of these plugins, you can skip this step.
 
 For more information about cluster plugins, refer to <ExternalSiteLink name="acp" href="extend/index.html" children="Alauda Container Platform - Extend" />.
 :::
@@ -107,8 +107,8 @@ For more information about cluster plugins, refer to <ExternalSiteLink name="acp
 The procedure to upgrade cluster plugins involves uploading new version packages and then upgrading them from the Web Console. The following plugins require upgrading:
 
 - Alauda AI Workbench
-- Alauda AI MLflow
-- Alauda AI Volcano
+- MLflow
+- Volcano
 
 #### Uploading Cluster Plugins
 
@@ -123,6 +123,47 @@ After the upload is completed, wait approximately 10–15 minutes for the platfo
 #### Verifying the New Version
 
 Navigate to **Administrator > Marketplace > Upload Packages** and switch to the **Cluster Plugin** tab. Locate each uploaded plugin to verify that the new version is displayed.
+
+#### Troubleshooting
+
+##### New version not visible after upload (ACP 4.0.x)
+
+On **Alauda Container Platform (ACP) 4.0.x**, the Web Console may fail to show a newly uploaded cluster plugin version even though the upload succeeded. This behavior is a known **ACP** limitation; it has been addressed in newer **ACP** releases.
+
+If the new version does not appear after waiting for synchronization, the following workaround can be used to set the target version on the corresponding `ModuleInfo` and trigger the plugin upgrade directly.
+
+The following `kubectl` commands must run on the **global** cluster.
+
+| Plugin (UI / product name) | Plugin Identifier |
+|:---------------------------|:------------------|
+| Alauda AI Workbench | `workbench` |
+| Volcano | `volcano` |
+| MLflow | `mlflow` |
+| Kubeflow Training Operator | `kftraining` |
+
+1. Resolve the `ModuleInfo` resource name. Replace `<Cluster Name>` with the target cluster name. For `<Plugin Identifier>`, use the value in the **Plugin Identifier** column of the table above:
+
+   ```bash
+   kubectl get moduleinfoes \
+     -l cpaas.io/cluster-name=<Cluster Name>,cpaas.io/module-name=<Plugin Identifier> \
+     -o jsonpath='{.items[*].metadata.name}'
+   ```
+
+2. Get `<New Version>` from the `ModulePlugin` status, using the same `<Plugin Identifier>` value as in step 1 (see the table above):
+
+   ```bash
+   kubectl get moduleplugins <Plugin Identifier> -o jsonpath='{.status.latestVersion}'
+   ```
+
+3. Patch the `ModuleInfo`. Replace `<ModuleInfo Name>` with the name from step 1 and `<New Version>` with the value from step 2:
+
+   ```bash
+   kubectl patch moduleinfoes <ModuleInfo Name> --type merge -p '{"spec":{"version":"<New Version>"}}'
+   ```
+
+   :::warning
+   The patch takes effect immediately and **directly triggers the cluster plugin upgrade** to `<New Version>`, bypassing the Web Console upgrade action. Verify the version string before running the command.
+   :::
 
 #### Upgrading from Web Console
 
@@ -218,8 +259,8 @@ default-kserve   True       UpgradeSuccessful
 In the **Administrator** view, navigate to **Marketplace > Cluster Plugins** and confirm that the following cluster plugins show `Installed` status with the new version:
 
 - Alauda AI Workbench (if deployed)
-- Alauda AI MLflow (if deployed)
-- Alauda AI Volcano (if deployed)
+- MLflow (if deployed)
+- Volcano (if deployed)
 
 </Steps>
 
