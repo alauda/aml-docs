@@ -1,0 +1,50 @@
+---
+weight: 20
+---
+
+# Install Feast
+
+This page describes how to install the Feast Operator on Alauda Container Platform. After installation, `FeatureStore` custom resources can be created to deploy Feast services.
+
+## Upload the Operator Package
+
+Download the Feast Operator package, for example `feast-operator.ALL.xxxx.tgz`.
+
+Use `violet` to upload the package to the platform repository:
+
+```bash
+violet push --platform-address=<platform-access-address> --platform-username=<platform-admin> --platform-password=<platform-admin-password> feast-operator.ALL.xxxx.tgz
+```
+
+## Install the Operator
+
+In **Administrator** view:
+
+1. Go to `Marketplace` / `Operator Hub`.
+2. Select the destination cluster.
+3. Search for **Alauda Build of Feast**.
+4. Click **Install**.
+5. Keep the default installation settings unless the environment requires a different namespace.
+6. Complete the installation.
+
+## Verify the Installation
+
+After installation, verify that the operator is running:
+
+```bash
+kubectl get pods -n feast-operator-system
+```
+
+The Feast Operator controller pod should be in `Running` state.
+
+The `FeatureStore` CRD can also be verified:
+
+```bash
+kubectl get crd featurestores.feast.dev
+```
+
+## Next Steps
+
+Installing the operator creates only the controller and CRDs. Feast services are created after a `FeatureStore` custom resource is applied.
+
+Continue with [Quickstart](./quickstart) for `FeatureStore` configuration and deployment examples.

@@ -1,0 +1,115 @@
+---
+weight: 10
+---
+
+# Introduction
+
+Feast is an open-source feature store for machine learning. It helps teams use the same feature definitions across model training, batch scoring, and online inference, reducing training-serving skew and duplicated feature engineering work.
+
+In Alauda Build of Feast, Feast is typically deployed on Kubernetes through the Feast Operator. Each deployment is managed by a `FeatureStore` custom resource (CR). A single `FeatureStore` CR can create the main Feast services, such as the online feature server, offline feature server, registry server, and UI.
+
+## Typical Requirements
+
+Feast is commonly used when a platform needs a more consistent way to:
+
+- manage feature definitions in a shared catalog
+- use the same feature definitions across training, batch scoring, and online inference
+- control freshness, materialization, and access policies in one place
+
+Feast provides these capabilities through a shared registry, online and offline stores, and a standard workflow for registration, materialization, serving, and access control.
+
+## Managed Resources
+
+In a Kubernetes deployment managed by the Feast Operator, a `FeatureStore` commonly creates or manages the following resources:
+
+- **Offline store**: Stores historical feature data and supports training dataset generation or backfilling.
+- **Online store**: Stores the latest feature values for low-latency online reads during inference.
+- **Registry**: Stores metadata such as entities, feature views, feature services, and permissions.
+- **UI**: Provides a web interface for browsing feature metadata and service status.
+- **Client configuration**: The operator also creates a ConfigMap containing a client `feature_store.yaml`, so client applications and jobs can connect to the deployed services.
+
+## Core Concepts
+
+The following concepts are the most important when getting started with Feast:
+
+### Project
+
+A Feast project is an isolated logical workspace. Feature definitions, permissions, and registry objects are organized by project. In Alauda Build of Feast, the project name is set with `spec.feastProject` in the `FeatureStore` CR.
+
+### Entity
+
+An entity is the business key used to retrieve features, such as `user_id`, `driver_id`, or `merchant_id`.
+
+### Data Source
+
+A data source describes where raw feature data comes from. Examples include files, data warehouses, or push sources.
+
+### Feature View
+
+A feature view defines:
+
+- which entity a feature belongs to
+- where the source data comes from
+- which fields are exposed as features
+- whether the features should be served online
+
+In practice, a feature view is usually the main object users register and materialize.
+
+### Feature Service
+
+A feature service groups one or more features into a reusable set for a model or application version. This helps keep feature selection consistent between training and serving.
+
+### Registry
+
+The registry stores Feast metadata rather than feature values. It is the source of truth for registered objects such as entities, feature views, feature services, and permissions.
+
+### Materialization
+
+Materialization copies feature values from the offline source into the online store so they can be fetched with low latency at inference time.
+
+### Push Source
+
+A push source allows applications or streaming jobs to write fresh feature values directly into Feast, either to the online store, offline store, or both.
+
+### Permission
+
+Permissions define who can read or modify Feast objects and data. In Alauda Build of Feast, a common setup combines:
+
+- Kubernetes `Role` and `RoleBinding`
+- Feast `Permission` objects using `RoleBasedPolicy`
+
+This makes it possible to give read-only and read-write access to different users or workloads.
+
+## Typical Workflow
+
+A typical Feast workflow is:
+
+1. Install the Feast Operator.
+2. Create a `FeatureStore` CR to deploy Feast services.
+3. Define entities, feature views, feature services, and permissions in the feature repository.
+4. Run `feast apply` to register metadata into the registry.
+5. Materialize or push feature data into the online store.
+6. Read features from client applications, batch jobs, or online services.
+
+## Operator Responsibilities
+
+Compared with a manual Feast deployment, the Feast Operator manages the Kubernetes resources required by Feast. Examples include:
+
+- create and reconcile the Feast Deployments and Services
+- initialize a feature repository or clone one from Git
+- provision PVC-backed persistence for offline, online, and registry data
+- create optional Kubernetes `Role` objects used by Feast authorization
+- publish connection information through CR status and client ConfigMaps
+
+## Further Reading
+
+In this documentation set:
+
+1. [Install Feast](./install)
+2. [Quickstart](./quickstart)
+
+For official Feast background material, see:
+
+- [Feast concepts overview](https://docs.feast.dev/getting-started/concepts/overview)
+- [Feast quickstart](https://docs.feast.dev/getting-started/quickstart)
+- [Feast on Kubernetes](https://docs.feast.dev/how-to-guides/feast-on-kubernetes)

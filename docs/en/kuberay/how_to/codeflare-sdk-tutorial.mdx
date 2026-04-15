@@ -1,0 +1,55 @@
+---
+weight: 10
+---
+
+# CodeFlare SDK Tutorial
+
+This tutorial demonstrates how to use the CodeFlare SDK to submit RayJobs against an existing RayCluster. You will learn how to spin up a Ray cluster, verify its status, submit a RayJob, and manage the cluster lifecycle.
+
+## Prerequisites
+
+- You have installed the `Alauda Build of KubeRay Operator` cluster plugin in your data science cluster, see [Install Alauda Build of KubeRay Operator](../install.mdx).
+- You can access a namespace in Alauda AI, create a workbench, and the workbench is running a default workbench image that contains the CodeFlare SDK, for example, the **Standard Data Science** notebook. For information about creating workbenches, see [Create Workbench](../../workbench/how_to/create_workbench.mdx).
+- You have logged in to Alauda AI, started your workbench, and logged in to JupyterLab.
+
+## Demo Notebook
+
+Download the demo Jupyter notebook to follow along with this tutorial:
+
+- **Notebook**: [CodeFlare SDK RayJob Demo](/kuberay/demo.ipynb)
+
+Click the upward arrow button on the JupyterLab page to upload the downloaded notebook file.
+
+## Procedure
+
+Open the demo notebook in JupyterLab and follow the steps below. Each step corresponds to a section in the notebook.
+
+### Step 1: Create the RayCluster
+
+Run the first two code cells to import the CodeFlare SDK and create a Ray cluster with the `ClusterConfiguration` API. Before running, update the `image` parameter to a Ray cluster image that is compatible with your hardware architecture. If your cluster has no direct internet access, use an image from your internal registry.
+
+The `cluster.apply()` call submits the cluster configuration and waits for it to be ready. You can adjust the `timeout` value as needed.
+
+### Step 2: Verify the cluster status
+
+Run the `cluster.status()` cell. If the cluster is not up immediately, run the cell a few more times until you see that it is in a `Ready` state.
+
+### Step 3: Submit a RayJob
+
+Run the `RayJob` cell to create and submit a job against the running cluster. Note the following parameters:
+
+- `job_name`: A unique name for your RayJob.
+- `cluster_name`: Must match the name of your existing RayCluster.
+- `entrypoint`: The command to execute. In standard practice, this would point to a Python training script rather than the inline command used in the demo.
+
+### Step 4: Monitor the RayJob
+
+Run the `rayjob.status()` cell. This function outputs different tables based on the RayJob's current status. You can re-run the cell multiple times to observe the changes.
+
+### Step 5: Clean up
+
+Once the job has completed, run `cluster.down()` to shut down the cluster.
+
+:::warning
+For optimal resource management, you should always delete the Ray cluster when it is no longer in use.
+:::

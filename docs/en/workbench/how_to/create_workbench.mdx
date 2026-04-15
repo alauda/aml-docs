@@ -9,10 +9,12 @@ weight: 14
 - Ensure you have `kubectl` configured and connected to your cluster.
 - Ensure you have created `PVC`.
 
-:::note{title=CreatePVC}
+:::note CreatePVC
+
 1. Login, go to the **Alauda Container Platform** page.
 2. Click **Storage** > **PersistentVolumeClaims** to enter the **PVC** list page.
 3. Find the **Create PVC** button, click **Create**, and enter the info.
+
 :::
 
 ## Create Workbench by using the web console
@@ -21,11 +23,20 @@ weight: 14
 
 <Steps>
 
-### Login, go to the **Alauda AI** page.
+<h3 style={{ fontSize: '1rem', fontWeight: 400, lineHeight: 1.75 }}>
+  Login, go to the <strong>Alauda AI</strong> page.
+</h3>
 
-### Click **Workbench** to enter the **Workbench** list page.
+<h3 style={{ fontSize: '1rem', fontWeight: 400, lineHeight: 1.75 }}>
+  Click <strong>Workbench</strong> to enter the <strong>Workbench</strong> list
+  page.
+</h3>
 
-### Find the **Create** button, click **Create**, you will enter the creation form, and you can create a workbench after filling in the information.
+<h3 style={{ fontSize: '1rem', fontWeight: 400, lineHeight: 1.75 }}>
+  Find the <strong>Create</strong> button, click <strong>Create</strong>, you
+  will enter the creation form, and you can create a workbench after filling in
+  the information.
+</h3>
 
 </Steps>
 
@@ -33,29 +44,84 @@ weight: 14
 
 After creating a workbench instance, click `Workbench` in the left navigation bar; your workbench instance should show up in the list. When the status becomes `Running`, click the `Connect` button to enter the workbench.
 
+## Upload Files in JupyterLab
+
+If you use a JupyterLab-based workbench, you can upload files from your local machine by using the **Upload Files** button in the file browser. This is useful when your workbench cannot access the public internet or a PyPI mirror and you need to install Python packages from local wheel files.
+
+### Install a Python Wheel File Offline
+
+1. Connect to the workbench and open JupyterLab.
+2. In the left-side file browser, click the **Upload Files** button and select one or more `.whl` files from your local machine.
+3. Open a terminal in JupyterLab and go to the directory that contains the uploaded files.
+4. Install the package:
+
+   ```bash
+   pip install ./your_package-1.0.0-py3-none-any.whl
+   ```
+
+If the package depends on other wheel files, upload all required `.whl` files to the same directory and install them without accessing an external package index:
+
+```bash
+pip install --no-index --find-links . your-package
+```
+
 :::info
-We have built-in WorkspaceKind resources that are ready to use out of the box; you can see the two options we provide in the dropdown menu.
-- [jupyter-lab](https://hub.docker.com/r/alaudadockerhub/odh-workbench-jupyter-datascience-cpu-py312-ubi9)
-- [codeserver](https://hub.docker.com/r/alaudadockerhub/odh-workbench-codeserver-datascience-cpu-py312-ubi9)
+Packages installed directly into the container are suitable for temporary or personal use. If you recreate the workbench, packages installed only inside the container may be lost. For repeatable environments, prefer a custom workbench image or a virtual environment stored on persistent storage.
 :::
 
-The following additional workbench images are available but are **not built into the platform by default**:
+## Available Workbench Images
 
-- [alaudadockerhub/odh-workbench-jupyter-tensorflow-cuda-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-workbench-jupyter-tensorflow-cuda-py312-ubi9)
-- [alaudadockerhub/odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-ubi9)
-- [alaudadockerhub/odh-workbench-jupyter-pytorch-cuda-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-workbench-jupyter-pytorch-cuda-py312-ubi9)
-- [alaudadockerhub/odh-workbench-jupyter-minimal-cpu-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-workbench-jupyter-minimal-cpu-py312-ubi9)
-- [alaudadockerhub/odh-workbench-jupyter-minimal-cuda-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-workbench-jupyter-minimal-cuda-py312-ubi9)
+The platform provides a set of ready-to-use `WorkspaceKind` images that appear directly in the workbench creation form. Additional images are also published on Docker Hub, but they are not synchronized into the platform by default.
 
-If you want to use these images, you must first **manually synchronize them to your own image registry** (for example, by using a tool such as `skopeo`).
+The following tables use the same general style as the Red Hat OpenShift AI documentation: each image is described by its intended use, and key preinstalled packages are listed for quick reference. The package lists are representative rather than exhaustive. Versions are taken from the matching image directories in the build repository and their corresponding lock files.
 
-## DockerHub Image Synchronization Script Guide
+### Built-in images
 
-[sync-from-dockerhub.sh](/sync-from-dockerhub.sh) is an automated tool designed to synchronize specific DockerHub images (especially those with ultra-large capacities, such as a single layer exceeding 7GB) to a private image registry (like Harbor).
-Because large-capacity images are highly susceptible to Out-Of-Memory (OOM) errors or timeout failures during direct transfer (via pipelines or memory) due to network fluctuations, this script adopts a relay strategy of **Pull to local -> Export as tar archive -> Push from tar archive to target registry**. This ensures stable synchronization even for files in the tens of gigabytes range. Additionally, it features an **automatic temporary file cleanup** mechanism that triggers upon task completion or unexpected errors, protecting your disk space.
+The following images are available out of the box:
+
+#### Multi-architecture images (`x86_64` and `arm64`)
+
+| Image name                                                                                                                                                                         | Description                                                                                                                            | Main packages                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Minimal Python**<br />[alauda-workbench-jupyter-minimal-cpu-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/alauda-workbench-jupyter-minimal-cpu-py312-ubi9)                | Use this image if you want a lightweight Jupyter workbench and plan to install project-specific packages yourself.                     | `Python 3.12`<br />`JupyterLab 4.5.6`<br />`Jupyter Server 2.17.0`<br />`JupyterLab Git 0.52.0`<br />`nbdime 4.0.4`<br />`nbgitpuller 1.2.2`                                                                                                                                                                                       |
+| **Standard Data Science**<br />[alauda-workbench-jupyter-datascience-cpu-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/alauda-workbench-jupyter-datascience-cpu-py312-ubi9) | Use this image for general data science work that does not require a framework-specific GPU image.                                     | `Python 3.12`<br />`JupyterLab 4.5.6`<br />`Jupyter Server 2.17.0`<br />`NumPy 2.4.3`<br />`pandas 2.3.3`<br />`SciPy 1.16.3`<br />`scikit-learn 1.8.0`<br />`Matplotlib 3.10.8`<br />`Plotly 6.5.2`<br />`KFP 2.15.2`<br />`Kubeflow Training 1.9.3`<br />`Feast 0.60.0`<br />`CodeFlare SDK 0.35.0`<br />`ODH Elyra 4.3.2`       |
+| **code-server**<br />[alauda-workbench-codeserver-datascience-cpu-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/alauda-workbench-codeserver-datascience-cpu-py312-ubi9)     | Use this image if you prefer a VS Code-like IDE for data science development. Elyra-based pipelines are not available with this image. | `Python 3.12`<br />`code-server 4.106.3`<br />`Python extension 2026.0.0`<br />`Jupyter extension 2025.9.1`<br />`ipykernel 7.2.0`<br />`debugpy 1.8.20`<br />`NumPy 2.4.3`<br />`pandas 2.3.3`<br />`scikit-learn 1.8.0`<br />`SciPy 1.16.3`<br />`KFP 2.15.2`<br />`Feast 0.60.0`<br />`virtualenv 21.1.0`<br />`ripgrep 15.0.0` |
+
+### Additional images
+
+The following images are available on Docker Hub but are **not built into the platform by default**:
+
+#### `x86_64` images
+
+These images are intended for `x86_64` nodes with NVIDIA GPU support.
+
+| Image name                                                                                                                                                                                                          | Description                                                                           | Main packages                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **TensorFlow**<br />[alaudadockerhub/odh-workbench-jupyter-tensorflow-cuda-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-workbench-jupyter-tensorflow-cuda-py312-ubi9)                                   | Use this image for TensorFlow model development and training on NVIDIA GPUs.          | `Python 3.12`<br />`CUDA base image 12.9`<br />`TensorFlow 2.20.0+redhat`<br />`TensorBoard 2.20.0`<br />`JupyterLab 4.5.6`<br />`Jupyter Server 2.17.0`<br />`NumPy 2.4.3`<br />`pandas 2.3.3`                                                                                                                |
+| **PyTorch LLM Compressor**<br />[alaudadockerhub/odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-ubi9) | Use this image for PyTorch-based LLM compression and optimization on NVIDIA GPUs.     | `Python 3.12`<br />`CUDA base image 12.9`<br />`PyTorch 2.9.1`<br />`torchvision 0.24.1`<br />`TensorBoard 2.20.0`<br />`llmcompressor 0.9.0.2`<br />`transformers 4.57.3`<br />`datasets 4.4.1`<br />`accelerate 1.12.0`<br />`compressed-tensors 0.13.0`<br />`nvidia-ml-py 13.590.44`<br />`lm-eval 0.4.11` |
+| **PyTorch**<br />[alaudadockerhub/odh-workbench-jupyter-pytorch-cuda-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-workbench-jupyter-pytorch-cuda-py312-ubi9)                                            | Use this image for PyTorch model development and training on NVIDIA GPUs.             | `Python 3.12`<br />`CUDA base image 12.9`<br />`PyTorch 2.9.1`<br />`torchvision 0.24.1`<br />`TensorBoard 2.20.0`<br />`JupyterLab 4.5.6`<br />`Jupyter Server 2.17.0`<br />`onnxscript 0.6.2`                                                                                                                |
+| **CUDA Minimal Python**<br />[alaudadockerhub/odh-workbench-jupyter-minimal-cuda-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-workbench-jupyter-minimal-cuda-py312-ubi9)                                | Use this image if you need a lightweight Jupyter base image with NVIDIA CUDA support. | `Python 3.12`<br />`CUDA base image 13.0`<br />`JupyterLab 4.5.6`<br />`Jupyter Server 2.17.0`<br />`JupyterLab Git 0.52.0`<br />`nbdime 4.0.4`<br />`nbgitpuller 1.2.2`                                                                                                                                       |
+
+#### `arm64` images
+
+These images are intended for `arm64` nodes with Ascend NPU support.
+
+| Image name                                                                                                                                                                 | Description                                                                           | Main packages                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CANN Minimal Python**<br />[alauda-workbench-jupyter-minimal-cann-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/alauda-workbench-jupyter-minimal-cann-py312-ubi9) | Use this image if you need a lightweight Jupyter base image with Ascend CANN support. | `Python 3.12`<br />`CANN 8.5.0`<br />`JupyterLab 4.5.6`<br />`Jupyter Server 2.17.0`<br />`JupyterLab Git 0.51.4`<br />`nbdime 4.0.4`<br />`nbgitpuller 1.2.2`                                                                                                                                                                                           |
+| **PyTorch CANN**<br />[alauda-workbench-jupyter-pytorch-cann-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/alauda-workbench-jupyter-pytorch-cann-py312-ubi9)        | Use this image for PyTorch model development and training on Ascend NPUs.             | `Python 3.12`<br />`CANN 8.5.0`<br />`PyTorch 2.9.0`<br />`torch_npu 2.9.0` (Ascend release `7.3.0`)<br />`JupyterLab 4.5.6`<br />`Jupyter Server 2.17.0`<br />`TensorBoard 2.20.0`<br />`Ray 2.54.0`<br />`onnxscript 0.6.2`<br />`NumPy 2.4.3`<br />`pandas 2.3.3`<br />`scikit-learn 1.8.0`<br />`SciPy 1.16.3`<br />`KFP 2.15.2`<br />`Feast 0.60.0` |
+
+To use an additional image, first synchronize it to your own image registry. You can do this with a tool such as `skopeo`, or by using the script described in the next section.
+
+## Docker Hub Image Synchronization Script Guide
+
+[sync-from-dockerhub.sh](/sync-from-dockerhub.sh) is an automated tool for synchronizing selected Docker Hub images, especially very large images, to a private image registry such as Harbor.
+Large images are more likely to encounter Out-Of-Memory (OOM) or timeout failures during direct transfer because of network fluctuations. To improve reliability, the script uses a relay workflow: **pull locally -> export as a tar archive -> push the tar archive to the target registry**. It also cleans up temporary files automatically when the task completes or exits unexpectedly.
 
 ### Script Prerequisites
+
 Before running this script, ensure the following tools are installed and accessible on your execution machine:
+
 - `bash` (Execution environment)
 - `nerdctl` (For pulling images and exporting layers as tar archives)
 - `skopeo` (For pushing the tar image archives to the target private registry)
@@ -65,14 +131,16 @@ Before running this script, ensure the following tools are installed and accessi
 The script executes synchronization by reading environment variables, providing flexible usage without the need to modify the code.
 
 ### Required Parameters (Target Private Registry Configuration)
+
 | Environment Variable | Description                                                           | Example Value            |
-|:---------------------|:----------------------------------------------------------------------|:-------------------------|
+| :------------------- | :-------------------------------------------------------------------- | :----------------------- |
 | `TARGET_REGISTRY`    | Address of the target private image registry                          | `build-harbor.alauda.cn` |
 | `TARGET_PROJECT`     | Specific project/namespace in the target registry to store the images | `mlops/workbench-images` |
 | `TARGET_USER`        | Username for logging into the target registry                         | `admin`                  |
 | `TARGET_PASSWORD`    | Password for logging into the target registry                         | `YourSecretPassword`     |
 
 ### Optional Parameters (Source DockerHub Configuration)
+
 To prevent triggering DockerHub's Rate Limit when pulling a large volume of images, you can provide your DockerHub credentials to log in prior to pulling. If unnecessary, leave these blank.
 | Environment Variable | Description | Example Value |
 | :--- | :--- | :--- |
@@ -82,6 +150,7 @@ To prevent triggering DockerHub's Rate Limit when pulling a large volume of imag
 ---
 
 ### Example 1: Basic Usage (Most Common)
+
 If you only need to synchronize the images defined within the script to your private Harbor:
 
 ```bash
@@ -99,6 +168,7 @@ chmod +x ./sync-from-dockerhub.sh
 ```
 
 ### Example 2: Single-Line Command Execution (Suitable for CI Environments)
+
 You can declare environment variables and run the script on the same line. This approach avoids polluting the current Shell environment variables:
 
 ```bash
@@ -110,6 +180,7 @@ TARGET_PASSWORD="YourHarborPassword" \
 ```
 
 ### Example 3: Full Execution with DockerHub Authentication (Rate-Limit Prevention)
+
 When pulling images frequently from the same machine, DockerHub might reject your requests. In this case, include your DockerHub credentials:
 
 ```bash
@@ -127,6 +198,7 @@ export DOCKERHUB_PASSWORD="dckr_pat_xxx_your_token_xxx"
 ---
 
 ### Troubleshooting and Notes
+
 1. **Disk Space**: Since the script needs to temporarily store ultra-large images (e.g., 13GB) as `tar` archives, ensure that your system's `/tmp` directory (or its underlying root partition) has ample free space (at least 30GB recommended). The script's default staging directory is `/tmp/workbench-images-export-from-hub`.
 2. **Transfer Timeouts**: The current script sets a timeout of 120 minutes (`SKOPEO_TIMEOUT="120m"`) for pushing large files. If the process fails due to extremely slow network speeds, you can adjust this parameter value at the top of the script using any text editor.
 3. **Modifying the Image List**: If there are images you no longer wish to synchronize, simply open `sync-from-dockerhub.sh` and use a `#` to comment out those specific lines within the `WORKBENCH_IMAGES` array (similar to how the minimal images were filtered out in `sync.sh`).

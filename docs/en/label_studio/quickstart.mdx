@@ -6,35 +6,14 @@ weight: 30
 
 ## S3 Integration
 
-Label Studio supports integration with S3-compatible storage for importing data and exporting annotations. This includes Amazon S3, MinIO, and other S3-compatible storage services.
+Label Studio supports integration with S3-compatible storage for importing data and exporting annotations. Common options include Amazon S3, Ceph RGW, and other S3-compatible object storage services.
 
 ### Prerequisites
 
 - S3-compatible storage bucket with appropriate permissions
 - Access credentials (Access Key ID and Secret Access Key)
 
-#### Using ACP MinIO as S3 Storage
-
-> Note: ACP MinIO is only one optional choice. You may use any S3-compatible storage (e.g., Amazon S3, Ceph RGW, etc.).
-
-You can use the built-in MinIO from ACP as S3 storage:
-
-1. **Object Storage**: In Administrator view, go to `Storage` / `Object Storage` to check if MinIO is already created. If not, click **Configure Now** to start the setup process.
-
-2. **Deploy MinIO Operator**: The `Create Object Storage` process has two steps. First, click **Deploy Operator** to deploy the MinIO Operator following the page guidance.
-
-3. **Create MinIO Cluster**: After the MinIO Operator is deployed, proceed to the second step `Create Cluster`. Fill in the required information:
-   - **Name**: Cluster name
-   - **Access Key** and **Secret Key**: Administrator credentials
-   - **Resource Configuration**: Resource allocation settings
-   - **Storage Pool Configuration**: Storage pool settings
-   - **Access Configuration**: Access method settings
-
-   Click **Create Cluster** to create the MinIO Cluster.
-
-4. **Get Access Information**: The MinIO Cluster access address can be found in the **Access Method** tab.
-
-5. **Manage Buckets and Credentials**: Use `mc` client to access the MinIO Cluster, create buckets, and generate low-privilege Access Keys/Secret Keys. See [MinIO Client Documentation](https://docs.min.io/community/minio-object-store/reference/minio-mc.html) for usage details.
+The bucket and credentials must come from a supported S3-compatible service; no specific object storage product is required by the platform.
 
 ### Using S3 with Label Studio
 
@@ -48,8 +27,8 @@ You can use the built-in MinIO from ACP as S3 storage:
    - Fill in the required information:
      - **Storage Title**: Name for the storage connection
      - **Bucket Name**: S3 bucket name
-     - **Region Name**: Storage region (e.g., us-east-1 for AWS S3, can be empty for MinIO)
-     - **S3 Endpoint**: Optional custom S3 endpoint (leave empty for AWS S3, required for MinIO)
+     - **Region Name**: Storage region (e.g., us-east-1 for AWS S3; may be empty if the provider does not require it)
+     - **S3 Endpoint**: Optional custom S3 endpoint (leave empty for AWS S3 default; set when using a non-default or S3-compatible endpoint)
      - **Access Key ID**: Access key
      - **Secret Access Key**: Secret key
      - **Session Token**: Optional session token for temporary credentials
@@ -76,7 +55,7 @@ You can use the built-in MinIO from ACP as S3 storage:
 4. **Upload Data to S3**
    - Upload data files to the configured S3 bucket and prefix path
    - Ensure data files are accessible with the configured access credentials
-   - Use `mc` client or AWS CLI for bulk uploads
+   - Use the AWS CLI or another S3-compatible client for bulk uploads
 
 5. **Import Data**
    - Click **Sync Storage** under `Source Cloud Storage` to import data from S3
@@ -92,7 +71,7 @@ You can use the built-in MinIO from ACP as S3 storage:
    - **Note**: Target Storage exports annotations in JSON format only. Use Label Studio SDK to convert JSON annotations to other formats (CSV, COCO, Pascal VOC, YOLO, etc.). See [SDK converter](https://github.com/HumanSignal/label-studio-sdk/tree/master/src/label_studio_sdk/converter) for details.
 
 8. **Apply Data and Annotations to Model Training/Validation**
-   - Download training data and annotations from S3 using `mc` client or AWS Python SDK (boto3). See [S3 examples](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/s3-examples.html) for implementation details.
+   - Download training data and annotations from S3 using the AWS CLI, boto3, or another S3 client. See [S3 examples](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/s3-examples.html) for implementation details.
    - Convert annotation format using Label Studio SDK if needed.
    - Integrate data into machine learning pipelines.
    - Use annotations for model training or validation.
