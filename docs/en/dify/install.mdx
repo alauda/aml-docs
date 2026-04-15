@@ -56,7 +56,7 @@ This chart supports **pgvector** only. Use a PostgreSQL instance with the pgvect
 
 ### Prepare Storage (optional)
 
-The cluster should have CSI or pre-created PersistentVolumes if you use PVC for API and plugin storage. By default the chart uses PVC; you can override `storageClass`, `size`, and `accessMode` in values, or use S3/MinIO instead (see [Storage (S3 and PVC)](#storage-s3-and-pvc)).
+The cluster should have CSI or pre-created PersistentVolumes if you use PVC for API and plugin storage. By default the chart uses PVC; you can override `storageClass`, `size`, and `accessMode` in values, or use S3-compatible object storage instead (see [Storage (S3 and PVC)](#storage-s3-and-pvc)).
 
 ### Create Application
 
@@ -187,7 +187,7 @@ storage:
       accessMode: ReadWriteOnce
 ```
 
-**S3 (object storage):** Use S3 or MinIO-compatible storage for API and/or plugin. Create a Secret with `ACCESS_KEY` and `SECRET_KEY` (or configure custom keys in values):
+**S3 (object storage):** Use Amazon S3 or another S3-compatible object store for API and/or plugin. Create a Secret with `ACCESS_KEY` and `SECRET_KEY` (or configure custom keys in values):
 
 ```bash
 kubectl create secret generic <dify-s3-secret> --from-literal=ACCESS_KEY='<access-key>' --from-literal=SECRET_KEY='<secret-key>'
@@ -198,10 +198,10 @@ storage:
   api:
     type: s3
     s3:
-      endpoint: <s3-endpoint>   # empty for AWS default; MinIO e.g. http://minio:9000
+      endpoint: <s3-endpoint>   # empty for AWS default; for custom endpoints e.g. https://object-storage.example.com:9000
       region: <region>
       bucket: <bucket>
-      addressStyle: path   # "path" for MinIO; "virtual" for AWS
+      addressStyle: path   # "path" for many S3-compatible endpoints; "virtual" for AWS
       secret:
         name: <dify-s3-secret>
   plugin:
