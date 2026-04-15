@@ -77,7 +77,7 @@ For production environments or complex dependencies (e.g., system libraries), bu
 
 ## Manage Configurations (PodDefaults)
 
-Kubeflow uses `PodDefault` resources (often labeled as **Configurations** in the UI) to inject common configurations—such as environment variables, volumes, and volume mounts—into Notebooks. This is the standard way to securely provide credentials for Object Storage (S3, MinIO) without hardcoding them in your notebooks.
+Kubeflow uses `PodDefault` resources (often labeled as **Configurations** in the UI) to inject common configurations—such as environment variables, volumes, and volume mounts—into Notebooks. This is the standard way to securely provide credentials for Object Storage without hardcoding them in your notebooks.
 
 ### Create a PodDefault
 
@@ -128,8 +128,8 @@ df = pd.read_csv('/home/jovyan/data/dataset.csv')
 print(df.head())
 ```
 
-### Using Object Storage (S3 / MinIO)
-To access data in S3-compatible storage, use libraries like `boto3` or `s3fs`. If your administrator has configured PodDefaults for credentials, environment variables (like `AWS_ACCESS_KEY_ID`) will be pre-populated.
+### Using Object Storage
+To access data in Object Storage, use libraries like `boto3` or `s3fs`. Many providers expose an S3-compatible API, so if your administrator has configured PodDefaults for credentials, environment variables such as `AWS_ACCESS_KEY_ID` are often pre-populated.
 
 ```python
 import os
@@ -139,7 +139,7 @@ import pandas as pd
 # Check if credentials are injected
 print(os.getenv("AWS_S3_ENDPOINT"))
 
-# Read directly from S3
+# Read directly from Object Storage
 fs = s3fs.S3FileSystem(
     client_kwargs={'endpoint_url': os.getenv('AWS_S3_ENDPOINT')},
     key=os.getenv('AWS_ACCESS_KEY_ID'),
@@ -156,4 +156,3 @@ with fs.open('s3://my-bucket/data/train.csv') as f:
 - **Git Integration**: Use the Git extension in JupyterLab (or the terminal) to version control your notebooks. Avoid storing large datasets in Git.
 - **Resource Monitoring**: Monitor your resource usage. If your kernel crashes frequently (OOM), you may need to stop the server and restart it with more Memory limits.
 - **Clean Up**: Periodically delete old notebook servers and their associated PVCs if the data is no longer needed.
-

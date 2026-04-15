@@ -18,25 +18,27 @@ python -m pip install kfp
 
 ### Configure KFP to Run with your Object Storage
 
-When you installed Kubeflow with an external S3/MinIO storage service, you need to add a "KFP Launcher" configmap to setup storage used by current namespace or user. You can checkout Kubeflow document https://www.kubeflow.org/docs/components/pipelines/operator-guides/configure-object-store/#s3-and-s3-compatible-provider for more details. If no configuation is set, the pipeline runs may still accessing the default service address like "minio-service.kubeflow:9000" which may not be correct.
+When you install Kubeflow with external Object Storage, add a `KFP Launcher` ConfigMap to configure the storage used by the current namespace or user. You can check the Kubeflow documentation at https://www.kubeflow.org/docs/components/pipelines/operator-guides/configure-object-store/#s3-and-s3-compatible-provider for more details. If no configuration is set, pipeline runs may still try to access a default in-cluster object storage endpoint, which may not match your deployment.
+
+Starting with Kubeflow 1.11.0, the default bundled object storage changes to SeaweedFS. To keep your setup portable across versions, configure Kubeflow Pipelines to use your own Object Storage endpoint instead of depending on a built-in storage service name.
 
 Below is a simple sample for you to start:
 
 ```yaml
 apiVersion: v1
 data:
-  defaultPipelineRoot: s3://mlpipeline
+  defaultPipelineRoot: s3://pipeline-artifacts
   providers: |-
     s3:
       default:
-        endpoint: minio.minio-system.svc:80
+        endpoint: object-storage.storage.svc:80
         disableSSL: true
         region: us-east-2
         forcePathStyle: true
         credentials:
           fromEnv: false
           secretRef:
-            secretName: mlpipeline-minio-artifact
+            secretName: mlpipeline-object-storage-artifact
             accessKeyKey: accesskey
             secretKeyKey: secretkey
 kind: ConfigMap
@@ -45,16 +47,16 @@ metadata:
   namespace: wy-testns
 ```
 
-For example, you should setup below values in this configmap to point to your own S3/MinIO storage
+For example, set the following values in this ConfigMap to point to your own Object Storage:
 
-defaultPipelineRoot: where to store the pipeline intermediate data
-endpoint: s3/MinIO service endpoint. Note, should NOT start with "http" or "https"
-disableSSL: whether disable "https" access to the endpoint
-region: s3 region. If using MinIO, any value will be fine
-credentials: AK/SK in the secrets
+defaultPipelineRoot: where to store pipeline intermediate data and artifacts
+endpoint: Object Storage service endpoint. It should not start with `http` or `https`
+disableSSL: whether to disable HTTPS access to the endpoint
+region: the region required by your Object Storage provider
+credentials: access key and secret key stored in the referenced Secret
 
 
-After add this configmap, the newly started Kubeflow Pipeline Runs will automatically read this configration, and save stuff that is used by Kubeflow Pipeline.
+After you add this ConfigMap, newly started Kubeflow Pipeline runs automatically read the configuration and store pipeline data in the configured Object Storage.
 
 ## Quick Start Example
 
@@ -142,4 +144,3 @@ You can schedule pipelines to run automatically at specific intervals:
 3. **Trigger**: Set the schedule (e.g., Periodic, Cron).
 4. **Parameters**: Configure the inputs that will be used for every scheduled execution.
 5. Click **Start**.
-

@@ -6,14 +6,14 @@ weight: 20
 
 TensorFlow's visualization toolkit, TensorBoard, is a powerful dashboard for visualizing machine learning experiments. It allows you to track metrics like loss and accuracy, visualize the model graph, view histograms of weights and biases, and much more.
 
-Kubeflow provides a native way to spawn TensorBoard instances directly within your Kubernetes cluster, pointing them to existing logs stored on Persistent Volume Claims (PVCs) or Object Storage (S3, MinIO).
+Kubeflow provides a native way to spawn TensorBoard instances directly within your Kubernetes cluster, pointing them to existing logs stored on Persistent Volume Claims (PVCs) or Object Storage.
 
 ## Prerequisites
 
 Before creating a TensorBoard instance, ensure that your training jobs are writing logs to a location accessible by the cluster.
 
 - **PVC**: If your training job writes logs to a Persistent Volume, note the PVC name and the path within it.
-- **Object Storage**: If your training job writes logs to S3/MinIO, ensure you have the necessary credentials (often configured via PodDefaults) and the bucket URI (e.g., `s3://my-bucket/logs/experiment-1`).
+- **Object Storage**: If your training job writes logs to Object Storage, ensure you have the necessary credentials (often configured via PodDefaults) and the bucket URI (for example, `s3://my-bucket/logs/experiment-1`).
 
 ## Generating Logs with PyTorch
 
