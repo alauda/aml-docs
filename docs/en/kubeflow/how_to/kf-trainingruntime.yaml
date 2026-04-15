@@ -1,0 +1,366 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainingRuntime
+metadata:
+  name: llamafactory-finetune-runtime
+  namespace: mlops-demo-ai-test
+  labels:
+    trainer.kubeflow.org/framework: torch
+spec:
+  mlPolicy:
+    numNodes: 1
+    torch:
+      numProcPerNode: auto
+  template:
+    spec:
+      replicatedJobs:
+        - name: dataset-initializer
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: dataset-initializer
+            spec:
+              template:
+                spec:
+                  securityContext:
+                    runAsNonRoot: true
+                    runAsUser: 65534
+                    runAsGroup: 65534
+                    fsGroup: 65534
+                  containers:
+                    - name: dataset-initializer
+                      image: 152-231-registry.alauda.cn:60070/mlops/fine_tune_with_llamafactory:v0.1.11
+                      command:
+                      - /bin/bash
+                      - -c
+                      - |
+                        set -ex
+                        cd /mnt/models
+                        DATASET_NAME=$(basename ${DATASET_URL})
+                        DATASET_URL_NO_HTTPS="${DATASET_URL//https:\/\/}"
+                        gitauth="${GIT_USER}:${GIT_TOKEN}"
+                        rm -rf ${DATASET_NAME}
+                        rm -rf data
+                        if [ -d ${DATASET_NAME} ]; then
+                            echo "dataset ${DATASET_NAME} already exists skipping download"
+                        else
+                            git -c http.sslVerify=false -c lfs.activitytimeout=36000 clone "https://${gitauth}@${DATASET_URL_NO_HTTPS}"
+                        fi
+                        echo "listing files under /mnt/models ..."
+                        ls /mnt/models
+                        echo "listing dataset files ..."
+                        ls ${DATASET_NAME}
+                      env:
+                      # Step 1: set DATASET_URL to download dataset from gitlab.
+                      - name: DATASET_URL
+                        value: "https://aml-gitlab.alaudatech.net/mlops-demo-ai-test/amldatasets/identity-alauda"
+                      # Step 2: set GIT_USER and GIT_TOKEN to access private git repo.
+                      # NOTE: if your dataset is located in different storage like S3, you need to modify the initializer container to download dataset from S3 instead of git.
+                      - name: GIT_USER
+                        valueFrom:
+                          secretKeyRef:
+                            name: aml-image-builder-secret
+                            key: MODEL_REPO_GIT_USER
+                      - name: GIT_TOKEN
+                        valueFrom:
+                          secretKeyRef:
+                            name: aml-image-builder-secret
+                            key: MODEL_REPO_GIT_TOKEN
+                      resources:
+                        requests:
+                          cpu: 100m
+                          memory: 128Mi
+                        limits:
+                          cpu: 2
+                          memory: 4Gi
+                      securityContext:
+                        allowPrivilegeEscalation: false
+                        capabilities:
+                          drop:
+                            - ALL
+                        runAsNonRoot: true
+                        seccompProfile:
+                          type: RuntimeDefault
+        - name: model-initializer
+          dependsOn:
+            - name: dataset-initializer
+              status: Complete
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: model-initializer
+            spec:
+              template:
+                spec:
+                  securityContext:
+                    runAsNonRoot: true
+                    runAsUser: 65534
+                    runAsGroup: 65534
+                    fsGroup: 65534
+                  containers:
+                    - name: model-initializer
+                      image: 152-231-registry.alauda.cn:60070/mlops/fine_tune_with_llamafactory:v0.1.11
+                      command:
+                      - /bin/bash
+                      - -c
+                      - |
+                        set -ex
+                        cd /mnt/models
+                        BASE_MODEL_NAME=$(basename ${BASE_MODEL_URL})
+                        # Download base model
+                        gitauth="${GIT_USER}:${GIT_TOKEN}"
+                        BASE_MODEL_URL_NO_HTTPS="${BASE_MODEL_URL//https:\/\/}"
+                        if [ -d ${BASE_MODEL_NAME} ]; then
+                            echo "${BASE_MODEL_NAME} dir already exists, skip downloading"
+                        else
+                            GIT_LFS_SKIP_SMUDGE=1 git -c http.sslVerify=false -c lfs.activitytimeout=36000 clone "https://${gitauth}@${BASE_MODEL_URL_NO_HTTPS}"
+                            (cd ${BASE_MODEL_NAME} && git -c http.sslVerify=false -c lfs.activitytimeout=36000 lfs pull)
+                        fi
+                        echo "listing files under /mnt/models ..."
+                        ls /mnt/models
+                        echo "listing model files ..."
+                        ls ${BASE_MODEL_NAME}
+                      env:
+                      # Step 3: set BASE_MODEL_URL to download base model from gitlab. Make sure the GIT_USER and GIT_TOKEN have access to this git repo.
+                      # NOTE: model repo name should not be the same as dataset repo name, otherwise the initializer may fail to download model and dataset correctly since they use the same PVC and the same git clone command.
+                      - name: BASE_MODEL_URL
+                        value: "https://aml-gitlab.alaudatech.net/mlops-demo-ai-test/amlmodels/qwen3-0.6b"
+                      - name: GIT_USER
+                        valueFrom:
+                          secretKeyRef:
+                            name: aml-image-builder-secret
+                            key: MODEL_REPO_GIT_USER
+                      - name: GIT_TOKEN
+                        valueFrom:
+                          secretKeyRef:
+                            name: aml-image-builder-secret
+                            key: MODEL_REPO_GIT_TOKEN
+                      resources:
+                        requests:
+                          cpu: 100m
+                          memory: 128Mi
+                        limits:
+                          cpu: 2
+                          memory: 4Gi
+                      securityContext:
+                        allowPrivilegeEscalation: false
+                        capabilities:
+                          drop:
+                            - ALL
+                        runAsNonRoot: true
+                        seccompProfile:
+                          type: RuntimeDefault
+        - name: node
+          dependsOn:
+            - name: model-initializer
+              status: Complete
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              backoffLimit: 3
+              template:
+                spec:
+                  securityContext:
+                    runAsNonRoot: true
+                    runAsUser: 65534
+                    runAsGroup: 65534
+                    fsGroup: 65534
+                  volumes:
+                  - name: workspace
+                    emptyDir: {}
+                  - name: dshm
+                    emptyDir:
+                      medium: Memory
+                      # Step 4: set sizeLimit for dshm volume to tune the performance of multi GPU training.
+                      sizeLimit: 2Gi
+                  containers:
+                    - name: node
+                      image: 152-231-registry.alauda.cn:60070/mlops/fine_tune_with_llamafactory:v0.1.11
+                      env:
+                      - name: BASE_MODEL_URL
+                        value: "https://aml-gitlab.alaudatech.net/mlops-demo-ai-test/amlmodels/qwen3-0.6b"
+                      - name: DATASET_URL
+                        value: "https://aml-gitlab.alaudatech.net/mlops-demo-ai-test/amldatasets/identity-alauda"
+                      - name: GIT_USER
+                        valueFrom:
+                          secretKeyRef:
+                            name: aml-image-builder-secret
+                            key: MODEL_REPO_GIT_USER
+                      - name: GIT_TOKEN
+                        valueFrom:
+                          secretKeyRef:
+                            name: aml-image-builder-secret
+                            key: MODEL_REPO_GIT_TOKEN
+                      - name: HF_HOME
+                        value: /mnt/workspace/hf_cache
+                      - name: DO_MERGE
+                        value: "true"
+                      - name: MLFLOW_TRACKING_URI
+                        value: "http://mlflow-tracking-server.kubeflow:5000"
+                      - name: MLFLOW_EXPERIMENT_NAME
+                        value: mlops-demo-ai-test
+                      - name: MODEL_OUTPUT_DIR
+                        value: /mnt/workspace/output_model
+                      - name: OUTPUT_MODEL_URL
+                        value: "https://aml-gitlab.alaudatech.net/mlops-demo-ai-test/amlmodels/wy-sft-output"
+                      command:
+                        - bash
+                        - -c
+                        - |
+                          set -ex
+                          echo "PET_NNODES: ${PET_NNODES}, PET_NODE_RANK: ${PET_NODE_RANK}, PET_MASTER_ADDR: ${PET_MASTER_ADDR}, PET_MASTER_PORT: ${PET_MASTER_PORT}"
+                          if [ ${PET_NNODES} -gt 1 ]; then
+                              export N_RANKS=$PET_NNODES
+                              export RANK=$PET_NODE_RANK
+                              export MASTER_HOST=$PET_MASTER_ADDR
+                              export MASTER_PORT=$PET_MASTER_PORT
+                              export WORLD_SIZE=$PET_NNODES
+                              export NNODES=$PET_NNODES
+                              export NODE_RANK=$PET_NODE_RANK
+                              export MASTER_ADDR=${MASTER_HOST}
+                          else
+                              export N_RANKS=1
+                              export RANK=0
+                              export NNODES=1
+                              export MASTER_HOST=""
+                          fi
+
+                          cd /mnt/workspace
+                          BASE_MODEL_NAME=$(basename ${BASE_MODEL_URL})
+                          DATASET_NAME=$(basename ${DATASET_URL})
+
+                          cat >lf-sft.yaml <<EOL
+                          model_name_or_path: /mnt/models/${BASE_MODEL_NAME}
+
+                          stage: sft
+                          do_train: true
+                          finetuning_type: lora
+                          lora_target: all
+                          lora_rank: 8
+                          lora_alpha: 16
+                          lora_dropout: 0.1
+
+                          dataset: identity_alauda
+                          dataset_dir: /mnt/models/${DATASET_NAME}
+                          template: qwen
+                          cutoff_len: 1024
+                          max_samples: 1000
+                          overwrite_cache: true
+                          preprocessing_num_workers: 8
+
+                          output_dir: output_models
+                          logging_steps: 10
+                          save_steps: 500
+                          plot_loss: true
+                          overwrite_output_dir: true
+
+                          # global batch size: 8
+                          per_device_train_batch_size: 2
+                          gradient_accumulation_steps: 2
+                          learning_rate: 2.0e-4
+                          num_train_epochs: 4.0
+                          bf16: false
+                          fp16: true
+                          ddp_timeout: 180000000
+
+                          val_size: 0.1
+                          per_device_eval_batch_size: 1
+                          eval_strategy: steps
+                          eval_steps: 500
+                          report_to: mlflow
+                          EOL
+
+                          cat >ds-z3-config.json <<EOL
+                          {
+                            "train_batch_size": "auto",
+                            "train_micro_batch_size_per_gpu": "auto",
+                            "gradient_accumulation_steps": "auto",
+                            "gradient_clipping": "auto",
+                            "zero_allow_untested_optimizer": true,
+                            "fp16": {
+                              "enabled": "auto",
+                              "loss_scale": 0,
+                              "loss_scale_window": 1000,
+                              "initial_scale_power": 16,
+                              "hysteresis": 2,
+                              "min_loss_scale": 1
+                            },
+                            "bf16": {
+                              "enabled": "auto"
+                            },
+                            "zero_optimization": {
+                              "stage": 3,
+                              "overlap_comm": false,
+                              "contiguous_gradients": true,
+                              "sub_group_size": 1e9,
+                              "reduce_bucket_size": "auto",
+                              "stage3_prefetch_bucket_size": "auto",
+                              "stage3_param_persistence_threshold": "auto",
+                              "stage3_max_live_parameters": 1e9,
+                              "stage3_max_reuse_distance": 1e9,
+                              "stage3_gather_16bit_weights_on_model_save": true
+                            }
+                          }
+                          EOL
+
+                          # Run training
+                          if [ ${NNODES} -gt 1 ]; then
+                              echo "deepspeed: ds-z3-config.json" >> lf-sft.yaml
+                              FORCE_TORCHRUN=1 llamafactory-cli train lf-sft.yaml
+                          else
+                              unset NNODES
+                              unset NODE_RANK
+                              unset MASTER_ADDR
+                              unset MASTER_PORT
+                              llamafactory-cli train lf-sft.yaml
+                          fi
+
+                          if [ "${DO_MERGE}" == "true" ]; then
+                            # Merge LoRA adapters
+                            cat >lf-merge-config.yaml <<EOL
+                          model_name_or_path: /mnt/models/${BASE_MODEL_NAME}
+                          adapter_name_or_path: output_models
+                          template: qwen
+                          finetuning_type: lora
+
+                          ### export
+                          export_dir: output_models_merged
+                          export_size: 4
+                          export_device: cpu
+                          export_legacy_format: false
+                          EOL
+                                
+                            llamafactory-cli export lf-merge-config.yaml
+                          else
+                            # move output adapter for push
+                            mv output_models output_models_merged
+                          fi
+
+                          # push merged model to model repo
+                          gitauth="${GIT_USER}:${GIT_TOKEN}"
+                          cd /mnt/workspace/output_models_merged
+                          touch README.md
+                          OUTPUT_MODEL_NO_HTTPS="${OUTPUT_MODEL_URL//https:\/\/}"
+                          PUSH_URL="https://${gitauth}@${OUTPUT_MODEL_NO_HTTPS}"
+                          push_branch=$(date +'%Y%m%d-%H%M%S')
+
+                          git init
+                          git checkout -b sft-${push_branch}
+                          git lfs track *.safetensors
+                          git add .
+                          git -c user.name='AMLSystemUser' -c user.email='aml_admin@cpaas.io' commit -am "fine tune push auto commit"
+                          git -c http.sslVerify=false -c lfs.activitytimeout=36000 push -u ${PUSH_URL} sft-${push_branch}
+                      securityContext:
+                        allowPrivilegeEscalation: false
+                        capabilities:
+                          drop:
+                            - ALL
+                        runAsNonRoot: true
+                        seccompProfile:
+                          type: RuntimeDefault
+                      volumeMounts:
+                        - name: workspace
+                          mountPath: /mnt/workspace
+                        - name: dshm
+                          mountPath: /dev/shm
