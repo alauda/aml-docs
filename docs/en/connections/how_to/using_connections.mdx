@@ -30,8 +30,8 @@ For direct YAML examples of model deployment from S3, PVC, or OCI sources, see [
 ### Built-in Field Sets
 
 - **URI**: Provide the full URI in the `URI` field.
-- **OCI compliant registry**: Provide `ACCESS_TYPE`, upload or paste `.dockerconfigjson`, and enter `OCI_HOST`.
-- **S3 compatible object storage**: Provide `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_ENDPOINT`, and optionally `AWS_DEFAULT_REGION` and `AWS_S3_BUCKET`.
+- **OCI-compliant registry**: Provide `ACCESS_TYPE`, upload or paste `.dockerconfigjson`, and enter `OCI_HOST`.
+- **S3-compatible object storage**: Provide `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_ENDPOINT`, and optionally `AWS_DEFAULT_REGION` and `AWS_S3_BUCKET`.
 
 ### Verification
 
@@ -131,7 +131,7 @@ When you create or update an inference service, you can set **Model location** t
 
 ## Resource Model
 
-The current implementation uses project secrets for connections and cluster-level configmaps for connection types.
+The current implementation uses project secrets for connections and cluster-level ConfigMaps for connection types.
 
 ### Connection Secret Example
 
