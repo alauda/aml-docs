@@ -19,10 +19,10 @@ It is recommended to create separate ServiceAccount and Secret for each project.
 #### S3 Key Configuration Parameters
 | Configuration Item | Actual Value | Description |
 |-------------------|-------------|-------------|
-| Endpoint | your-s3-service-ip:your-s3-port | IP and port pointing to private MinIO service |
+| Endpoint | your-s3-service-ip:your-s3-port | IP and port pointing to private S3 service |
 | Region | (Not specified) | Default is usually us-east-1, KServe will use default value if not detected |
 | HTTPS Enabled | 0 | Encryption disabled for internal test/Demo environment |
-| Authentication Method | Static Access Key / Secret Key | Managed through Secret named minio-creds |
+| Authentication Method | Static Access Key / Secret Key | Managed through Secret named s3-creds |
 | Namespace Isolation | demo-space | Permissions limited to this namespace, following multi-tenant isolation principles |
 
 ```yaml
@@ -35,7 +35,7 @@ metadata:
   annotations:
     serving.kserve.io/s3-endpoint: your_s3_service_ip:your_s3_port # [!code callout]
     serving.kserve.io/s3-usehttps: "0" # [!code callout]
-  name: minio-creds
+  name: s3-creds
   namespace: demo-space
 type: Opaque
 ---
@@ -45,7 +45,7 @@ metadata:
   name: sa-models
   namespace: demo-space
 secrets:
-- name: minio-creds
+- name: s3-creds
 ```
 
 <Callouts>
