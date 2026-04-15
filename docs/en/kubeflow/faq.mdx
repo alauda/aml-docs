@@ -1,0 +1,186 @@
+---
+weight: 40
+---
+# FAQ
+
+## How to use Kubeflow plugins when setting PSA=restricted in Kubernetes
+
+If your namespace have PSA=restricted, you may encounter errors when using Kubeflow components like when you create notebooks, kubeflow pipeline runs etc. To solve that, you need to change the default PSA to `baseline` for the current namespace:
+
+```shell
+kubectl label --overwrite ns [NAMESPACE_NAME] pod-security.kubernetes.io/audit=baseline
+kubectl label --overwrite ns [NAMESPACE_NAME] pod-security.kubernetes.io/enforce=baseline
+kubectl label --overwrite ns [NAMESPACE_NAME] pod-security.kubernetes.io/warn=baseline
+```
+
+> NOTE: You may need to consult your cluster admin to make sure changing the PSA is acceptable.
+
+## How to Configure Kubeflow to Use an Alternative Platform Address for Login?
+
+In some environments, the platform access address is configured as an internal network address, and users need to log in through an "Alternative Platform Address." In this scenario, while the OIDC issuer remains based on the original platform address, the login page URL must be updated to the alternative address.
+
+Steps:  
+
+- Locate the ModuleInfo Resource:
+
+In the global cluster, find the ModuleInfo resource corresponding to the kfbase  plugin using the following command:
+
+```shell
+kubectl get moduleinfoes -l cpaas.io/module-name=kfbase,cpaas.io/cluster-name=<deployed-cluster-name>
+```
+
+- Edit the ModuleInfo Resource
+
+Add the valuesOverride  section under spec  as shown below. Replace `<Alternative-Platform-Address>` with the actual alternative address.
+
+```yaml
+......
+spec: 
+  valuesOverride: 
+    mlops/kfbase:  
+      oidcAuthURL: https://<Alternative-Platform-Address>/dex/auth
+......
+```
+
+- Restart the OAuth2 Proxy:
+
+Apply the changes by restart the oauth2-proxy  deployment in the target cluster:
+
+```shell
+kubectl rollout restart deploy -n kubeflow-oauth2-proxy oauth2-proxy
+```
+
+## How to start a Kubeflow Pipeline Run with external S3/MinIO storage
+
+When you installed Kubeflow with an external S3/MinIO storage service, you need to add a "KFP Launcher" configmap to setup storage used by current namespace or user. You can checkout Kubeflow document https://www.kubeflow.org/docs/components/pipelines/operator-guides/configure-object-store/#s3-and-s3-compatible-provider for more details. If no configuation is set, the pipeline runs may still accessing the default service address like "minio-service.kubeflow:9000" which is not correct.
+
+Below is a simple sample for you to start:
+
+```yaml
+apiVersion: v1
+data:
+  defaultPipelineRoot: s3://mlpipeline
+  providers: |-
+    s3:
+      default:
+        endpoint: minio.minio-system.svc:80
+        disableSSL: true
+        region: us-east-2
+        forcePathStyle: true
+        credentials:
+          fromEnv: false
+          secretRef:
+            secretName: mlpipeline-minio-artifact
+            accessKeyKey: accesskey
+            secretKeyKey: secretkey
+kind: ConfigMap
+metadata:
+  name: kfp-launcher
+  namespace: wy-testns
+```
+
+For example, you should setup below values in this configmap to point to your own S3/MinIO storage
+
+- defaultPipelineRoot: where to store the pipeline intermediate data
+- endpoint: s3/MinIO service endpoint. Note, should NOT start with "http" or "https"
+- disableSSL: whether disable "https" access to the endpoint
+- region: s3 region. If using MinIO, any value will be fine
+- credentials: AK/SK in the secrets
+
+After add this configmap, the newly started Kubeflow Pipeline Runs will automatically read this configration, and save stuff that is used by Kubeflow Pipeline.
+
+## Configure Kubeflow Notebook to use custom GPU resources
+
+You can add other GPU resouce types so that Kubeflow Notebook web page can create instances leveraging these hardware, e.g. when using Ascend GPUs.
+
+Edit the configmap by running this command:
+
+```shell
+kubectl -n kubeflow get configmap | grep jupyter-web-app-config
+kubectl -n kubeflow edit configmap jupyter-web-app-config-<actual-cm-suffix>
+```
+
+Find below section and add your GPU resource types like "your-custom.com/gpu".
+
+> NOTE, you can only add resource types using integer values, like 1,2,4,8. Also, you can not add "Virtual" or "Shared" GPU resources using both "Cores" and "Memory" like when you are using HAMi.
+
+```yaml
+################################################################
+# GPU/Device-Plugin Resources
+################################################################
+gpus:
+  readOnly: false
+ 
+  # configs for gpu/device-plugin limits of the container
+  # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/#using-device-plugins
+  value:
+    # the `limitKey` of the default vendor
+    # (to have no default, set as "")
+    vendor: ""
+ 
+    # the list of available vendors in the dropdown
+    #  `limitsKey` - what will be set as the actual limit
+    #  `uiName` - what will be displayed in the dropdown UI
+    vendors:
+    - limitsKey: "nvidia.com/gpu"
+      uiName: "NVIDIA"
+    - limitsKey: "amd.com/gpu"
+      uiName: "AMD"
+    - limitsKey: "habana.ai/gaudi"
+      uiName: "Intel Gaudi"
+    - limitsKey: "your-custom.com/gpu"
+      uiName: "Your Custom Vendor"
+    # the default value of the limit
+    # (possible values: "none", "1", "2", "4", "8")
+    num: "none"
+```
+
+## Pod Startup Failure: Probe Timeout (kube-ovn Environment)
+
+**Symptoms:** A large number of Pods in the `kubeflow` namespace are stuck in `CrashLoopBackOff` or `Init:1/2`, and Pod Events show errors such as:
+
+```
+Startup probe failed: Get "http://<pod-ip>:<port>/healthz": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+Liveness probe failed: ...context deadline exceeded...
+```
+
+**Cause:** The `default-allow-same-namespace` NetworkPolicy deployed by kfbase only allows ingress traffic from Pods in the same namespace and a small number of system namespaces. In clusters using **kube-ovn** as the CNI, health probe traffic sent by kubelet reaches Pods through the kube-ovn **join subnet** (default `100.64.0.0/16`). The source IP of that traffic does not match any existing NetworkPolicy rule, so it is dropped by the OVN ACL, causing all probes to time out.
+
+**Fix:** Create a NetworkPolicy that allows inbound traffic from the kube-ovn join subnet:
+
+```bash
+# 1. Check the CIDR of the kube-ovn join subnet
+kubectl get subnet join -o jsonpath='{.spec.cidrBlock}'
+# Example output: 100.64.0.0/16
+
+# 2. Check the IP of each node on the join subnet
+kubectl get nodes -o custom-columns='NAME:.metadata.name,JOIN_IP:.metadata.annotations.ovn\.kubernetes\.io/ip_address'
+
+# 3. Verify whether the probe timeout is related to the NetworkPolicy (temporary test)
+# Change the ingress of default-allow-same-namespace to [{}] (allow all inbound traffic),
+# then observe whether the Pods recover. Be sure to revert the change after confirmation.
+```
+
+
+```bash
+    # First get the join subnet CIDR
+JOIN_CIDR=$(kubectl get subnet join -o jsonpath='{.spec.cidrBlock}')
+
+kubectl apply -f - <<EOF
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kubelet-probes
+  namespace: kubeflow
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - ipBlock:
+        cidr: ${JOIN_CIDR}
+EOF
+```
+
+**Note:** The join subnet CIDR may differ across clusters. Always get the actual value by running `kubectl get subnet join`. A common default is `100.64.0.0/16`.
