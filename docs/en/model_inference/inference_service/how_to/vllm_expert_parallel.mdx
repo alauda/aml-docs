@@ -1,0 +1,223 @@
+---
+weight: 11
+i18n:
+  title:
+    en: Enable Expert Parallel for vLLM Inference Services
+    zh: 为 vLLM 推理服务启用 Expert Parallel
+---
+
+# Enable Expert Parallel for vLLM Inference Services
+
+## Introduction
+
+This document shows a single-node, YAML-first starting point for enabling vLLM **Expert Parallel (EP)** in an `InferenceService`.
+
+Expert Parallel is an upstream vLLM capability for **Mixture-of-Experts (MoE)** models. It is still **experimental** in vLLM, and the related argument names or defaults may change in future releases.
+
+:::warning
+This page focuses on a single-node configuration example for getting started with Expert Parallel. For performance tuning, capacity planning, and distributed deployment details, refer to the official vLLM documentation.
+:::
+
+## When to Use Expert Parallel
+
+Expert Parallel is relevant when you are serving an MoE model and want vLLM to shard the expert layers across GPUs instead of relying on the default expert-layer grouping behavior.
+
+For a single-node deployment, the upstream vLLM pattern is:
+
+- Enable EP with `--enable-expert-parallel`.
+- Keep the example on one node.
+- Use `--data-parallel-size` to span the GPUs on that node.
+- Use `--tensor-parallel-size 1` in this example so the attention layers stay replicated across data parallel ranks instead of being sharded with tensor parallelism.
+
+If you are serving a dense model, or if your current runtime image does not include the EP-related dependencies required by upstream vLLM, this guide is not the right starting point.
+
+## Prerequisites and Limitations
+
+- You have access to a Kubernetes cluster with KServe installed.
+- You have a namespace where you can create `InferenceService` resources.
+- You already have a vLLM serving runtime available on the platform.
+- The runtime image you use already includes the upstream dependencies required for vLLM EP.
+- Your model is an MoE model and is already accessible to the service through the configured `storageUri`.
+- Your target node has multiple visible GPUs. This example uses the detected GPU count as the single-node data parallel size.
+
+If your current vLLM image does not already include the required EP dependencies, extend or rebuild the runtime image first. For platform-specific runtime customization, see [Extend Inference Runtimes](./custom_inference_runtime.mdx). For the upstream dependency list and backend guidance, see the official vLLM EP deployment guide in [References](#references).
+
+## EP Configuration Overview
+
+Enable EP by adding the `--enable-expert-parallel` flag. In upstream vLLM, the expert parallel size is computed automatically:
+
+```text
+EP_SIZE = TP_SIZE x DP_SIZE
+```
+
+Where:
+
+- `TP_SIZE`: tensor parallel size
+- `DP_SIZE`: data parallel size
+- `EP_SIZE`: expert parallel size, computed automatically by vLLM
+
+This means you do not set a separate EP size argument. Instead, you choose the tensor parallel and data parallel sizes, and vLLM derives the effective expert parallel group size from those settings.
+
+### Layer Behavior When EP Is Enabled
+
+When EP is enabled for an MoE model, different layer types use different parallelism strategies:
+
+| Layer Type          | Behavior                      | Parallelism Used                                         |
+| ------------------- | ----------------------------- | -------------------------------------------------------- |
+| Expert (MoE) layers | Sharded across all EP ranks   | Expert Parallel, with size `TP x DP`                     |
+| Attention layers    | Behavior depends on `TP_SIZE` | Tensor Parallel or Data Parallel, depending on `TP_SIZE` |
+
+For attention layers:
+
+- When `TP_SIZE = 1`, attention weights are replicated across all data parallel ranks.
+- When `TP_SIZE > 1`, attention weights are sharded with tensor parallelism inside each data parallel group.
+
+For example, if `TP_SIZE = 2` and `DP_SIZE = 4`, the service uses 8 GPUs in total:
+
+- The expert layers form one EP group of size 8, with experts distributed across all GPUs.
+- The attention layers use tensor parallelism of size 2 inside each of the 4 data parallel groups.
+
+Compared with a regular data parallel deployment, the main difference is how the MoE layers are distributed. Without `--enable-expert-parallel`, the MoE layers follow tensor parallel grouping behavior. With EP enabled, the expert layers switch to expert parallelism, which is designed specifically for MoE-style expert sharding.
+
+### Upstream Command and Platform Mapping
+
+The upstream single-node example uses a command similar to the following:
+
+```bash
+vllm serve deepseek-ai/DeepSeek-V3-0324 \
+  --tensor-parallel-size 1 \
+  --data-parallel-size 8 \
+  --enable-expert-parallel
+```
+
+On Alauda AI, these same flags are typically passed through the `InferenceService` container command. In other words:
+
+- `vllm serve ...` becomes the command launched inside `spec.predictor.model.command`
+- `--tensor-parallel-size`, `--data-parallel-size`, and `--enable-expert-parallel` are appended to the vLLM startup command
+- model location, runtime name, and Kubernetes resources are expressed through `storageUri`, `runtime`, and `resources`
+
+This is why the following example focuses on how to place the EP-related flags into the platform's `InferenceService` YAML.
+
+## Configure a Single-Node InferenceService
+
+Create a YAML file such as `deepseek-v3-ep.yaml` with the following content:
+
+```yaml
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  annotations:
+    aml-model-repo: DeepSeek-V3-0324
+    serving.knative.dev/progress-deadline: 2400s
+    serving.kserve.io/deploymentMode: Standard
+  labels:
+    aml.cpaas.io/runtime-type: vllm
+  name: deepseek-v3-ep
+  namespace: <your-namespace>
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 1
+    model:
+      command:
+        - bash
+        - -c
+        - |
+          set -ex
+
+          GPU_COUNT=$(python3 -c "import torch; print(torch.cuda.device_count())")
+          if [ "${GPU_COUNT}" -lt 2 ]; then
+            echo "Expert Parallel requires multiple visible GPUs on the same node"
+            exit 1
+          fi
+
+          MODEL_PATH="/mnt/models/${MODEL_NAME}"
+          if [ ! -d "${MODEL_PATH}" ]; then
+            MODEL_PATH="/mnt/models"
+          fi
+
+          python3 -m vllm.entrypoints.openai.api_server \
+            --port 8080 \
+            --served-model-name {{.Name}} {{.Namespace}}/{{.Name}} \
+            --model "${MODEL_PATH}" \
+            --dtype ${DTYPE} \
+            --gpu-memory-utilization ${GPU_MEMORY_UTILIZATION} \
+            --tensor-parallel-size 1 \
+            --data-parallel-size "${GPU_COUNT}" \
+            --enable-expert-parallel
+        - bash
+      env:
+        - name: DTYPE
+          value: half
+        - name: GPU_MEMORY_UTILIZATION
+          value: '0.95'
+        - name: MODEL_NAME
+          value: '{{ index .Annotations "aml-model-repo" }}'
+      modelFormat:
+        name: transformers
+      protocolVersion: v2
+      resources:
+        limits:
+          cpu: '8'
+          memory: 32Gi
+          nvidia.com/gpu: '8'
+        requests:
+          cpu: '4'
+          memory: 16Gi
+      runtime: <your-vllm-runtime>
+      storageUri: hf://<your-model-path>
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+```
+
+Apply the manifest:
+
+```bash
+kubectl apply -f deepseek-v3-ep.yaml -n <your-namespace>
+```
+
+### Why These Flags Matter
+
+| Flag                                  | Purpose                                                                                      |
+| ------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `--enable-expert-parallel`            | Enables Expert Parallel for the MoE model.                                                   |
+| `--data-parallel-size "${GPU_COUNT}"` | Uses all visible GPUs on the node as the data parallel group for this single-node example.   |
+| `--tensor-parallel-size 1`            | Matches the upstream example and keeps the attention layers out of tensor parallel sharding. |
+
+:::tip
+Adjust the GPU resource fields to match the resource keys available in your cluster and the number of GPUs on the target node. The important part of this example is where the vLLM EP arguments are added in the `InferenceService` command. If you need to explicitly set an all-to-all backend, follow the upstream backend selection guide before adding `--all2all-backend`.
+:::
+
+## Review the Configured Spec
+
+After applying the manifest, review the resulting `InferenceService` spec and confirm the EP-related arguments are present:
+
+```bash
+kubectl get inferenceservice deepseek-v3-ep -n <your-namespace> -o yaml
+```
+
+Focus on the generated predictor command and confirm that it still includes:
+
+- `--enable-expert-parallel`
+- `--data-parallel-size`
+- `--tensor-parallel-size 1`
+
+This review confirms that the intended vLLM arguments were applied to the service configuration. It does **not** validate runtime performance, backend compatibility, or multi-node behavior.
+
+## For Multi-Node Deployments
+
+Multi-node EP deployments require additional distributed runtime and networking configuration, including per-node launch settings, node roles, and data-parallel communication settings.
+
+:::warning
+This page focuses on the single-node configuration pattern. If you need multi-node EP, refer to the official vLLM guide and adapt the deployment model to your cluster topology and runtime environment.
+:::
+
+<a id="references"></a>
+
+## References
+
+- [Expert Parallel Deployment - vLLM](https://docs.vllm.ai/en/latest/serving/expert_parallel_deployment/)
+- [Data Parallel Deployment - vLLM](https://docs.vllm.ai/en/latest/serving/data_parallel_deployment/)
+- [Extend Inference Runtimes](./custom_inference_runtime.mdx)
+- [Create Inference Service using CLI](./create_inference_service_cli.mdx)
