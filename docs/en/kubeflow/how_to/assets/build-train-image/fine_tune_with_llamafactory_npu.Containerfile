@@ -1,6 +1,7 @@
 ARG TARGETARCH
 
-FROM ascend/cann:8.5.0-910b-ubuntu22.04-py3.11
+# FROM ascend/cann:8.5.0-910b-ubuntu22.04-py3.11
+FROM build-harbor.alauda.cn/mlops/cann:8.5.0-910b-ubuntu22.04-py3.11
 ARG TARGETARCH
 
 ARG PYTHON_VERSION=3.11
@@ -35,9 +36,10 @@ ENV VIRTUAL_ENV=/opt/app-root/venv \
     PYTHONUNBUFFERED=1 \
     PYTHONIOENCODING=utf-8
 
-RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR="/opt/app-root/uv" sh
+RUN HTTPS_PROXY=http://192.168.144.12:7890 curl -LsSf https://astral.sh/uv/install.sh | HTTPS_PROXY=http://192.168.144.12:7890 UV_INSTALL_DIR="/opt/app-root/uv" sh
 
 RUN echo "HwHiAiUser:x:1000:1001,default" >> /etc/group && \
+echo "HwHiAiUser:x:1001:1001::/opt/app-root:/sbin/nologin" >> /etc/passwd && \
 chown -R 1001:HwHiAiUser /opt/app-root
 USER 1001
 WORKDIR /opt/app-root/src
