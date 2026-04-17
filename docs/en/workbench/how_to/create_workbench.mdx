@@ -111,8 +111,21 @@ These images are intended for `arm64` nodes with Ascend NPU support.
 | **CANN Minimal Python**<br />[alauda-workbench-jupyter-minimal-cann-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/alauda-workbench-jupyter-minimal-cann-py312-ubi9)                                 | Use this image if you need a lightweight Jupyter base image with Ascend CANN support.               | `Python 3.12`<br />`CANN 8.5.0`<br />`JupyterLab 4.5.6`<br />`Jupyter Server 2.17.0`<br />`JupyterLab Git 0.51.4`<br />`nbdime 4.0.4`<br />`nbgitpuller 1.2.2`                                                                                                                                                                                           |
 | **PyTorch CANN**<br />[alauda-workbench-jupyter-pytorch-cann-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/alauda-workbench-jupyter-pytorch-cann-py312-ubi9)                                        | Use this image for PyTorch model development and training on Ascend NPUs.                           | `Python 3.12`<br />`CANN 8.5.0`<br />`PyTorch 2.9.0`<br />`torch_npu 2.9.0` (Ascend release `7.3.0`)<br />`JupyterLab 4.5.6`<br />`Jupyter Server 2.17.0`<br />`TensorBoard 2.20.0`<br />`Ray 2.54.0`<br />`onnxscript 0.6.2`<br />`NumPy 2.4.3`<br />`pandas 2.3.3`<br />`scikit-learn 1.8.0`<br />`SciPy 1.16.3`<br />`KFP 2.15.2`<br />`Feast 0.60.0` |
 | **MindSpore CANN**<br />[docker.io/alaudadockerhub/alauda-workbench-jupyter-mindspore-cann-py312-ubi9:v0.1.7](https://hub.docker.com/r/alaudadockerhub/alauda-workbench-jupyter-mindspore-cann-py312-ubi9) | Use this image for MindSpore model development, checkpoint conversion, and training on Ascend NPUs. | `Python 3.12`<br />`CANN 8.5.0`<br />`MindSpore 2.8.0`<br />`JupyterLab 4.5.6`<br />`Jupyter Server 2.17.0`<br />`TensorBoard 2.20.0`<br />`ODH Elyra 4.3.2`<br />`onnxscript 0.6.2`<br />`KFP 2.15.2`<br />`Kubeflow Training 1.9.3`<br />`pandas 2.3.3`<br />`scikit-learn 1.8.0`<br />`SciPy 1.16.3`                                                  |
+| **ModelSlim CANN**<br />[docker.io/alaudadockerhub/alauda-workbench-jupyter-modelslim-cann-py311-ubi9:v0.1.7](https://hub.docker.com/r/alaudadockerhub/alauda-workbench-jupyter-modelslim-cann-py311-ubi9) | Use this image for Ascend NPU model compression and quantization workflows based on `msmodelslim`, including the official `Qwen3.5` validation path. | `Python 3.11`<br />`CANN 8.5.0`<br />`PyTorch 2.9.0`<br />`torch_npu 2.9.0` (Ascend release `7.3.0`)<br />`msmodelslim 26.0.0a2`<br />`transformers 5.2.0`<br />`huggingface-hub 1.10.2`<br />`torchvision 0.24.0`<br />`mistral-common 1.11.0`<br />`easydict 1.13`<br />`wcmatch 10.1`<br />`TensorBoard 2.20.0`<br />`JupyterLab 4.5.6`<br />`Jupyter Server 2.17.0` |
 
 To use an additional image, first synchronize it to your own image registry. You can do this with a tool such as `skopeo`, or by using the script described in the next section.
+
+### Verify the ModelSlim image with the Qwen3.5 notebook
+
+If you use `docker.io/alaudadockerhub/alauda-workbench-jupyter-modelslim-cann-py311-ubi9:v0.1.7`, you can validate the environment with [Download `qwen35_modelslim_quant_verify.ipynb`](/qwen35_modelslim_quant_verify.ipynb).
+
+This notebook follows the official Ascend `msmodelslim` `Qwen3.5` example and is designed as a preflight validation notebook rather than a full quantization run. By default, it:
+
+- Checks the runtime imports and pinned package versions required by the validated stack, including `msmodelslim 26.0.0a2` and `transformers 5.2.0`
+- Verifies the `msmodelslim` CLI and the permission requirements for the model and output directories
+- Prepares the official `msmodelslim quant --device npu ...` command and only runs quantization when `RUN_QUANT = True`
+
+Before running the notebook, upload the base model into the workbench and review `MODEL_PATH`, `SAVE_PATH`, `MODEL_TYPE`, and `QUANT_TYPE` in the first parameter cell. This image uses `Python 3.11` because the validated public `msmodelslim` wheel line used by the build targets CPython `3.11`. The upstream `Qwen3.5` guide currently lists Atlas A2 and Atlas A3 training and inference products as the supported device families for this quantization flow.
 
 ## Docker Hub Image Synchronization Script Guide
 
