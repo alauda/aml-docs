@@ -1,0 +1,196 @@
+---
+weight: 10
+---
+
+# Using Connections
+
+Connections let you store reusable access settings for external model sources and data services at the project level.
+
+For direct YAML examples of model deployment from S3, PVC, or OCI sources, see [Model Storage](../../model_inference/model_management/functions/model_storage.mdx).
+
+> **Note:** For OCI-based model deployment, only connections whose `ACCESS_TYPE` includes `Pull` are available in the model deployment form.
+
+## Prerequisites
+
+- You have access to the target project namespace.
+- A suitable connection type already exists.
+- You have the credentials and endpoint information for the external storage or registry that you want to use.
+
+## Creating a Connection
+
+1. In the business view, open the target project.
+2. Click **Connections**.
+3. Click **Create connection**.
+4. Select a connection type.
+5. Enter the Kubernetes resource name for the connection.
+6. Optional: Enter a display name.
+7. Complete the fields defined by the selected connection type.
+8. Click **Create**.
+
+### Built-in Field Sets
+
+- **URI**: Provide the full URI in the `URI` field.
+- **OCI-compliant registry**: Provide `ACCESS_TYPE`, upload or paste `.dockerconfigjson`, and enter `OCI_HOST`.
+- **S3-compatible object storage**: Provide `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_ENDPOINT`, and optionally `AWS_DEFAULT_REGION` and `AWS_S3_BUCKET`.
+
+### Verification
+
+- The new item appears on the **Connections** page.
+- The table shows the connection name, connection type, compatibility tags, and creator.
+
+> **Note:** The connection resource name and selected connection type cannot be changed after creation.
+
+## Updating a Connection
+
+1. On the **Connections** page, open the action menu for the target connection.
+2. Click **Edit**.
+3. Update the display name or connection fields.
+4. Click **Save**.
+
+After you update credentials or endpoints, redeploy or restart dependent workloads so they pick up the latest values.
+
+## Deleting a Connection
+
+1. On the **Connections** page, open the action menu for the target connection.
+2. Click **Delete**.
+3. Confirm the operation.
+
+Deleting a connection removes the project secret only. Any workload that still depends on that secret must be updated separately.
+
+## Managing Connection Types
+
+Connection types are managed at cluster scope and stored in the `kube-public` namespace.
+
+### What a Connection Type Contains
+
+- Basic metadata: name, display name, categories, and enabled state
+- Ordered section headings and fields
+- Optional default values and read-only settings
+- Compatibility markers for URI, OCI, or S3 model serving
+
+### Built-in Templates
+
+The connection type editor can append predefined field sets for:
+
+- **URI**
+- **OCI compliant registry**
+- **S3 compatible object storage**
+
+### Supported Field Types
+
+| Field type | Purpose |
+| --- | --- |
+| Section | Visual grouping only |
+| Text - Short / Text - Long | Plain text input |
+| Text - Hidden | Sensitive values such as passwords or secret keys |
+| URI | URI input |
+| Boolean | Toggle input |
+| Numeric | Numeric input with optional min, max, and unit |
+| Dropdown | Single-select or multi-select options |
+| File | Upload or paste file content such as `.dockerconfigjson` |
+
+> **Note:** File-type fields in the current UI accept pasted content or uploaded files up to 1 MiB.
+
+### Creating a Connection Type
+
+1. Open the target cluster and go to **Settings** > **Connection types**.
+2. Click **Create connection type**.
+3. Enter the connection type name. The platform stores it with the `ct-` prefix.
+4. Optional: Enter a display name.
+5. Select one or more categories.
+6. Set **Enabled** as needed.
+7. Add section headings and fields, or apply a built-in model-serving-compatible template.
+8. Click **Create**.
+
+### Duplicating, Editing, Enabling, and Deleting
+
+- Use **Duplicate** when you want to base a new connection type on an existing type.
+- Custom connection types can be edited or deleted.
+- Preinstalled connection types can be duplicated, but the current UI does not allow editing or deleting them directly.
+- The list page provides an **Enabled** switch to mark a connection type as active or inactive.
+
+> **Note:** Editing a connection type does not rewrite existing connection secrets that were created earlier.
+
+## Using Connections for Model Deployment
+
+When you create or update an inference service, you can set **Model location** to **Connection**.
+
+1. Open the inference service creation or update form.
+2. Set **Model location** to **Connection**.
+3. Select the connection.
+4. Complete the model path field according to the connection kind:
+   - **URI**: No extra path is required; the platform reads the full URI from the connection.
+   - **OCI**: Enter the relative path under `oci://<OCI_HOST>/`, for example `my-model:latest`.
+   - **S3**: Enter the object path under `s3://<AWS_S3_BUCKET>/`, for example `llm/qwen2.5`.
+
+### Runtime Behavior
+
+- For **OCI** connections, the connection secret is attached to the workload as an `imagePullSecret`.
+- For **S3** connections, the platform creates a dedicated `ServiceAccount` that references the connection secret.
+- The inference service metadata stores the selected connection name in the `aml-model-source-connection` annotation.
+
+## Resource Model
+
+The current implementation uses project secrets for connections and cluster-level ConfigMaps for connection types.
+
+### Connection Secret Example
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-models
+  namespace: demo-project
+  labels:
+    cpaas.io/dashboard: "true"
+  annotations:
+    cpaas.io/display-name: MinIO models
+    cpaas.io/connection-type-ref: ct-s3-storage
+    cpaas.io/connection-type-protocol: s3
+    serving.kserve.io/s3-endpoint: minio.minio.svc:9000
+    serving.kserve.io/s3-region: us-east-1
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: <access-key>
+  AWS_SECRET_ACCESS_KEY: <secret-key>
+  AWS_S3_ENDPOINT: http://minio.minio.svc:9000
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_S3_BUCKET: models
+```
+
+### Connection Type ConfigMap Example
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ct-uri-repository
+  namespace: kube-public
+  labels:
+    cpaas.io/dashboard: "true"
+    cpaas.io/connection-type: "true"
+  annotations:
+    cpaas.io/display_name: URI repository
+    cpaas.io/disabled: "false"
+data:
+  category: '["URI"]'
+  fields: >-
+    [
+      {
+        "type": "section",
+        "name": "URI",
+        "description": "Fields required for URI model serving."
+      },
+      {
+        "type": "uri",
+        "name": "URI",
+        "envVar": "URI",
+        "required": true,
+        "properties": {
+          "defaultReadOnly": false
+        }
+      }
+    ]
+```
+
+> **Note:** Compared with recent OpenShift AI documentation, the current Alauda AI frontend still binds a connection to its template with `cpaas.io/connection-type-ref`, and also writes model-serving compatibility to `cpaas.io/connection-type-protocol`.

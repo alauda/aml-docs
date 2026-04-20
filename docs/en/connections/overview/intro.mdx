@@ -1,0 +1,36 @@
+---
+weight: 10
+---
+
+# Introduction
+
+Connections let you store reusable access settings for external model sources and data services at the project level. In Alauda AI, a connection is stored as a Kubernetes `Secret` in the project namespace, and a connection type is stored as a Kubernetes `ConfigMap` in the `kube-public` namespace.
+
+## Core Concepts
+
+### Connection
+
+A connection stores the actual access parameters used by workloads, such as:
+
+- S3 access key, secret key, endpoint, region, and bucket
+- OCI registry host and registry authentication
+- A direct remote URI
+
+### Connection Type
+
+A connection type defines the form that users see when they create or edit a connection. It controls:
+
+- Which fields are displayed
+- Which fields are required
+- Default values and read-only settings
+- Whether the resulting connection is compatible with URI, OCI, or S3 model serving
+
+## Supported Connection Kinds
+
+| Kind | What the connection stores | How model deployment uses it |
+| --- | --- | --- |
+| URI | A full remote URI in the `URI` field | The deployment form reads the URI directly from the connection |
+| OCI-compliant registry | Registry host, registry credentials, and access mode | The deployment form uses the connection secret as an image pull secret and asks you for the relative model path, such as `repository:tag` |
+| S3-compatible object storage | Access key, secret key, endpoint, optional region, and bucket | The deployment form uses the bucket from the connection and asks you for the object path under that bucket |
+
+For step-by-step operations, see [Using Connections](../how_to/using_connections.mdx).
