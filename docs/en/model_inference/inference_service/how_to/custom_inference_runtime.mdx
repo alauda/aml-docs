@@ -10,29 +10,29 @@ i18n:
 
 ## Introduction
 
-This document will guide you step-by-step on how to add new inference runtimes for
-serving either Large Language Model (LLM) or any other models like "image classification",
-"object detection", "text classification" etc.
+This document walks you through how to add new inference runtimes for serving
+Large Language Models (LLMs) and other models such as image classification,
+object detection, and text classification models.
 
-Alauda AI comes with a builtin "vLLM" inference engine, with "custom inference runtimes",
-you can introduce more inference engines like
+Alauda AI comes with a built-in `vLLM` inference engine. With custom inference
+runtimes, you can introduce additional inference engines such as
 [Seldon MLServer](https://github.com/SeldonIO/MLServer),
-[Triton inference server](https://github.com/triton-inference-server/server) and so on.
+[Triton Inference Server](https://github.com/triton-inference-server/server).
 
 By introducing custom runtimes, you can expand the platform's support for a wider range of
 model types and GPU types, and optimize performance for specific scenarios
 to meet broader business needs.
 
-In this section, we'll demonstrate extending current AI platform with a custom
-[XInfernece](https://github.com/xorbitsai/inference)
-serving runtime to deploy LLMs and serve an "OpenAI compatible API".
+In this section, we'll demonstrate how to extend the current AI platform with a
+custom [Xinference](https://github.com/xorbitsai/inference) serving runtime to
+deploy LLMs and expose an OpenAI-compatible API.
 
 ## Scenarios
 
 Consider extending your AI Platform inference service runtimes if you encounter any of the following situations:
 
 * **Support for New Model Types**: Your model isn't natively supported by the current default inference runtime `vLLM`.
-* **Compatibility with other types GPUs**: You need to perform LLM inference on hardware equipped with GPUs like AMD or Huawei Ascend.
+* **Compatibility with other hardware types**: You need to perform LLM inference on hardware such as AMD GPUs or Huawei Ascend NPUs.
 * **Performance Optimization for Specific Scenarios**: In certain inference scenarios, a new runtime (like Xinference) might offer better performance or resource utilization compared to existing runtimes.
 * **Custom Inference Logic**: You need to introduce custom inference logic or dependent libraries that are difficult to implement within the existing default runtimes.
 
@@ -173,7 +173,7 @@ Once the Xinference inference runtime resource is successfully created, you can 
 
 1.  **Configure Inference Framework for the Model**:
 
-    Ensure that on the model details page of the model repository you are about to publish, you have selected the appropriate **framework** through the **File Management** metadata editing function. The framework parameter value chosen here must match a value included in the `supportedModelFormats` field when you created the inference service runtime. Please **ensure the model framework parameter value is listed in the `supportedModelFormats` list** set in the inference runtime.
+    Ensure that on the model details page of the model repository you are about to publish, you have selected the appropriate **framework** using the **File Management** metadata editing feature. The framework value selected here must match one of the values included in the `supportedModelFormats` field when you created the inference service runtime. Please **ensure that the model framework value is listed in the `supportedModelFormats` field** of the inference runtime.
 2.  **Navigate to the Inference Service Publishing Page**:
 
     Log in to the AI Platform and navigate to the "Inference Services" or "Model Deployment" modules, then click "Publish Inference Service."
@@ -183,14 +183,14 @@ Once the Xinference inference runtime resource is successfully created, you can 
 4.  **Set Environment Variables**:
     The Xinference runtime requires specific environment variables to function correctly. On the inference service configuration page, locate the "Environment Variables" or "More Settings" section and add the following environment variable:
 
-    * **Environment Variable Parameter Description**
+    * **Environment Variable**
         | Parameter Name   | Description                                                                                                                                                                                                                                                                                                                      |
         | :--------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
         | `MODEL_FAMILY`   | **Required**. Specifies the family type of the LLM model you are deploying. Xinference uses this parameter to identify and load the correct inference logic for the model. For example, if you are deploying a Llama 3 model, set it to `llama`; if it's a ChatGLM model, set it to `chatglm`. Please set this based on your model's actual family. |
 
     * **Example**:
         * **Variable Name**: `MODEL_FAMILY`
-        * **Variable Value**: `llama` (if you are using a Llama series model, checkout the [docs](https://inference.readthedocs.io/en/v1.2.2/getting_started/using_xinference.html#manage-models) for more detail. Or you can run `xinference registrations -t LLM` to list all supported model families.)
+        * **Variable Value**: `llama` (if you are using a Llama series model, check the [docs](https://inference.readthedocs.io/en/v1.2.2/getting_started/using_xinference.html#manage-models) for more details. Or you can run `xinference registrations -t LLM` to list all supported model families.)
 
 </Steps>
 
@@ -347,9 +347,203 @@ spec:
 3. **Set Model Framework**: In the model repository, set the framework metadata to `triton` to match the `supportedModelFormats` field
 4. **Create Inference Service**: When publishing your inference service, select the Triton runtime from the runtime dropdown menu
 
-### MindIE (Ascend NPU 310P)
+### vLLM-ascend (Ascend NPU)
+
+The `vLLM-ascend` runtime is suitable for Huawei Ascend NPUs. It keeps the
+OpenAI-compatible serving style of vLLM, while requiring a few extra
+`InferenceService` settings for writable paths and group permissions.
+
+This example was validated on `Ascend 910B4`. It should also work with other
+Ascend NPU models, but you should adjust the resource key, image, and related
+version fields according to your actual environment.
+
+**1. ClusterServingRuntime**
+
+```yaml
+apiVersion: serving.kserve.io/v1alpha1
+kind: ClusterServingRuntime
+metadata:
+  annotations:
+    aml.cpaas.io/model-type: '["generative"]'
+    aml.cpaas.io/user-create: "true"
+    cpaas.io/display-name: vllm-ascend-cann8.5
+    helm.sh/resource-policy: keep
+  labels:
+    cpaas.io/accelerator-type: ascend
+    cpaas.io/cann-version: "8.5.1"
+    cpaas.io/runtime-class: vllm
+  name: aml-vllm-ascend-cann-8.5.1
+spec:
+  containers:
+    - command:
+        - bash
+        - -c
+        - >
+          set -ex
+
+          # 1. check model path
+
+          MODEL_DIR="/mnt/models/${MODEL_NAME}"
+
+          # a. using git lfs storage initializer, model will be in
+          /mnt/models/<model_name>
+
+          # b. using hf storage initializer, model will be in /mnt/models
+
+          if [ ! -d "${MODEL_DIR}" ]; then
+              MODEL_DIR="/mnt/models"
+              echo "[WARNING] Model directory ${MODEL_DIR}/${MODEL_NAME} not found, using ${MODEL_DIR} instead"
+          fi
+
+
+          # 2. check if using gguf models
+
+          c=`find "${MODEL_DIR}" -maxdepth 1 -type f -name '*.gguf' | wc -l`
+
+          echo "find ${c} gguf files"
+
+          if [ "${c}" -gt 1 ]; then
+              echo "[ERROR] More than one gguf file found in ${MODEL_DIR}"
+              echo "Currently, vllm only supports loading single-file GGUF models. If you have a multi-files GGUF model, you can use gguf-split tool to merge them to a single-file model."
+              exit 1
+          elif [ "${c}" -eq 1 ]; then
+              n=`find "${MODEL_DIR}" -maxdepth 1 -type f -name '*.gguf' -print`
+              echo "[INFO] Using GGUF model file: ${n}"
+              MODEL_PATH="${n}"
+          else
+              echo "[INFO] Using standard model directory"
+              MODEL_PATH="${MODEL_DIR}"
+          fi
+
+
+          # 3. launch vllm server
+
+          python3 -m vllm.entrypoints.openai.api_server \
+
+          --port 8080 \
+
+          --served-model-name {{.Name}} {{.Namespace}}/{{.Name}} \
+
+          --model ${MODEL_PATH} \
+
+          --gpu-memory-utilization ${GPU_MEMORY_UTILIZATION} \
+
+          $@
+        - bash
+      env:
+        - name: MODEL_NAME
+          value: '{{ index .Annotations "aml-model-repo" }}'
+        - name: GPU_MEMORY_UTILIZATION
+          value: "0.95"
+      image: quay.io/ascend/vllm-ascend:v0.18.0rc1
+      name: kserve-container
+      ports:
+        - containerPort: 8080
+          name: http1
+          protocol: TCP
+      resources:
+        limits:
+          cpu: 2
+          memory: 6Gi
+        requests:
+          cpu: 2
+          memory: 6Gi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        privileged: false
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      startupProbe:
+        exec:
+          command:
+            - sh
+            - -c
+            - >
+              curl -s -o /dev/null -w "%{http_code}" -X POST
+              "http://127.0.0.1:8080/v1/completions" -H "Content-Type:
+              application/json" -d '{"model": "{{ .Name }}", "prompt": "ping"}'
+              | grep -q "200"
+        failureThreshold: 60
+        periodSeconds: 10
+        timeoutSeconds: 180
+      volumeMounts:
+        - mountPath: /dev/shm
+          name: devshm
+  protocolVersions:
+    - v2
+  supportedModelFormats:
+    - name: transformers
+      version: "1"
+  volumes:
+    - emptyDir:
+        medium: Memory
+        sizeLimit: 1Gi
+      name: devshm
+```
+
+**2. Required Changes to the InferenceService Example**
+
+When publishing an inference service with `vLLM-ascend`, make the following required
+changes to your `InferenceService` example:
+
+```yaml
+kind: InferenceService
+apiVersion: serving.kserve.io/v1beta1
+metadata:
+  name: qwen35
+  namespace: demo
+  annotations:
+    aml-model-repo: Qwen3.5-0.8B
+    modelFormat: transformers
+    serving.kserve.io/deploymentMode: Standard
+  labels:
+    aml.cpaas.io/runtime-type: vllm
+spec:
+  predictor:
+    model:
+      env:
+        - name: HOME # [!code callout]
+          value: /tmp
+      modelFormat:
+        name: transformers
+      protocolVersion: v2
+      resources:
+        limits:
+          cpu: "4"
+          huawei.com/Ascend910B4: "1"
+          memory: 16Gi
+        requests:
+          cpu: "2"
+          memory: 8Gi
+      runtime: aml-vllm-ascend-0.18.0rc1
+      storageUri: pvc://qwen35/Qwen3.5-0.8B
+    securityContext:
+      fsGroup: 1000 # [!code callout]
+      seccompProfile:
+        type: RuntimeDefault
+      supplementalGroups:
+        - 1000 # [!code callout]
+```
+
+<Callouts>
+1. `HOME` points temporary files and caches to `/tmp`, which is writable for the runtime container.
+2. `fsGroup: 1000` makes the mounted files inherit group `1000`, helping align file permissions with the group that is allowed to access Ascend devices.
+3. `supplementalGroups: [1000]` adds the container process to group `1000`, so it can access Ascend devices and related mounted files with the expected group permissions.
+
+</Callouts>
+
+### MindIE (Ascend NPU)
 
 MindIE is specifically designed for Huawei Ascend hardware. Its configuration differs significantly in resource management and metadata.
+
+This example was validated on `Ascend 310P`. It should also work with other
+Ascend NPU models, but you should adjust the image, resource configuration,
+and related version fields according to your actual environment.
 
 **1.ClusterServingRuntime**
 
@@ -670,7 +864,9 @@ spec:
 
 **2.Mandatory Annotations for InferenceService**
 
-Unlike other runtimes, MindIE **must** have annotations added to the `InferenceService` metadata during the final publishing step. This ensures the platform's scheduler correctly binds the NPU hardware to the service.
+Unlike other runtimes, MindIE **must** include the following annotations in the
+`InferenceService` metadata during the final publishing step. This ensures that
+the platform scheduler correctly binds the NPU hardware to the service.
 
 | Configuration Key | Value | Purpose |
 | :--- | :--- | :--- |
@@ -691,4 +887,5 @@ Before proceeding, refer to this table to understand the specific requirements f
 | **Xinference** | CPU / NVIDIA GPU | transformers, pytorch | **Must** set `MODEL_FAMILY` environment variable |
 | **MLServer** | CPU / NVIDIA GPU | sklearn, xgboost, mlflow | Standard configuration |
 | **Triton** | NVIDIA GPU | triton (TensorFlow, PyTorch, ONNX, etc.) | Standard configuration |
-| **MindIE** | Huawei Ascend NPU | mindspore, transformers | **Must** add NPU required Annotations to InferenceService |
+| **vLLM-ascend** | Huawei Ascend NPU (validated on 910B4) | transformers | **Must** add `HOME`, `fsGroup`, and `supplementalGroups` to the `InferenceService` |
+| **MindIE** | Huawei Ascend NPU (validated on 310P) | mindspore, transformers | **Must** add the required NPU annotations to the `InferenceService` |
