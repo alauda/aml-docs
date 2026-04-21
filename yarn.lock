@@ -20,9 +20,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@alauda/doom@npm:^2.2.0":
-  version: 2.2.0
-  resolution: "@alauda/doom@npm:2.2.0"
+"@alauda/doom@npm:^2.3.0":
+  version: 2.3.0
+  resolution: "@alauda/doom@npm:2.3.0"
   dependencies:
     "@alauda/doom-export": "npm:^0.4.1"
     "@cspell/eslint-plugin": "npm:^10.0.0"
@@ -97,7 +97,7 @@ __metadata:
     yoctocolors: "npm:^2.1.2"
   bin:
     doom: lib/cli/index.js
-  checksum: 10c0/463cf06c3db77062f7b5847e7edb1e21bd80c0b7b2abe5aa96c7ab3aec3e2211b1135e91f472b9f12af452d953736c4c222c23314bcb7b14e63dddc55ccd359a
+  checksum: 10c0/073eacad79da2a885a56c0aef86076f34663f78b94aac335d15779fe7e50884edc2e640eac2fd9b6670d458eca395ffbe3ee4194120edcc92a7ddca40f664f2c
   languageName: node
   linkType: hard
 
@@ -3259,9 +3259,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "aml-docs@workspace:."
   dependencies:
-    "@alauda/doom": "npm:^2.2.0"
-    prettier: "npm:^3.6.2"
-    prettier-plugin-pkg: "npm:^0.21.2"
+    "@alauda/doom": "npm:^2.3.0"
+    prettier: "npm:^3.8.3"
+    prettier-plugin-pkg: "npm:^0.22.1"
     simple-git-hooks: "npm:^2.13.1"
   languageName: unknown
   linkType: soft
@@ -7896,12 +7896,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prettier-plugin-pkg@npm:^0.21.2":
-  version: 0.21.2
-  resolution: "prettier-plugin-pkg@npm:0.21.2"
+"prettier-plugin-pkg@npm:^0.22.1":
+  version: 0.22.1
+  resolution: "prettier-plugin-pkg@npm:0.22.1"
   peerDependencies:
     prettier: ^3.0.3
-  checksum: 10c0/027497d93f5208190acf28f0f6ef6fe2656f01aa25d1f063437db74772ee9a84227936144f8142de3dfbce8eb66d29199f5811c68a1b633445f9aaca398b536e
+  checksum: 10c0/72c29ee2122588d1a29265c9f3b406564ebd2dfc393400391f7bf43ca24195e101543f7ac199a92e087e6dadd446c574d20d3792c431218cf0b961ea9599202d
   languageName: node
   linkType: hard
 
@@ -7914,12 +7914,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prettier@npm:^3.6.2":
-  version: 3.8.1
-  resolution: "prettier@npm:3.8.1"
+"prettier@npm:^3.8.3":
+  version: 3.8.3
+  resolution: "prettier@npm:3.8.3"
   bin:
     prettier: bin/prettier.cjs
-  checksum: 10c0/33169b594009e48f570471271be7eac7cdcf88a209eed39ac3b8d6d78984039bfa9132f82b7e6ba3b06711f3bfe0222a62a1bfb87c43f50c25a83df1b78a2c42
+  checksum: 10c0/754816fd7593eb80f6376d7476d463e832c38a12f32775a82683adb6e35b772b1f484d65f19401507b983a8c8a7cd5a4a9f12006bd56491e8f35503473f77473
   languageName: node
   linkType: hard
 
