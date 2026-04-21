@@ -83,9 +83,9 @@ ds = ds.map(preprocess, remove_columns=ds.column_names)
   5. Preprocess and tokenize into format the model uses.
 </Callouts>
 
-### (Optional) Upload Dataset into S3 Storage
+### (Optional) Upload Dataset into S3-Compatible Object Storage
 
-If you wish to upload datasets into S3, you can run those codes in `JupyterLab`.
+If you want to upload datasets into S3-compatible object storage, you can run the following code in `JupyterLab`. Alauda AI supports S3-compatible storage access, and in typical product deployments the storage implementation is Ceph object storage, so you can use the standard `boto3` client.
 
 ```python
 import os
@@ -104,7 +104,7 @@ config = TransferConfig(
 
 for root, dirs, files in os.walk(local_folder):
     for filename in files:
-        local_path = os path.join(root, filename)
+        local_path = os.path.join(root, filename)
         relative_path = os.path.relpath(local_path, local_folder)
         s3_key = f"ultrachat_200k/{relative_path.replace(os.sep, '/')}"
         s3.upload_file(local_path, bucket_name, s3_key, Config=config)
@@ -116,9 +116,9 @@ for root, dirs, files in os.walk(local_folder):
   2. Configure multipart upload with 100 MB chunks and a maximum of 10 concurrent threads.
 </Callouts>
 
-### (Optional) Use Dataset in S3 Storage
+### (Optional) Use Dataset from S3-Compatible Object Storage
 
-If you wish to use datasets from S3, you can first install the `s3fs` tool and then modify the dataset loading section in the example by following the code below.
+If you want to use datasets stored in S3-compatible object storage, first install the `s3fs` tool and then modify the dataset loading section in the example as shown below. In Alauda AI environments, this S3-compatible storage is typically backed by Ceph object storage.
 
 ```bash
 pip install s3fs -i https://pypi.tuna.tsinghua.edu.cn/simple
@@ -135,7 +135,7 @@ storage_options = {
   "key": "07Apples@",
   "secret": "O7Apples@",
   "client_kwargs": {
-    "endpoint_url": "http://minio.minio-system.svc.cluster.local:80" #[!code callout]
+    "endpoint_url": "https://ceph-obj.example.com" #[!code callout]
   }
 }
 
@@ -149,7 +149,7 @@ ds = load_dataset(
 
 <Callouts>
   1. Set environment variables (as a backup, some underlying components will use them).
-  2. Define storage configuration; you must explicitly specify the endpoint_url to connect to MinIO.
+  2. Define storage configuration; you must explicitly specify the `endpoint_url` for your S3-compatible object storage service, such as a Ceph object storage endpoint.
   3. If the dataset is split, this is equivalent to `split="train_sft"` in the example.
 </Callouts>
 
