@@ -35,7 +35,7 @@ After the operator is installed, deploy Llama Stack Server by creating a `LlamaS
 > - **Secret (optional)**: `VLLM_API_TOKEN` is only needed when the vLLM endpoint requires authentication. If vLLM has no auth, do not set it. When required, create a Secret in the same namespace and reference it from `containerSpec.env` (see the commented example in the manifest below).
 > - **Storage Class**: Ensure the `default` Storage Class exists in the cluster; otherwise the PVC cannot be bound and the resource will not become ready.
 > - **PGVector (optional)**: To use `vector_stores` with `provider_id="pgvector"`, provide `PGVECTOR_*` environment variables to the server pod. ACP-provided PostgreSQL can be used directly because it already includes the `pgvector` extension.
-> - **Embedding model download**: Llama Stack includes a default embedding model configuration for vector-store usage, but the model artifacts are downloaded from Hugging Face on first use. If direct access is restricted, configure `HF_ENDPOINT` for a mirror/proxy, or pre-download the model files into the server PVC before running the first vector-store request.
+> - **Embedding model download**: Llama Stack includes a default embedding model configuration for vector-store usage, but the model artifacts are downloaded from Hugging Face on first use. If a mirror or proxy is needed, configure `HF_ENDPOINT`. For fully offline environments, pre-download the model files into the server PVC before running the first vector-store request.
 
 ```yaml
 apiVersion: llamastack.io/v1alpha1
@@ -87,11 +87,21 @@ spec:
         #       name: <pgvector-credentials-secret>
         #       key: password
 
-        # Optional: configure Hugging Face access for the default embedding model.
-        # Set HF_ENDPOINT when a mirror/proxy is required, or pre-populate the model
-        # cache under the server PVC before the first vector-store request.
+        # Optional: configure a Hugging Face mirror or proxy for the default
+        # embedding model download path.
         # - name: HF_ENDPOINT
         #   value: "<huggingface-mirror-or-proxy>"
+        #
+        # Optional: configure fully offline model loading. Pre-populate the
+        # Hugging Face cache under /home/lls/.lls/huggingface/hub, then set:
+        # - name: HF_HUB_CACHE
+        #   value: "/home/lls/.lls/huggingface/hub"
+        # - name: HF_HUB_OFFLINE
+        #   value: "1"
+        # - name: TRANSFORMERS_OFFLINE
+        #   value: "1"
+        # - name: HF_HUB_DISABLE_XET
+        #   value: "1"
 
     distribution:
       name: starter                                # Distribution name (options: starter, postgres-demo, meta-reference-gpu)
@@ -130,6 +140,43 @@ Recommended preparation:
 1. Prepare an ACP PostgreSQL instance and record its service name, database name, username, and password.
 2. Expose the database connection to the `LlamaStackDistribution` with `PGVECTOR_HOST`, `PGVECTOR_PORT`, `PGVECTOR_DB`, `PGVECTOR_USER`, and `PGVECTOR_PASSWORD`.
 3. Use the default embedding model provided by Llama Stack, and make sure its model files can be fetched on first use.
-4. If the cluster cannot reach Hugging Face directly, either set `HF_ENDPOINT` to a reachable mirror/proxy or pre-download the embedding model files into the server PVC.
+4. If the cluster uses a Hugging Face mirror or proxy, set `HF_ENDPOINT` accordingly.
+5. If the cluster is fully offline, pre-download the embedding model files into the server PVC and enable offline cache-related environment variables.
 
 After the distribution is ready, you can validate the setup with the PGVector section in the [Quickstart](./quickstart) notebook.
+
+## Hugging Face Access For Embedding Models
+
+Llama Stack uses a default embedding model for vector-store operations. On first use, the server downloads the model files from Hugging Face into its local cache.
+
+Recommended cache path:
+
+- `/home/lls/.lls/huggingface/hub`
+
+Common deployment modes:
+
+1. Mirror or proxy access:
+
+   ```yaml
+   - name: HF_ENDPOINT
+     value: "<huggingface-mirror-or-proxy>"
+   - name: HF_HUB_CACHE
+     value: "/home/lls/.lls/huggingface/hub"
+   ```
+
+2. Fully offline access:
+
+   Pre-download the required model files into the PVC-backed cache directory `/home/lls/.lls/huggingface/hub`, then set:
+
+   ```yaml
+   - name: HF_HUB_CACHE
+     value: "/home/lls/.lls/huggingface/hub"
+   - name: HF_HUB_OFFLINE
+     value: "1"
+   - name: TRANSFORMERS_OFFLINE
+     value: "1"
+   - name: HF_HUB_DISABLE_XET
+     value: "1"
+   ```
+
+If the cache path is pre-populated correctly, the server can create PGVector-backed vector stores without downloading model artifacts at runtime.
