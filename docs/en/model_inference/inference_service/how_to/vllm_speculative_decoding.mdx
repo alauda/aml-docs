@@ -35,9 +35,9 @@ It can hurt or be neutral on:
 
 Run a representative workload before committing speculative decoding as a default. See [Verify and Measure the Impact](#verify-and-measure-the-impact).
 
-## Methods Available on Alauda AI \{#methods-available-on-alauda-ai}
+## Methods Validated in This Guide on Alauda AI \{#methods-available-on-alauda-ai}
 
-The two methods below are the ones this guide covers and that have been exercised end-to-end on Alauda AI. vLLM upstream supports additional methods (for example MTP for models that ship multi-token-prediction heads, Medusa, MLP Speculator, Suffix, Draft Model); they are configurable through the same `--speculative-config` flag, but are out of scope for this page — refer to the upstream documentation if you want to use them, and validate on your own setup before promoting to production.
+The two methods below are the ones this guide covers and that have been exercised end-to-end on Alauda AI. vLLM upstream supports additional methods (for example MTP for models that ship multi-token-prediction heads, Medusa, MLP Speculator, Suffix, Draft Model), and those methods may also be usable on Alauda AI through the same `--speculative-config` flag. They are out of scope for this page, so refer to the upstream documentation and validate on your own setup before promoting to production.
 
 | Method  | What you provide                                            | Trade-off                                                                                                       |
 | ------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
@@ -232,7 +232,7 @@ EAGLE-3 needs both the target model **and** a matching draft head loaded into th
 
 #### Option A — KServe `storageUris` (preferred when available)
 
-`storageUris` is a KServe field that accepts multiple storage locations and mounts each at a declared path. It is the cleanest option when your platform's KServe version supports it (KServe 0.17 and later).
+`storageUris` is a KServe field that accepts multiple storage locations and mounts each at a declared path. It is the cleanest option when your platform's KServe version supports it (KServe 0.16 and later).
 
 ```yaml
 spec:
@@ -289,7 +289,7 @@ Stage both artifacts onto a PVC under a known directory layout, mount the PVC, a
 
 | Constraint                                                | Use      |
 | --------------------------------------------------------- | -------- |
-| Online cluster, KServe ≥ 0.17, want declarative manifests | Option A |
+| Online cluster, KServe ≥ 0.16, want declarative manifests | Option A |
 | Offline / air-gapped, want a single versioned artifact    | Option B |
 | Already have model files on a shared PVC                  | Option C |
 
@@ -429,7 +429,7 @@ spec:
 <Callouts>
 1. Both paths in the vLLM command (`--model` and the `model` key inside `--speculative-config`) must match the directory names **inside** the PVC exactly. If your PVC lays the artifacts out under different names, adjust these two paths together.
 2. The EAGLE-3 head occupies GPU memory outside the `--gpu-memory-utilization` budget. Leaving headroom (here `0.8` instead of `0.9`) reduces the chance of OOM when both artifacts are loaded.
-3. `pvc://<your-pvc-name>/` expects a PVC pre-staged with **both** the target model and the EAGLE-3 draft head; the PVC root is mounted at `/mnt/models/`, so the two artifacts must live at `/mnt/models/<target-subdir>/` and `/mnt/models/<draft-subdir>/`. See the expected layout below. If you prefer declarative multi-URI mounts (KServe 0.17+) or bundling target + draft into a single OCI image instead, see [Option A or Option B in Providing Model Artifacts](#providing-model-artifacts-on-alauda-ai).
+3. `pvc://<your-pvc-name>/` expects a PVC pre-staged with **both** the target model and the EAGLE-3 draft head; the PVC root is mounted at `/mnt/models/`, so the two artifacts must live at `/mnt/models/<target-subdir>/` and `/mnt/models/<draft-subdir>/`. See the expected layout below. If you prefer declarative multi-URI mounts (KServe 0.16+) or bundling target + draft into a single OCI image instead, see [Option A or Option B in Providing Model Artifacts](#providing-model-artifacts-on-alauda-ai).
 </Callouts>
 
 Expected layout inside the PVC (mounted at `/mnt/models/` in the pod):
@@ -608,7 +608,7 @@ kubectl logs -n <your-namespace> -l serving.kserve.io/inferenceservice=<name>
 
 - **Outcomes swing widely with workload shape — regression and speedup are both real.** Upstream V0 benchmarks reported 1.4×–1.8× slowdowns at high QPS. Our own A30 + Qwen3-8B N-gram test (see [Internal Validation Snapshot — N-gram](#recommended-starting-points)) saw a slight regression even on a high-overlap code workload. On the same hardware, EAGLE-3 on Llama-3.1-8B (see [Internal Validation Snapshot — EAGLE-3](#recommended-starting-points)) hit a **1.84× speedup on code-refactor but was break-even on chat (~0.99×)** — same model, same method, same pod, 2× swing in realized benefit between two prompt shapes. Always validate against your production traffic profile.
 - **N-gram disables async scheduling.** In recent vLLM versions, enabling the `ngram` method forces async scheduling off (the predictor logs `Async scheduling not supported with ngram-based speculative decoding and will be disabled`). If your service depends on async scheduling for throughput, prefer EAGLE-3, or measure the trade-off explicitly.
-- **`storageUris` availability.** The field is available from KServe 0.17. Older platform releases must use the Modelcar or PVC option.
+- **`storageUris` availability.** The field is available from KServe 0.16. Older platform releases must use the Modelcar or PVC option.
 - **Draft head mismatch is silent.** A draft head that does not exactly match the target model usually starts up and serves traffic correctly but with very low acceptance rate. Always check acceptance rate after enabling.
 - **Sampling parameters affect acceptance.** High temperature reduces acceptance rate; benchmark with sampling settings that reflect production usage.
 - **`gpu-memory-utilization` budget.** Draft artifacts (EAGLE-3 head, MLP speculator, draft model) are not included in the `--gpu-memory-utilization` budget; reduce that value when adding a draft artifact.
