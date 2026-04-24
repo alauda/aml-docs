@@ -35,9 +35,7 @@ It can hurt or be neutral on:
 
 Run a representative workload before committing speculative decoding as a default. See [Verify and Measure the Impact](#verify-and-measure-the-impact).
 
-<a id="methods-available-on-alauda-ai"></a>
-
-## Methods Available on Alauda AI
+## Methods Available on Alauda AI \{#methods-available-on-alauda-ai}
 
 The two methods below are the ones this guide covers and that have been exercised end-to-end on Alauda AI. vLLM upstream supports additional methods (for example MTP for models that ship multi-token-prediction heads, Medusa, MLP Speculator, Suffix, Draft Model); they are configurable through the same `--speculative-config` flag, but are out of scope for this page — refer to the upstream documentation if you want to use them, and validate on your own setup before promoting to production.
 
@@ -51,9 +49,7 @@ Notes:
 - vLLM upstream describes N-gram as "effective for use cases like summarization and question-answering, where there is a significant overlap between the prompt and the answer".
 - vLLM upstream describes EAGLE-3 as "the current SOTA for speculative decoding algorithms" (snapshot from the latest features page; revisit per release).
 
-<a id="recommended-starting-points"></a>
-
-## Recommended Starting Points
+## Recommended Starting Points \{#recommended-starting-points}
 
 There is no single best method for every workload. The following are conservative starting points to reduce trial cost. Always validate against your own traffic before promoting to production.
 
@@ -213,9 +209,7 @@ Common keys:
 
 All other vLLM arguments (`--model`, `--tensor-parallel-size`, `--gpu-memory-utilization`, …) work the same as in a non-speculative deployment.
 
-<a id="providing-model-artifacts-on-alauda-ai"></a>
-
-## Providing Model Artifacts on Alauda AI
+## Providing Model Artifacts on Alauda AI \{#providing-model-artifacts-on-alauda-ai}
 
 Different methods need different files inside the predictor pod.
 
@@ -461,9 +455,7 @@ Apply any of the manifests above with:
 kubectl apply -f <manifest>.yaml -n <your-namespace>
 ```
 
-<a id="verify-and-measure-the-impact"></a>
-
-## Verify and Measure the Impact
+## Verify and Measure the Impact \{#verify-and-measure-the-impact}
 
 Verifying that speculative decoding was configured is one step. Verifying that it **helps your workload** is a different step.
 
@@ -575,9 +567,7 @@ Two practical rules when running the comparison:
 - Use the same `--seed` and `temperature=0` for both sides, and warm up each service with 3 discarded requests before timing — otherwise sampling and compile-cache noise will dominate the differences you measure.
 - Run baseline and spec-decode against the **same fixed prompt list, in the same order**, at least 5–10 times per prompt, and compare medians rather than averages.
 
-<a id="rollback"></a>
-
-## Rollback
+## Rollback \{#rollback}
 
 To disable speculative decoding without changing anything else, remove the `--speculative-config` line from the predictor command and re-apply:
 
@@ -614,9 +604,7 @@ kubectl describe inferenceservice <name> -n <your-namespace>
 kubectl logs -n <your-namespace> -l serving.kserve.io/inferenceservice=<name>
 ```
 
-<a id="caveats-and-known-limitations"></a>
-
-## Caveats and Known Limitations
+## Caveats and Known Limitations \{#caveats-and-known-limitations}
 
 - **Outcomes swing widely with workload shape — regression and speedup are both real.** Upstream V0 benchmarks reported 1.4×–1.8× slowdowns at high QPS. Our own A30 + Qwen3-8B N-gram test (see [Internal Validation Snapshot — N-gram](#recommended-starting-points)) saw a slight regression even on a high-overlap code workload. On the same hardware, EAGLE-3 on Llama-3.1-8B (see [Internal Validation Snapshot — EAGLE-3](#recommended-starting-points)) hit a **1.84× speedup on code-refactor but was break-even on chat (~0.99×)** — same model, same method, same pod, 2× swing in realized benefit between two prompt shapes. Always validate against your production traffic profile.
 - **N-gram disables async scheduling.** In recent vLLM versions, enabling the `ngram` method forces async scheduling off (the predictor logs `Async scheduling not supported with ngram-based speculative decoding and will be disabled`). If your service depends on async scheduling for throughput, prefer EAGLE-3, or measure the trade-off explicitly.
