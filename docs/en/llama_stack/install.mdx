@@ -34,6 +34,8 @@ After the operator is installed, deploy Llama Stack Server by creating a `LlamaS
 > - **Inference URL**: `VLLM_URL` must point at a **vLLM OpenAI-compatible** HTTP base URL (for example an in-cluster vLLM or KServe InferenceService) that serves the target model.
 > - **Secret (optional)**: `VLLM_API_TOKEN` is only needed when the vLLM endpoint requires authentication. If vLLM has no auth, do not set it. When required, create a Secret in the same namespace and reference it from `containerSpec.env` (see the commented example in the manifest below).
 > - **Storage Class**: Ensure the `default` Storage Class exists in the cluster; otherwise the PVC cannot be bound and the resource will not become ready.
+> - **PGVector (optional)**: To use `vector_stores` with `provider_id="pgvector"`, provide `PGVECTOR_*` environment variables to the server pod. ACP-provided PostgreSQL can be used directly because it already includes the `pgvector` extension.
+> - **Embedding model download**: Llama Stack includes a default embedding model configuration for vector-store usage, but the model artifacts are downloaded from Hugging Face on first use. If direct access is restricted, configure `HF_ENDPOINT` for a mirror/proxy, or pre-download the model files into the server PVC before running the first vector-store request.
 
 ```yaml
 apiVersion: llamastack.io/v1alpha1
@@ -66,6 +68,31 @@ spec:
         #       key: token
         #       name: vllm-api-token
 
+        # Optional: enable PGVector-backed vector stores.
+        # Omit the entire block below if you do not need vector store APIs.
+        # ACP-provided PostgreSQL already includes the pgvector extension.
+        # - name: ENABLE_PGVECTOR
+        #   value: "true"
+        # - name: PGVECTOR_HOST
+        #   value: "<acp-postgresql-service>"
+        # - name: PGVECTOR_PORT
+        #   value: "5432"
+        # - name: PGVECTOR_DB
+        #   value: "<database-name>"
+        # - name: PGVECTOR_USER
+        #   value: "<database-username>"
+        # - name: PGVECTOR_PASSWORD
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: <pgvector-credentials-secret>
+        #       key: password
+
+        # Optional: configure Hugging Face access for the default embedding model.
+        # Set HF_ENDPOINT when a mirror/proxy is required, or pre-populate the model
+        # cache under the server PVC before the first vector-store request.
+        # - name: HF_ENDPOINT
+        #   value: "<huggingface-mirror-or-proxy>"
+
     distribution:
       name: starter                                # Distribution name (options: starter, postgres-demo, meta-reference-gpu)
     storage:
@@ -93,3 +120,16 @@ args:
 ```
 
 Choose `--tool-call-parser` (and any related flags) according to the **served model** and the vLLM documentation for that model family.
+
+## Enable PGVector Vector Store
+
+When `ENABLE_PGVECTOR=true` is set on the server, Llama Stack can create vector stores by using `provider_id="pgvector"` from the client API.
+
+Recommended preparation:
+
+1. Prepare an ACP PostgreSQL instance and record its service name, database name, username, and password.
+2. Expose the database connection to the `LlamaStackDistribution` with `PGVECTOR_HOST`, `PGVECTOR_PORT`, `PGVECTOR_DB`, `PGVECTOR_USER`, and `PGVECTOR_PASSWORD`.
+3. Use the default embedding model provided by Llama Stack, and make sure its model files can be fetched on first use.
+4. If the cluster cannot reach Hugging Face directly, either set `HF_ENDPOINT` to a reachable mirror/proxy or pre-download the embedding model files into the server PVC.
+
+After the distribution is ready, you can validate the setup with the PGVector section in the [Quickstart](./quickstart) notebook.
