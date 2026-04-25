@@ -354,6 +354,112 @@ default   True    Succeeded
 ```
 </Steps>
 
+## Importing Built-in Model Images for Catalog \{#importing-built-in-model-images-for-catalog}
+
+The **Catalog** feature in Alauda AI ships with a set of built-in model OCI images that users can deploy as inference services from the Web Console. These images **must be imported into your cluster's registry before the Catalog can serve them**. Without this step, the installation completes successfully, but deploying a built-in model from the Catalog will later fail with `ImagePullBackOff`.
+
+<Steps>
+
+### Obtaining the OCI image tarballs
+
+Built-in model images are delivered as OCI archive tarballs (`.tar` files compliant with the OCI Image Layout Specification). Each tarball contains a multi-architecture image (`linux/amd64` + `linux/arm64`) for one model.
+
+Download the tarballs from the Customer Portal Marketplace, or contact your Alauda support representative to obtain the package matching your Alauda AI version.
+
+### Pushing to your cluster registry
+
+The recommended approach uses `ctr` (the containerd CLI), which is available on every cluster node. Run the following on **any one node** of the target cluster — only that node needs network access to your registry; once pushed, the image is available cluster-wide.
+
+First, set the environment variables:
+
+```bash
+export REG=<your-registry-host:port>          # [!code callout]
+export REPO=<project>/<image-name>            # [!code callout]
+export AUTH=<user>:<password>                 # [!code callout]
+export TAR=./Qwen3.5-0.8B.oci.tar             # [!code callout]
+```
+
+<Callouts>
+
+1. The cluster's image registry endpoint. You can find this value in the **Administrator** view, then click **Clusters**, select `your cluster`, and check the **Private Registry** value in the **Basic Info** section.
+2. Target repository path inside that registry, in the form `<project>/<image-name>`. For example, `mlops/modelcar-qwen3.5-0.8b` would push to project `mlops` with image name `modelcar-qwen3.5-0.8b`. The project must already exist in your registry and the credentials below must have write access to it.
+3. Registry credentials in the form `user:password`. **Contact your platform administrator if you do not have these.**
+4. Path to the OCI archive tarball obtained in the previous step.
+
+</Callouts>
+
+The tarball carries its own tag (e.g. `v2.3.0`) inside the OCI image layout. Extract it from the tar so the rest of the procedure does not depend on knowing it ahead of time:
+
+```bash
+export TAG=$(tar -xOf "$TAR" index.json \
+  | jq -r '.manifests[0].annotations["org.opencontainers.image.ref.name"]')
+echo "$TAG"   # should print something like v2.3.0
+```
+
+Then run the push procedure:
+
+```bash
+# 1. Import into the node's containerd content store.
+#    --base-name prepends $REG/$REPO to the tag carried inside the tarball,
+#    producing a fully-qualified reference $REG/$REPO:$TAG.
+ctr -n k8s.io images import \
+  --all-platforms \
+  --base-name "$REG/$REPO" \
+  "$TAR"
+
+# 2. Verify the import. You should see "$REG/$REPO:$TAG".
+ctr -n k8s.io images ls -q | grep "$REPO"
+
+# 3. Push to the registry.
+#    --skip-verify  : skip TLS verification (use when the registry has a private CA)
+#    --plain-http   : use HTTP instead of HTTPS (use for HTTP-only registries)
+#    --local        : resolve content from the local store (required for pushing
+#                     locally-imported multi-arch indexes)
+ctr -n k8s.io images push \
+  -u "$AUTH" \
+  --skip-verify \
+  --local \
+  "$REG/$REPO:$TAG"
+
+# 4. Clean up the local reference on the node. Blob data is reclaimed by
+#    containerd's garbage collector, leaving no persistent state on the node.
+ctr -n k8s.io images rm "$REG/$REPO:$TAG"
+```
+
+Repeat this procedure for each built-in model tarball, varying `$REPO` and `$TAR` per model.
+
+:::info
+`--all-platforms` is critical at the **import** step: omitting it imports only the node's host architecture, and the subsequent push will silently miss the other platform's blobs. The flag is not needed on `push` — pushing the multi-arch index automatically pushes all platforms it references.
+:::
+
+### Verifying the push
+
+Confirm that the registry now serves the image as a multi-architecture index:
+
+```bash
+curl -sk -u "$AUTH" \
+  -H 'Accept: application/vnd.oci.image.index.v1+json' \
+  -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
+  "https://$REG/v2/$REPO/manifests/$TAG" \
+  | jq '{mediaType, platforms: [.manifests[]?.platform]}'
+```
+
+Expected output:
+
+```json
+{
+  "mediaType": "application/vnd.oci.image.index.v1+json",
+  "platforms": [
+    {"architecture": "amd64", "os": "linux"},
+    {"architecture": "arm64", "os": "linux"}
+  ]
+}
+```
+
+If `mediaType` is `application/vnd.oci.image.manifest.v1+json` instead and `platforms` contains only one entry, only one architecture was pushed. Re-run the import step with `--all-platforms` and push again.
+
+</Steps>
+
 Now, the core capabilities of Alauda AI have been successfully deployed. If you want to quickly experience the product, please refer to the [Quick Start](../../overview/quick_start.mdx).
 
 ## FAQ
