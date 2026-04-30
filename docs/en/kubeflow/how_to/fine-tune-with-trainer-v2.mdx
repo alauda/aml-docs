@@ -79,6 +79,19 @@ Use our pre-built image `alaudadockerhub/fine_tune_with_llamafactory:v0.1.11` or
 1. Download the [notebook](https://github.com/alauda/aml-docs/docs/en/kubeflow/how_to/fine-tune-with-trainer-v2.ipynb) to your current workbench in **Alauda AI**, create a new workbench if you don't have one, and open the notebook.
 2. Follow the instructions in the notebook to create a `TrainingRuntime` and submit a `TrainJob` for fine-tuning a LLaMA-Factory model. The notebook includes example configurations for using the `team-model-cache-pvc` shared PVC and Git credentials.
 
+## Fine-Tuning on Ascend NPUs with MindSpeed-LLM
+
+For Huawei Ascend NPU clusters, use the [MindSpeed-LLM NPU notebook](https://github.com/alauda/aml-docs/docs/en/kubeflow/how_to/fine-tune-with-trainer-v2-mindspeed-npu.ipynb) instead of the LlamaFactory GPU notebook.
+
+The MindSpeed-LLM notebook shows how to:
+
+- Use the pre-built `alaudadockerhub/alauda-workbench-jupyter-pytorch-cann-py312-ubi9:v0.1.7` image.
+- Create a Trainer v2 `TrainingRuntime` with `runtimeClassName: ascend` and `schedulerName: hami-scheduler`.
+- Submit a Qwen3 fine-tuning `TrainJob` that requests Ascend resources such as `huawei.com/Ascend910B4`.
+- Run the MindSpeed-LLM workflow: Hugging Face checkpoint conversion, dataset preprocessing, and SFT training.
+
+Use this notebook when your cluster provides Ascend NPUs and your model training image must include `torch_npu`, `mindspeed`, and `mindspeed_llm`.
+
 ## Scheduling with Kueue
 
 [Kueue](https://kueue.sigs.k8s.io/) provides job queuing, quota management, and fair scheduling for Kubernetes workloads. When Kueue is installed in your cluster, TrainJobs are held in a **suspended** state until Kueue admits them based on available quota.
