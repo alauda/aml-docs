@@ -1,0 +1,106 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  generateName: trainjob-sft-qwen3-
+  namespace: mlops-demo-ai-test
+  labels:
+    kueue.x-k8s.io/queue-name: local-queue
+spec:
+  runtimeRef:
+    apiGroup: trainer.kubeflow.org
+    name: llamafactory-finetune-runtime
+    kind: TrainingRuntime
+  podTemplateOverrides:
+    - targetJobs:
+        - name: node
+      spec:
+        # Step 1: Configure models-cache volume override to mount the shared PVC for caching models
+        # In distributed training tasks (with >= 2 replicas), ensure that you use the appropriate storage type for caching large models:
+        # - Network storage, such as NFS or Ceph: Simply mount the network storage. Note that multiple containers may access this network storage simultaneously, resulting in high concurrent traffic. Furthermore, reading large model files may be slower than reading them locally (depending on the network storage's performance).
+        # - Local storage, such as topolvm or local-storage: Use `kserve local model cache` to pre-cache the model file on each node before mounting this PVC. Training tasks cannot cache each local PVC.
+        volumes:
+          - name: models-cache
+            persistentVolumeClaim:
+              claimName: team-model-cache-pvc
+        containers:
+          - name: node
+            volumeMounts:
+              - name: models-cache
+                mountPath: /mnt/models
+        # Step 2: Configure node selector to ensure the job runs on GPU nodes if needed.
+        nodeSelector:
+          nvidia.com/gpu.product: Tesla-T4
+    - targetJobs:
+        - name: dataset-initializer
+      spec:
+        # Step 3: Do the same as step 1.
+        volumes:
+          - name: models-cache
+            persistentVolumeClaim:
+              claimName: team-model-cache-pvc
+        containers:
+          - name: dataset-initializer
+            volumeMounts:
+              - name: models-cache
+                mountPath: /mnt/models
+        nodeSelector:
+          nvidia.com/gpu.product: Tesla-T4
+    - targetJobs:
+        - name: model-initializer
+      spec:
+        # Step 4: Do the same as step 1.
+        volumes:
+          - name: models-cache
+            persistentVolumeClaim:
+              claimName: team-model-cache-pvc
+        containers:
+          - name: model-initializer
+            volumeMounts:
+              - name: models-cache
+                mountPath: /mnt/models
+        nodeSelector:
+          nvidia.com/gpu.product: Tesla-T4
+  initializer:
+    # Step 5: set dataset and model URL in initializer step. The initializer will download dataset and model to the shared PVC, so that the trainer can access them from the same path.
+    dataset:
+      env:
+        - name: DATASET_URL
+          value: "https://aml-gitlab.alaudatech.net/mlops-demo-ai-test/amldatasets/identity-alauda"
+    model:
+      env:
+        - name: BASE_MODEL_URL
+          value: "https://aml-gitlab.alaudatech.net/mlops-demo-ai-test/amlmodels/qwen3-0.6b"
+  trainer:
+    # Step 6: set numNodes to fit the parallism requirement of your training job.
+    numNodes: 1
+    env:
+    # Step 7: set environments accordingly.
+    - name: BASE_MODEL_URL
+      value: "https://aml-gitlab.alaudatech.net/mlops-demo-ai-test/amlmodels/qwen3-0.6b"
+    - name: DATASET_URL
+      value: "https://aml-gitlab.alaudatech.net/mlops-demo-ai-test/amldatasets/identity-alauda"
+    - name: HF_HOME
+      value: /mnt/workspace/hf_cache
+    - name: DO_MERGE
+      value: "true"
+    - name: MLFLOW_TRACKING_URI
+      value: "http://mlflow-tracking-server.kubeflow:5000"
+    - name: MLFLOW_EXPERIMENT_NAME
+      value: mlops-demo-ai-test
+    - name: MODEL_OUTPUT_DIR
+      value: /mnt/workspace/output_models_merged
+    - name: OUTPUT_MODEL_URL
+      value: "https://aml-gitlab.alaudatech.net/mlops-demo-ai-test/amlmodels/wy-sft-output"
+    resourcesPerNode:
+      limits:
+        cpu: "4"
+        memory: "16Gi"
+        nvidia.com/gpualloc: 1
+        nvidia.com/gpucores: 50
+        nvidia.com/gpumem: "8192"
+      requests:
+        cpu: "100m"
+        memory: "2Gi"
+        nvidia.com/gpualloc: 1
+        nvidia.com/gpucores: 50
+        nvidia.com/gpumem: "8192"
