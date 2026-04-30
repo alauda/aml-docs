@@ -274,6 +274,20 @@ This command applies the JSON patch file to the specified WorkspaceKind and upda
 
 In practice, you can adapt the `name`, `image`, and `description` fields according to the image you synchronized and the naming conventions used in your cluster.
 
+### Configure supplemental groups for Ascend vNPU workbenches
+
+If you use an Ascend vNPU resource option such as `huawei.com/Ascend910B4`, verify that the target `WorkspaceKind` pod template includes the Ascend device group in `supplementalGroups`. Some vNPU setups mount `/dev/davinci*` device files as group-owned character devices, for example `1000:1000` with mode `crw-rw----`. In that case, `fsGroup` alone does not grant access to the device files, and commands such as `npu-smi info` can fail with `dcmi module initialize failed. ret is -8005`.
+
+Patch the `WorkspaceKind` that provides your vNPU workbench option:
+
+```bash
+kubectl patch workspacekind jupyterlab-internal-3-4-ea1-v1-41 \
+  --type=merge \
+  -p '{"spec":{"podTemplate":{"securityContext":{"fsGroup":0,"supplementalGroups":[1000]}}}}'
+```
+
+Use the group ID that owns the Ascend device files in your cluster. New workbench pods created from this `WorkspaceKind` will inherit the updated security context. Existing workbench pods must be restarted to pick up the change.
+
 :::info
 We have also built in some resource options, which you can see in the dropdown menu.
 :::
