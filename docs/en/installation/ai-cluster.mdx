@@ -356,7 +356,7 @@ default   True    Succeeded
 
 ## Importing Built-in Model Images for Catalog \{#importing-built-in-model-images-for-catalog}
 
-The **Catalog** feature in Alauda AI ships with a set of built-in model OCI images that users can deploy as inference services from the Web Console. These images **must be imported into your cluster's registry before the Catalog can serve them**. Without this step, the installation completes successfully, but deploying a built-in model from the Catalog will later fail with `ImagePullBackOff`.
+The **Catalog** feature in Alauda AI ships with a set of built-in model OCI images that users can deploy as inference services from the Web Console. These images **must be imported into Harbor before the Catalog can serve them**. Without this step, the installation completes successfully, but deploying a built-in model from the Catalog will later fail with `ImagePullBackOff`.
 
 <Steps>
 
@@ -366,29 +366,33 @@ Built-in model images are delivered as OCI archive tarballs (`.tar` files compli
 
 Download the tarballs from the Customer Portal Marketplace, or contact your Alauda support representative to obtain the package matching your Alauda AI version.
 
-### Pushing to your cluster registry
+### Pushing to Harbor
 
-The recommended approach uses `ctr` (the containerd CLI), which is available on every cluster node. Run the following on **any one node** of the target cluster — only that node needs network access to your registry; once pushed, the image is available cluster-wide.
+The recommended target is Harbor. The following procedure has been verified with an HTTP Harbor registry, where the push command must include `--plain-http`.
+
+Run the commands on a node that has `ctr`, `curl`, and `jq` installed and can reach Harbor.
 
 First, set the environment variables:
 
 ```bash
-export REG=<your-registry-host:port>          # [!code callout]
-export REPO=<project>/<image-name>            # [!code callout]
-export AUTH=<user>:<password>                 # [!code callout]
+export REG=192.168.140.0:32700                # [!code callout]
+export REPO=mlops/modelcar-qwen3.5-0.8b       # [!code callout]
+export TAG=v2.3.0                             # [!code callout]
 export TAR=./Qwen3.5-0.8B.oci.tar             # [!code callout]
+export AUTH='user:password'                   # [!code callout]
 ```
 
 <Callouts>
 
-1. The cluster's image registry endpoint. You can find this value in the **Administrator** view, then click **Clusters**, select `your cluster`, and check the **Private Registry** value in the **Basic Info** section.
-2. Target repository path inside that registry, in the form `<project>/<image-name>`. For example, `mlops/modelcar-qwen3.5-0.8b` would push to project `mlops` with image name `modelcar-qwen3.5-0.8b`. The project must already exist in your registry and the credentials below must have write access to it.
-3. Registry credentials in the form `user:password`. **Contact your platform administrator if you do not have these.**
+1. Harbor registry endpoint, without the URL scheme.
+2. Target repository path in Harbor, in the form `<project>/<image-name>`. For example, `mlops/modelcar-qwen3.5-0.8b` uses the Harbor project `mlops` and repository `modelcar-qwen3.5-0.8b`.
+3. Image tag carried by the OCI archive. If you do not know it, extract it from the tarball with the command below.
 4. Path to the OCI archive tarball obtained in the previous step.
+5. Harbor credentials in the form `user:password`. **Contact your platform administrator if you do not have these.**
 
 </Callouts>
 
-The tarball carries its own tag (e.g. `v2.3.0`) inside the OCI image layout. Extract it from the tar so the rest of the procedure does not depend on knowing it ahead of time:
+The tarball usually carries its own tag (e.g. `v2.3.0`) inside the OCI image layout. If needed, extract it from the tarball:
 
 ```bash
 export TAG=$(tar -xOf "$TAR" index.json \
@@ -396,7 +400,33 @@ export TAG=$(tar -xOf "$TAR" index.json \
 echo "$TAG"   # should print something like v2.3.0
 ```
 
-Then run the push procedure:
+Check whether the image tag already exists in Harbor:
+
+```bash
+URL="http://$REG/api/v2.0/projects/${REPO%%/*}/repositories/$(printf '%s' "${REPO#*/}" | sed 's|/|%2F|g')/artifacts/$TAG"
+
+HTTP=$(curl -s -u "$AUTH" -o /tmp/harbor-artifact.json -w '%{http_code}' "$URL")
+
+echo "HTTP=$HTTP  URL=$URL"
+
+[ "$HTTP" = 200 ] && jq '{digest, size, push_time, arch: .extra_attrs.architecture, tags: [.tags[].name], platforms: [.references[]?.platform]}' /tmp/harbor-artifact.json \
+  || jq -r '.errors[]?.message' /tmp/harbor-artifact.json
+```
+
+If the Harbor project does not exist yet, create it before pushing:
+
+```bash
+PROJECT="${REPO%%/*}"
+
+curl -s -u "$AUTH" -X POST "http://$REG/api/v2.0/projects" \
+  -H 'Content-Type: application/json' \
+  -d "{\"project_name\":\"$PROJECT\",\"public\":false}" \
+  -w '\nHTTP %{http_code}\n'
+```
+
+If the project already exists, Harbor returns a non-2xx status code. After confirming the project exists, continue with the import and push.
+
+Then run the import and push procedure:
 
 ```bash
 # 1. Import into the node's containerd content store.
@@ -410,15 +440,10 @@ ctr -n k8s.io images import \
 # 2. Verify the import. You should see "$REG/$REPO:$TAG".
 ctr -n k8s.io images ls -q | grep "$REPO"
 
-# 3. Push to the registry.
-#    --skip-verify  : skip TLS verification (use when the registry has a private CA)
-#    --plain-http   : use HTTP instead of HTTPS (use for HTTP-only registries)
-#    --local        : resolve content from the local store (required for pushing
-#                     locally-imported multi-arch indexes)
+# 3. Push to Harbor. HTTP Harbor requires --plain-http.
 ctr -n k8s.io images push \
-  -u "$AUTH" \
-  --skip-verify \
-  --local \
+  --plain-http \
+  --user "$AUTH" \
   "$REG/$REPO:$TAG"
 
 # 4. Clean up the local reference on the node. Blob data is reclaimed by
@@ -426,37 +451,42 @@ ctr -n k8s.io images push \
 ctr -n k8s.io images rm "$REG/$REPO:$TAG"
 ```
 
-Repeat this procedure for each built-in model tarball, varying `$REPO` and `$TAR` per model.
+Repeat this procedure for each built-in model tarball, varying `$REPO`, `$TAG`, and `$TAR` per model.
 
 :::info
 `--all-platforms` is critical at the **import** step: omitting it imports only the node's host architecture, and the subsequent push will silently miss the other platform's blobs. The flag is not needed on `push` — pushing the multi-arch index automatically pushes all platforms it references.
 :::
 
-### Verifying the push
+### Verifying the Harbor import
 
-Confirm that the registry now serves the image as a multi-architecture index:
+Confirm that Harbor now serves the image:
 
 ```bash
-curl -sk -u "$AUTH" \
-  -H 'Accept: application/vnd.oci.image.index.v1+json' \
-  -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
-  "https://$REG/v2/$REPO/manifests/$TAG" \
-  | jq '{mediaType, platforms: [.manifests[]?.platform]}'
+URL="http://$REG/api/v2.0/projects/${REPO%%/*}/repositories/$(printf '%s' "${REPO#*/}" | sed 's|/|%2F|g')/artifacts/$TAG"
+
+HTTP=$(curl -s -u "$AUTH" -o /tmp/harbor-artifact.json -w '%{http_code}' "$URL")
+
+echo "HTTP=$HTTP  URL=$URL"
+
+[ "$HTTP" = 200 ] && jq '{digest, size, push_time, arch: .extra_attrs.architecture, tags: [.tags[].name], platforms: [.references[]?.platform]}' /tmp/harbor-artifact.json \
+  || jq -r '.errors[]?.message' /tmp/harbor-artifact.json
 ```
 
-Expected output:
+`HTTP=200` means the image was successfully imported into Harbor. Expected output includes the digest, size, push time, tag, and platform information:
 
 ```json
 {
-  "mediaType": "application/vnd.oci.image.index.v1+json",
+  "digest": "sha256:...",
+  "size": 123456789,
+  "push_time": "2026-05-06T00:00:00.000Z",
+  "arch": "amd64",
+  "tags": ["v2.3.0"],
   "platforms": [
     {"architecture": "amd64", "os": "linux"},
     {"architecture": "arm64", "os": "linux"}
   ]
 }
 ```
-
-If `mediaType` is `application/vnd.oci.image.manifest.v1+json` instead and `platforms` contains only one entry, only one architecture was pushed. Re-run the import step with `--all-platforms` and push again.
 
 </Steps>
 
