@@ -332,11 +332,73 @@ In **Administrator** view:
     :::
 
 12. Under **Gitlab** section:
+
+    :::warning
+    GitLab-backed model storage is deprecated. It remains available for compatibility only and is planned for removal in a future Alauda AI release. For built-in models and new model delivery workflows, use **Model Catalog** with OCI model artifacts instead.
+    :::
+
     1.  Type the URL of self-hosted Gitlab for **Base URL**.
     2.  Type `cpaas-system` for **Admin Token Secret Namespace**.
     3.  Type `aml-gitlab-admin-token` for **Admin Token Secret Name**.
 
-13. Review above configurations and then click **Create**.
+13. Under **Model Catalog** section, configure the following parameters:
+
+    - **Database Password Secret Namespace**: Namespace of the secret containing the PostgreSQL password for Model Catalog.
+    - **Database Password Secret Name**: Name of the secret containing the PostgreSQL password for Model Catalog.
+
+      Create the secret before creating the Alauda AI instance. If you use the following example, set **Database Password Secret Namespace** to `aml-operator` and **Database Password Secret Name** to `model-catalog`.
+
+      ```yaml
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: model-catalog  # [!code callout]
+        namespace: aml-operator  # [!code callout]
+      stringData:
+        password: <postgres-password>  # [!code callout]
+      type: Opaque
+      ```
+
+      <Callouts>
+
+      1. `metadata.name` is the value for **Database Password Secret Name**.
+      2. `metadata.namespace` is the value for **Database Password Secret Namespace**.
+      3. `stringData.password` is the PostgreSQL password in plain text. Kubernetes stores it as base64-encoded `data.password` after the Secret is created.
+
+      </Callouts>
+
+      After creation, the stored Secret has a base64-encoded `data.password` field, for example:
+
+      ```yaml
+      apiVersion: v1
+      data:
+        password: cGc=
+      kind: Secret
+      metadata:
+        name: model-catalog
+        namespace: aml-operator
+      type: Opaque
+      ```
+
+    - **Model OCI Registry Address**: Registry address hosting model OCI artifacts for Model Catalog. The default value is `build-harbor.alauda.cn`.
+
+      This registry stores the model OCI images used by Model Catalog. Use Harbor or another production-mode OCI registry with HTTPS access enabled. The Harbor project or repository used for Model Catalog must allow anonymous pull access from inference cluster nodes.
+
+      If you cannot deploy a registry with HTTPS in the target environment, you can use an HTTP registry as a fallback. Configure the container runtime on every node in the inference cluster before deploying models. For containerd, add an insecure registry mirror for the registry address, for example by creating `/etc/containerd/certs.d/<registry-host:port>/hosts.toml`:
+
+      ```toml
+      server = "http://<registry-host:port>"
+
+      [host."http://<registry-host:port>"]
+        capabilities = ["pull", "resolve"]
+      ```
+
+      Then restart containerd or apply the equivalent node-runtime configuration through your cluster management system. This configuration must exist on the nodes where inference service pods are scheduled; otherwise the pod image pull will fail even if Model Catalog can list the model. The exact containerd configuration path can vary by Kubernetes distribution; after applying the configuration, verify that the node can pull a Model Catalog image, for example with `crictl pull <registry-host:port>/<repository>:<tag>`.
+
+    - **Source of PVC**: Choose whether to reuse an existing PVC or create a new one. Use `CreateNew` to let the installation create the PVC.
+    - **StorageClass Name**: StorageClass used when creating a new PVC.
+
+14. Review above configurations and then click **Create**.
 
 ### Verification
 
@@ -356,7 +418,7 @@ default   True    Succeeded
 
 ## Importing Built-in Model Images for Catalog \{#importing-built-in-model-images-for-catalog}
 
-The **Catalog** feature in Alauda AI ships with a set of built-in model OCI images that users can deploy as inference services from the Web Console. These images **must be imported into Harbor before the Catalog can serve them**. Without this step, the installation completes successfully, but deploying a built-in model from the Catalog will later fail with `ImagePullBackOff`.
+The **Catalog** feature in Alauda AI ships with a set of built-in model OCI images that users can deploy as inference services from the Web Console. These images **must be imported into the OCI registry configured by Model Catalog before the Catalog can serve them**. Without this step, the installation completes successfully, but deploying a built-in model from the Catalog will later fail with `ImagePullBackOff`.
 
 <Steps>
 
@@ -368,7 +430,7 @@ Download the tarballs from the Customer Portal Marketplace, or contact your Alau
 
 ### Pushing to Harbor
 
-The recommended target is Harbor. The following procedure has been verified with an HTTP Harbor registry, where the push command must include `--plain-http`.
+The recommended target is Harbor. The example below uses an HTTP Harbor registry. If your Harbor registry uses HTTPS, omit `--plain-http` and change the API URLs from `http://` to `https://`.
 
 Run the commands on a node that has `ctr`, `curl`, and `jq` installed and can reach Harbor.
 
@@ -377,7 +439,7 @@ First, set the environment variables:
 ```bash
 export REG=192.168.140.0:32700                # [!code callout]
 export REPO=mlops/modelcar-qwen3.5-0.8b       # [!code callout]
-export TAG=v2.3.0                             # [!code callout]
+export TAG=v0.1.0                             # [!code callout]
 export TAR=./Qwen3.5-0.8B.oci.tar             # [!code callout]
 export AUTH='user:password'                   # [!code callout]
 ```
@@ -392,12 +454,12 @@ export AUTH='user:password'                   # [!code callout]
 
 </Callouts>
 
-The tarball usually carries its own tag (e.g. `v2.3.0`) inside the OCI image layout. If needed, extract it from the tarball:
+The tarball usually carries its own tag (e.g. `v0.1.0`) inside the OCI image layout. If needed, extract it from the tarball:
 
 ```bash
 export TAG=$(tar -xOf "$TAR" index.json \
   | jq -r '.manifests[0].annotations["org.opencontainers.image.ref.name"]')
-echo "$TAG"   # should print something like v2.3.0
+echo "$TAG"   # should print something like v0.1.0
 ```
 
 Check whether the image tag already exists in Harbor:
@@ -440,7 +502,7 @@ ctr -n k8s.io images import \
 # 2. Verify the import. You should see "$REG/$REPO:$TAG".
 ctr -n k8s.io images ls -q | grep "$REPO"
 
-# 3. Push to Harbor. HTTP Harbor requires --plain-http.
+# 3. Push to Harbor. Use --plain-http only for HTTP Harbor.
 ctr -n k8s.io images push \
   --plain-http \
   --user "$AUTH" \
@@ -480,7 +542,7 @@ echo "HTTP=$HTTP  URL=$URL"
   "size": 123456789,
   "push_time": "2026-05-06T00:00:00.000Z",
   "arch": "amd64",
-  "tags": ["v2.3.0"],
+  "tags": ["v0.1.0"],
   "platforms": [
     {"architecture": "amd64", "os": "linux"},
     {"architecture": "arm64", "os": "linux"}

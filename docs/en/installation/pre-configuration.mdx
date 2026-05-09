@@ -8,6 +8,10 @@ weight: 5
 
 In Alauda AI, GitLab is the core component for **Model Management**. Before deploying Alauda AI, you **must prepare** a GitLab service.
 
+:::warning
+GitLab-backed model storage is deprecated. It remains available for compatibility only and is planned for removal in a future Alauda AI release. For built-in models and new model delivery workflows, use **Model Catalog** with OCI model artifacts instead.
+:::
+
 ### **Deployment Options**
 
 #### **1. GitLab service requirements**
@@ -93,6 +97,17 @@ kubectl create secret generic aml-gitlab-admin-token \
 3. The secret is created under **cpaas-system** namespace.
 
 </Callouts>
+
+## **Preparing the Harbor Service**
+
+If you plan to use the **Model Catalog** feature, prepare an **Alauda Build of Harbor** service before installing Alauda AI. The registry must meet the following requirements:
+
+- Run in production mode. Use HTTPS for production deployments.
+- Allow inference cluster nodes to pull Model Catalog images without image pull credentials.
+
+If you cannot deploy an HTTPS registry in the target environment, you can use an HTTP registry as a fallback, but you must configure the inference cluster container runtime before deploying models. The detailed containerd configuration is covered when setting **Model OCI Registry Address** during Alauda AI instance creation.
+
+For the installation procedure, see <ExternalSiteLink name="alauda-build-of-harbor" href="/install/01_installation_guide.html" children="Deploy Alauda Build of Harbor" />.
 
 ## **Frequently Asked Questions (FAQ)**
 
