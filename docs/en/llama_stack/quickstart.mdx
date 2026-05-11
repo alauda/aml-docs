@@ -11,7 +11,7 @@ This section provides a quickstart example for creating an AI Agent with Llama S
 - Python 3.12 or higher (if not satisfied, refer to [FAQ: How to prepare Python 3.12 in Notebook](#how-to-prepare-python-312-in-notebook))
 - Llama Stack Server installed and running via Operator (see [Install Llama Stack](./install)), with **`VLLM_URL` pointing at a vLLM-served model endpoint** (see install notes)
 - Access to a Notebook environment (e.g., Jupyter Notebook, JupyterLab)
-- Python environment with `llama-stack-client`, `fastmcp` (for the MCP section), and other notebook dependencies installed
+- Python environment with `llama-stack-client==0.6.0`, `fastmcp` (for the MCP section), and other notebook dependencies installed
 
 ## Quickstart Example
 
@@ -25,8 +25,19 @@ The notebook demonstrates:
 
 - **Two tool options:** client-side tools (`@client_tool`) and MCP tools (FastMCP + `toolgroups.register`)
 - **Shared agent flow:** connect to Llama Stack Server, select a model, create an `Agent` with `tools=AGENT_TOOLS`, then run sessions and streaming turns
+- **Optional PGVector flow:** upload a file, create a `pgvector`-backed vector store, and run a hybrid search query
 - Streaming responses and event logging
 - Optional FastAPI deployment of the `agent`
+
+## PGVector Usage
+
+The downloadable notebook includes an optional PGVector section. To run it, start the server with `ENABLE_PGVECTOR=true` and valid `PGVECTOR_*` connection settings, then execute the PGVector cells in the notebook. ACP-provided PostgreSQL can be used directly because it already includes the `pgvector` extension.
+
+The notebook example covers:
+
+- Uploading a file through `client.files.create(...)`
+- Creating a vector store with `provider_id="pgvector"`
+- Running a hybrid search with `client.vector_stores.search(...)` and `search_mode="hybrid"`
 
 ## FAQ
 
