@@ -1,0 +1,629 @@
+---
+weight: 13
+i18n:
+  title:
+    en: Speculative Decoding for vLLM Inference Services
+    zh: 为 vLLM 推理服务启用 Speculative Decoding
+---
+
+# Speculative Decoding for vLLM Inference Services
+
+## Introduction
+
+Speculative decoding lets a vLLM server propose several tokens per decode step and verify them with a single forward pass of the target model, lowering per-token latency on interactive workloads without changing the output distribution.
+
+This page focuses on how to enable, configure, verify, and roll back speculative decoding for an `InferenceService` running on Alauda AI. For the upstream technique itself and the full list of methods supported by vLLM, see the [vLLM speculative decoding documentation](https://docs.vllm.ai/en/latest/features/speculative_decoding/).
+
+:::warning
+Speculative decoding involves runtime-version-sensitive flags. The exact `--speculative-config` JSON keys, supported `method` values, and the metric names referenced below depend on the vLLM version inside your runtime image. Treat all snippets here as starting points and confirm against the vLLM version you ship.
+:::
+
+## Before You Decide
+
+Speculative decoding helps when the **per-request decode loop** dominates end-to-end latency and the proposed tokens are accepted often enough to amortize the proposal overhead.
+
+It tends to help on:
+
+- Interactive chat / agent loops with relatively predictable continuations.
+- Summarization, RAG answers, and code completion, where output overlaps the prompt.
+
+It can hurt or be neutral on:
+
+- High-temperature sampling, where acceptance rate collapses.
+- High-QPS / batch-saturated services, where decode capacity is no longer idle. The vLLM team's 2024 V0-engine benchmarks reported **1.4×–1.8× slowdowns** on the same datasets at high QPS. The V1 engine schedules differently, so the magnitude may differ on your runtime, but the direction of the risk is the same.
+- Very small target models, where the verification step is already cheap.
+
+Run a representative workload before committing speculative decoding as a default. See [Verify and Measure the Impact](#verify-and-measure-the-impact).
+
+## Methods Validated in This Guide on Alauda AI \{#methods-available-on-alauda-ai}
+
+The two methods below are the ones this guide covers and that have been exercised end-to-end on Alauda AI. vLLM upstream supports additional methods (for example MTP for models that ship multi-token-prediction heads, Medusa, MLP Speculator, Suffix, Draft Model), and those methods may also be usable on Alauda AI through the same `--speculative-config` flag. They are out of scope for this page, so refer to the upstream documentation and validate on your own setup before promoting to production.
+
+| Method  | What you provide                                            | Trade-off                                                                                                       |
+| ------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| N-gram  | Target model only                                           | No extra weights, no training. Benefit depends on prompt-output token overlap.                                  |
+| EAGLE-3 | Target model **and** a matching EAGLE-3 draft head          | Requires a draft head trained against the exact target model. Small additional GPU memory.                      |
+
+Notes:
+
+- vLLM upstream describes N-gram as "effective for use cases like summarization and question-answering, where there is a significant overlap between the prompt and the answer".
+- vLLM upstream describes EAGLE-3 as "the current SOTA for speculative decoding algorithms" (snapshot from the latest features page; revisit per release).
+
+## Recommended Starting Points \{#recommended-starting-points}
+
+There is no single best method for every workload. The following are conservative starting points to reduce trial cost. Always validate against your own traffic before promoting to production.
+
+| If you have...                                            | Start with                                                                                                |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| A general chat / instruction model with an available EAGLE-3 head | EAGLE-3, with `num_speculative_tokens: 3` initially.                                                      |
+| Heavy prompt-output overlap (RAG, summarization, code completion) and no EAGLE-3 head | N-gram, with `num_speculative_tokens: 5` initially.                                                       |
+| None of the above                                         | Defer enabling speculative decoding until one of the above conditions is met.                             |
+
+### Internal Validation Snapshot — N-gram
+
+The starting points above are **guidance, not guarantees**. The measurement below is one concrete data point from Alauda AI's internal lab, intended to help calibrate expectations on similar single-GPU serving setups. Your own model, GPU, runtime version, and traffic will produce different numbers — always benchmark before promoting to production.
+
+- **Hardware:** NVIDIA A30 24 GB × 1
+- **Model:** Qwen3-8B (BF16, HuggingFace `Qwen/Qwen3-8B`)
+- **Runtime:** vLLM 0.19.1 (V1 engine)
+- **Request parameters:** `temperature=0`, `seed=42`, `max_tokens=1024`, `enable_thinking=false`, single concurrent request, 1 warmup discarded + 3 timed runs (median reported)
+
+**Baseline command (no spec decode):**
+
+```bash
+python3 -m vllm.entrypoints.openai.api_server \
+  --port 8080 \
+  --served-model-name t-ng \
+  --model /mnt/models \
+  --gpu-memory-utilization 0.8 \
+  --max-model-len 4096 \
+  --max-num-seqs 8 \
+  --seed 42
+```
+
+**N-gram command (only differs by `--speculative-config`):**
+
+```bash
+python3 -m vllm.entrypoints.openai.api_server \
+  --port 8080 \
+  --served-model-name t-ng \
+  --model /mnt/models \
+  --gpu-memory-utilization 0.8 \
+  --max-model-len 4096 \
+  --max-num-seqs 8 \
+  --seed 42 \
+  --speculative-config '{"method":"ngram","num_speculative_tokens":5,"prompt_lookup_max":4,"prompt_lookup_min":2}'
+```
+
+**Workloads:**
+
+- _code refactor (high prompt-output overlap):_ ask the model to add docstrings and type annotations to a 30-line Python class and return the full updated class
+- _general chat (no prompt-output overlap):_ ask the model to explain a concept in ≥800 words
+
+**Results:**
+
+| Workload                 | Baseline tok/s | N-gram tok/s | Speedup     | Wall delta |
+| ------------------------ | -------------- | ------------ | ----------- | ---------- |
+| Code refactor (high overlap) | 47.02          | 45.92        | **0.98×**   | +524 ms    |
+| General chat (no overlap)    | 47.13          | 39.94        | **0.85×**   | +3914 ms   |
+
+**Interpretation:**
+
+- On this single-GPU 8B setup, N-gram registered as a slight regression on the code-refactor workload and a clear ~15% regression on chat. The proposer's CPU work, the verification of five candidate tokens per step, and the fact that vLLM disables async scheduling under N-gram together cost more than the accepted tokens save.
+- The acceptance rate for the high-overlap code workload is healthy (mean acceptance length ≈ 3 in earlier informal probes), but acceptance rate alone does not predict end-to-end speedup — the per-step overhead must be amortized against actual decode time of the target model. On a small target model on a single GPU, decode is already cheap and there is little room to amortize.
+- The chat result confirms the [Caveats](#caveats-and-known-limitations) about workloads without prompt-output overlap.
+
+The same method on a larger target model (where each verify step costs more), with multi-GPU tensor parallelism, or under higher concurrency may behave very differently. Treat this snapshot as a reminder to measure, not as a verdict on N-gram itself.
+
+### Internal Validation Snapshot — EAGLE-3
+
+The starting points above are **guidance, not guarantees**. The measurement below is one concrete data point from Alauda AI's internal lab, intended to help calibrate expectations on similar single-GPU EAGLE-3 setups. Your own model, GPU, runtime version, and traffic will produce different numbers — always benchmark before promoting to production.
+
+- **Hardware:** NVIDIA A30 24 GB × 1
+- **Model:** Meta-Llama-3.1-8B-Instruct (BF16, HuggingFace `meta-llama/Meta-Llama-3.1-8B-Instruct`) with EAGLE-3 draft `yuhuili/EAGLE3-LLaMA3.1-Instruct-8B`
+- **Runtime:** vLLM 0.19.1 (V1 engine)
+- **Request parameters:** `temperature=0`, `seed=42`, `max_tokens=1024`, single concurrent request, 1 warmup discarded + 3 timed runs (median reported)
+
+**Baseline command (no spec decode):**
+
+```bash
+python3 -m vllm.entrypoints.openai.api_server \
+  --port 8080 \
+  --served-model-name eagle \
+  --model /mnt/models/Meta-Llama-3.1-8B-Instruct \
+  --dtype auto \
+  --gpu-memory-utilization 0.8 \
+  --max-model-len 4096 \
+  --max-num-seqs 8 \
+  --seed 42
+```
+
+**EAGLE-3 command (only differs by `--speculative-config`):**
+
+```bash
+python3 -m vllm.entrypoints.openai.api_server \
+  --port 8080 \
+  --served-model-name eagle \
+  --model /mnt/models/Meta-Llama-3.1-8B-Instruct \
+  --dtype auto \
+  --gpu-memory-utilization 0.8 \
+  --max-model-len 4096 \
+  --max-num-seqs 8 \
+  --seed 42 \
+  --speculative-config '{"method":"eagle3","model":"/mnt/models/EAGLE3-LLaMA3.1-Instruct-8B","num_speculative_tokens":3}'
+```
+
+**Workloads:**
+
+- _code refactor (high prompt-output overlap):_ ask the model to add docstrings and type annotations to a 30-line Python class and return the full updated class
+- _general chat (no prompt-output overlap):_ ask the model to explain a concept in ≥800 words
+
+**Results:**
+
+| Workload                     | Baseline tok/s | EAGLE-3 tok/s | Speedup    | Wall delta (median) |
+| ---------------------------- | -------------- | ------------- | ---------- | ------------------- |
+| Code refactor (high overlap) | 47.84          | 88.25         | **1.84×**  | −6171 ms            |
+| General chat (no overlap)    | 47.87          | 47.45         | **0.99×**  | +2416 ms            |
+
+Speedup is the tok/s ratio (completion-length-invariant). Wall delta compares median wall-clock time directly; the chat runs generated different amounts of output (baseline 588 vs EAGLE-3 709 tokens), so Speedup is the more reliable indicator there.
+
+**Speculative-decoding behaviour (EAGLE-3 side, from `SpecDecoding metrics` log windows):**
+
+| Workload                     | Mean accept length | Avg Draft accept rate | Per-position accept rate |
+| ---------------------------- | ------------------ | --------------------- | ------------------------ |
+| Code refactor (high overlap) | ≈ 2.54             | ≈ 51%                 | 0.50 / 0.40 / 0.33       |
+| General chat (no overlap)    | ≈ 1.19             | ≈ 6%                  | 0.16 / 0.02 / 0.01       |
+
+Mean acceptance length and acceptance rates are draft-weighted across the `SpecDecoding metrics` log windows that covered each benchmark run; per-position values are from the sustained-load windows inside each run.
+
+**Interpretation:**
+
+- EAGLE-3 delivered a **~1.84× speedup on code-refactor** and was **essentially break-even on general chat (~0.99×)** on this single-GPU 8B setup. The two baseline runs sat on top of each other at ~47.8 tok/s, as expected — base decode rate is a model-and-hardware property and does not depend on prompt content. All of the observable gap comes from the EAGLE-3 side.
+- **Why code wins and chat doesn't** — acceptance data tells the mechanism directly. On code the draft head landed ~2.54 tokens per decode step at ~51% acceptance, so most steps emit multiple tokens; per-position acceptance decays slowly (0.50 / 0.40 / 0.33), so even the 3rd speculative slot still pays off a third of the time. On chat mean acceptance length sits at ~1.19 with only ~6% acceptance, and per-position acceptance collapses by the 2nd slot (0.16 / 0.02 / 0.01) — almost every step emits just the verified token and the drafted ones are discarded.
+- **Realized vs theoretical.** Mean acceptance length is the theoretical upper bound on speedup with zero proposer overhead. Code realized 1.84× against a 2.54× ceiling (~72% converted), i.e. proposer CPU work, verification of rejected proposals, and async-scheduling costs ate about a quarter of the headroom. Chat's 1.19× theoretical ceiling was **entirely consumed by overhead** and tipped into a slight regression. This is consistent with the Caveats: on small models on a single GPU, per-step overhead has little idle decode capacity to hide behind.
+
+The same method on a larger target model (where each verify step costs more), with multi-GPU tensor parallelism, or under higher concurrency may behave very differently. Treat this snapshot as a reminder to measure, not as a verdict on EAGLE-3 itself.
+
+## Prerequisites
+
+- A Kubernetes cluster with KServe installed and a namespace where you can create `InferenceService` resources.
+- A vLLM serving runtime registered on the platform whose vLLM version supports the speculative method you plan to use. To check the version, exec into a running pod with that runtime: `kubectl exec <pod> -- python3 -c "import vllm; print(vllm.__version__)"`.
+- Your target model is accessible to the service through its storage source (model repository, PVC, or OCI image).
+- For EAGLE-3: a draft head whose architecture, tokenizer, and base version match the **exact** target model. A mismatched head silently degrades acceptance rate and may not surface as a startup error.
+- For EAGLE-3: a model-artifact loading mechanism that can deliver both target and draft into the same pod. See [Providing Model Artifacts on Alauda AI](#providing-model-artifacts-on-alauda-ai).
+
+## Configuration Surface
+
+In vLLM v1, speculative decoding is enabled by a single argument:
+
+```text
+--speculative-config '{"method": "<method>", "num_speculative_tokens": <k>, ...}'
+```
+
+Common keys:
+
+- `method`: the proposer to use. Values used in this guide: `ngram` and `eagle3`. Other values exist upstream (for example `medusa`, or model-specific MTP names such as `deepseek_mtp`) — confirm the exact value for your method in the vLLM speculative decoding documentation.
+- `num_speculative_tokens`: how many tokens to propose per step. Higher values can increase speedup but also waste compute on rejected proposals.
+- `model`: for methods that load a separate draft artifact (such as EAGLE-3), the path to that artifact inside the container.
+- Method-specific keys, such as `prompt_lookup_max` / `prompt_lookup_min` for N-gram. These names have changed across vLLM releases — verify against the version you ship.
+
+All other vLLM arguments (`--model`, `--tensor-parallel-size`, `--gpu-memory-utilization`, …) work the same as in a non-speculative deployment.
+
+## Providing Model Artifacts on Alauda AI \{#providing-model-artifacts-on-alauda-ai}
+
+Different methods need different files inside the predictor pod.
+
+### Single-artifact pattern (N-gram)
+
+For N-gram only the target model is required. Use `storageUri` exactly as for any other inference service:
+
+```yaml
+spec:
+  predictor:
+    model:
+      storageUri: hf://<your-model-path>
+```
+
+The model lands at `/mnt/models` and is passed to vLLM through `--model`.
+
+### Two-artifact pattern (EAGLE-3 and similar)
+
+EAGLE-3 needs both the target model **and** a matching draft head loaded into the same pod. There are three supported ways to deliver them. Pick based on your platform version, network access, and operational preference.
+
+#### Option A — KServe `storageUris` (preferred when available)
+
+`storageUris` is a KServe field that accepts multiple storage locations and mounts each at a declared path. It is the cleanest option when your platform's KServe version supports it (KServe 0.16 and later).
+
+```yaml
+spec:
+  predictor:
+    model:
+      storageUris:
+        - uri: hf://<your-target-model-path>
+          mountPath: /mnt/models/target
+        - uri: hf://<your-draft-head-path>
+          mountPath: /mnt/models/draft
+```
+
+Then point vLLM at the two paths:
+
+```text
+--model /mnt/models/target \
+--speculative-config '{"method":"eagle3","model":"/mnt/models/draft","num_speculative_tokens":3}'
+```
+
+Constraints to be aware of:
+
+- `storageUri` (singular) and `storageUris` (plural) are mutually exclusive.
+- All `mountPath` values must be absolute and share a common parent directory (for example `/mnt/models/target` and `/mnt/models/draft`).
+- For private repositories, attach the appropriate credentials secret to the service account used by the predictor pod.
+
+If your platform's KServe version does not yet include `storageUris`, use Option B or Option C.
+
+#### Option B — Single OCI Modelcar containing both artifacts
+
+Package the target model and the draft head into one OCI image under predictable subdirectories (for example `/models/target` and `/models/draft`), then deploy with `storageUri: oci://...`. See [Using KServe Modelcar for Model Storage](./using_modelcar.mdx) for the packaging steps. Sample on-disk layout to bake into the image:
+
+```text
+/models/
+├── target/
+│   └── ... target model files ...
+└── draft/
+    └── ... EAGLE-3 head files ...
+```
+
+The vLLM command then references the same paths:
+
+```text
+--model /mnt/models/target \
+--speculative-config '{"method":"eagle3","model":"/mnt/models/draft","num_speculative_tokens":3}'
+```
+
+This option is well-suited to offline / air-gapped clusters because the artifacts are versioned together and pulled from your own registry.
+
+#### Option C — Pre-staged on a shared PVC
+
+Stage both artifacts onto a PVC under a known directory layout, mount the PVC, and reference the local paths from the vLLM command. This is the simplest option if you already manage model files on a shared filesystem.
+
+### Picking between A / B / C
+
+| Constraint                                                | Use      |
+| --------------------------------------------------------- | -------- |
+| Online cluster, KServe ≥ 0.16, want declarative manifests | Option A |
+| Offline / air-gapped, want a single versioned artifact    | Option B |
+| Already have model files on a shared PVC                  | Option C |
+
+## End-to-End Examples
+
+The two examples below cover the methods listed in [Methods Available on Alauda AI](#methods-available-on-alauda-ai). Replace `<your-namespace>`, `<your-vllm-runtime>`, and storage URIs with values from your environment.
+
+### Example 1 — N-gram
+
+```yaml
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  annotations:
+    aml-model-repo: Qwen2.5-7B-Instruct # [!code callout]
+    serving.knative.dev/progress-deadline: 1800s
+    serving.kserve.io/deploymentMode: Standard
+  labels:
+    aml.cpaas.io/runtime-type: vllm
+  name: qwen-ngram-spec
+  namespace: <your-namespace>
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 1
+    model:
+      command:
+        - bash
+        - -c
+        - |
+          set -ex
+
+          MODEL_PATH="/mnt/models/${MODEL_NAME}"
+          if [ ! -d "${MODEL_PATH}" ]; then
+            MODEL_PATH="/mnt/models"
+          fi
+
+          python3 -m vllm.entrypoints.openai.api_server \
+            --port 8080 \
+            --served-model-name {{.Name}} {{.Namespace}}/{{.Name}} \
+            --model "${MODEL_PATH}" \
+            --dtype ${DTYPE} \
+            --gpu-memory-utilization ${GPU_MEMORY_UTILIZATION} \
+            --speculative-config '{"method":"ngram","num_speculative_tokens":5,"prompt_lookup_max":4,"prompt_lookup_min":2}' # [!code callout]
+        - bash
+      env:
+        - name: DTYPE
+          value: half
+        - name: GPU_MEMORY_UTILIZATION
+          value: '0.85'
+        - name: MODEL_NAME
+          value: '{{ index .Annotations "aml-model-repo" }}'
+      modelFormat:
+        name: transformers
+      protocolVersion: v2
+      resources:
+        limits:
+          cpu: '8'
+          memory: 32Gi
+          nvidia.com/gpu: '1'
+        requests:
+          cpu: '4'
+          memory: 16Gi
+      runtime: <your-vllm-runtime>
+      storageUri: hf://<your-model-path>
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+```
+
+<Callouts>
+1. Replace with your actual model name; this annotation is used by the platform for display.
+2. The `prompt_lookup_*` keys belong to the n-gram proposer. Their names have changed between vLLM releases — verify against the version inside your runtime image.
+</Callouts>
+
+### Example 2 — EAGLE-3 with target + draft on a shared PVC
+
+This manifest matches the setup used for the [Internal Validation Snapshot — EAGLE-3](#recommended-starting-points) above. Both the target model and the EAGLE-3 draft head are pre-staged inside a single PVC under predictable subdirectories; the PVC is mounted at `/mnt/models/` by `storageUri: pvc://...`, and the vLLM command references the two subdirectories directly.
+
+```yaml
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  annotations:
+    aml-model-repo: Meta-Llama-3.1-8B-Instruct
+    serving.knative.dev/progress-deadline: 1800s
+    serving.kserve.io/deploymentMode: Standard
+  labels:
+    aml.cpaas.io/runtime-type: vllm
+  name: llama-eagle3-spec
+  namespace: <your-namespace>
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 1
+    model:
+      command:
+        - bash
+        - -c
+        - |
+          set -ex
+
+          python3 -m vllm.entrypoints.openai.api_server \
+            --port 8080 \
+            --served-model-name {{.Name}} {{.Namespace}}/{{.Name}} \
+            --model /mnt/models/Meta-Llama-3.1-8B-Instruct \
+            --dtype ${DTYPE} \
+            --gpu-memory-utilization ${GPU_MEMORY_UTILIZATION} \
+            --max-model-len 4096 \
+            --max-num-seqs 8 \
+            --seed 42 \
+            --speculative-config '{"method":"eagle3","model":"/mnt/models/EAGLE3-LLaMA3.1-Instruct-8B","num_speculative_tokens":3}' # [!code callout]
+        - bash
+      env:
+        - name: DTYPE
+          value: auto
+        - name: GPU_MEMORY_UTILIZATION
+          value: '0.8' # [!code callout]
+      modelFormat:
+        name: transformers
+      protocolVersion: v2
+      resources:
+        limits:
+          cpu: '8'
+          memory: 48Gi
+          nvidia.com/gpu: '1'
+        requests:
+          cpu: '4'
+          memory: 24Gi
+      runtime: <your-vllm-runtime>
+      storageUri: pvc://<your-pvc-name>/ # [!code callout]
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+```
+
+<Callouts>
+1. Both paths in the vLLM command (`--model` and the `model` key inside `--speculative-config`) must match the directory names **inside** the PVC exactly. If your PVC lays the artifacts out under different names, adjust these two paths together.
+2. The EAGLE-3 head occupies GPU memory outside the `--gpu-memory-utilization` budget. Leaving headroom (here `0.8` instead of `0.9`) reduces the chance of OOM when both artifacts are loaded.
+3. `pvc://<your-pvc-name>/` expects a PVC pre-staged with **both** the target model and the EAGLE-3 draft head; the PVC root is mounted at `/mnt/models/`, so the two artifacts must live at `/mnt/models/<target-subdir>/` and `/mnt/models/<draft-subdir>/`. See the expected layout below. If you prefer declarative multi-URI mounts (KServe 0.16+) or bundling target + draft into a single OCI image instead, see [Option A or Option B in Providing Model Artifacts](#providing-model-artifacts-on-alauda-ai).
+</Callouts>
+
+Expected layout inside the PVC (mounted at `/mnt/models/` in the pod):
+
+```text
+<PVC root>/
+├── Meta-Llama-3.1-8B-Instruct/
+│   └── ... target model files ...
+└── EAGLE3-LLaMA3.1-Instruct-8B/
+    └── ... EAGLE-3 draft head files ...
+```
+
+Verify the layout from inside the predictor pod once it starts:
+
+```bash
+kubectl exec -n <your-namespace> <pod> -- ls /mnt/models/
+# Expected: EAGLE3-LLaMA3.1-Instruct-8B/  Meta-Llama-3.1-8B-Instruct/
+```
+
+Apply any of the manifests above with:
+
+```bash
+kubectl apply -f <manifest>.yaml -n <your-namespace>
+```
+
+## Verify and Measure the Impact \{#verify-and-measure-the-impact}
+
+Verifying that speculative decoding was configured is one step. Verifying that it **helps your workload** is a different step.
+
+### 1. Confirm the configuration was applied
+
+```bash
+kubectl get inferenceservice <name> -n <your-namespace> -o yaml
+```
+
+Look for `--speculative-config` in the predictor command and confirm the readiness state:
+
+```bash
+kubectl get pods -n <your-namespace> -l serving.kserve.io/inferenceservice=<name>
+```
+
+### 2. Confirm speculative decoding is actually running
+
+The first startup-time signal is the engine-config log line; it prints the `speculative_config` the engine resolved, so you can verify the method and draft path took effect:
+
+```bash
+kubectl logs -n <your-namespace> -l serving.kserve.io/inferenceservice=<name> \
+  | grep -m1 'Initializing a V1 LLM engine'
+# Expected to contain: speculative_config=SpeculativeConfig(method='eagle3', model='...', num_spec_tokens=3)
+```
+
+For live counters, vLLM exposes Prometheus metrics at `/metrics`. The exact metric names depend on the vLLM version, so cast a wide net first:
+
+```bash
+kubectl exec <pod> -n <your-namespace> -- curl -s localhost:8080/metrics | grep -iE 'spec_decode|draft|acceptance'
+```
+
+If that returns nothing, the pod either hasn't served any requests yet (counters only publish once the first generation completes) or the metric names in your vLLM build differ — in which case fall back to the predictor logs.
+
+vLLM prints a per-window summary line that is the most readable live picture. This is the real shape of the line on vLLM 0.19.1 with `num_speculative_tokens=3`:
+
+```text
+SpecDecoding metrics: Mean acceptance length: 2.68, Accepted throughput: 65.69 tokens/s,
+Drafted throughput: 116.98 tokens/s, Accepted: 657 tokens, Drafted: 1170 tokens,
+Per-position acceptance rate: 0.664, 0.559, 0.462, Avg Draft acceptance rate: 56.2%
+```
+
+How to read it:
+
+- **Mean acceptance length** — average tokens delivered per decode step. Baseline is `1`. This is the practical upper bound for the speedup you can hope to get on this workload.
+- **Avg Draft acceptance rate** — overall fraction of proposed tokens that were accepted. A single number for "is the proposer mostly paying off or mostly wasted?".
+- **Per-position acceptance rate** — per-slot acceptance for slots `1..num_speculative_tokens`. **You will see exactly `num_speculative_tokens` values** — the example above has 3 because the run used `num_speculative_tokens=3`; an `ngram` run with `num_speculative_tokens=5` prints 5 values. A healthy curve decays slowly; a curve that collapses to near-zero by the 2nd slot means the workload is not a fit for this proposer.
+
+### 3. Measure end-to-end impact
+
+Run the same representative workload twice:
+
+1. With `--speculative-config` removed (baseline).
+2. With it enabled (everything else identical, including `--seed`).
+
+Capture three numbers per run:
+
+- Time to first token (TTFT).
+- Per-token latency (or end-to-end latency at fixed output length).
+- Throughput (tokens/second) under the QPS you actually serve.
+
+Speculative decoding is worth keeping on if all three improve at your target QPS. A common failure mode is improvement at low QPS but regression at production QPS — measure where you actually run.
+
+### 4. How to report or compare numbers
+
+Performance numbers without their context cannot be reproduced or trusted. Any time you publish a comparison — internally, in a customer report, or back to the platform team — include the five fields below. Numbers that omit any of them should be treated as anecdotal, not as evidence.
+
+```markdown
+**Hardware:** <GPU model and count, e.g. NVIDIA A30 24 GB × 1>
+**Model:** <model identifier and dtype, e.g. Qwen3-8B (BF16)>
+**Runtime:** <vLLM version and runtime image name, e.g. vLLM 0.19.1 inside aml-vllm-x.y.z>
+**Request parameters:** <temperature, max_tokens, concurrency, sampling toggles, runs per prompt>
+
+**Baseline command (no spec decode):**
+```text
+python3 -m vllm.entrypoints.openai.api_server \
+  --port 8080 \
+  --served-model-name <name> \
+  --model /mnt/models \
+  --gpu-memory-utilization 0.8 \
+  --max-model-len 4096 \
+  --max-num-seqs 8 \
+  --seed 42
+```
+
+**Spec-decode command (only differs by --speculative-config):**
+```text
+python3 -m vllm.entrypoints.openai.api_server \
+  --port 8080 \
+  --served-model-name <name> \
+  --model /mnt/models \
+  --gpu-memory-utilization 0.8 \
+  --max-model-len 4096 \
+  --max-num-seqs 8 \
+  --seed 42 \
+  --speculative-config '{"method":"ngram","num_speculative_tokens":5,"prompt_lookup_max":4,"prompt_lookup_min":2}'
+```
+
+**Results:**
+
+| Workload | Baseline TTFT | Spec TTFT | Baseline tok/s | Spec tok/s | Mean accept length | Avg accept rate | Speedup (tok/s) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| chat | … | … | … | … | … | … | … |
+| code | … | … | … | … | … | … | … |
+| rag  | … | … | … | … | … | … | … |
+
+
+Two practical rules when running the comparison:
+
+- Use the same `--seed` and `temperature=0` for both sides, and warm up each service with 3 discarded requests before timing — otherwise sampling and compile-cache noise will dominate the differences you measure.
+- Run baseline and spec-decode against the **same fixed prompt list, in the same order**, at least 5–10 times per prompt, and compare medians rather than averages.
+
+## Rollback \{#rollback}
+
+To disable speculative decoding without changing anything else, remove the `--speculative-config` line from the predictor command and re-apply:
+
+```bash
+kubectl edit inferenceservice <name> -n <your-namespace>
+# delete the --speculative-config line, save, exit
+```
+
+Or re-apply a manifest that omits the flag:
+
+```bash
+kubectl apply -f <manifest-without-spec-config>.yaml -n <your-namespace>
+```
+
+The service rolls to a new revision without the speculative proposer. No model artifact changes are required for N-gram. For EAGLE-3 the draft head remains mounted but is unused — if you want to reclaim disk, remove the draft-head artifact on the next change (delete the matching `storageUris` entry for Option A, rebuild the OCI image without the draft directory for Option B, or drop the draft subdirectory from the PVC for Option C).
+
+## Troubleshooting
+
+| Symptom                                                                       | Likely cause                                                                                  | What to check                                                                                                          |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Pod fails to start with a vLLM argument error mentioning `speculative` or unknown JSON keys | The `--speculative-config` keys do not match the vLLM version in the runtime image            | `kubectl exec <pod> -- python3 -c "import vllm; print(vllm.__version__)"` and align flags to that version              |
+| Pod fails to start with an unknown `method` value                             | A typo in `method`, or a value that your vLLM version does not support (for example `eagle` instead of `eagle3`) | Confirm the supported `method` values for your vLLM release in the upstream speculative decoding docs                  |
+| OOM during model load with EAGLE-3 enabled                                    | EAGLE-3 head memory was not budgeted                                                          | Lower `--gpu-memory-utilization` by 0.05–0.10, or reduce other workloads on the GPU                                    |
+| Service Ready but acceptance rate near zero                                   | Tokenizer / architecture mismatch between target and draft, or sampling temperature too high  | Re-verify the draft head matches the exact target model; reduce sampling temperature for evaluation                    |
+| TTFT or latency regress at production QPS                                     | Proposal overhead is no longer hidden by idle decode capacity                                 | Disable on this service or reduce `num_speculative_tokens`; see [Rollback](#rollback)                                  |
+| `storageUris` rejected by the API server                                      | KServe version on the platform predates `storageUris`                                         | Use Option B (Modelcar) or Option C (PVC) instead                                                                      |
+| Knative marks the revision NotReady during rollout with a progress-deadline timeout | Cold start with a draft artifact is slower than without — torch.compile of both backbone and EAGLE head + engine profiling can push it past the default progress deadline | Raise `serving.knative.dev/progress-deadline` (our EAGLE-3 cold start on A30 + Llama-3.1-8B was ~5 min; the Example 1 and Example 2 manifests on this page set it to `1800s` for this reason) |
+| Client sees unexpected sampling behaviour when using `min_p` or `logit_bias` under spec decode | Both parameters are silently ignored by vLLM when speculative decoding is enabled (warning printed at engine init) | Drop the parameter from the request, or disable speculative decoding on services whose clients rely on it                |
+
+For pod-level issues, the standard inference-service troubleshooting commands apply:
+
+```bash
+kubectl describe inferenceservice <name> -n <your-namespace>
+kubectl logs -n <your-namespace> -l serving.kserve.io/inferenceservice=<name>
+```
+
+## Caveats and Known Limitations \{#caveats-and-known-limitations}
+
+- **Outcomes swing widely with workload shape — regression and speedup are both real.** Upstream V0 benchmarks reported 1.4×–1.8× slowdowns at high QPS. Our own A30 + Qwen3-8B N-gram test (see [Internal Validation Snapshot — N-gram](#recommended-starting-points)) saw a slight regression even on a high-overlap code workload. On the same hardware, EAGLE-3 on Llama-3.1-8B (see [Internal Validation Snapshot — EAGLE-3](#recommended-starting-points)) hit a **1.84× speedup on code-refactor but was break-even on chat (~0.99×)** — same model, same method, same pod, 2× swing in realized benefit between two prompt shapes. Always validate against your production traffic profile.
+- **N-gram disables async scheduling.** In recent vLLM versions, enabling the `ngram` method forces async scheduling off (the predictor logs `Async scheduling not supported with ngram-based speculative decoding and will be disabled`). If your service depends on async scheduling for throughput, prefer EAGLE-3, or measure the trade-off explicitly.
+- **`storageUris` availability.** The field is available from KServe 0.16. Older platform releases must use the Modelcar or PVC option.
+- **Draft head mismatch is silent.** A draft head that does not exactly match the target model usually starts up and serves traffic correctly but with very low acceptance rate. Always check acceptance rate after enabling.
+- **Sampling parameters affect acceptance.** High temperature reduces acceptance rate; benchmark with sampling settings that reflect production usage.
+- **`gpu-memory-utilization` budget.** Draft artifacts (EAGLE-3 head, MLP speculator, draft model) are not included in the `--gpu-memory-utilization` budget; reduce that value when adding a draft artifact.
+- **Image dependencies.** The runtime image must include the libraries required by the chosen method. If a method fails to initialize, rebuild or replace the runtime image — see [Extend Inference Runtimes](./custom_inference_runtime.mdx).
+- **`min_p` and `logit_bias` are silently ignored.** Under speculative decoding, vLLM logs the warning `min_p and logit_bias parameters won't work with speculative decoding.` during engine init. Requests that pass either of these sampling parameters will still receive a 200 response, but the parameters are not honored — validate this against your client assumptions if your traffic relies on them.
+- **Composition with other features.** Speculative decoding composes with tensor parallelism and continuous batching but interacts with autoscaling and with EP / advanced parallelism in ways that depend on the vLLM version. Cold start is notably more expensive with a draft artifact: on our A30 + Llama-3.1-8B + EAGLE-3 head lab setup, the predictor went from container-ready to `Application startup complete` in **~5 minutes** (weight load ~45 s, draft weights ~5 s, `torch.compile` backbone ~48 s, `torch.compile` EAGLE head ~17 s, CUDA-graph capture and warmup ~10 s, plus ~2 minutes of engine profiling and KV-cache sizing). Size your Knative `progress-deadline` annotation and any autoscaling scale-from-zero SLO to this, not to a non-speculative baseline.
+- **Output equivalence.** vLLM states that speculative decoding does not change the output distribution. This is a vLLM property, not an Alauda AI guarantee — if exact equivalence under your runtime image is required, validate it as part of acceptance testing.
+
+## References
+
+- [Speculative Decoding - vLLM](https://docs.vllm.ai/en/latest/features/speculative_decoding/)
+- [How Speculative Decoding Boosts vLLM Performance by up to 2.8x — vLLM Blog](https://vllm.ai/blog/spec-decode)
+- [Speculative Decoding Guide — vllm-ascend](https://docs.vllm.ai/projects/ascend/en/main/user_guide/feature_guide/speculative_decoding.html)
+- [KServe Multiple Storage URIs](https://kserve.github.io/website/docs/model-serving/storage/multiple-storage-uris)
+- [Using KServe Modelcar for Model Storage](./using_modelcar.mdx)
+- [Extend Inference Runtimes](./custom_inference_runtime.mdx)
+- [Enable Expert Parallel for vLLM Inference Services](./vllm_expert_parallel.mdx)
+- [Create Inference Service using CLI](./create_inference_service_cli.mdx)
