@@ -4,7 +4,7 @@ weight: 20
 
 # Install JobSet
 
-This page describes how to install the JobSet Operator on Alauda Container Platform through the Operator Hub. After installation, `JobSet` custom resources can be submitted to run distributed AI/ML and HPC workloads.
+This page describes how to install **Alauda Build of JobSet** on Alauda Container Platform through the Operator Hub. JobSet is shipped as a Helm-based operator: installing it from the Operator Hub deploys the `jobset-operator` controller; creating a `JobSetOperatorCtl` instance then deploys the JobSet controller and webhook that reconcile `JobSet` custom resources.
 
 ## Upload the Operator Package
 
@@ -27,22 +27,63 @@ In **Administrator** view:
 5. Keep the default installation settings. The operator installs into the `jobset-system` namespace by default.
 6. Complete the installation.
 
-## Verify the Installation
-
-After installation, verify that the operator controller is running:
+Confirm the operator controller is running:
 
 ```bash
 kubectl get pods -n jobset-system
 ```
 
-The JobSet controller manager pod should be in `Running` state, for example:
+The `jobset-operator` pod should be in `Running` state, for example:
 
 ```text
-NAME                                        READY   STATUS    RESTARTS   AGE
-jobset-controller-manager-xxxxxxxxxx-xxxxx  2/2     Running   0          1m
+NAME                              READY   STATUS    RESTARTS   AGE
+jobset-operator-xxxxxxxxxx-xxxxx  1/1     Running   0          1m
 ```
 
-The `JobSet` CRD can also be verified:
+## Create a JobSetOperatorCtl Instance
+
+Installing the operator alone does not deploy the JobSet controller — the operator reconciles `JobSetOperatorCtl` resources and only deploys the JobSet controller and webhook when one exists.
+
+Save the following as `jobsetoperatorctl.yaml`:
+
+```yaml
+apiVersion: jobset-operator.alauda.io/v1
+kind: JobSetOperatorCtl
+metadata:
+  name: jobset
+  namespace: jobset-system
+spec:
+  controller:
+    replicas: 1
+    leaderElection:
+      enable: true
+  certManager:
+    enable: true
+  prometheus:
+    enable: false
+```
+
+Apply it:
+
+```bash
+kubectl apply -f jobsetoperatorctl.yaml
+```
+
+After the operator reconciles the resource, the JobSet controller pod is deployed in the same namespace:
+
+```bash
+kubectl get pods -n jobset-system
+```
+
+Expected output (the operator pod and the JobSet controller pod side by side):
+
+```text
+NAME                                READY   STATUS    RESTARTS   AGE
+jobset-operator-xxxxxxxxxx-xxxxx    1/1     Running   0          5m
+jobset-controller-xxxxxxxxxx-xxxxx  1/1     Running   0          1m
+```
+
+The `JobSet` CRD is registered by the operator and can be verified:
 
 ```bash
 kubectl get crd jobsets.jobset.x-k8s.io
@@ -50,6 +91,6 @@ kubectl get crd jobsets.jobset.x-k8s.io
 
 ## Next Steps
 
-Installing the operator creates only the controller, the webhooks, and the `JobSet` CRD. Workloads are created by applying a `JobSet` custom resource.
+Once the JobSet controller is running, `JobSet` custom resources can be submitted to run distributed AI/ML and HPC workloads.
 
 Continue with the [Quickstart](./quickstart) to run a simple JobSet demo.

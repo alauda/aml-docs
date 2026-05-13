@@ -17,7 +17,7 @@ Main components and capabilities include:
 - **Configurable Failure and Success Policies**: Failure policies control how many times the JobSet is restarted and how different failure types are handled; success policies declare the JobSet complete when a target subset of `ReplicatedJobs` succeed, so resources can be released as soon as the meaningful work is done.
 - **Startup Sequencing**: A startup policy can be configured so worker Jobs wait for the leader (driver) Job to be ready, supporting the leader/worker paradigm where the master process must be initialized before workers connect.
 - **Exclusive Topology Placement**: Through annotations, JobSet can enforce a 1:1 mapping between a child Job and a topology domain (e.g., rack or zone), giving the child Job exclusive access to compute resources in that domain for performance isolation.
-- **Fast Failure Recovery**: On failure, JobSet recreates the child Jobs to resume from the last checkpoint. The reconciler is optimized to minimize impact on scheduling throughput even at large scale.
+- **Fast Failure Recovery**: On failure, JobSet can recreate child Jobs quickly. If your workload supports checkpointing, it can continue from the last saved checkpoint after restart. The reconciler is optimized to minimize impact on scheduling throughput even at large scale.
 - **Integration with Kueue**: JobSet integrates with [Kueue](../kueue/intro) for queueing, multi-tenancy, and resource sharing of batch AI/ML workloads.
 
 For installation on the platform, see [Install JobSet](./install).
