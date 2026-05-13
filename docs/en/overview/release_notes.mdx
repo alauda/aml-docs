@@ -1,48 +1,44 @@
 # Release Notes
 
-## AI 2.2.0
+## AI 2.4.0
 
 ### **New and Optimized Features**
 
-#### **Connection Hub**
+#### **Image Based Model Catalog**
 
-**Connections** enable users to securely configure access to external data sources and model storage locations by encapsulating credentials and configuration parameters as reusable project resources. **Connection Types** provide templated forms with customizable fields and default values, streamlining connection creation for common storage protocols. Version 2.2 includes built-in connection types for **OCI-compliant registries** and **URI-based repositories**, enabling model deployment from container images and remote endpoints. S3-compatible object storage connection type is under development.
+**Image Based Model Catalog** provides a centralized catalog for discovering and deploying ready-to-use models. Users can deploy built-in models as inference services without manually preparing model repositories. Administrators configure the OCI registry used by the catalog and import the built-in model images before users deploy them.
 
-#### **NeMo Guardrails Integration**
+#### **Kubeflow 1.11 Upgrade**
 
-**NVIDIA NeMo Guardrails** provides programmable safety controls for LLM applications, running as a separate service in front of the model. It enforces sensitive data detection (PII), content policies, and custom validation flows written in Colang and Python, exposed through the TrustyAI Operator's NemoGuardrails custom resource.
+**Kubeflow Base**, **Kubeflow Pipelines**, and **Kubeflow Trainer v2** are upgraded to the 1.11 release line. This keeps the platform aligned with the upstream Kubeflow community and includes fixes that are already available in the community release.
 
-#### **RAG Evaluation with RAGAS**
+#### **Workbench Pipeline Orchestration with Elyra**
 
-**RAGAS (Retrieval-Augmented Generation Assessment)** integration provides objective metrics for evaluating RAG applications, including retrieval quality, answer relevance, and factual consistency. Developers can automate quality gates and optimize RAG configurations using evaluation pipelines.
+**Elyra Pipeline Editor** provides a visual editor in JupyterLab for creating pipeline workflows from notebooks and scripts. Users can define pipeline steps in Workbench and submit the workflow to Kubeflow Pipelines without writing the complete pipeline specification manually.
 
-#### **LlamaFactory Fine-tuning**
+#### **Llama Stack PGVector Integration**
 
-**LlamaFactory** integration through Kubeflow Trainer v2 provides a streamlined solution for model fine-tuning, supporting SFT, LoRA, and QLoRA training algorithms. Users can customize foundation models with their own datasets through single-node and multi-node distributed training.
+**Llama Stack** now supports PGVector-backed vector stores for agent and retrieval workflows. Users can use PostgreSQL with the `pgvector` extension as the vector database backend when building Llama Stack applications that upload files and run vector search.
 
-#### **Hardware Profile Definitions & Templates**
+#### **Ascend NPU Fine-tuning with Kubeflow Trainer v2**
 
-**Hardware Profiles** enable centralized management of hardware resource allocation for AI/ML workloads. Administrators can define custom hardware configurations with specific accelerator types, memory limits, and node placement rules, enabling GPU-as-a-Service capabilities with self-service provisioning.
+**Kubeflow Trainer v2** supports running model fine-tuning jobs on Huawei Ascend NPUs. Users can submit Trainer v2 jobs for MindSpeed-LLM workflows, including checkpoint conversion, dataset preprocessing, and supervised fine-tuning, and use Kueue scheduling when cluster quotas are configured.
 
-#### **ServingRuntime Management**
+#### **ModelSlim Integration for Ascend NPU Model Compression**
 
-Extend the AI Platform with custom inference runtimes to serve LLMs or other model types (image classification, object detection, etc.). Administrators can add custom runtimes such as MLServer, Triton, or Xinference through `ClusterServingRuntime` resources to support additional model frameworks, GPU types, and specialized inference scenarios beyond the default vLLM runtime.
+**ModelSlim** integration provides model compression and quantization workflows for Huawei Ascend NPU environments. Users can run ModelSlim-based workflows from a Workbench image prepared with CANN and PyTorch, following the Ascend-native compression path described in the product documentation.
 
-#### **Notebook Base Image Library for ARM**
+#### **vLLM-ascend Custom Runtime**
 
-The **Notebook Base Image Library** now includes **minimal** and **datascience** notebook images for **ARM architecture**, expanding hardware compatibility for notebook-based development on ARM platforms.
+**vLLM-ascend** enables model serving on Huawei Ascend NPUs through a custom inference runtime. Administrators can register the `vLLM-ascend` runtime for Ascend-backed inference, and users can select it when deploying compatible large language models as inference services.
 
-#### **Drift Detection with TrustyAI**
+#### **Image Based Model Catalog StorageClass Configuration**
 
-Monitor deployed models for data drift by detecting changes in input data distributions over time. **TrustyAI Drift Detection** compares real-world inference data against original training data using statistical metrics to identify shifts that could impact model performance, ensuring models remain accurate and reliable in production.
-
-#### **MCP Integration with Llama Stack**
-
-Llama Stack Connectors provide a high-level abstraction for AI registries such as **Model Context Protocol (MCP)**. Platform Engineers can register connectors, and AI Engineers can consume pre-registered connectors without managing complex configurations, enabling AI agents to connect to external tools and data sources through standardized interfaces.
+**Image Based Model Catalog** installation supports configurable persistent storage for catalog services. Administrators can reuse an existing PVC or create a new PVC, and specify the `StorageClass` used when new storage is provisioned.
 
 ### **Deprecated Features**
 
-None in this release.
+**Gitlab based Model Catalog** is deprecated. For built-in models and new model delivery workflows, use **Image Based Model Catalog** with OCI model artifacts instead.
 
 ### **Fixed Issues**
 
