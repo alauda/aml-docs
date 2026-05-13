@@ -1,0 +1,31 @@
+---
+weight: 10
+---
+
+# Introduction
+
+## JobSet
+
+**Alauda Build of JobSet** is based on the [JobSet](https://github.com/kubernetes-sigs/jobset) Kubernetes SIG project.
+JobSet is a Kubernetes-native API for managing a group of [Kubernetes Jobs](https://kubernetes.io/docs/concepts/workloads/controllers/job/) as a single unit. It offers a unified API for deploying HPC (e.g., MPI) and AI/ML training workloads (PyTorch, JAX, TensorFlow, etc.) on Kubernetes.
+
+Main components and capabilities include:
+
+- **JobSet CRD**: The core API resource (`jobset.x-k8s.io/v1alpha2`, `kind: JobSet`) that defines a group of `ReplicatedJobs`. Each `ReplicatedJob` is a job template that the controller materializes into one or more Kubernetes Jobs, allowing different pod templates (leader, workers, parameter servers, etc.) to coexist in the same workload.
+- **Multi-template Jobs**: Distinct groups of pods can be modeled in a single resource, so workloads like leader/worker, driver/worker, or parameter-server/worker no longer require multiple top-level Jobs to be coordinated by hand.
+- **Automatic Headless Service and Stable Hostnames**: JobSet automatically configures a headless Service and uses IndexedJobs to give every pod a stable DNS hostname, providing predictable network identities for distributed training frameworks (PyTorch DDP, Horovod, JAX, TensorFlow, MPI, etc.).
+- **Configurable Failure and Success Policies**: Failure policies control how many times the JobSet is restarted and how different failure types are handled; success policies declare the JobSet complete when a target subset of `ReplicatedJobs` succeed, so resources can be released as soon as the meaningful work is done.
+- **Startup Sequencing**: A startup policy can be configured so worker Jobs wait for the leader (driver) Job to be ready, supporting the leader/worker paradigm where the master process must be initialized before workers connect.
+- **Exclusive Topology Placement**: Through annotations, JobSet can enforce a 1:1 mapping between a child Job and a topology domain (e.g., rack or zone), giving the child Job exclusive access to compute resources in that domain for performance isolation.
+- **Fast Failure Recovery**: On failure, JobSet recreates the child Jobs to resume from the last checkpoint. The reconciler is optimized to minimize impact on scheduling throughput even at large scale.
+- **Integration with Kueue**: JobSet integrates with [Kueue](../kueue/intro) for queueing, multi-tenancy, and resource sharing of batch AI/ML workloads.
+
+For installation on the platform, see [Install JobSet](./install).
+
+## Documentation
+
+JobSet upstream documentation and related resources:
+
+- **JobSet Documentation**: [https://jobset.sigs.k8s.io/](https://jobset.sigs.k8s.io/) — Official documentation covering concepts, API reference, and usage guides.
+- **JobSet GitHub**: [https://github.com/kubernetes-sigs/jobset](https://github.com/kubernetes-sigs/jobset) — Source code, API reference, and examples for the JobSet Kubernetes SIG project.
+- **Kueue (Alauda Build)**: [../kueue/intro](../kueue/intro) — JobSet integrates with Kueue for queueing and resource management of batch workloads.

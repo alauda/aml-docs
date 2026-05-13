@@ -1,0 +1,150 @@
+---
+weight: 30
+---
+
+# Quickstart
+
+This page walks through a minimal JobSet demo to confirm that the operator is working and to introduce the most common fields of the `JobSet` custom resource.
+
+## Prerequisites
+
+- The JobSet Operator is installed and the controller pod in `jobset-system` is `Running`. See [Install JobSet](./install).
+- `kubectl` access to the target cluster.
+- A namespace to run the demo in. The examples below use the `default` namespace; replace it as needed.
+
+## JobSet CR Overview
+
+The most commonly used fields in a `JobSet` CR are:
+
+| Field                              | Purpose                                                   | Common Usage                                                                                                |
+| ---------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `spec.replicatedJobs`              | List of Job templates to materialize                      | Required. Each entry defines a named group of Jobs (e.g., `leader`, `workers`) with its own pod template.   |
+| `replicatedJobs[].name`            | Group name                                                | Used in DNS hostnames and as a target for success/failure policies.                                         |
+| `replicatedJobs[].replicas`        | How many Jobs to create for this group                    | Default `1`. Each replica is a separate Kubernetes Job.                                                     |
+| `replicatedJobs[].template`        | Embedded `batchv1.JobSpec`                                | Standard Kubernetes Job spec, including `parallelism`, `completions`, `backoffLimit`, and the pod template. |
+| `spec.successPolicy`               | When the JobSet is considered successful                  | `operator: All` or `Any`, with `targetReplicatedJobs` to scope the policy to specific groups.               |
+| `spec.failurePolicy`               | Restart behavior on failure                               | `maxRestarts` controls how many times the JobSet is recreated before being marked failed.                   |
+| `spec.network`                     | Headless Service configuration for stable pod hostnames   | Defaults are usually sufficient; can be customized with a subdomain or to disable the default Service.      |
+| `spec.startupPolicy`               | Optional ordering between `replicatedJobs`                | Use `InOrder` to start groups sequentially, e.g., wait for the leader before starting the workers.          |
+
+## Run a Simple Demo
+
+The example below defines a JobSet with two groups:
+
+- `leader`: one Job with one pod, simulating the driver process.
+- `workers`: one Job with four parallel pods, simulating the workers.
+
+The JobSet is marked successful as soon as both `leader` and `workers` complete.
+
+Save the manifest as `jobset-quickstart.yaml`:
+
+```yaml
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: jobset-quickstart
+  namespace: default
+spec:
+  successPolicy:
+    operator: All
+  replicatedJobs:
+  - name: leader
+    replicas: 1
+    template:
+      spec:
+        parallelism: 1
+        completions: 1
+        backoffLimit: 0
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: leader
+              image: busybox:1.36
+              command:
+              - sh
+              - -c
+              - |
+                echo "leader $(hostname) starting"
+                sleep 30
+                echo "leader done"
+  - name: workers
+    replicas: 1
+    template:
+      spec:
+        parallelism: 4
+        completions: 4
+        backoffLimit: 0
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: worker
+              image: busybox:1.36
+              command:
+              - sh
+              - -c
+              - |
+                echo "worker $(hostname) starting"
+                sleep 30
+                echo "worker done"
+```
+
+Apply it:
+
+```bash
+kubectl apply -f jobset-quickstart.yaml
+```
+
+## Inspect the Resources
+
+Check that the JobSet has been accepted and child Jobs have been created:
+
+```bash
+kubectl get jobset jobset-quickstart -n default
+kubectl get jobs -n default -l jobset.sigs.k8s.io/jobset-name=jobset-quickstart
+kubectl get pods -n default -l jobset.sigs.k8s.io/jobset-name=jobset-quickstart
+```
+
+Expected results:
+
+- One Job named `jobset-quickstart-leader-0` with one pod.
+- One Job named `jobset-quickstart-workers-0` with four pods.
+- A headless Service named `jobset-quickstart` for stable DNS hostnames of the pods.
+
+Tail logs from a pod, for example:
+
+```bash
+kubectl logs -n default -l jobset.sigs.k8s.io/replicatedjob-name=leader -f
+```
+
+## Verify Completion
+
+After roughly 30 seconds, all pods complete. Confirm the JobSet status:
+
+```bash
+kubectl get jobset jobset-quickstart -n default -o jsonpath='{.status.conditions}'
+```
+
+A successful JobSet reports a condition with `type: Completed` and `status: "True"`. Child Jobs report `COMPLETIONS` reaching their configured value (`1/1` for `leader` and `4/4` for `workers`).
+
+## Clean Up
+
+Remove the demo resources:
+
+```bash
+kubectl delete -f jobset-quickstart.yaml
+```
+
+Deleting the `JobSet` cascades to its child Jobs, pods, and the headless Service that was created for the workload.
+
+## Next Steps
+
+For more advanced patterns, refer to the upstream examples and documentation:
+
+- **JobSet concepts**: [https://jobset.sigs.k8s.io/docs/concepts/](https://jobset.sigs.k8s.io/docs/concepts/)
+- **Upstream examples**: [https://github.com/kubernetes-sigs/jobset/tree/main/examples](https://github.com/kubernetes-sigs/jobset/tree/main/examples)
+- **Success and failure policies**: configurable success criteria (`Any`/`All`) and per-error-type failure handling.
+- **Startup sequencing**: `spec.startupPolicy.startupPolicyOrder: InOrder` enforces a leader-before-workers startup order.
+- **Exclusive placement**: set `alpha.jobset.sigs.k8s.io/exclusive-topology` on the JobSet to colocate each child Job's pods inside a single topology domain.
+- **Kueue integration**: pair JobSet with [Alauda Build of Kueue](../kueue/intro) to manage queues and resource quotas for batch workloads.

@@ -1,0 +1,55 @@
+---
+weight: 20
+---
+
+# Install JobSet
+
+This page describes how to install the JobSet Operator on Alauda Container Platform through the Operator Hub. After installation, `JobSet` custom resources can be submitted to run distributed AI/ML and HPC workloads.
+
+## Upload the Operator Package
+
+Download the JobSet Operator package, for example `jobset-operator.ALL.xxxx.tgz`.
+
+Use `violet` to upload the package to the platform repository:
+
+```bash
+violet push --platform-address=<platform-access-address> --platform-username=<platform-admin> --platform-password=<platform-admin-password> jobset-operator.ALL.xxxx.tgz
+```
+
+## Install the Operator
+
+In **Administrator** view:
+
+1. Go to `Marketplace` / `Operator Hub`.
+2. Select the destination cluster.
+3. Search for **Alauda Build of JobSet** (the package name in the marketplace is `jobset-operator`).
+4. Click **Install**.
+5. Keep the default installation settings. The operator installs into the `jobset-system` namespace by default.
+6. Complete the installation.
+
+## Verify the Installation
+
+After installation, verify that the operator controller is running:
+
+```bash
+kubectl get pods -n jobset-system
+```
+
+The JobSet controller manager pod should be in `Running` state, for example:
+
+```text
+NAME                                        READY   STATUS    RESTARTS   AGE
+jobset-controller-manager-xxxxxxxxxx-xxxxx  2/2     Running   0          1m
+```
+
+The `JobSet` CRD can also be verified:
+
+```bash
+kubectl get crd jobsets.jobset.x-k8s.io
+```
+
+## Next Steps
+
+Installing the operator creates only the controller, the webhooks, and the `JobSet` CRD. Workloads are created by applying a `JobSet` custom resource.
+
+Continue with the [Quickstart](./quickstart) to run a simple JobSet demo.
