@@ -4,7 +4,7 @@ weight: 10
 
 # Architecture, Version and Components
 
-This page lists the currently maintained Alauda AI versions in the component matrix: the latest Stable release and the current Fast release.
+This page lists the currently maintained Alauda AI versions in the component matrix: the current release and the most recent Stable release before it.
 
 ## x86_64 Architecture
 
