@@ -1,0 +1,412 @@
+---
+weight: 30
+---
+
+# Run Kubeflow Pipelines from JupyterLab with Elyra
+
+Elyra lets you build a visual pipeline in JupyterLab by connecting notebooks on a canvas, then submitting the pipeline to Kubeflow Pipelines (KFP). This guide walks through a two-notebook "hello world" pipeline and shows how to verify the run in the KFP UI.
+
+This workflow uses KFP v2. Each notebook node is executed as a containerized pipeline step, and KFP stores run artifacts in S3-compatible object storage such as Ceph Object Storage.
+
+## Prerequisites
+
+Before you start, make sure the following platform prerequisites are ready:
+
+- Alauda AI Workbench is installed and you can create or open a JupyterLab workbench. For workbench creation steps, see [Create Workbench](./create_workbench.mdx).
+- Kubeflow Base (`kfbase`) and Kubeflow Pipelines (`kfp`) are deployed. For deployment steps, see [Install Kubeflow Plugins](../../kubeflow/install.mdx).
+- Your namespace is visible in Kubeflow. If the namespace does not appear after you log in to Kubeflow, follow the namespace binding instructions in [Install Kubeflow Plugins](../../kubeflow/install.mdx).
+- KFP object storage is configured. For the namespace-side `kfp-launcher` configuration, see [Use Kubeflow Pipelines](../../kubeflow/how_to/pipelines.mdx).
+- You use a JupyterLab workbench image that includes Elyra and the KFP SDK 2.x, for example the **Standard Data Science** Jupyter image listed in [Create Workbench](./create_workbench.mdx).
+- Elyra runtime metadata is mounted into the workbench. The runtime configuration tells Elyra how to submit to KFP, and the runtime image metadata tells Elyra which image each pipeline node can run with.
+
+:::note
+The code-server workbench image does not provide the Elyra visual pipeline editor. Use a JupyterLab image when you want to create Elyra pipelines.
+:::
+
+## Verify the Namespace KFP Runtime Configuration
+
+Before using Elyra, ask your platform administrator to confirm that the workbench namespace is ready for KFP v2 runs:
+
+- The namespace is visible in Kubeflow and is bound to the user. See [Install Kubeflow Plugins](../../kubeflow/install.mdx).
+- KFP is configured to store artifacts in object storage. See [Use Kubeflow Pipelines](../../kubeflow/how_to/pipelines.mdx).
+
+This guide does not repeat the KFP installation and object-storage manifests. It focuses on the Elyra configuration inside JupyterLab.
+
+## Configure Elyra Metadata Mounts
+
+This section is usually completed by a platform administrator. Elyra reads two different metadata directories when the JupyterLab workbench starts:
+
+| Mount path | Purpose | Recommended source |
+|------------|---------|--------------------|
+| `/opt/app-root/runtimes` | KFP runtime configuration. This tells Elyra the KFP API endpoint, namespace, authentication type, and object-storage settings. | Temporarily use a PVC in the current Workbench version. |
+| `/opt/app-root/pipeline-runtimes` | Pipeline runtime image metadata. This tells Elyra which container images are available for individual pipeline nodes. | Use a namespace ConfigMap mounted through `WorkspaceKind`. |
+
+The `..data` path is expected. Kubernetes creates this symlink layout automatically for ConfigMap and Secret volumes, and the JupyterLab image follows that layout by design. The current PVC workaround for `/opt/app-root/runtimes` needs the same layout, so create the `..data` directory yourself when preparing the PVC.
+
+In a future Workbench version, Workspace-level Secret mounting will allow `/opt/app-root/runtimes` to be mounted from a Secret directly. After that support is available, you can stop using the PVC workaround for sensitive Elyra runtime configuration.
+
+### KFP Runtime Configuration Mounted at `/opt/app-root/runtimes`
+
+The current Workbench version does not support mounting a Secret directly in a Workspace. Because the Elyra KFP runtime configuration may contain object-storage credentials, use a dedicated PVC as a temporary workaround and treat that PVC as sensitive.
+
+The PVC must contain a file like this:
+
+```text
+/opt/app-root/runtimes/
+  ..data/
+    mlops-kfp.json
+  mlops-kfp.json -> ..data/mlops-kfp.json
+```
+
+Use the following `mlops-kfp.json` as a template. Replace the namespace, endpoint, bucket, and credentials with your own values:
+
+```json title=mlops-kfp.json
+{
+  "display_name": "MLOps KFP",
+  "metadata": {
+    "runtime_type": "KUBEFLOW_PIPELINES",
+    "description": "Kubeflow Pipelines runtime for the workbench namespace",
+    "api_endpoint": "http://ml-pipeline.kubeflow.svc:8888",
+    "user_namespace": "<your-namespace>",
+    "engine": "Argo",
+    "auth_type": "KUBERNETES_SERVICE_ACCOUNT_TOKEN",
+    "cos_endpoint": "http://<ceph-rgw-service>.<ceph-namespace>.svc:7480",
+    "cos_bucket": "<your-kfp-artifact-bucket>",
+    "cos_auth_type": "KUBERNETES_SECRET",
+    "cos_secret": "elyra-cos-credentials",
+    "cos_username": "<object-storage-access-key>",
+    "cos_password": "<object-storage-secret-key>",
+    "tags": [
+      "kfp",
+      "mlops",
+      "<your-namespace>"
+    ],
+    "public_api_endpoint": "https://<kubeflow-domain>/_/pipeline"
+  },
+  "schema_name": "kfp"
+}
+```
+
+If the PVC is already mounted into a workbench, you can create the file from a JupyterLab terminal:
+
+```bash
+mkdir -p /opt/app-root/runtimes/..data
+cat > /opt/app-root/runtimes/..data/mlops-kfp.json <<'EOF'
+{
+  "display_name": "MLOps KFP",
+  "metadata": {
+    "runtime_type": "KUBEFLOW_PIPELINES",
+    "description": "Kubeflow Pipelines runtime for the workbench namespace",
+    "api_endpoint": "http://ml-pipeline.kubeflow.svc:8888",
+    "user_namespace": "<your-namespace>",
+    "engine": "Argo",
+    "auth_type": "KUBERNETES_SERVICE_ACCOUNT_TOKEN",
+    "cos_endpoint": "http://<ceph-rgw-service>.<ceph-namespace>.svc:7480",
+    "cos_bucket": "<your-kfp-artifact-bucket>",
+    "cos_auth_type": "KUBERNETES_SECRET",
+    "cos_secret": "elyra-cos-credentials",
+    "cos_username": "<object-storage-access-key>",
+    "cos_password": "<object-storage-secret-key>",
+    "tags": ["kfp", "mlops", "<your-namespace>"],
+    "public_api_endpoint": "https://<kubeflow-domain>/_/pipeline"
+  },
+  "schema_name": "kfp"
+}
+EOF
+ln -sf ..data/mlops-kfp.json /opt/app-root/runtimes/mlops-kfp.json
+```
+
+Mount the PVC into the Workspace:
+
+```yaml
+apiVersion: kubeflow.org/v1beta1
+kind: Workspace
+metadata:
+  name: <workspace-name>
+  namespace: <your-namespace>
+spec:
+  podTemplate:
+    volumes:
+      data:
+        - mountPath: /opt/app-root/runtimes
+          pvcName: <elyra-runtime-config-pvc>
+          readOnly: false
+```
+
+Restart the workbench after creating or updating the file so Elyra can load the runtime configuration.
+
+### Pipeline Runtime Image Metadata Mounted at `/opt/app-root/pipeline-runtimes`
+
+Pipeline runtime image metadata is not user-specific. A namespace ConfigMap is a better fit, and it can be mounted through `WorkspaceKind` so all JupyterLab workspaces of that kind get the same runtime image list.
+
+Create a ConfigMap named `pipeline-runtime-images` in each namespace that runs Elyra pipelines:
+
+```yaml title=pipeline-runtime-images.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-runtime-images
+  namespace: <your-namespace>
+data:
+  odh-pipeline-runtime-minimal-cpu-py312-ubi9.json: |
+    {
+      "schema_name": "runtime-image",
+      "display_name": "Runtime | Minimal | CPU | Python 3.12",
+      "metadata": {
+        "description": "Minimal runtime image for Elyra pipeline nodes.",
+        "image_name": "docker.io/alaudadockerhub/odh-pipeline-runtime-minimal-cpu-py312-ubi9:<tag>",
+        "pull_policy": "IfNotPresent",
+        "tags": ["kfp", "minimal", "cpu", "python-3.12", "ubi9"]
+      }
+    }
+  odh-pipeline-runtime-datascience-cpu-py312-ubi9.json: |
+    {
+      "schema_name": "runtime-image",
+      "display_name": "Runtime | Data Science | CPU | Python 3.12",
+      "metadata": {
+        "description": "Data science runtime image for Elyra pipeline nodes.",
+        "image_name": "docker.io/alaudadockerhub/odh-pipeline-runtime-datascience-cpu-py312-ubi9:<tag>",
+        "pull_policy": "IfNotPresent",
+        "tags": ["kfp", "datascience", "cpu", "python-3.12", "ubi9"]
+      }
+    }
+  odh-pipeline-runtime-tensorflow-cuda-py312-ubi9.json: |
+    {
+      "schema_name": "runtime-image",
+      "display_name": "Runtime | TensorFlow | CUDA | Python 3.12",
+      "metadata": {
+        "description": "TensorFlow CUDA runtime image for Elyra pipeline nodes.",
+        "image_name": "docker.io/alaudadockerhub/odh-pipeline-runtime-tensorflow-cuda-py312-ubi9:<tag>",
+        "pull_policy": "IfNotPresent",
+        "tags": ["kfp", "tensorflow", "cuda", "python-3.12", "ubi9"]
+      }
+    }
+  odh-pipeline-runtime-pytorch-cuda-py312-ubi9.json: |
+    {
+      "schema_name": "runtime-image",
+      "display_name": "Runtime | PyTorch | CUDA | Python 3.12",
+      "metadata": {
+        "description": "PyTorch CUDA runtime image for Elyra pipeline nodes.",
+        "image_name": "docker.io/alaudadockerhub/odh-pipeline-runtime-pytorch-cuda-py312-ubi9:<tag>",
+        "pull_policy": "IfNotPresent",
+        "tags": ["kfp", "pytorch", "cuda", "python-3.12", "ubi9"]
+      }
+    }
+  odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312-ubi9.json: |
+    {
+      "schema_name": "runtime-image",
+      "display_name": "Runtime | PyTorch LLM Compressor | CUDA | Python 3.12",
+      "metadata": {
+        "description": "PyTorch and LLM Compressor CUDA runtime image for Elyra pipeline nodes.",
+        "image_name": "docker.io/alaudadockerhub/odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312-ubi9:<tag>",
+        "pull_policy": "IfNotPresent",
+        "tags": ["kfp", "pytorch", "llmcompressor", "cuda", "python-3.12", "ubi9"]
+      }
+    }
+```
+
+If your cluster pulls images from a private registry mirror, replace `docker.io/alaudadockerhub/...:<tag>` with the mirrored image address.
+
+Mount the ConfigMap through the JupyterLab `WorkspaceKind`:
+
+```yaml
+apiVersion: kubeflow.org/v1beta1
+kind: WorkspaceKind
+metadata:
+  name: <jupyterlab-workspacekind-name>
+spec:
+  podTemplate:
+    extraVolumeMounts:
+      - name: pipeline-runtime-images
+        mountPath: /opt/app-root/pipeline-runtimes
+    extraVolumes:
+      - name: pipeline-runtime-images
+        configMap:
+          name: pipeline-runtime-images
+          optional: true
+```
+
+The ConfigMap mount automatically creates the Kubernetes atomic volume layout. Inside the pod, Elyra sees files like this:
+
+```text
+/opt/app-root/pipeline-runtimes/
+  ..data -> ..2026_...
+  odh-pipeline-runtime-minimal-cpu-py312-ubi9.json -> ..data/odh-pipeline-runtime-minimal-cpu-py312-ubi9.json
+```
+
+## Available Elyra Pipeline Runtime Images
+
+The Elyra pipeline runtime images are published under [alaudadockerhub on Docker Hub](https://hub.docker.com/u/alaudadockerhub?page=1&search=pipeline-runtime). They are different from the JupyterLab workbench image: the workbench image runs the authoring UI, while these runtime images run individual KFP pipeline nodes.
+
+Like the additional workbench images described in [Create Workbench](./create_workbench.mdx), these Docker Hub addresses are public source images. In a private or air-gapped environment, synchronize the required pipeline runtime images to your internal image registry first, then update the `metadata.image_name` field in the `pipeline-runtime-images` ConfigMap to point to the internal registry address.
+
+The following table describes the five commonly used runtime images. Package lists are representative and are based on the matching source directories under `runtimes/` in the image build repository.
+
+| Runtime image | Description | Main packages |
+|---------------|-------------|---------------|
+| **Minimal CPU**<br />[alaudadockerhub/odh-pipeline-runtime-minimal-cpu-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-pipeline-runtime-minimal-cpu-py312-ubi9) | Use this image for lightweight Python notebook nodes and simple control-flow steps. | `Python 3.12`<br />Elyra notebook execution dependencies such as `papermill`, `nbclient`, `nbconvert`, `nbformat`, `ipykernel`<br />`minio` client<br />`requests` |
+| **Data Science CPU**<br />[alaudadockerhub/odh-pipeline-runtime-datascience-cpu-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-pipeline-runtime-datascience-cpu-py312-ubi9) | Use this image for general CPU-based data processing and ML pipeline nodes. | `Python 3.12`<br />`NumPy`<br />`pandas 2.3.3`<br />`SciPy 1.16.x`<br />`scikit-learn 1.8.0`<br />`Matplotlib 3.10.x`<br />`Plotly 6.5.2`<br />`CodeFlare SDK 0.35.x`<br />`Feast 0.60.x` |
+| **TensorFlow CUDA**<br />[alaudadockerhub/odh-pipeline-runtime-tensorflow-cuda-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-pipeline-runtime-tensorflow-cuda-py312-ubi9) | Use this image for TensorFlow pipeline nodes on NVIDIA GPU nodes. | `Python 3.12`<br />CUDA base image<br />`TensorFlow 2.20.x`<br />`TensorBoard 2.20.x`<br />Data science runtime dependencies |
+| **PyTorch CUDA**<br />[alaudadockerhub/odh-pipeline-runtime-pytorch-cuda-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-pipeline-runtime-pytorch-cuda-py312-ubi9) | Use this image for PyTorch pipeline nodes on NVIDIA GPU nodes. | `Python 3.12`<br />CUDA base image<br />`PyTorch 2.9.1`<br />`torchvision 0.24.1`<br />`TensorBoard 2.20.x`<br />Data science runtime dependencies |
+| **PyTorch LLM Compressor CUDA**<br />[alaudadockerhub/odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312-ubi9](https://hub.docker.com/r/alaudadockerhub/odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312-ubi9) | Use this image for LLM compression and evaluation pipeline nodes on NVIDIA GPU nodes. | `Python 3.12`<br />CUDA base image<br />`PyTorch 2.9.1`<br />`torchvision 0.24.1`<br />`LLM Compressor 0.9.0.2`<br />`transformers 4.57.3`<br />`datasets 4.4.1`<br />`accelerate 1.12.0`<br />`compressed-tensors 0.13.0`<br />`lm-eval 0.4.x` |
+
+## Open JupyterLab
+
+1. Log in to Alauda AI.
+2. Go to **Workbench**.
+3. Open an existing JupyterLab workbench or create a new one with a JupyterLab image that includes Elyra.
+4. Wait for the workbench status to become `Running`.
+5. Click **Connect** to open JupyterLab.
+
+After JupyterLab opens, you can optionally verify the KFP SDK version from a JupyterLab terminal:
+
+```bash
+python -c "import kfp; print(kfp.__version__)"
+```
+
+The version should be `2.x`.
+
+## Create Two Demo Notebooks
+
+This hello world pipeline uses three files that you create directly in JupyterLab:
+
+| File | Purpose |
+|------|---------|
+| `01-hello.ipynb` | The first notebook node. It prints a message and completes. |
+| `02-world.ipynb` | The second notebook node. It runs only after the first notebook succeeds. |
+| `hello-two-nodes.pipeline` | The Elyra pipeline canvas that connects the two notebooks. |
+
+In the JupyterLab file browser, create a folder named `hello-two-nodes`.
+
+Inside this folder, create the first notebook named `01-hello.ipynb` with the following cell:
+
+```python
+print("hello from the first Elyra node")
+message = "first notebook completed"
+print(message)
+```
+
+Create the second notebook named `02-world.ipynb` with the following cell:
+
+```python
+print("hello from the second Elyra node")
+print("this notebook runs after the first notebook succeeds")
+```
+
+Run both notebooks once in JupyterLab to confirm that they execute locally without syntax errors.
+
+## Create the Pipeline in Elyra
+
+After JupyterLab opens, wait until the main launcher page and Elyra panels finish loading. In browser-based validation, JupyterLab sometimes needed several seconds before the **Pipeline Editor** and **Runtime Images** panels became usable.
+
+### Open the Pipeline Editor
+
+1. In the JupyterLab file browser, open the `hello-two-nodes` folder.
+2. Open the **Launcher** tab. If the launcher is not visible, click **File** > **New Launcher**.
+3. Click **Pipeline Editor**. JupyterLab opens a new untitled Elyra pipeline canvas.
+4. Save the empty pipeline as `hello-two-nodes.pipeline` in the `hello-two-nodes` folder.
+
+### Add Notebook Nodes
+
+1. Drag `01-hello.ipynb` from the JupyterLab file browser onto the pipeline canvas.
+2. Drag `02-world.ipynb` from the file browser onto the same canvas.
+3. Arrange the nodes from left to right so the execution order is easy to read.
+4. Connect the output port of `01-hello.ipynb` to the input port of `02-world.ipynb`. This edge is the dependency that makes the second notebook start only after the first notebook succeeds.
+
+### Configure Node Properties
+
+1. Click the `01-hello.ipynb` node.
+2. Open the node properties panel. Depending on your JupyterLab layout, the properties panel appears on the right side of the canvas or through the node context menu.
+3. Confirm that the node file points to `01-hello.ipynb`.
+4. Set **Runtime Image** to one of the Elyra pipeline runtime images prepared for your platform, for example:
+
+   ```text
+   Runtime | Minimal | CPU | Python 3.12
+   ```
+
+5. If the node has CPU, memory, GPU, environment variable, input file, or output file fields, keep the defaults for this hello world example.
+6. Click the `02-world.ipynb` node and repeat the same **Runtime Image** setting.
+7. Save the pipeline file again.
+
+:::tip
+For this hello world example, the connection is only an execution dependency. If your second notebook must consume a file created by the first notebook, configure the node file dependencies and outputs in Elyra so the file is transferred through the pipeline artifact store.
+:::
+
+## Submit the Pipeline to KFP
+
+1. In the Elyra pipeline editor, click **Run Pipeline**.
+2. In the run dialog, set **Runtime Platform** to **Kubeflow Pipelines**.
+3. Select the KFP v2 runtime configuration provided by your administrator, for example `MLOps KFP`.
+4. Enter a pipeline name, for example `hello-two-nodes`.
+5. Enter a run name or keep the generated run name.
+6. Select an existing experiment or create a new experiment, for example `elyra-demo`.
+7. Review the runtime image values for both notebook nodes.
+8. Click **OK** or **Submit**.
+
+When submission succeeds, Elyra shows a dialog similar to `Job submission to Pipelines succeeded`.
+
+:::note
+Elyra is a pipeline authoring and submission UI. After submission, it does not provide a durable run-history view inside the JupyterLab canvas. Use Kubeflow Pipelines to check the execution status.
+:::
+
+## Verify the Run in Kubeflow Pipelines
+
+1. Open the Kubeflow UI.
+2. Select the same namespace where your workbench runs.
+3. Go to **Pipelines** > **Runs**.
+4. Open the latest run for `hello-two-nodes`.
+5. In the **Graph** tab, confirm that the two notebook nodes appear in order.
+6. Click each node and check the logs. You should see:
+
+   ```text
+   hello from the first Elyra node
+   hello from the second Elyra node
+   ```
+
+7. Wait until the run status becomes `Succeeded`.
+
+Depending on your Kubeflow route, the run details URL may look like one of the following:
+
+```text
+https://<kubeflow-domain>/_/pipeline/#/runs/details/<run-id>
+https://<kubeflow-domain>/_/pipeline/?ns=<your-namespace>#/runs/details/<run-id>
+```
+
+You can also inspect the Kubernetes resources in the namespace:
+
+```bash
+kubectl get pod -n <your-namespace>
+kubectl get workflow -n <your-namespace>
+```
+
+For KFP v2, it is normal to see driver and implementation pods for a run. The user notebook code runs in the implementation container.
+
+## Troubleshooting
+
+### The namespace is not visible in Kubeflow
+
+The namespace must be associated with a Kubeflow `Profile` and the user must be bound to the namespace. Follow the namespace binding steps in [Install Kubeflow Plugins](../../kubeflow/install.mdx).
+
+### Elyra does not show a KFP runtime configuration
+
+Use a JupyterLab workbench image that includes Elyra. Then ask your administrator to confirm that the Elyra runtime metadata is mounted into the workbench and that the runtime points to your KFP endpoint and object storage.
+
+### The runtime image is not available in Elyra
+
+Ask your administrator to create or update the `pipeline-runtime-images` ConfigMap and mount it at `/opt/app-root/pipeline-runtimes` through `WorkspaceKind`. Restart the workbench after changing the ConfigMap.
+
+### The run fails before notebook code starts
+
+Check the namespace-side KFP objects:
+
+```bash
+kubectl get secret -n <your-namespace> mlpipeline-minio-artifact
+kubectl get configmap -n <your-namespace> kfp-launcher
+kubectl get configmap -n <your-namespace> metadata-grpc-configmap
+```
+
+Also check the failing pod logs in the namespace. Storage-related failures usually point to the object-storage endpoint, bucket, credentials, or `kfp-launcher` configuration. Metadata reporting failures usually point to `metadata-grpc-configmap` or the metadata gRPC service.
+
+### The Elyra success dialog was closed
+
+Open Kubeflow Pipelines directly and check **Runs** in the same namespace. Elyra does not keep a persistent run link after the success dialog is closed.
