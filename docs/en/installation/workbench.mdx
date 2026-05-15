@@ -4,6 +4,10 @@ weight: 15
 
 # Install Workbench
 
+## Prerequisites
+
+Before installing Workbench, make sure ASM (Istio) is deployed in the business cluster where Workbench will run. Workbench creates an Istio `EnvoyFilter` for Elyra and Kubeflow Pipelines run URL redirection, so the Istio CRDs must exist before the Workbench cluster plugin is installed.
+
 ## Installing Alauda AI Workbench Cluster Plugin
 
 ### Procedure
@@ -24,5 +28,4 @@ Access the feature gates at `{platform-access-address}/console-platform/feature-
 
 1. Find the gate list with the display name of your target which is `ai-workbench`.
 2. Turn On the switch button of it.
-
 
