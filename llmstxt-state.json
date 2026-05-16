@@ -1,0 +1,1263 @@
+{
+  "version": 1,
+  "generator_version": 3,
+  "project_name": "Alauda AI / Machine Learning Documentation",
+  "summary": "Documentation for Alauda's AI and machine learning platform, including Kubeflow, KServe, KubeRay, LWS, Kueue, Envoy AI Gateway, Dify, Feast, Llama Stack, Label Studio, TrustyAI, LLM Compressor, model inference, infrastructure management, and related installation, upgrade, monitoring, and learning guides.",
+  "generated_at": "2026-05-16T10:39:46Z",
+  "include_patterns": [
+    "docs/en/**/*.md",
+    "docs/en/**/*.mdx"
+  ],
+  "exclude_patterns": [
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/.yarn/**",
+    "docs/public/**",
+    "docs/shared/**",
+    "**/CHANGELOG.md",
+    "**/CONTRIBUTING.md",
+    "**/README.md",
+    ".llmstxt-cache/**",
+    "**/.llmstxt-cache/**",
+    "llms.txt",
+    "**/llms.txt",
+    "llmstxt-state.json",
+    "**/llmstxt-state.json"
+  ],
+  "grouping_base_path": "docs/en",
+  "description_max_words": 150,
+  "files": {
+    "docs/en/apis/index.mdx": {
+      "sha256": "041963348feff26507e9263970fe800cec928724df0e4de4e0ca41f78c832d81",
+      "size": 210,
+      "description": "Top-level landing page for the Alauda AI API Reference section, rendering an overview component that links to the platform's Kubernetes APIs and ACP-style API listings. Acts as the entry point under the API Reference weight slot in the docs navigation.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/apis/intro.mdx": {
+      "sha256": "392573e1a7424315cb7349b32722f34411e3910b34033a12dbcb5ba1eca390a2",
+      "size": 132,
+      "description": "Introduction page for the Alauda AI API surface, embedding the `<AcpApisOverview />` component that auto-generates a catalog of the ACP REST APIs exposed by the platform. Serves as the first stop for readers exploring HTTP-style API endpoints rather than CRDs.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/apis/kubernetes_apis/index.mdx": {
+      "sha256": "3ab1f3ce42d8f6234d3e62fe4c8ee3fc3069b3a4cef43acf199924f41442e0fc",
+      "size": 211,
+      "description": "Landing page for the Kubernetes APIs section, listing the Custom Resource groups Alauda AI exposes (Workbench/Kubeflow workspaces, manage.aml.dev namespaces, amlclusters.aml.dev operator resources, and KServe serving). Renders an overview component that aggregates child CRD reference pages.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/apis/kubernetes_apis/kubeflow.org/index.mdx": {
+      "sha256": "147789e1f5b4b4fd6178bc3a85d85edc6050d1a0eea677fec8ed72e262a5b174",
+      "size": 72,
+      "description": "Section index for the Kubeflow-derived Workbench APIs, grouping the `kubeflow.org/v1beta1` Workspace and WorkspaceKind CRDs that back Alauda AI's notebook/IDE workbench feature. Provides the entry point for readers configuring Jupyter-style developer workspaces.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/apis/kubernetes_apis/kubeflow.org/workspacekinds.mdx": {
+      "sha256": "243f71311eddbbee1e40e3552cc2913add4d79044cc73f56e6e6f3311e4837d0",
+      "size": 108,
+      "description": "Generated CRD reference for `WorkspaceKind` in `kubeflow.org/v1beta1`, rendered via the `<K8sCrd>` component. Documents the cluster-scoped template that defines image options, pod overrides, and lifecycle settings shared by individual user Workspaces in the Kubeflow Notebooks 2.0 / Workbench experience.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/apis/kubernetes_apis/kubeflow.org/workspaces.mdx": {
+      "sha256": "37c539a93d51d4b3c3ad90959a1d7dd4b6640128324fdffc46e5a162a80a85ab",
+      "size": 99,
+      "description": "Generated CRD reference for the `Workspace` resource in `kubeflow.org/v1beta1`, rendered via `<K8sCrd>`. Documents the per-user notebook workspace instance that references a WorkspaceKind and drives the running IDE pod, PVCs, and connection bindings inside Alauda AI's Workbench.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/apis/kubernetes_apis/manage/amlnamespaces.mdx": {
+      "sha256": "a4a1afda07c2840901d12c4b9587276b9db360df760da49057a48c805d35c82d",
+      "size": 89,
+      "description": "Generated CRD reference for `AmlNamespace` in `manage.aml.dev/v1alpha1`, the Alauda AI-managed namespace resource that projects use to declare project-level configuration, quotas, and platform metadata layered on top of a Kubernetes namespace.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/apis/kubernetes_apis/manage/index.mdx": {
+      "sha256": "900317c2e4c142bf36832943399e5b5141221963a911524cb2d874d7f5833e38",
+      "size": 49,
+      "description": "Section index for the `manage.aml.dev` API group, anchoring CRDs such as `AmlNamespace` that the management plane uses for project/namespace lifecycle. Renders an overview component listing the manage-group resources documented in this site.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/apis/kubernetes_apis/operator/amlclusters.mdx": {
+      "sha256": "991a1b091694d7320b83fae02a8cee2871f76c2133f24f03d39c12477af02854",
+      "size": 95,
+      "description": "Generated CRD reference for `AmlCluster` in `amlclusters.aml.dev/v1alpha1`, the top-level operator resource that installs and reconciles an Alauda AI deployment on a Kubernetes cluster, including its component versions and runtime configuration.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/apis/kubernetes_apis/operator/index.mdx": {
+      "sha256": "f31d5d573bc888d18f2ef1473133ed08ff8559e53f1125f2c2aeccb859142e08",
+      "size": 51,
+      "description": "Section index for the Alauda AI Operator APIs, gathering the `amlclusters.aml.dev` CRDs (notably `AmlCluster`) that the operator uses to install and manage the platform. Entry point for cluster administrators authoring operator-level resources.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/apis/kubernetes_apis/serving.kserve.io/clusterservingruntimes.mdx": {
+      "sha256": "b048e6949c93f4ac29e06e0eb86da788d286f809f7735abe05a4cdaf3cbf2ecc",
+      "size": 210,
+      "description": "Generated CRD reference for KServe's `ClusterServingRuntime` in `serving.kserve.io/v1alpha1`, rendered via `<K8sCrd>`. Documents the cluster-scoped runtime template (container image, supported model formats, predictor protocol) that `InferenceService` resources select when serving a model.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/apis/kubernetes_apis/serving.kserve.io/index.mdx": {
+      "sha256": "aa84e258f78df38d8af9d4ee6b905bad1acc875eda8a100b00cc1ba47c649c63",
+      "size": 80,
+      "description": "Section index for the KServe Inference Service APIs in the `serving.kserve.io` group, covering both `InferenceService` (v1beta1) and `ClusterServingRuntime` (v1alpha1) CRDs that drive model deployment and serving in Alauda AI.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/apis/kubernetes_apis/serving.kserve.io/inferenceservices.mdx": {
+      "sha256": "78d20b498875e51413badef7571c7c490b58c8952233467c0eff4856836ba375",
+      "size": 199,
+      "description": "Generated CRD reference for KServe's `InferenceService` in `serving.kserve.io/v1beta1`, rendered via `<K8sCrd>`. Describes the primary resource used to deploy a model in Alauda AI - including predictor/transformer/explainer specs, storage URI, runtime selection, and autoscaling - which the platform's model-deployment UI ultimately produces.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/connections/how_to/index.mdx": {
+      "sha256": "9eaf26fd49f7e41e5ab83905455856b443d2d92d400683f1c0b7d0cec920f011",
+      "size": 43,
+      "description": "Landing page for the Connections how-to guides, rendering an overview component that links to task-based tutorials for creating, updating, and consuming Connection resources for external model and data sources in Alauda AI projects.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/connections/how_to/using_connections.mdx": {
+      "sha256": "938c143b050aed500c383cbc44233a2092b11e2fa52fc7dbf866620f4c997e5e",
+      "size": 6949,
+      "description": "Task guide for the Connections feature: how to create, edit, and delete project-level connections (URI, OCI registry, S3-compatible storage) under a project's **Connections** tab, manage cluster-scoped connection types in the `kube-public` namespace, and reference a connection during InferenceService creation via the `aml-model-source-connection` annotation. Includes built-in field-set details (`AWS_ACCESS_KEY_ID`, `OCI_HOST`, `.dockerconfigjson` upload), runtime behavior (imagePullSecret for OCI, ServiceAccount for S3), and YAML examples for connection secrets and `ct-*` ConfigMap templates.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/connections/index.mdx": {
+      "sha256": "ca374817b591e9d230313453eb69cb9ed2f6034db1ee4e39cb673e67f63ab525",
+      "size": 48,
+      "description": "Top-level landing page for the Connections section in the Alauda AI documentation, rendered via the Overview component to surface its child pages.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/connections/overview/index.mdx": {
+      "sha256": "b4d47395a865139e5eac351a9bdb50f610771cbad515bf1facab98ba37b8cd15",
+      "size": 45,
+      "description": "Section landing page for the Connections overview, embedding the Overview component to list the Introduction and related sub-pages.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/connections/overview/intro.mdx": {
+      "sha256": "b16fa7370dc7846bb77c9dea0841a59ea5923eea2e44102279a67ca34fd756ed",
+      "size": 1630,
+      "description": "Introduces Alauda AI Connections, project-scoped reusable access settings for external model sources and data services that are stored as Kubernetes Secrets in the project namespace, while Connection Types (ConfigMaps in kube-public) define the form fields users see. Covers the three supported kinds (URI, OCI-compliant registry, S3-compatible object storage) and how each is consumed by the model deployment form (URI passthrough, image pull secret plus repository:tag path, or bucket plus object path).",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/dify/index.mdx": {
+      "sha256": "390ff63d14d3398f93bba86ebd9a49dcd8a5778b8cff4e95e350c72cde007975",
+      "size": 40,
+      "description": "Top-level landing page for the Dify product section, rendering the Overview component to expose the Introduction, Main Features, and Install Dify pages.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/dify/install.mdx": {
+      "sha256": "b0f08ea3fa9ea346867159b46d0518be636aeababb2524c7b8321165f4064595",
+      "size": 8766,
+      "description": "Step-by-step guide to deploying Dify on Alauda Container Platform via the 3rdparty/chart-dify Helm chart, covering the seven Dify workloads (API, Worker, Worker Beat, Web, Plugin Daemon, Sandbox, SSRF Proxy) and prerequisites including PostgreSQL 12+, standalone Redis 6.0+, and pgvector for RAG. Includes minimal required values (consoleUrl/appUrl, database, redis, vectorStore Secrets), optional configuration for SSL, Ingress hosts/TLS, PVC vs S3 storage for api and plugin, PIP mirror URLs for offline clusters, marketplace.dify.ai proxy or disable options, plus violet push upload and user setup notes.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/dify/overview/features.mdx": {
+      "sha256": "b410ce8a91f33171f8e114a4a6d591ced22a3fee9a29b0876a646f24f3187d7c",
+      "size": 2223,
+      "description": "Concise catalog of Dify capabilities organized into LLM application development (Assistant, Text Generator, Agent, Workflow/Chatflow; multi-provider LLM integration; visual prompt management), RAG (knowledge base ingestion, pgvector backing in the Helm chart, hybrid search and re-ranking, parent-child context, dataset versioning), Workflow & Agent (visual node-based editor, tool use, error handling, observability), and API & Integration (REST Service API, per-app API keys, Web App publish/embed, SDKs).",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/dify/overview/index.mdx": {
+      "sha256": "b4d47395a865139e5eac351a9bdb50f610771cbad515bf1facab98ba37b8cd15",
+      "size": 45,
+      "description": "Section landing page for the Dify overview, embedding the Overview component to list the Introduction and Main Features sub-pages.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/dify/overview/intro.mdx": {
+      "sha256": "cb3e098c900d5d47f794a9df4e0cdbbbe7fae5a0a37e2cc6b8e8975db3d0ed5b",
+      "size": 2052,
+      "description": "Introduces Dify as an open-source LLM application development platform with a web UI for building AI workflows, RAG pipelines, and agents, then defines its core concepts: Application (Assistant, Text Generator, Agent, Workflow/Chatflow), Workflow (visual node-based pipelines), Knowledge Base (datasets with chunking/embedding, pgvector backed in the Helm chart), and Agent. Links out to https://docs.dify.ai for plugin development, API reference, and best practices.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/envoy_ai_gateway/index.mdx": {
+      "sha256": "f5a6e8f2200ffa55277355a3bbdca0bde5154a7de8c25b4614c8f3309945333c",
+      "size": 69,
+      "description": "Top-level landing page for the Alauda Build of Envoy AI Gateway section, rendering the Overview component to list its Introduction and installation pages.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/envoy_ai_gateway/install.mdx": {
+      "sha256": "e60078255a855845ddfb6e77460f206defc5c01965088e9fd10827e29e736f19",
+      "size": 1334,
+      "description": "Procedure for deploying the Alauda Build of Envoy AI Gateway cluster plugin: obtain the package from the Customer Portal, upload it to ACP per the CLI tools guide, then install via Administrator -> Marketplace -> Cluster Plugin against the target cluster. Verifies success with kubectl get pods -n envoy-gateway-system | grep ai-gateway and describes upgrades through Clusters -> Functional Components -> Upgrade.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/envoy_ai_gateway/intro.mdx": {
+      "sha256": "066d508fa0169fa3c5aa6b94500a920e67730dba354df922c8fb3b27d4e0d83b",
+      "size": 2917,
+      "description": "Introduces Alauda Build of Envoy AI Gateway, a Kubernetes-native AI gateway built on Envoy Gateway that fronts inference workloads with AI-aware routing, an OpenAI-compatible API surface (/v1/chat/completions, /v1/completions, /v1/models), per-model rate limits and token quotas, load balancing with health checks, and Gateway API Inference Extension (GIE) integration for inference-aware scheduling. Notes that it is a required dependency of Alauda Build of KServe for exposing inference services and links upstream Envoy AI Gateway, Envoy Gateway, and GIE references.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/feast/index.mdx": {
+      "sha256": "17bbfb3da8904937603566d37738fbe1b3f46ba86464422123341e540f54a352",
+      "size": 59,
+      "description": "Top-level landing page for the Alauda Build of Feast section, rendering the Overview component to expose its Introduction, Install, and Quickstart pages.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/feast/install.mdx": {
+      "sha256": "c896ec87bd887d56829633ba657f3e54fab71542831b80eb30b1a09c2362352b",
+      "size": 1453,
+      "description": "Walks through installing the Feast Operator on Alauda Container Platform: upload the feast-operator.ALL.xxxx.tgz package with violet push, install Alauda Build of Feast from Marketplace -> Operator Hub against the target cluster, then verify the controller pod in feast-operator-system and the featurestores.feast.dev CRD with kubectl. Notes that installation only provisions the controller and CRDs, and that Feast services come up after a FeatureStore custom resource is applied per the Quickstart.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/feast/intro.mdx": {
+      "sha256": "b58d363f9b0b4bae46157d0c3d161bf4315804ef7800bc175ce06c3bee905450",
+      "size": 5060,
+      "description": "Introduces Feast as an open-source feature store deployed on Kubernetes through the Feast Operator, where a FeatureStore CR manages the offline store, online store, registry, UI, and a generated client feature_store.yaml ConfigMap. Defines core concepts (Project via spec.feastProject, Entity, Data Source, Feature View, Feature Service, Registry, Materialization, Push Source, Permission), outlines the typical workflow from feast apply through materialization to client reads, and describes Operator responsibilities such as PVC provisioning, Git-based feature repo init, and Kubernetes Role creation for RoleBasedPolicy authorization.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/feast/quickstart.mdx": {
+      "sha256": "0b4599d688268264c5db3420b1009d96a2e8da7e1671e0780fbb024d67f83ae1",
+      "size": 21171,
+      "description": "End-to-end guide for configuring and deploying a FeatureStore custom resource after the Feast Operator is installed, covering the main spec fields (feastProject, feastProjectDir, services.offlineStore/onlineStore/registry/ui, authz, replicas) and runnable YAML for persistence patterns: PVC-backed DuckDB plus local file registry, Redis online store with SQL registry on PostgreSQL 16, PostgreSQL-only online plus registry, and registry files in S3/GCS. Also documents Secret layout per backend type (redis, postgres, sql keys), feature repository initialization via feast init/init template/Git, deploying with kubectl apply and watching status.phase, the feast-<name>-online/offline/registry/ui Service names and clientConfigMap, using the Feast CLI/Python SDK with feast apply, and Kubernetes-based authorization combining feast-reader/feast-writer roles, Feast Permission objects with RoleBasedPolicy, RoleBindings, ServiceAccount tokens, and SDK token configuration via authz_config.user_token or LOCAL_K8S_TOKEN.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/infrastructure_management/device_management/hami.mdx": {
+      "sha256": "5312abf57ba38837d6a9e8a3836c748a3aa2a9196d5e000e8bac1f90a297e17a",
+      "size": 330,
+      "description": "Introduces the Alauda Build of HAMi (Heterogeneous AI Computing Virtualization Middleware, formerly k8s-vGPU-scheduler), packaged as an all-in-one Helm chart for managing heterogeneous AI accelerators in a Kubernetes cluster and enabling GPU sharing across tasks. Links out to the dedicated HAMi external documentation site.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/infrastructure_management/device_management/index.mdx": {
+      "sha256": "bad077e51aa24fefbdadfb48b1e5d295bdd254a011747b732c0a64ef168ed866",
+      "size": 33,
+      "description": "Landing page for the Device Management section, rendering an Overview component that links to subtopics such as the Alauda Build of HAMi virtualization middleware and the NVIDIA GPU Device Plugin for managing heterogeneous AI accelerators on Kubernetes nodes.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/infrastructure_management/device_management/pgpu.mdx": {
+      "sha256": "de3bd952ce5361c064a29d2955f24351bebbb20c43e06b3cd15fd67a75d8934b",
+      "size": 325,
+      "description": "Introduces the Alauda Build of the NVIDIA GPU Device Plugin, a Kubernetes DaemonSet that exposes per-node GPU counts, monitors GPU health, and enables GPU-enabled containers in the cluster. Links to the dedicated pgpu external documentation site for installation and configuration details.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/infrastructure_management/hardware_profile/functions/hardware_profile.mdx": {
+      "sha256": "028943a47ee5c8c502343376cb64d6c2653c2abdeb0f3fc9485c9daa2c7e990d",
+      "size": 10143,
+      "description": "Step-by-step administrator guide for managing HardwareProfile resources through the Alauda AI UI, covering creation, update, and deletion as well as how data scientists consume a profile when deploying InferenceService or LLMInferenceService workloads from the Service Manage page. Walks through configuring built-in and custom resource identifiers (cpu, memory, nvidia.com/gpu, custom accelerator/Other types) with default/min/max bounds, plus node selectors and tolerations, and explains the Hardware Profile vs. Custom Config Type choice and View Detail / Custom Configuration controls in the deployment form.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/infrastructure_management/hardware_profile/functions/index.mdx": {
+      "sha256": "d187739a106fc2d67dc7aec33dd10cf33532e13e2a2d14e1b035f5c22fe68334",
+      "size": 73,
+      "description": "Index page for the Hardware Profile Guides section that renders an Overview component linking to the underlying admin task pages such as the HardwareProfile create/update/delete walkthrough used by Alauda AI inference deployments.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/infrastructure_management/hardware_profile/how_to/cpu_and_gpu_profiles.mdx": {
+      "sha256": "08ab0a9a6adefacbaace5dc2267ec7b13202ba1a6a2e56536a42f11ef2a13987",
+      "size": 3575,
+      "description": "How-to that contrasts a CPU-only HardwareProfile (cpu and memory identifiers only, generic worker nodeSelector) with a GPU-accelerated profile that adds an nvidia.com/gpu Accelerator identifier, an accelerator=nvidia-t4 nodeSelector, and an nvidia.com/gpu:NoSchedule toleration. Provides full infrastructure.opendatahub.io/v1alpha1 HardwareProfile YAML for both standard-cpu-profile and gpu-t4-profile so administrators can isolate scikit-learn/XGBoost-style CPU inference from LLM workloads that need physical GPU acceleration.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/infrastructure_management/hardware_profile/how_to/create_hardware_profile_cli.mdx": {
+      "sha256": "2f07a3308587c1ea2923017ad00f687d3158189dab0e668bcade7725cf9b02c8",
+      "size": 2420,
+      "description": "Walks through creating a HardwareProfile from the command line by applying a sample gpu-high-performance-profile YAML (apiVersion infrastructure.opendatahub.io/v1alpha1) into the kube-public namespace with kubectl apply, then verifying with kubectl get hardwareprofile. The sample profile defines nvidia.com/gpu, cpu, and memory identifiers with min/max/default counts plus an accelerator=nvidia-a100 nodeSelector and an nvidia.com/gpu:NoSchedule toleration so data scientists can pick \"GPU High Performance\" in the Inference Service UI.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/infrastructure_management/hardware_profile/how_to/index.mdx": {
+      "sha256": "05d7a56878b7bb96307c4d7576661b85d1327727f3a235124f1600d62c651cf8",
+      "size": 87,
+      "description": "Landing page for the Hardware Profile How To section that renders an Overview component listing task-oriented walkthroughs such as creating profiles via CLI, scheduling workloads onto specific GPU nodes, and building distinct CPU-only and GPU-accelerated profiles.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/infrastructure_management/hardware_profile/how_to/schedule_to_specific_gpu_nodes.mdx": {
+      "sha256": "3211c9ae948724c02ea92e2408496a94425abd838edbd0ee376b5b778b937040",
+      "size": 2457,
+      "description": "Explains how to pin AI inference workloads to dedicated GPU hardware by combining Node Selectors (for example accelerator=nvidia-a100 or nvidia.com/gpu.present=true) with Tolerations that match taints like nvidia.com/gpu:NoSchedule inside a Hardware Profile. Demonstrates the recommended Key/Operator/Effect (Exists, NoSchedule) configuration so that selecting the profile from the UI transparently targets A100/H100-class nodes without data scientists hand-editing pod specs.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/infrastructure_management/hardware_profile/index.mdx": {
+      "sha256": "d5941f1d5ea08f7dec25fd439ff1b0027ef6aa389584ed2cda8b1cc1b28ee706",
+      "size": 53,
+      "description": "Top-level Hardware Profile section landing page that renders an Overview component aggregating the Introduction, admin function guides, and how-to articles (CLI creation, CPU vs GPU profiles, scheduling to specific GPU nodes) for governing Alauda AI inference resource allocation.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/infrastructure_management/hardware_profile/intro.mdx": {
+      "sha256": "6e556febdf8d7e8fdeb88ccc93b5ce14b04323b84ecaa06b65fb1bb6a11e4223",
+      "size": 4502,
+      "description": "Conceptual introduction explaining why Alauda AI ships HardwareProfile as an abstraction over raw Kubernetes scheduling for InferenceService and LLMInferenceService workloads. Covers the four pillars of the design: topology and accelerator abstraction via embedded node selectors and tolerations, dynamic bounded customization with Minimum/Default/Maximum resource limits, a dedicated Mutating Webhook that injects constraints and auto-corrects request/limit mismatches, and native interoperability with custom serving engines so the profile reaches the active predictor container.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/infrastructure_management/index.mdx": {
+      "sha256": "c7236d0c2ae41bb3cddedc478c5ee71445b3b87bb2a003949f0275491f79237c",
+      "size": 61,
+      "description": "Top-level Infrastructure Management landing page rendering an Overview component that aggregates the Device Management, Hardware Profile, and Multi-Tenant subsections covering GPU enablement, resource scheduling profiles, and namespace-based tenant isolation for Alauda AI.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/infrastructure_management/multi_tenant/functions/index.mdx": {
+      "sha256": "d187739a106fc2d67dc7aec33dd10cf33532e13e2a2d14e1b035f5c22fe68334",
+      "size": 73,
+      "description": "Index page for the Multi-Tenant Guides subsection, rendering an Overview component that links to operational pages such as Namespace Management for onboarding Kubernetes namespaces as Alauda AI tenants.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/infrastructure_management/multi_tenant/functions/namespace-manage.mdx": {
+      "sha256": "fc265a0956e5645a3ecc94d9dbebd2a2588c0442eaee5f0e702e2f988764a73d",
+      "size": 1812,
+      "description": "Procedure for onboarding a Kubernetes namespace as an Alauda AI tenant: creating the namespace under a project in the Web Console with Pod Security Policies set to privileged (otherwise AI Inference workloads will refuse to run), assigning Alauda AI Editor/Owner/Viewer roles to users through User Role Management, and finally registering it under Admin > Namespace Manage > Management Namespace.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/infrastructure_management/multi_tenant/index.mdx": {
+      "sha256": "fe802a11aa936fc486b5eb6899b75fc252bc8f88b47bd0b9e9f8328db3bd6f50",
+      "size": 28,
+      "description": "Landing page for the Multi-Tenant section, rendering an Overview component that links to namespace-based tenant management guides used to scope Alauda AI workloads, quotas, and user permissions per Kubernetes namespace.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/installation/ai-cluster.mdx": {
+      "sha256": "330a917ba0380b41d0f0fffbd050d3d5a7237c62b333d495d00d6ff62e317af7",
+      "size": 23060,
+      "description": "Step-by-step installation of the Alauda AI Operator (the core engine for model management and inference) starting from version 1.4, including uploading the `aml-operator` and optional `knative-operator` tarballs with the `violet` tool, installing via OperatorHub, optionally enabling Knative Serving (versions 1.18.1 for ACP 4.0 or 1.19.6 for ACP 4.1+) with Kourier networking, and creating the `AmlCluster` instance with KServe Standard mode, Model Catalog PostgreSQL secret, OCI registry address, and ingress domain settings. Covers importing built-in model OCI image tarballs into Harbor using `ctr` (with `--all-platforms`) and `curl` API calls, configuring insecure HTTP registries via containerd `hosts.toml`, and overriding the `aml-skipper` audit log host path for read-only root filesystems like MicroOS.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/installation/ai-essentials.mdx": {
+      "sha256": "5e8d3b63119749928ed7849d76f6f9f56fe81d711719b1e2891c07929c71bba9",
+      "size": 2105,
+      "description": "Walks an ACP platform administrator through deploying the **Alauda AI Essentials** cluster plugin (`aml-global-xxx.tgz`) to the **global** cluster, which supplies the UI and RBAC resources required by Alauda AI. Covers downloading the `violet` packaging tool from Marketplace, pushing the plugin tarball via `violet push --clusters=global`, and installing it from the Cluster Plugins page until the tile reports `Installed`.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/installation/index.mdx": {
+      "sha256": "759055b814f62f804c55f4ca00d258dee541c9f441ae0d13aa7f271cdd36f0b3",
+      "size": 1495,
+      "description": "Landing page for the Alauda AI install track: lists hardware (two nodes with 16 cores / 32 GB minimum, ~10 GPUs per ten concurrent 7B-LLM inference instances, 200 GB free disk per worker) and software (CUDA Toolkit 12.6+) requirements, then orders the high-level install sequence — pre-installation configuration, Alauda AI Essentials, and Alauda AI Operator — with pointers to extending the built-in vLLM runtime for older CUDA versions.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/installation/pre-configuration.mdx": {
+      "sha256": "1e68d549c85406d86e2b4d9cfb15b714fce2e43b346c8b1d6e354ecaa7376364",
+      "size": 9896,
+      "description": "Pre-install configuration for Alauda AI: provisions the (deprecated but still supported) GitLab service used by Model Management — version 15+ with HTTPS, Git LFS enabled, self-hosted, and access-token expiration disabled — and walks through generating an admin impersonation token with full `api` scope, then creating the `aml-gitlab-admin-token` secret under the `cpaas-system` namespace. Also covers preparing an Alauda Build of Harbor registry for Model Catalog (HTTPS production mode with anonymous pull) and tuning nginx ingress annotations such as `proxy-body-size: \"0\"` on `GitLabOfficial` CR to fix HTTP 413 errors when pushing large LFS objects to GitLab 18.5+.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/installation/tools.mdx": {
+      "sha256": "449d09e598e15baa34c63d35ad266f869d7394f8250c0e5771e246c623e6c278",
+      "size": 6558,
+      "description": "Explains the AML 1.3+ auto-discovery mechanism for the left-navigation **Tools** menu, which scans all `ConfigMap` resources labeled `aml.cpaas.io/centralMenuItem: \"true\"` and merges them into `centraldashboard-config` (manual edits are reverted on upgrade). Shows an MLFlow example ConfigMap defining `link`, `parentUid: advanced`, `title`/`titleI18N`, `tags`, and `order` fields, and describes the `aml-feature-tags` whitelist with the `aml.cpaas.io/centralTagsFilter` annotation that hides any menu item whose tags fall outside the filter.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/installation/workbench.mdx": {
+      "sha256": "dbcee0fd2c99dbd4add26e5dbca020fb79f71cbf72bdfd1b2fcb0a656293b3ca",
+      "size": 1165,
+      "description": "Installs the **Workbench** cluster plugin in a business cluster, noting that ASM (Istio) must be deployed beforehand because Workbench creates an Istio `EnvoyFilter` for Elyra and Kubeflow Pipelines run URL redirection. Also describes enabling the `ai-workbench` feature gate at `{platform-access-address}/console-platform/feature-gate` after the plugin reaches the `Installed` state.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kserve/index.mdx": {
+      "sha256": "fe427233dcedcb5e7000c0cdac2231e53368ca35b48fb014ac5d88f72053cb74",
+      "size": 59,
+      "description": "One-page overview entry for the **Alauda Build of KServe** section that renders an `<Overview />` index of the introduction, install guide, and related KServe-on-Alauda documentation.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kserve/install.mdx": {
+      "sha256": "b2fd6e48cf9d07ee39f9bd2e8475c6719e9e5c969a484bf4d6f18fab8fc04e5b",
+      "size": 8684,
+      "description": "End-to-end install of **Alauda Build of KServe** on ACP: lists required dependencies (Envoy Gateway Operator, Envoy AI Gateway, LeaderWorkerSet cluster plugins, and bundled GIE), uploads the `kserve-operator.ALL.xxxx.tgz` via `violet push`, installs through OperatorHub, then creates a `KServe` CR (`components.aml.dev/v1alpha1`) named `default-kserve` configured with `clusterName`, `deployFlavor`, `platformAddress`, registry address, ingress `domain`, and `kserve.controller.deploymentMode` (`Knative` for scale-to-zero or `Standard`). Documents preset configuration tables for `envoy_gateway`, `envoy_ai_gateway`, `kserve_gateway`, and `GIE` (with `gie.builtIn` to disable bundled GIE), plus verification via `kubectl get kserve default-kserve -n kserve-operator` showing `DEPLOYED: True`, and the upgrade path.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kserve/intro.mdx": {
+      "sha256": "ae0879c2aa8bad707d56b55581b07e45f8199509d0de31266aa684f70d94f654",
+      "size": 4306,
+      "description": "Introduces **Alauda Build of KServe** as Alauda's distribution of upstream KServe, splitting coverage into Generative AI features (llm-d distributed inference with KV-cache-aware scheduling and Leader/Worker multi-node parallelism, vLLM runtime with PagedAttention, OpenAI-compatible `/chat/completions` streaming, autoscaling including scale-to-zero, and Envoy Gateway + GIE integration) and Predictive AI features (the `InferenceService` CRD with canary rollouts, pre-integrated runtimes like TensorFlow Serving, TorchServe, Triton, SKLearn, XGBoost, `ClusterServingRuntime`/`ServingRuntime` for custom runtimes, and `InferenceGraph` for pipeline composition). Includes upstream documentation links for KServe, llm-d, LeaderWorkerSet, Envoy Gateway, Envoy AI Gateway, and Gateway API Inference Extension.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kubeflow/faq.mdx": {
+      "sha256": "87e02a5d2f880d6601f83b5312a8f1b80f63731eb36e41e9a4c95d3b60336780",
+      "size": 7358,
+      "description": "Troubleshooting FAQ for Kubeflow on Alauda AI covering four scenarios: relabeling namespaces from PSA `restricted` to `baseline` to unblock notebooks and pipeline runs; overriding the `oidcAuthURL` in the `kfbase` `ModuleInfo` resource and restarting `oauth2-proxy` when login must use an alternative platform address; creating a `kfp-launcher` ConfigMap to point Kubeflow Pipelines runs at external S3/MinIO instead of the in-cluster `minio-service.kubeflow:9000`; adding custom GPU vendors (e.g. `your-custom.com/gpu`, Ascend) to `jupyter-web-app-config`; and fixing `CrashLoopBackOff`/probe timeouts on kube-ovn CNI by adding an `allow-kubelet-probes` NetworkPolicy that permits ingress from the kube-ovn join subnet CIDR (typically `100.64.0.0/16`).",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kubeflow/how_to/fine-tune-with-trainer-v2.mdx": {
+      "sha256": "a5ad4abd2a22d64bd5d150c76f4da625071c980fd71f30ddeb67423e75f3a729",
+      "size": 6537,
+      "description": "Tutorial for supervised fine-tuning with **Kubeflow Trainer v2** using LlamaFactory, explaining how `TrainingRuntime` templates separate from per-experiment `TrainJob` runs (overriding base model, dataset URL, hyperparameters, or GPU resources). Covers prerequisites including the `trainer.kubeflow.org` API group, a shared PVC like `team-model-cache-pvc`, an `aml-image-builder-secret` for private Git access, Tesla-T4 GPU nodes, and a sample RBAC `Role` granting `trainjobs`/`trainingruntimes` permissions to the `aml-editor` ServiceAccount. Points to the pre-built `alaudadockerhub/fine_tune_with_llamafactory:v0.1.11` image, a separate MindSpeed-LLM notebook for Huawei Ascend NPU (`huawei.com/Ascend910B4`, `runtimeClassName: ascend`, `hami-scheduler`), and Kueue-based queuing with the `kueue.x-k8s.io/queue-name` label.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kubeflow/how_to/model-registry.mdx": {
+      "sha256": "55d64ee5cd32b7cfd0828bab214005ca18a2337d02ce198bf1e6cf319d5edae0",
+      "size": 4326,
+      "description": "How-to for the **Kubeflow Model Registry**: register models either via the dashboard UI (model name, S3 artifact URI, version, tags) or programmatically with the `model-registry` Python client (`pip install model-registry==0.3.5 kserve==0.13`) calling `register_model()` with `model_format_name`, `version`, and `metadata` against `http://model-registry-service.<namespace>.svc:8080`. Then shows deploying a registered model as a KServe `V1beta1InferenceService` carrying the `modelregistry/registered-model-id` and `modelregistry/model-version-id` labels so the controller pulls the model from the registry-stored S3 URI.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kubeflow/how_to/notebooks.mdx": {
+      "sha256": "fe428b0a10a18e499f06aa872359e93adad4dc3b4cfc62094270f3282c14b666",
+      "size": 7125,
+      "description": "Guide to using **Kubeflow Notebooks** (with a note recommending Alauda AI Workbench instead for richer integration): create per-namespace JupyterLab, VS Code, or RStudio servers with custom Docker images, CPU/RAM/GPU requests, workspace and data PVCs, and PodDefault-injected configurations. Covers persisting Python virtual environments under `/home/jovyan/venv` (registering them as Jupyter kernels via `ipykernel`), applying `PodDefault` resources in the `kubeflow.org/v1alpha1` API to inject credentials such as a `gcp-secret` volume mount, and reading data from object storage with `s3fs` using `AWS_S3_ENDPOINT`/`AWS_ACCESS_KEY_ID` environment variables.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kubeflow/how_to/pipelines.mdx": {
+      "sha256": "d21332bbcffe8ce629754a7cfb3a3ac58e056fd1a5dc2d88f3256c7594943ac8",
+      "size": 5498,
+      "description": "Walks through using **Kubeflow Pipelines** (KFP): install the `kfp` Python SDK, configure a `kfp-launcher` ConfigMap so runs use your external Object Storage (`defaultPipelineRoot`, `endpoint`, `forcePathStyle`, secret-based credentials) instead of the Kubeflow 1.11+ default SeaweedFS, and compile a simple `@dsl.pipeline`/`@dsl.component` (`say_hello`) with `compiler.Compiler().compile(...)`, then submit it via `Client.create_run_from_pipeline_package`. Also documents the dashboard workflow for uploading a `pipeline.yaml`, creating one-off or scheduled (Periodic/Cron) Recurring Runs, grouping runs into experiments, and inspecting per-step graph nodes, logs, inputs/outputs, and visualizations.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kubeflow/how_to/tensorboards.mdx": {
+      "sha256": "9db0ed817d92455bad230b4b49ba5926618b7b80511727b3adbad50ed7cb72db",
+      "size": 4412,
+      "description": "Walks through spawning **Kubeflow TensorBoards** that point at training logs on PVCs or object storage URIs like `s3://my-bucket/logs/experiment-1`. Includes a PyTorch `SummaryWriter` example that logs an image grid and the ResNet50 model graph to `./runs/`, instructions for configuring the TensorBoard instance (Name, PVC source with Mount Path, or Object Store Link plus a credentials PodDefault), and usage scenarios such as comparing multiple runs via a parent log directory and inspecting the **Scalars** and **Graphs** tabs. Notes that deleting an instance reclaims CPU/memory but never touches the underlying logs.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kubeflow/how_to/volumes-kserve.mdx": {
+      "sha256": "af19fcac3ada9da40529b610e933e44df2424273289cae28fa51bd7dfbb64374",
+      "size": 3172,
+      "description": "Walks through creating and managing Kubeflow PVCs (Volumes) from the central dashboard, attaching them as Workspace or Data Volumes to Notebook Servers with mount paths like /home/jovyan, and using the PVC Viewer to browse files. Also covers the KServe Endpoints UI for deploying InferenceServices with a sample serving.kserve.io/v1beta1 YAML that uses the aml-vllm-0.9.2-cuda-12.6 runtime against an hf:// storageUri, then monitoring and curl-testing the prediction endpoint.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kubeflow/index.mdx": {
+      "sha256": "546a6743370d9407ae275facc3cf8a7f4227a792f32458f34a40ac62d59544c1",
+      "size": 64,
+      "description": "Top-level landing page for the Alauda support for Kubeflow documentation set, rendering an <Overview /> component that links to the section's introduction, installation, upgrade, and how-to guides for running Kubeflow on Alauda AI 2.0.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kubeflow/install.mdx": {
+      "sha256": "8b90daec79115ad4d25faa0b4e31a02682abc0e18ebbcdff649587fc34a232df",
+      "size": 12263,
+      "description": "Step-by-step deployment guide for the kfbase, model-registry-operator, kfp, kftraining (deprecated), and kubeflow-trainer cluster plugins on Alauda AI 2.0, including prerequisites like ASM v2, LWS, and Alauda Build of KServe. Covers configuring Dex redirection via Platform Access URLs, wiring oauth2-proxy through ASM extensionProviders (envoyExtAuthzHttp) for both ASM v1 and v2, uploading packages with violet, creating Kubeflow Profile resources to bind users to namespaces such as kubeflow-admin-cpaas-io, and installing the Model Registry operator with MySQL storage settings.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kubeflow/intro.mdx": {
+      "sha256": "ac2e8388e9efd25ee07f515a90c5ed15b1eb32e140066051bc585a89225d7292",
+      "size": 789,
+      "description": "Brief introduction positioning Alauda's Kubeflow integration as a Kubernetes-native ML platform combining Kubeflow Pipelines for workflow orchestration, Kubeflow Training for jobs, and Model Registry for versioning, and notes that namespaces must have Pod Security Admission set to privileged for Kubeflow components to function.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kubeflow/upgrade.mdx": {
+      "sha256": "1b358db0a8316857a3e7939c2498bfb6ce6fe1ef69989de08cefdc74225b024f",
+      "size": 1516,
+      "description": "Captures manual post-upgrade actions for the kfbase plugin, including the switch from NodePort to gateway-based dashboard access for upgrades from v1.10.13 or earlier (requiring DNS or hosts updates pointing kubeflowDomain to the kubeflow-external-gateway IP), instructions for re-enabling NodePort by editing the kubeflow-istio-ingressgateway service, and the v1.10.10 requirement to set a default StorageClass for the pgStorageClass parameter when upgrading from v1.10.9 or earlier.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kuberay/how_to/codeflare-sdk-tutorial.mdx": {
+      "sha256": "faf7a2aa8fb45b07e832c3fd91c03469a570fff172ebfa9c7d9164f234f77cbf",
+      "size": 2760,
+      "description": "End-to-end tutorial for using the CodeFlare SDK inside a Standard Data Science workbench in Alauda AI to spin up a RayCluster via ClusterConfiguration, verify it with cluster.status(), submit a RayJob with parameters such as job_name, cluster_name, and entrypoint, monitor it with rayjob.status(), and tear down with cluster.down(). References a downloadable demo Jupyter notebook and reminds users to update the image parameter for their hardware and registry.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kuberay/how_to/index.mdx": {
+      "sha256": "5bbd653847d75f5e722f6bb12bbea4e4bbef672fa5fe11ccbd86706600d4045f",
+      "size": 88,
+      "description": "How-To section index for the Alauda Build of KubeRay Operator documentation, rendering an <Overview /> that aggregates task-oriented guides such as the CodeFlare SDK tutorial.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kuberay/index.mdx": {
+      "sha256": "68c0ba12e3f44df0b5fc46d40385cac9bc4355041c5c729a5252cbb9228327a8",
+      "size": 69,
+      "description": "Top-level landing page for the Alauda Build of KubeRay Operator section, rendering an <Overview /> linking to the operator's introduction, installation, and how-to guides.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kuberay/install.mdx": {
+      "sha256": "9bd5a29202212d8674860b36793744dab8328b86d436860bb875b567f901e25b",
+      "size": 835,
+      "description": "Installation guide for the Alauda Build of KubeRay Operator cluster plugin on ACP v4.0 or later, covering downloading the package from the Customer Portal, uploading it with the violet CLI tool, deploying it from Administrator > Marketplace > Cluster Plugin to the target cluster, and verifying with kubectl get pods -n cpaas-system | grep kuberay-operator.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kuberay/intro.mdx": {
+      "sha256": "5927951be50f048a557602f0efb6b6a64a50ed252e00b7ced47ab388c188c635",
+      "size": 2099,
+      "description": "Introduces the Alauda Build of KubeRay Operator as a Kubernetes-native operator built on the open-source KubeRay project for running Ray on Kubernetes. Describes the three core CRDs (RayCluster for lifecycle and autoscaling, RayJob for auto-provisioned job execution with cleanup, RayService for zero-downtime Ray Serve deployments), key features like heterogeneous compute, fault tolerance, and ecosystem integration with Kueue/Volcano/Prometheus, and use cases spanning distributed training, batch inference, hyperparameter tuning with Ray Tune, and LLM serving.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kueue/how_to/config_quotas.mdx": {
+      "sha256": "41bf7ccdd640ed23ec7c804686206489cb017a8924d0e66b6f6c677100c143d3",
+      "size": 9210,
+      "description": "Administrator procedure for setting up Kueue quotas by creating a ClusterQueue with resourceGroups covering CPU/memory/pods plus GPU resources (nvidia.com/gpualloc, nvidia.com/total-gpucores, nvidia.com/total-gpumem for Alauda Build of Hami, or nvidia.com/gpu for the Alauda Build of NVIDIA GPU Device Plugin), defining ResourceFlavor objects keyed on nodeLabels like nvidia.com/gpu.product=Tesla-T4 or NVIDIA-A30, and binding them to namespaces with LocalQueue objects (including a default queue that auto-labels jobs with kueue.x-k8s.io/queue-name).",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kueue/how_to/fair_sharing.mdx": {
+      "sha256": "65fa6f02d7712387cbe7268ab2be6b602a89c891c781edfe8f4473851c7c6db9",
+      "size": 1805,
+      "description": "Explains how fair sharing in Alauda Build of Kueue distributes borrowable (unused nominal) quota across tenants in a cohort using ClusterQueue weights configured under spec.fairSharing.weight. Notes that lower share values are admitted first and preempted last, the default weight is 1, and a weight of 0 represents an infinite share value that makes the queue always the first preemption target.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kueue/how_to/gang_scheduling.mdx": {
+      "sha256": "ea88ed229ff12de4d585661c160e55517e5bcbf1af0f64a2137461beb82a507c",
+      "size": 1033,
+      "description": "Describes Kueue's timeout-based gang (all-or-nothing) scheduling, which suspends groups of related jobs until the cluster can guarantee capacity for the whole gang, preventing GPU under-utilization, resource segmentation, and deadlocks. Notes that the feature is enabled by default and that administrators can adjust the timeout or disable it through the deployment form parameters of the Alauda Build of Kueue cluster plugin.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kueue/how_to/index.mdx": {
+      "sha256": "455761ff452d8ecd73f298a9bbef07e4a0065e1a570b3d633a73cc57b8bc0164",
+      "size": 78,
+      "description": "How-To section index for Alauda Build of Kueue, rendering an <Overview /> linking to administrator-oriented guides on quota configuration, fair sharing, gang scheduling, and InferenceService integration.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kueue/how_to/isvc.mdx": {
+      "sha256": "4d4e777eb777e276abc95bb1fadfabbe0ed2530010e9c2a4ea5fae690f7893c6",
+      "size": 4074,
+      "description": "Worked example of using Alauda Build of Kueue to gate KServe InferenceService deployments in Alauda AI, including creating ClusterQueue, ResourceFlavor, and LocalQueue resources that cover CPU, memory, pods, ephemeral-storage, and Alauda Build of Hami vGPU resources (nvidia.com/gpualloc, total-gpucores, total-gpumem). Demonstrates labeling the InferenceService with kueue.x-k8s.io/queue-name, observing predictor pods stuck in SchedulingGated when quotas are insufficient, and unblocking them by raising the nominalQuota for nvidia.com/total-gpucores.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kueue/how_to/monitor_pending_workload.mdx": {
+      "sha256": "956692e264ccd60f98a2f890f3fde3772b534c814e9369b7f5758ba3a76b681d",
+      "size": 11634,
+      "description": "Walks through using the `VisibilityOnDemand` feature in Alauda Build of Kueue to inspect pending workloads in both `ClusterQueue` and `LocalQueue` via the `visibility.kueue.x-k8s.io/v1beta2` API, including example `FlowSchema`/`PriorityLevelConfiguration` for Kubernetes API Priority and Fairness throttling, RBAC bindings to `kueue-batch-admin-role` and `kueue-batch-user-role`, and a hands-on demo that creates `ResourceFlavor`, `ClusterQueue`, `LocalQueue`, and six suspended sample Jobs then queries `pendingworkloads` with `limit`/`offset` parameters.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kueue/how_to/setup_rbac.mdx": {
+      "sha256": "67506d130f86920b47325fd67b3b0a524d1831b35134b9b5dbde98641c740ad7",
+      "size": 2119,
+      "description": "Explains the two built-in ClusterRoles created when installing Alauda Build of Kueue: `kueue-batch-admin-role` (managing ClusterQueues, Queues, Workloads, and ResourceFlavors) and `kueue-batch-user-role` (managing Jobs and viewing Queues/Workloads). Provides ready-to-apply ClusterRoleBinding and RoleBinding YAML examples for binding these roles to a batch administrator (`admin@cpaas.com`) cluster-wide and a batch user (`team-a-owner@cpaas.com`) scoped to a `team-a` namespace.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kueue/how_to/tekton.mdx": {
+      "sha256": "c4f08d12da6321c56861166cb13f9a8469fd49659338fd9dd66490c282c5c417",
+      "size": 5441,
+      "description": "Demonstrates integrating Alauda Build of Kueue scheduling with Alauda DevOps Pipelines (Tekton) and Alauda Build of HAMi vGPU resources by creating a `ClusterQueue`/`ResourceFlavor`/`LocalQueue` that covers `cpu`, `memory`, `pods`, `nvidia.com/gpualloc`, `nvidia.com/total-gpucores`, and `nvidia.com/total-gpumem`, then submitting a Tekton `Pipeline` and `PipelineRun` labelled with `kueue.x-k8s.io/queue-name`. Shows how a quota-exceeding pod stays in `SchedulingGated` state until the GPU core quota is raised, after which it transitions to `Running`.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kueue/how_to/using_cohorts.mdx": {
+      "sha256": "d8268a31c59ea809c405869e59151ab16f0a7ad6a524f7ae8342fc6e14addd56",
+      "size": 1284,
+      "description": "Describes how to group `ClusterQueue` objects into cohorts via the `.spec.cohort` field so they can share borrowable resources (unused nominal quota) across the group, enabling fair sharing and better utilization for related teams or workloads. Notes that omitting `spec.cohort` excludes a cluster queue from cohort-level borrowing and that cohorts can be used to enforce group-level resource quotas.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kueue/index.mdx": {
+      "sha256": "c307c32fe02c0db6e6be01a96ab56d0e2edd76962239ebb36fbab2333a625aad",
+      "size": 57,
+      "description": "Landing page for the Alauda Build of Kueue documentation section, rendered via the `<Overview />` component and weighted 92 in the navigation order.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kueue/install.mdx": {
+      "sha256": "f7fbf5fbd5ce81593a7483bd394d9d4e88ffd02bfaadc7bb67e682c066b854f9",
+      "size": 1250,
+      "description": "Installation guide for the Alauda Build of Kueue cluster plugin: download the package from the Customer Portal, upload it to ACP using the cluster plugin upload procedure, then deploy from `Administrator > Marketplace > Cluster Plugin` against the target cluster and verify with `kubectl get pods -n cpaas-system | grep kueue`. Also describes upgrading by uploading a new package and clicking `Upgrade` under the cluster's `Functional Components` page.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/kueue/intro.mdx": {
+      "sha256": "eb1e8fb0f71ec441f924bb6b87b757db1448f23ddbdb0af7949ebf2eba030b83",
+      "size": 743,
+      "description": "Introductory page positioning Alauda Build of Kueue as a Kubernetes-native quota-and-job-admission system that decides when jobs wait, start (pods are created), or are preempted (active pods deleted). Highlights that it integrates with the existing API server, scheduler, and cluster autoscaler rather than replacing them, and enforces all-or-nothing admission semantics for jobs.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/label_studio/index.mdx": {
+      "sha256": "937a1d777184348c95f22ec2b1b660f043f3420a40e5690ba03fbfe599ea0710",
+      "size": 48,
+      "description": "Landing page for the Label Studio product section, rendered through the `<Overview />` component and weighted 81 in the documentation navigation.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/label_studio/install.mdx": {
+      "sha256": "f9540a0b9903dd1d7849b5bc35c1936add49d74b7f12769beaadea276fbc2b7e",
+      "size": 8925,
+      "description": "Step-by-step guide for deploying Label Studio to a Kubernetes cluster: push the `label-studio.ALL.xxxx.tgz` package with `violet push`, prepare a CSI/`PersistentVolume`-backed StorageClass and a PostgreSQL 13+ cluster (and optional standalone-mode Redis from Data Services), then install the `3rdparty/chart-label-studio` Catalog application. Covers custom values for persistence sizing, `pgConfig`/`redisConfig` with SSL secrets, Service type and Ingress with `LABEL_STUDIO_HOST`, OAuth2 Proxy with ACP Dex as OIDC provider (via an `OAuth2Client` CR), and disabling open registration with `LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK`.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/label_studio/overview/features.mdx": {
+      "sha256": "cde0af26c318227a9f6e26d07b3da2c45a9afb791064d9c5678b5c11ddfa57eb",
+      "size": 1800,
+      "description": "Lists Label Studio's main feature areas: multi-user annotation with user management, collaborative labeling, task assignment, and quality control; multi-type data support spanning image (classification, object detection, semantic segmentation), text, audio, video, time-series, and multi-modal data; XML-based annotation configuration with template library and built-in tools; JSON/CSV data import/export with batch operations; and machine learning integration via ML backend, pre-annotation, REST API, and Python SDK.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/label_studio/overview/index.mdx": {
+      "sha256": "f2173503b518976d2ce0b364648e0aec87c10f0ae2f33957a7f310f0521283fd",
+      "size": 44,
+      "description": "Section index page for the Label Studio overview, rendering the `<Overview />` component at navigation weight 10.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/label_studio/overview/intro.mdx": {
+      "sha256": "0cdde8ade3f90a07711a0f2395be68cb670a64492163487034aa24377c7f9389",
+      "size": 4482,
+      "description": "Introduces Label Studio as an open-source multi-type data labeling tool with a Django/Python REST backend, React frontend, PostgreSQL 13+ storage, and optional Redis cache. Explains the core concepts (Project, Labeling Interface, Data Manager, Annotations, Machine Learning Integration), supported data types (image, audio, text, time series, video), cloud storage import from AWS S3 and Google Cloud Storage, and capabilities like pre-annotation, online/active learning, and model comparison.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/label_studio/quickstart.mdx": {
+      "sha256": "838cc8b6d976dd9b98a48ade6263688bc3d09d9f10684a0fd67a67c912b2f881",
+      "size": 4616,
+      "description": "Walks users through integrating Label Studio with S3-compatible object storage (Amazon S3, Ceph RGW) for data import and annotation export. Covers configuring Source/Target Cloud Storage under `Settings > Cloud Storage`, fields like Bucket Name, S3 Endpoint, Access Key ID/Secret, Bucket Prefix, File Filter Regex, pre-signed URL expiration, and SSE KMS Key ID; syncing buckets, exporting JSON annotations, and using the Label Studio SDK converter to transform them into COCO, Pascal VOC, YOLO, or CSV for downstream model training pipelines.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/learn/index.mdx": {
+      "sha256": "4b0892883c9df53d1767e0c874005e95560b7265997b8ebeddb3f6db9966485c",
+      "size": 43,
+      "description": "Landing page for the Learn section of the documentation, rendered via the `<Overview />` component with navigation weight 991.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/learn/supported-configurations-for-2.x.md": {
+      "sha256": "2a0a630ac4dce88ba52392c890fa51f58b2dcdf72714548207e34ee20157a7e0",
+      "size": 10027,
+      "description": "Component compatibility matrix for the Alauda AI v2.3 Stable and v2.4 Fast releases on x86_64 and ARM architectures, listing supported Alauda Container Platform versions (v4.0.x-v4.3.x) and pinned versions for Alauda AI Essentials, Alauda AI Operator, Workbench, KServe, KubeRay, NVIDIA GPU Device Plugin/DRA Driver, DCGM-Exporter, HAMi, NPU Operator (ARM only), Node Feature Discovery, Kueue, LeaderWorkerSet, Volcano, MLFlow, Kubeflow Base/Pipelines/Trainer v2/Model Registry, Llama Stack, Label Studio, Envoy AI Gateway, Dify, Langflow, Evidently, Featureform (x86_64 only), Feast, Knative, PostgreSQL, Milvus, GitLab, and TrustyAI.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/llama_stack/index.mdx": {
+      "sha256": "b6f4cc19e28ca885048c7cf56f5cd767e3f7f3f857e68b800085346f740fbab3",
+      "size": 63,
+      "description": "Top-level landing page for the Alauda Build of Llama Stack section, embedding the standard `<Overview />` component that auto-renders links to the subsections (Overview, Install, Quickstart).",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/llama_stack/install.mdx": {
+      "sha256": "2e6e978e96e86d568687db20bb0d15541985f5c6ca5ae81185b693ae4801a3b3",
+      "size": 7855,
+      "description": "Procedure for installing the Llama Stack Operator via Operator Hub and deploying a Llama Stack Server through a `LlamaStackDistribution` custom resource (apiVersion `llamastack.io/v1alpha1`), covering required `VLLM_URL` configuration pointing at a vLLM OpenAI-compatible endpoint, optional `VLLM_API_TOKEN` Secret, PGVector-backed vector stores via ACP PostgreSQL, Hugging Face mirror/offline embedding-model caching (`HF_ENDPOINT`, `HF_HUB_OFFLINE`), and vLLM predictor tool-calling flags (`--enable-auto-tool-choice`, `--tool-call-parser hermes`) needed for agent flows that use client-side or MCP tools.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/llama_stack/overview/features.mdx": {
+      "sha256": "c66e8af2ff61a039234b10bf671788f7c31193a0ba3fa031ce733d772515a1c9",
+      "size": 1643,
+      "description": "Enumerates Llama Stack's main capabilities: a centralized server hosting inference/agents/safety/tool runtime/vector I/O/files, remote and inline providers (meta-reference, sqlite-vec, localfs), Kubernetes deployment via `LlamaStackDistribution`, `@client_tool` decorator-based agent creation with streaming sessions, YAML stack configuration with `${env.VAR:~default}` fallbacks, multiple distributions (starter, postgres-demo, meta-reference-gpu), and the `llama-stack-client` Python 3.12+ SDK including PGVector-backed vector store APIs.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/llama_stack/overview/index.mdx": {
+      "sha256": "b4d47395a865139e5eac351a9bdb50f610771cbad515bf1facab98ba37b8cd15",
+      "size": 45,
+      "description": "Index page for the Llama Stack Overview subsection that uses the `<Overview />` component to surface the introduction and features pages.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/llama_stack/overview/intro.mdx": {
+      "sha256": "716717766fe816da589bce9c774eb9b960dad17c20db8e6147b7323317bdc5bc",
+      "size": 1845,
+      "description": "Introduces Llama Stack as a framework for building AI agents with tools, explaining its core building blocks: the Llama Stack Server deployed via Operator on Kubernetes, the `llama-stack-client` Python SDK, agents and `@client_tool`-decorated tools, YAML configuration registering providers (inference, agents, safety, vector_io, files) and models such as DeepSeek over OpenAI-compatible APIs, and links to upstream documentation at llamastack.github.io.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/llama_stack/quickstart.mdx": {
+      "sha256": "403880ddaf1d3c2ac69bdf787831fd055cc9359f0bc1989ca636d96cbea3255d",
+      "size": 4216,
+      "description": "Walks through running the `llama-stack_quickstart.ipynb` notebook against a deployed Llama Stack Server, demonstrating both `@client_tool` client-side tools and FastMCP-based MCP tools registered with `toolgroups.register`, plus an optional PGVector flow that uploads a file via `client.files.create`, creates a `provider_id=\"pgvector\"` vector store, and runs hybrid search with `search_mode=\"hybrid\"`; also includes an FAQ for installing a Python 3.12 ipykernel from `python-build-standalone` so notebooks can use `llama-stack-client==0.6.0`.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/llm-compressor/how_to/compressor_by_workbench.mdx": {
+      "sha256": "46cc5572b623abbb58dcc490adb89d942fccd6077307eb3260e3d7058f9c9f30",
+      "size": 9368,
+      "description": "End-to-end walkthrough for compressing models inside an Alauda AI JupyterLab Workbench using the `odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-ubi9` image and the `data-free-compressor.ipynb`/`calibration-compressor.ipynb` example notebooks; covers uploading a model (e.g., TinyLlama-1.1B-Chat-v1.0) and optional ultrachat_200k calibration dataset to a model repository, applying a `QuantizationModifier` with the `W4A16` scheme (ignoring `lm_head`), loading datasets from Ceph S3-compatible storage via `boto3`/`s3fs`, downloading from a Hugging Face mirror with `HF_ENDPOINT`, saving the compressed `compressed-tensors` output, and deploying it through an Alauda AI Inference Server.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/llm-compressor/how_to/index.mdx": {
+      "sha256": "6ec39d9cde11b3b60ae9607c0686e5b00ee90eae953d605af598bcf89687adbc",
+      "size": 43,
+      "description": "Index page for the LLM Compressor How-To section, rendering `<Overview />` to list the workbench-based compression guides.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/llm-compressor/index.mdx": {
+      "sha256": "682d4c211999af5e48320bdde0345b307debf5495347b87e2fc0637c55fd4bba",
+      "size": 51,
+      "description": "Top-level landing page for the LLM Compressor section, embedding `<Overview />` to surface the introduction and how-to subsections.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/llm-compressor/intro.mdx": {
+      "sha256": "0fd9aced20955407b786939a64041900c78a32390189fb411a9a31defb1fa8ba",
+      "size": 2692,
+      "description": "Introduces LLM Compressor as the vLLM project's open-source model-compression library that supports quantization (int8, W4A16 weight-only, W8A8 weight+activation), sparsity, and file-size compression with native Hugging Face and vLLM integration; lists supported algorithms AWQ, GPTQ, FP8 dynamic per-token, SparseGPT, and SmoothQuant, and explains how computed scales/zero-points (per-tensor, channel, group, or token) produce compressed models suitable for resource-limited deployment.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/lws/index.mdx": {
+      "sha256": "15f6aaa555a7c75d93a5c13c4ea518b84cd3513723ced3e1d8dcdcc42a5b74e6",
+      "size": 68,
+      "description": "Top-level landing page for the Alauda Build of LeaderWorkerSet section, embedding `<Overview />` to expose the introduction and install subsections.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/lws/install.mdx": {
+      "sha256": "c83d92deb6331b3c6129a5b5ddddd8e36d508ad32c5f1c3ae9933d47aca86b12",
+      "size": 1318,
+      "description": "Installation procedure for the Alauda Build of LeaderWorkerSet cluster plugin obtained from the Customer Portal: upload through the ACP cluster plugin tooling, deploy from `Administrator > Marketplace > Cluster Plugin`, verify with `kubectl get pods -n cpaas-system | grep lws`, and upgrade via the cluster's Functional Components page.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/lws/intro.mdx": {
+      "sha256": "56b3e38998218d635395fbec3089d3162ee728d66cdb24b059a0470b425e63dc",
+      "size": 2652,
+      "description": "Introduces Alauda Build of LeaderWorkerSet, a packaging of the upstream Kubernetes SIG `lws` project that provides a `LeaderWorkerSet` CRD for deploying groups of one leader and N worker pods as a unit; highlights co-scheduling with topology spread constraints for NVLink/InfiniBand interconnects, multi-node LLM inference for models like Llama 3.1 405B using tensor/pipeline parallelism (required by Alauda Build of KServe), distributed training with PyTorch DDP/DeepSpeed/Megatron-LM, group-level rolling updates and failure recovery, and leader-first startup sequencing.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/index.mdx": {
+      "sha256": "5437edbac321e69db056fbfdf0e01d105922ad5e713092aedc95a1a902a113d0",
+      "size": 63,
+      "description": "Top-level landing page for the Model Deployment & Inference section (weight 75), using the `<Overview />` component to render links to the inference service, model management, and related subsections.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/functions/index.mdx": {
+      "sha256": "d187739a106fc2d67dc7aec33dd10cf33532e13e2a2d14e1b035f5c22fe68334",
+      "size": 73,
+      "description": "Index page for the Inference Service Guides subsection under Model Deployment & Inference, using `<Overview />` to list the function-level how-to pages (with i18n title `Guides`).",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/functions/inference_service.mdx": {
+      "sha256": "0999d4e5e1b987c825bdba27f11fbc203d89f6f9503dece0fbd9acfa834a9f2c",
+      "size": 27294,
+      "description": "Reference for AML's Inference Service feature, which deploys trained models via KServe `InferenceService` CRD using runtimes such as vLLM, Seldon MLServer, and `llm-d`. Walks through publishing flows (Custom Publish and Template Publish, from Model Repository or PVC), template lifecycle, rolling updates, the visual Inference Experience for text generation, text/image classification, and text-to-image tasks, plus HTTP API/gRPC invocation. Includes a full parameter table for publishing (Hardware Profile vs. Custom resources, GPU allocation, autoscaling, env vars, startup command) and inference-time generation parameters (`max_new_tokens`, `temperature`, `top_k`/`top_p`, beam search, contrastive search, diffusion `num_inference_steps`, `guidance_scale`).",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/how_to/accurately_schedule.mdx": {
+      "sha256": "0142f2b7ccf7043ace46f7fa387b71c66162df94b9cb00339e541b8518bfab11",
+      "size": 3408,
+      "description": "Guide to scheduling KServe `InferenceService` pods onto GPU nodes with compatible CUDA driver versions, solving runtime-vs-driver mismatches that the default Kubernetes scheduler ignores. Operators tag each GPU node with `nvidia.com/cuda.runtime.major` / `.minor` labels (manually via `nvidia-smi` + `kubectl label`, or automatically via the Node Feature Discovery plugin's GFD extension), then attach a `preferredDuringSchedulingIgnoredDuringExecution` `nodeAffinity` block matching the `cpaas.io/cuda-version` on the chosen `ClusterServingRuntime`. Notes that Alauda AI 1.5+ performs this scheduling automatically.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/how_to/autoscale_settings.mdx": {
+      "sha256": "73a5c0d7975dedc1659c963032260321b95ea533e987a52ea963b97eeb8af407",
+      "size": 9398,
+      "description": "Configures Knative Pod Autoscaler (KPA) — the default for KServe `InferenceService` predictors — covering scale-down (per-service `spec.predictor.minReplicas: 0/1`, cluster-wide `enable-scale-to-zero` in the `config-autoscaler` ConfigMap, `scale-to-zero-pod-retention-period`, `scale-to-zero-grace-period`) and scale-up (soft-limit `scaleTarget` with `scaleMetric: concurrency`, hard-limit `containerConcurrency`, `target-utilization-percentage`, and switching the metric to `rps` via `requests-per-second-target-default`). Stresses keeping the `helm.sh/resource-policy: keep` annotation on the global ConfigMap so customizations survive upgrades.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/how_to/create_inference_service_cli.mdx": {
+      "sha256": "43d6988aa9eef76cce084a995a4e4c5dc43dc886e95858306658c2c9b6a2b2a1",
+      "size": 7223,
+      "description": "Walkthrough for authoring an `InferenceService` YAML by hand and applying it with `kubectl`, using a Qwen2.5-0.5B-Instruct + `aml-vllm-0.9.2-cuda-12.6` runtime as the worked example. Shows the required AML annotations and labels (`aml-model-repo`, `aml-model-group`, `aml.cpaas.io/runtime-type: vllm`, `service.subdomain`), a GPU-aware bash command that auto-detects GPUs, handles GGUF model files, and launches `vllm.entrypoints.openai.api_server` with `--tensor-parallel-size`, CUDA-version `nodeAffinity`, NVIDIA fractional-GPU resource keys (`nvidia.com/gpualloc`, `nvidia.com/gpucores`, `nvidia.com/gpumem`), and a curl test against the OpenAI-compatible `/v1/chat/completions` endpoint.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/how_to/custom_inference_runtime.mdx": {
+      "sha256": "838fcc2a89c1769b8ff2acbd363c696b61345b7a80c9bae2edd8415319846e45",
+      "size": 38728,
+      "description": "Procedure for registering additional `ClusterServingRuntime` resources to extend AML beyond the built-in vLLM engine, with end-to-end YAML for Xinference (CPU/GPU, requires `MODEL_FAMILY`), Seldon MLServer (sklearn/xgboost/mlflow, HuggingFace and StableDiffusion implementations), Triton Inference Server, vLLM-ascend on Huawei Ascend 910B4 (needs `HOME=/tmp`, `fsGroup: 1000`, `supplementalGroups`), and MindIE on Ascend 310P (must run as root, requires `storage.kserve.io/readonly: \"false\"` and an extensive `RAW_SCRIPT` that rewrites MindIE's `config.json` for backend, NPU device IDs, worldSize, and ports). Closes with a comparison table of hardware targets, supported frameworks, and special requirements per runtime.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/how_to/external_access_inference_service.mdx": {
+      "sha256": "2c56322a40d388579771b07d8da1cf95c6e76b9d022933dad4af2b4c12c10ec7",
+      "size": 4845,
+      "description": "Steps to expose an in-cluster inference service to outside callers: locate the URL on the service detail page or `status.url`, create a matching Domain (Network > Domains) scoped to the cluster and project, provision a shared Load Balancer (Network > Load Balancers), then add HTTP/HTTPS listeners and a forwarding rule that targets the `knative-ingressgateway` Service in the `istio-system` namespace (using `knative-serving-cert` as the default certificate for HTTPS). Ends with a `curl --resolve` recipe against `/v1/models` for verifying that the load balancer routes inference traffic correctly.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/how_to/index.mdx": {
+      "sha256": "01f067a9eb025ec26382080f28bfbb74179940ada414390a0744d416e203fd08",
+      "size": 86,
+      "description": "Section landing page that renders an `<Overview />` index of the Inference Service How-To guides (custom runtimes, CLI deployment, autoscaling, Modelcar storage, KEDA, expert parallel, speculative decoding, external access, CUDA-aware scheduling).",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/how_to/keda_autoscaling.mdx": {
+      "sha256": "a43029a036b8b4fa41a230531331a2a5da6ee57a6ae6c0b30cab438e15315c53",
+      "size": 8860,
+      "description": "Replaces the default KServe HPA with KEDA-based autoscaling driven by vLLM-specific Prometheus metrics (`vllm:num_requests_running`, `vllm:num_requests_waiting`, `vllm:gpu_cache_usage_perc`, latency histograms). Procedure covers granting `kserve-controller-manager` access to KEDA CRDs (`ClusterRole`/`ClusterRoleBinding`), stopping the service with `serving.kserve.io/stop=true`, copying credentials from the `kube-prometheus-alertmanager-basic-auth` secret in `cpaas-system` into the workload namespace, creating a `TriggerAuthentication`, and adding `serving.kserve.io/autoscalerClass: keda` plus an `autoScaling.metrics` block with a PromQL query and per-replica target so KEDA computes `ceil(metricValue / value)` replicas.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/how_to/using_modelcar.mdx": {
+      "sha256": "c9cd6bc269edff5cc4bdda0d0d18c4eabea7e5b8558a6254deb5b51b1a301805",
+      "size": 7142,
+      "description": "Packages model artifacts as OCI container images (KServe Modelcar) and references them with `storageUri: oci://...` to gain faster cold starts, lower disk churn, and offline distribution via Harbor/Quay. Provides two Containerfile templates (busybox and Red Hat `ubi-micro`), Podman/nerdctl build-and-push commands, advice on splitting large `.safetensors` files across layers to respect Harbor's per-layer size limit, and a sample `InferenceService` that consumes the image with the vLLM runtime; troubleshooting tips cover `kubectl describe`, predictor logs, and `crictl pull` for verifying registry access from a node.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/how_to/vllm_expert_parallel.mdx": {
+      "sha256": "9a523ec519ede6aa2df62c1cb9312b6d471f05e6f6c3feb13b4a8ad342db6dd0",
+      "size": 9866,
+      "description": "Single-node YAML pattern for turning on vLLM Expert Parallel (EP) for Mixture-of-Experts models by adding `--enable-expert-parallel`, `--tensor-parallel-size 1`, and `--data-parallel-size \"${GPU_COUNT}\"` to the predictor command, with EP size derived as `TP_SIZE x DP_SIZE`. Explains the layer-level consequences (expert layers sharded across all EP ranks, attention layers replicated when `TP_SIZE=1` or sharded otherwise), shows a full `InferenceService` example for DeepSeek-V3-0324, and explicitly defers performance tuning and multi-node deployments to upstream vLLM documentation.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/how_to/vllm_speculative_decoding.mdx": {
+      "sha256": "491d16037d5bf2536838e81632ecc29cfef01475e298dba8057035497996113f",
+      "size": 38279,
+      "description": "Practitioner's guide to enabling vLLM speculative decoding on an `InferenceService` via the single `--speculative-config` JSON argument, focused on N-gram and EAGLE-3 methods with starting `num_speculative_tokens` recommendations. Documents three ways to deliver the target + draft artifacts (KServe `storageUris` plural for 0.16+, single OCI Modelcar bundle, or pre-staged PVC), how to verify acceptance from the `SpecDecoding metrics` log lines and `/metrics` Prometheus counters, a benchmark template, and a rollback path. Includes internal A30 + Qwen3-8B and Llama-3.1-8B + EAGLE3 lab snapshots showing ~1.84x speedup on code-refactor but break-even or regression on chat, plus troubleshooting for OOM, NotReady due to slow cold start, and silently ignored `min_p`/`logit_bias` parameters.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/index.mdx": {
+      "sha256": "26d1fc81746ba225ed9d949e1b49404e97ef51100a9e5f3f36f767e16635a34b",
+      "size": 34,
+      "description": "Top-level Inference Service section landing page rendering the `<Overview />` index for the Introduction, Functions, How-To, and Troubleshooting subsections.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/intro.mdx": {
+      "sha256": "6932cb6099f6c3019f3e6392afdecdef1f6bc27fac01a0f7a50a16b8cb90f97d",
+      "size": 581,
+      "description": "One-page introduction framing the Inference Service as Alauda AI's core LLM-serving capability, exposing models over HTTP API and gRPC for building stable, high-performance LLM applications. Carries a warning that the built-in runtime container requires root privileges and should only be used in trusted environments under existing security policies.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/trouble_shooting/index.mdx": {
+      "sha256": "99ba08ebdb8b78682f01ae2e07502dfb2066970e0c52f847b1ef3cfce2bebe2d",
+      "size": 91,
+      "description": "Section landing page that renders an `<Overview />` index of inference-service troubleshooting topics (currently MLServer timeout diagnostics).",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/trouble_shooting/infer_timeout.mdx": {
+      "sha256": "45d945860051fe65cb25bb2e47e1f66c1e51b82d514a23928562348326b5717d",
+      "size": 2631,
+      "description": "Diagnoses inference-experience `502 Bad Gateway` timeouts on the Seldon MLServer runtime, attributing them to insufficient compute, overly long generated outputs, or MLServer's non-streaming response behavior that blocks until the full inference completes. Recommends upgrading CPU/GPU/memory, capping `max_new_tokens` at request time, and reducing model size/input complexity via quantization, pruning, or input preprocessing to bring response times back under the gateway's timeout window.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/inference_service/trouble_shooting/pod_security_admission_violation.mdx": {
+      "sha256": "a0b9e2a39419c969686fb633fed7b96f2d62d0eaa9b46b4abda5aa7969645d35",
+      "size": 2418,
+      "description": "Troubleshoots inference services stuck out of Running state on Alauda Container Platform when the Deployment exists but no Pod is created and FailedCreate events cite Pod Security Admission baseline violations such as hostIPC=true. Walks through inspecting the runtime for privileged requirements like host namespaces, removing them when possible, or otherwise raising the namespace's Enforce/Audit/Warn Pod Security Standard to Privileged via the Project view's Update Pod Security Admission action.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/model_management/functions/index.mdx": {
+      "sha256": "d187739a106fc2d67dc7aec33dd10cf33532e13e2a2d14e1b035f5c22fe68334",
+      "size": 73,
+      "description": "Section landing page that renders the Guides overview index for the Model Management functions area, listing the Model Repository and Model Storage feature guides that follow.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/model_management/functions/model_repository.mdx": {
+      "sha256": "510b237bdc0bb616c7668a32c822a9ce289e5490ef350d899c50bda978f46ddd",
+      "size": 2626,
+      "description": "Reference for the Git-backed Model Repository: creating and deleting repos with name/description/visibility metadata, pushing large files via Git LFS using `.gitattributes` patterns like `*.bin filter=lfs`, branching/tagging for parallel versions, auto-syncing README.md metadata, and cross-tenant Shared/`public` namespace publishing. Also covers integrations including one-click inference service launch from tagged versions and pulling models into AML Notebooks via `git clone`.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/model_management/functions/model_storage.mdx": {
+      "sha256": "413ff665aff842301a2567d2e262b883f3610a0a44d7933e61a8802af87db135",
+      "size": 8855,
+      "description": "Compares the three model storage backends supported by Alauda AI for KServe InferenceService deployment: S3 object storage (Storage Initializer InitContainer with `serving.kserve.io/s3-endpoint` annotations on a Secret plus ServiceAccount), Persistent Volume Claim (`storageUri: pvc://...`), and OCI containers (modelcars sidecar for offline/Harbor/Quay registries). Provides full YAML examples using `aml.cpaas.io/runtime-type: vllm` with the `aml-vllm-0.11.2-cpu` ClusterServingRuntime, plus PVC upload workflow through JupyterLab or code-server workbenches.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/model_management/how_to/index.mdx": {
+      "sha256": "9eac83eebbc035eb7809d99dcf2ac35ddeb124616d9e1c96fe347a0b7fc381f1",
+      "size": 87,
+      "description": "Landing page that renders the How To overview index for Model Management, grouping task-oriented guides for sharing models and uploading models via a notebook.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/model_management/how_to/share_models.mdx": {
+      "sha256": "887894c41269bc822ac0f4b7188e4ee70a336af175b6c6e959d73eb3325029f7",
+      "size": 4240,
+      "description": "Manual workflow for sharing an LLM that lacks a UI publishing flow: add model card metadata (`pipeline_tag`, `library_name`) either through the File Management Edit Metadata dialog or by writing a YAML frontmatter block into the model's README.md, then change the backing GitLab project's visibility from Private to Public. When using README-based metadata, GitLab admin must also add project topics like `text-classification` and `aml_framework_transformers` so the platform recognizes the model as inference-ready; metadata cannot be edited once shared.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/model_management/how_to/upload_models_using_notebook.mdx": {
+      "sha256": "575dfbed99ff105f30c1ab27593164a5525ac5bab974c8439cee714044454c4f",
+      "size": 8934,
+      "description": "End-to-end procedure for uploading an LLM into the Alauda AI model repository from a Workbench/Notebook, including downloading from huggingface.co, hf-mirror.com, or modelscope.cn with `huggingface-cli`, initializing a Git repo, writing a `.gitattributes` file that LFS-tracks formats like `*.safetensors`, `*.bin`, `*.pt`, and `*.ckpt`, and pushing with `git -c lfs.activitytimeout=36000 push -u origin main`. Also covers editing Task Type/Framework metadata (e.g., text-generation + Transformers) and using `git lfs migrate import --above 100MB` to retroactively LFS-track large files.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/model_management/index.mdx": {
+      "sha256": "053a8d3e7457c7e7b03af05d745ac543dddb90fed4fb36ef07abea81a4a22657",
+      "size": 32,
+      "description": "Top-level Model Management section landing page that injects the Overview component to render child entries (Introduction, Functions, How To).",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/model_management/intro.mdx": {
+      "sha256": "526e8b02bb4b2a43710c447b81f5b66127df2d8d6a7a6a8ee9414eafab4cebce",
+      "size": 508,
+      "description": "Brief introduction positioning the Model Repository as a Git LFS-based versioned storage hub for LLMs on the Alauda AI platform, covering inference deployment, fine-tuning, and evaluation phases with version, sharing, and lifecycle management capabilities.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/overview/features.mdx": {
+      "sha256": "3ee402d0ba536c1039084e441115433de2c9a8906a2a6067ccc2b8abfe8cf184",
+      "size": 1796,
+      "description": "Feature catalog for the model inference area, split into Model Management (Git-based repository with branching/tagging, web UI plus CLI/Git LFS uploads, automatic README.md metadata sync, one-click deployment) and Inference Service (direct model deployment with auto-download/cache/load, custom Dockerfile image deployment via Kubernetes Deployments, plus batch start/stop/update/delete operations, batch inference task creation/monitoring/export, and batch resource management).",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/overview/index.mdx": {
+      "sha256": "f2173503b518976d2ce0b364648e0aec87c10f0ae2f33957a7f310f0521283fd",
+      "size": 44,
+      "description": "Overview landing page for the model inference area that renders the Overview component listing the section's child pages (Introduction and Features).",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/model_inference/overview/intro.mdx": {
+      "sha256": "035092852dbcc7d90dba456188c28b0352c8a3e5da829f5ed12e76cca3fbae01",
+      "size": 899,
+      "description": "Introductory page summarizing the two pillars of Alauda AI's inference offering: the Git LFS-backed Model Repository for versioned LLM storage across deployment/fine-tuning/evaluation, and the Inference Service for deploying LLMs as online services with HTTP API and gRPC invocation.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/monitoring_ops/index.mdx": {
+      "sha256": "0adb3e45d5dbf90a4a3b6f0ccd007c34b8e8084f09ff2c12194274a283ed0d47",
+      "size": 52,
+      "description": "Top-level landing page for the Monitoring & Ops section that renders the Overview component to expose its child topics (logging/tracing and related operational tooling).",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/monitoring_ops/logging_tracing/functions/index.mdx": {
+      "sha256": "d187739a106fc2d67dc7aec33dd10cf33532e13e2a2d14e1b035f5c22fe68334",
+      "size": 73,
+      "description": "Section landing page rendering the Guides overview for the logging and tracing functions area, gating entry to feature pages like the Logging guide.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/monitoring_ops/logging_tracing/functions/logging.mdx": {
+      "sha256": "37a823ac4d685b8e1328c49f771f1c5f981632fac6431e3c07ef89b64d2346ca",
+      "size": 2082,
+      "description": "Walkthrough for the Logging tab on an Inference Service detail page: real-time streaming of pod logs with a Replica dropdown for switching between replica pods, an in-viewer Find feature that highlights matches in yellow with up/down navigation, and an Export button that downloads the current log buffer as a `.txt` file for offline analysis.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/monitoring_ops/logging_tracing/index.mdx": {
+      "sha256": "9fca2a31c8638d75b1f216fa758a20ce52f894d943ee56c01c7566980ae43144",
+      "size": 53,
+      "description": "Section landing page for the Logging & Tracing area of Alauda AI's Monitoring & Ops module, rendering child topics via the `<Overview />` component as the entry point for log-related guides.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/monitoring_ops/logging_tracing/intro.mdx": {
+      "sha256": "0d703f5ee2e61638479e837183c09797e477ae28d8e16d0047feb4fb69617c28",
+      "size": 519,
+      "description": "Introduces the Logging module that streams real-time container logs from inference service replica pods in MLOps/LLMOps/GenOps workflows, providing millisecond-latency visibility and built-in analysis tooling to accelerate debugging and incident response.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/monitoring_ops/overview/features.mdx": {
+      "sha256": "0cf7edd5d97252b4be056fba56b9b017cdc9c8a054c850ffd380af2f651b9f83",
+      "size": 1119,
+      "description": "Enumerates the headline Monitoring & Ops features for inference services: real-time Replica pod logging, CPU/memory Resource Monitor, GPU/VRAM Computing Monitor, and Other Monitor metrics including vLLM token throughput, QPS (success/fail), and request traffic analytics for SLA tracking.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/monitoring_ops/overview/index.mdx": {
+      "sha256": "f2173503b518976d2ce0b364648e0aec87c10f0ae2f33957a7f310f0521283fd",
+      "size": 44,
+      "description": "Top-level landing page for the Monitoring & Ops overview section, rendering its child intro and features pages through the `<Overview />` component.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/monitoring_ops/overview/intro.mdx": {
+      "sha256": "6c75bb3102d8db417281b2aed0fdba52615a17d65260c88b922d4ad1022adaea",
+      "size": 916,
+      "description": "Positions Monitoring & Ops as the Alauda AI module providing full-lifecycle observability for inference services through two operational pillars: Logging (real-time replica pod log streaming) and Monitor (infrastructure, GPU, and API traffic dashboards). Notes that Hami GPU dashboards require AML 1.4 or later.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/monitoring_ops/resource_monitoring/functions/index.mdx": {
+      "sha256": "d187739a106fc2d67dc7aec33dd10cf33532e13e2a2d14e1b035f5c22fe68334",
+      "size": 73,
+      "description": "Landing page that groups the Resource Monitoring function reference topics, surfaced under the Guides section via the `<Overview />` renderer.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/monitoring_ops/resource_monitoring/functions/resource_monitoring.mdx": {
+      "sha256": "9d30eef6d664dc5a06a6a7ae6cce9deec956842b2f8e87533b2cb538a2b96e12",
+      "size": 4721,
+      "description": "Complete reference for the Resource Monitor tab on inference service detail pages, covering CPU/memory usage and utilization, GPU compute and VRAM metrics (unsupported under MPS deployment mode), vLLM-only token prompt/generation counters, and request metrics (response time avg/tp50/p90/p95, QPS, traffic). Includes step-by-step navigation, the 30-minute-to-7-day time range picker, calculation formulas, and operational thresholds such as the >90% sustained CPU scale-up cue and Kubernetes OOM behavior.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/monitoring_ops/resource_monitoring/how_to/add_monitor_dashboard.mdx": {
+      "sha256": "8263a120269eb7706327e3da6e33fd99f635426e5de58762a9e69c7062a5eb54",
+      "size": 1582,
+      "description": "Walks through creating a custom Grafana-style monitoring dashboard from the Administrator View under Operations Center > Monitor > Dashboards: setting the AML folder, tagging the resource with the `cpaas.io/published: \"true\"` label via YAML, and adding a Native PromQL panel (example query computes CPU utilization as a ratio of `container_cpu_usage_seconds_total` to `kube_pod_container_resource_limits_cpu_cores`). After creation the dashboard is reachable from Alauda AI View > Observe > Dashboards via Switch.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/monitoring_ops/resource_monitoring/how_to/index.mdx": {
+      "sha256": "6ec39d9cde11b3b60ae9607c0686e5b00ee90eae953d605af598bcf89687adbc",
+      "size": 43,
+      "description": "Index page for Resource Monitoring how-to guides, rendered through the `<Overview />` component to list the available task-oriented walkthroughs.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/monitoring_ops/resource_monitoring/index.mdx": {
+      "sha256": "8117b288b3f3a05d1dc510fe3b7e2e43314f3e4e370a9837c00cd2d9cbaef59d",
+      "size": 55,
+      "description": "Top-level landing page for the Resource Monitoring subsection of Monitoring & Ops, surfacing intro, functions, how-to, and troubleshooting child topics through `<Overview />`.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/monitoring_ops/resource_monitoring/intro.mdx": {
+      "sha256": "2c4b1e6e96b3db0cc28af63b1dbd163d769bbad890b955f7fcc8c68dd6973e8b",
+      "size": 1093,
+      "description": "Introduces Resource Monitoring as the Monitoring & Ops component for tracking inference service resource utilization. Documents key usage limits: a 60-second minimum scrape interval, 7-day default historical retention, and dependencies on the Prometheus/VictoriaMetrics stack with node_exporter on workers and DCGM exporter on GPU nodes.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/monitoring_ops/resource_monitoring/troubleshooting/index.mdx": {
+      "sha256": "e39d4e46e7b7a63f833170e6b6898b41408417f84f98ad17c79ea958f6ef7e13",
+      "size": 52,
+      "description": "Landing page that aggregates Resource Monitoring troubleshooting articles via the `<Overview />` component.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/monitoring_ops/resource_monitoring/troubleshooting/monitor_dashboard_loading_stuck.mdx": {
+      "sha256": "ae1962b0ae5ef89a1d3e72b36d23a03e45d53ce150375bb8a58c97d0e75e842a",
+      "size": 759,
+      "description": "Workaround for inference service monitoring dashboards that hang on loading when AML is deployed on ACP 4.2.0 due to tightened default security policies. Instructs editing the `warlock` ClusterRole in `cpaas-system` to grant `update` on `components.aml.dev/amls/finalizers`, then restarting the warlock Deployment.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/overview/architecture.mdx": {
+      "sha256": "f7d45f224713f64870545f3702336ce24884fa1e87e3c6d917feef3be3fca15f",
+      "size": 5125,
+      "description": "Architectural reference for the Alauda AI platform, organized by layer with component-by-component licensing and provenance. Catalogs the ACP layer (Alauda Builds of NVIDIA Device Plugin, HAMi, DCGM-Exporter, NPU Operator, Node Feature Discovery, NVIDIA DRA Driver, Volcano, Kueue, Milvus, PGVector), the AI Platform layer (Model Catalog, Kubeflow Model Registry, Datasets, Label Studio, FeatureForm, Workbench, Kubeflow Trainer v2, Kubeflow Pipelines, Guardrails, Evidently, MLflow), and the GenAI layer (KServe, vLLM, llm-d, Envoy AI Gateway as MaaS, fine-tuning with llama-factory, llm-compressor quantization, lm-evaluation-harness, Llama Stack, Langchain, Dify, MCP Servers, MLflow agent tracing, RAGAS).",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/overview/index.mdx": {
+      "sha256": "77ae3cc19a67d12d2c1f6f69688e41ff83c7207dbf663d0e5e2334cba3716883",
+      "size": 121,
+      "description": "Entry-point landing page for the Alauda AI Overview section, delegating to child pages such as the architecture reference through the `<Overview />` component.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/overview/intro.mdx": {
+      "sha256": "8f419ab8557a0409ebc869a107d1ed43a957618b2ba4ed543008cd93788a1b6f",
+      "size": 1561,
+      "description": "Introduces the Alauda AI platform as an MLOps and LLMOps best-practice toolkit for model storage and versioning, inference service release for large models, and codeless agent orchestration and AI application development. Frames the platform's audience (data scientists, ML engineers, application developers) and contrasts MLOps with LLMOps workflows.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/overview/quick_start.mdx": {
+      "sha256": "f5af53499881cb71066cc22e54ec30ab4da7e99b5f019ab67c0e69f87d6247eb",
+      "size": 6208,
+      "description": "Walks new users through a roughly 20-minute end-to-end Alauda AI tutorial: creating a namespace with the aml-namespace-editor/owner/viewer roles, bringing it under Alauda AI management, uploading a model such as Meta-Llama-3-8B-Instruct to the Model Repository, and publishing a vllm-cuda12.6-x86 inference service with HAMi NVIDIA GPU acceleration. Closes by invoking the deployed service via the in-console Experience feature for text generation.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/overview/release_notes.mdx": {
+      "sha256": "4e89712334fe4ffd651b976fa0932b50fa49354328fa5e6249a57d21a20ba948",
+      "size": 3050,
+      "description": "AI 2.4.0 release notes highlighting the new Image Based Model Catalog with OCI registry and configurable StorageClass, Kubeflow 1.11 upgrade (Base, Pipelines, Trainer v2), Elyra Pipeline Editor in Workbench, Llama Stack PGVector integration, Huawei Ascend NPU support via Kubeflow Trainer v2 plus MindSpeed-LLM, ModelSlim compression, and the vLLM-ascend custom runtime. Notes deprecation of the Gitlab based Model Catalog in favor of OCI artifacts.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/trustyai/ai-guardrails.mdx": {
+      "sha256": "da26ae750fe62eab4a1501ffdb5fd1c2b6c0db23406b7855811503ee93d1941b",
+      "size": 13426,
+      "description": "Deploys the TrustyAI GuardrailsOrchestrator CRD (based on FMS-Guardrails) in AutoConfig mode with the built-in regex detector and gateway enabled, including supported algorithms (email, US SSN, credit-card, IPv4/IPv6, US phone, UK postcode, custom regex). Documents the gateway, built-in-detector, orchestrator, and health ports under auth-enabled/disabled modes, ServiceAccount Bearer-token setup, and curl examples for /api/v1/text/contents, /api/v2/chat/completions-detection, and /all/v1/chat/completions including PII detection response shapes.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/trustyai/index.mdx": {
+      "sha256": "7dfb9ce8b3d9f7fc3f38b86820870c611921eda13746c988c16549ed65ced961",
+      "size": 61,
+      "description": "Top-level Alauda Build of TrustyAI section that renders an Overview component as the landing page for the TrustyAI documentation set.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/trustyai/install.mdx": {
+      "sha256": "0290dd97dc144e1f66fc4ced09b7430b87de336d6d7c752f899d89c05c0090d0",
+      "size": 1271,
+      "description": "Installs the TrustyAI operator by uploading the trustyai-service-operator tarball with the violet CLI and then selecting Alauda Build of TrustyAI from the OperatorHub Marketplace. Lists the CRDs (TrustyAIService, LMEvalJob, GuardrailsOrchestrator, NemoGuardrails) made available for inference monitoring, LLM evaluation, and AI guardrails orchestration.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/trustyai/intro.mdx": {
+      "sha256": "136b6df9cb2f0da7639654e77fd4972fac84b41c17685add1124624344922b77",
+      "size": 2032,
+      "description": "Overview of Alauda Build of TrustyAI describing the four operator-managed capabilities: TrustyAI Service (TAS) for KServe inference data collection and drift/fairness monitoring, LM-Eval LLM evaluation via the LMEvalJob CRD wrapping EleutherAI's lm-evaluation-harness, FMS-Guardrails orchestration through GuardrailsOrchestrator, and NVIDIA NeMo Guardrails integration via the NemoGuardrails CRD with Colang flows. Links to upstream trustyai-explainability project resources.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/trustyai/lm-eval.mdx": {
+      "sha256": "41ad39c157080d779425d227cb35dd3114ffa67f9a228830cc121aa10d3058ea",
+      "size": 10933,
+      "description": "Runs LLM evaluations against a KServe InferenceService using the LMEvalJob CRD with the lm-evaluation-harness backend and Unitxt. Shows a full example targeting the arc_easy task with local-completions or local-chat-completions model types, modelArgs (base_url, tokenizer, num_concurrent), allowOnline/allowCodeExecution flags, pvcManaged outputs, and status.state lifecycle (New, Scheduled, Running, Complete). Also covers offline mode with offline.storage.pvcName plus HF_HOME, HF_DATASETS_CACHE, and TRANSFORMERS_CACHE env wiring for air-gapped runs.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/trustyai/nemo-guardrails.mdx": {
+      "sha256": "4db23470c373b5ca8105cb0cc52450b067711d9b6f2f83472af023c558b7c412",
+      "size": 18239,
+      "description": "Deploys NVIDIA NeMo Guardrails as a service via the NemoGuardrails CRD to front an OpenAI-compatible model with input/output rails. Provides a complete ConfigMap example with config.yaml (sensitive_data_detection for EMAIL_ADDRESS), rails.co Colang flows (check message length, check forbidden words, bot inform blocks), and actions.py Python @action handlers. Covers TLS/CA secret handling via trustyai.opendatahub.io/ca-secret-name, SSL_CERT_FILE, ServiceAccount token auth, and curl examples that hit /v1/chat/completions to demonstrate length, forbidden-word, and PII blocking.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/trustyai/tas.mdx": {
+      "sha256": "9073ad3f43c95328f852635085e74750ee15af2c7fc754724726379e67542382",
+      "size": 25748,
+      "description": "Deploys TrustyAI Service (TAS) using the TrustyAIService CRD in either DATABASE mode (MySQL Secret with databaseGeneration update) or PVC mode (storage.folder, storage.size). Covers kube-rbac-proxy authentication via the <tas-name>-tls Service, ingesting reference data via POST /data/upload (TRAINING tag) and live KServe v2 protobuf data via POST /consumer/kserve/v2, column mapping with /info/names, and registering drift metrics (KSTest, MeanShift, ApproxKSTest, FourierMMD) and group fairness metrics (SPD, DIR) that publish trustyai_* Micrometer gauges scraped by ServiceMonitor for Prometheus.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/uninstallation/index.mdx": {
+      "sha256": "0292be539b33d16c4446fdcdb65837230bcd92c0a06f7ee57afddccbe5765c56",
+      "size": 46,
+      "description": "Top-level Uninstall section that renders an Overview component as the landing page for the Alauda AI uninstallation documentation.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/uninstallation/uninstall.mdx": {
+      "sha256": "c12ec6e5be1eb414e85caabec1b864480308ef8e23b9b0d688a2c532efc87a3a",
+      "size": 5373,
+      "description": "Step-by-step uninstall procedure for both Alauda AI Model Serving (Serverless) and the core Alauda AI Operator/instance. Requires setting BuiltIn Knative Serving (1.4+) or Knative Serving Mode (1.3) to Unmanaged before deleting the default-knative-serving instance and the kserveless-operator, then deleting the default AmlCluster, the aml-operator, and the residual CRDs amls.components.aml.dev, kserves.components.aml.dev, amlclusters.amlclusters.aml.dev, and knativeservings.components.aml.dev. Warns about the amlnamespaces.manage.aml.dev finalizer.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/upgrade/index.mdx": {
+      "sha256": "2c494833d0cd2b541d5bd2797f114a86d877fc9bf58103b225251a571e10a238",
+      "size": 44,
+      "description": "Top-level Upgrade section that renders an Overview component as the landing page for the Alauda AI upgrade documentation set.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/upgrade/migrating-to-knative-operator.mdx": {
+      "sha256": "0bf92791bbe767343accfaab81c8a5f399d69bba32f21d4a78d8b35105188226",
+      "size": 1804,
+      "description": "Migration path from the legacy Alauda AI Model Serving operator (1.x series) to the upstream Knative Operator (2.x series) for inference-service serverless capability. Instructs operators to set spec.knativeServing.managementState to Removed on the default Alauda AI instance, then install Knative Operator and create a KnativeServing instance via the Marketplace per the Enabling Knative Functionality guide. Notes that AI 1.x deployments must also upgrade Alauda AI to 2.x.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/upgrade/upgrade-from-previous-version.mdx": {
+      "sha256": "aac17c1aea1211c71b3663fe2b9cb48be9372d7694d21c3af053056e263b1c4d",
+      "size": 10943,
+      "description": "Upgrades Alauda AI from 1.5 to 2.3 covering operator-bundle uploads, the pre-upgrade requirement to annotate stopped InferenceServices with serving.kserve.io/stop=true for KServe community-native stop semantics, upgrading Alauda AI Essentials via Functional Components and the Alauda AI Operator via OperatorHub, installing the new standalone Alauda Build of KServe operator, and upgrading the Workbench, MLflow, Volcano, and kftraining cluster plugins (with an ACP 4.0.x ModuleInfo/ModulePlugin kubectl patch workaround). Post-upgrade requires editing every existing InferenceService to remove spec.predictor.model.name and verifying the AmlCluster and default-kserve KServe resources reach Ready/DEPLOYED.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/workbench/how_to/create_workbench.mdx": {
+      "sha256": "65c87b6ae84d99cb674e41204d7f28d28e44fcda79329a136e083fef24c1cef2",
+      "size": 23881,
+      "description": "Walks through creating a Workbench instance from the Alauda AI console (including PVC prerequisites, the Connect button, and offline `pip install` of uploaded `.whl` files in JupyterLab), then catalogs the built-in and Docker Hub `WorkspaceKind` images for CPU, NVIDIA CUDA, and Ascend CANN (Minimal Python, Standard Data Science, code-server, PyTorch/TensorFlow CUDA, PyTorch LLM Compressor, PyTorch/MindSpore/ModelSlim CANN). Documents the `sync-from-dockerhub.sh` relay tool (nerdctl pull, tar export, skopeo push) with `TARGET_REGISTRY`/`DOCKERHUB_USER` environment variables, JSON-patching `WorkspaceKind.spec.podTemplate.options.imageConfig` to register synced images, and patching `supplementalGroups` so `huawei.com/Ascend910B4` vNPU devices avoid the `dcmi module initialize failed` error.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/workbench/how_to/fine-tune-and-pretrain-llms-on-ascend-npu.mdx": {
+      "sha256": "410fbaceae372f3b2f64979f88fde154450c3046db945f2994ad9d53880baae1",
+      "size": 16490,
+      "description": "Explains how to run full-parameter SFT and pretraining of Qwen models directly inside a single Workbench container with multiple Ascend NPUs attached, using three validation notebooks: `qwen3_finetune_verify.ipynb` and `qwen25_pretrain_verify.ipynb` on the `PyTorch CANN` image (with `MindSpeed-LLM`, `torch_npu`, and Megatron/MCore weight conversion via `posttrain_gpt.py`/`pretrain_gpt.py`), plus `qwen3_0.6b_finetune_verify.ipynb` on the `MindSpore CANN` image using the bundled `/opt/app-root/share/MindSpeed-Core-MS` tree, `mindspeed_llm/mindspore/convert_ckpt.py`, and `msrun`. Documents parameter cells (`HF_MODEL_DIR`, `ALPACA_PARQUET`, `TP`/`PP`/`MBS`, `SEQ_LENGTH`, `TRAIN_ITERS`, `ENABLE_THINKING`), Alpaca-style JSONL data, persistent output paths, and how to scale from validation to production runs.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/workbench/how_to/fine_tunning_using_notebooks.mdx": {
+      "sha256": "4dc1bc1cd76bbde3538ddd0f49da0fdbe276979b974bb83627cd17e457ae43f1",
+      "size": 34891,
+      "description": "End-to-end example of fine-tuning `Qwen3-0.6B` with `LLaMA-Factory` from an Alauda AI Workbench Notebook, submitting work as a Volcano `Job` that downloads the base model and `identity-alauda` dataset via `git lfs`, runs `llamafactory-cli train` with a LoRA config (`stage: sft`, `finetuning_type: lora`, `lora_rank: 8`, `report_to: mlflow`), merges adapters with `llamafactory-cli export`, and pushes the merged model back to the model repository on a timestamped branch. Covers the prebuilt `alaudadockerhub/fine_tune_with_llamafactory:v0.1.1` image and a `Containerfile` recipe, NFS storage-class `mountPermissions: \"0757\"` tuning, MLflow experiment tracking via `MLFLOW_TRACKING_URI`, publishing the result through the vLLM inference runtime, and adapting the same pattern (Volcano Job + custom image) to Huawei Ascend, Intel Gaudi, and AMD GPUs.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/workbench/how_to/index.mdx": {
+      "sha256": "6ec39d9cde11b3b60ae9607c0686e5b00ee90eae953d605af598bcf89687adbc",
+      "size": 43,
+      "description": "Index landing page for the Workbench `How To` section that renders the auto-generated `<Overview />` listing of all task-oriented guides (create_workbench, fine-tuning via Notebooks, Ascend NPU, Kubeflow Trainer quick start, Elyra pipelines, and Training Hub).",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/workbench/how_to/kubeflow_trainer_quick_start.md": {
+      "sha256": "91f991201f65ebb696f82814c0b6a11c36af02624017c5982ba872d6a16aa21b",
+      "size": 5655,
+      "description": "Quick-start for distributed PyTorch training on Alauda AI using Kubeflow Trainer v2: build the `torch_distributed.Containerfile` runtime image (or reuse `alaudadockerhub/torch-distributed:v2.9.1-aml2`), `kubectl apply` a `ClusterTrainingRuntime` CRD (`trainer.kubeflow.org/v1alpha1`, `framework: torch`, `numProcPerNode: auto`) hardened for Alauda's non-root security context with `dshm`/workspace volumes and `TORCH_HOME`/`TRITON_CACHE_DIR` env vars, then drop the `kubeflow_trainer_mnist.ipynb` example notebook into a workbench to submit a `TrainJob` for MNIST classification.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/workbench/how_to/run-kubeflow-pipelines-with-elyra.mdx": {
+      "sha256": "48b5a15c001a0b4ba93908417d9f7ee674d9b4ad0aeb3de9de8df5b9f0c04733",
+      "size": 20873,
+      "description": "Step-by-step guide for assembling a two-notebook KFP v2 pipeline (`01-hello.ipynb` and `02-world.ipynb` connected in `hello-two-nodes.pipeline`) inside JupyterLab using Elyra, then submitting it to Kubeflow Pipelines with Argo/`KUBERNETES_SERVICE_ACCOUNT_TOKEN` auth and Ceph object storage. Covers the two metadata mount paths Elyra requires (`/opt/app-root/runtimes` via a sensitive PVC carrying `mlops-kfp.json`, and `/opt/app-root/pipeline-runtimes` via a `pipeline-runtime-images` ConfigMap mounted through `WorkspaceKind`), the five `odh-pipeline-runtime-*` Docker Hub images (Minimal/Data Science CPU, TensorFlow/PyTorch/PyTorch LLM Compressor CUDA), and troubleshooting for missing namespaces, missing runtime configs, and `kfp-launcher`/`mlpipeline-minio-artifact`/`metadata-grpc-configmap` failures.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/workbench/how_to/training_hub_fine_tuning.mdx": {
+      "sha256": "f11946d88eafdaa26cf91eb7928dae62a1ca9262aeeb0565631d8a6acbd52be8",
+      "size": 7999,
+      "description": "Introduces the `training_hub` Python library's unified `sft(...)` / `osft(...)` API for SFT and Orthogonal Subspace Fine-Tuning (per Nayak et al. arXiv:2504.07097) on instruction-tuned LLMs, with automatic micro-batch and gradient-accumulation derivation from `max_tokens_per_gpu` and `effective_batch_size`. Documents the JSONL conversation schema with `system`/`user`/`assistant`/`pretraining` roles and `unmask`/`unmask_messages` controls, bundled presets for Qwen 2.5 7B, Llama 3.1 8B, and Phi 4 Mini, the `sft_comprehensive_tutorial.ipynb` and `osft_comprehensive_tutorial.ipynb` workflows (`pip install training-hub`, `unfreeze_rank_ratio` 0.0-1.0, Liger kernels, `checkpoint_at_epoch`), and the multi-node `rdzv_id`/`rdzv_endpoint`/`node_rank` parameters for distributed runs.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/workbench/index.mdx": {
+      "sha256": "073a7af2e5a44964388f6766893de8ae3d2a1de3180c5d135a16ea5c50c26b9e",
+      "size": 45,
+      "description": "Top-level Workbench section landing page that renders the auto-generated `<Overview />` table of contents for the Workbench documentation tree.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/workbench/overview/index.mdx": {
+      "sha256": "b4d47395a865139e5eac351a9bdb50f610771cbad515bf1facab98ba37b8cd15",
+      "size": 45,
+      "description": "Overview landing page that renders the auto-generated `<Overview />` listing for the Workbench overview subsection.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/workbench/overview/intro.mdx": {
+      "sha256": "4a1bb6e8076c2350c7519d1224ca49f225998d8d8a42126b15f7ac75ab2c5578",
+      "size": 1246,
+      "description": "Concise product introduction explaining that Workbench manages cloud-IDE instances (JupyterLab, code-server, future RStudio) backed by Kubeflow Notebook 2.0, lets developers attach GPUs and reach in-cluster services for ML jobs/pipelines, and uses Kubeflow RBAC for sharing; also defines the cluster-admin-managed `WorkspaceKind` CRD (currently `podTemplate`-kind, extensible to others like `helmTemplate`) as the template that drives each Workspace.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    },
+    "docs/en/workbench/upgrade.mdx": {
+      "sha256": "9d0a2e0f62d84d84dd2f7297b1670ce655270192820191593f6915e74f482c4e",
+      "size": 984,
+      "description": "Upgrade notice stating that Workbench is incompatible with the legacy Kubeflow Notebook in Alauda AI 1.3 and earlier (Notebook moves to `Advanced > Kubeflow` and will be deprecated upstream), and giving the recommended migration path: keep the old Notebook PVCs, delete the Notebook instance, then create a new Workbench instance via the Alauda AI console and reattach the same PVC in the `Home Directory` field so on-disk data survives (in-container `pip install` packages are lost).",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-05-16T10:39:46Z"
+    }
+  }
+}
