@@ -143,7 +143,7 @@ Deleting the `JobSet` cascades to its child Jobs, pods, and the headless Service
 For more advanced patterns, refer to the upstream examples and documentation:
 
 - **JobSet concepts**: [https://jobset.sigs.k8s.io/docs/concepts/](https://jobset.sigs.k8s.io/docs/concepts/)
-- **Upstream examples**: [https://github.com/kubernetes-sigs/jobset/tree/main/examples](https://github.com/kubernetes-sigs/jobset/tree/main/examples)
+- **Upstream examples**: [https://github.com/kubernetes-sigs/jobset/tree/main/site/static/examples](https://github.com/kubernetes-sigs/jobset/tree/main/site/static/examples) (upstream `examples/` is a symlink to this path, so GitHub's tree view only works at the real location)
 - **Success and failure policies**: configurable success criteria (`Any`/`All`) and per-error-type failure handling.
 - **Startup sequencing**: `spec.startupPolicy.startupPolicyOrder: InOrder` enforces a leader-before-workers startup order.
 - **Exclusive placement**: set `alpha.jobset.sigs.k8s.io/exclusive-topology` on the JobSet to colocate each child Job's pods inside a single topology domain.
