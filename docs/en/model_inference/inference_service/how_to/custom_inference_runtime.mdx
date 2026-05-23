@@ -435,6 +435,10 @@ spec:
           value: '{{ index .Annotations "aml-model-repo" }}'
         - name: GPU_MEMORY_UTILIZATION
           value: "0.95"
+        - name: HOME # [!code callout]
+          value: /tmp
+        - name: USER # [!code callout]
+          value: vllm
       image: quay.io/ascend/vllm-ascend:v0.18.0rc1
       name: kserve-container
       ports:
@@ -486,10 +490,17 @@ spec:
       name: devshm
 ```
 
+<Callouts>
+1. `HOME` points temporary files and caches to `/tmp`, which is writable for the runtime container.
+2. `USER` prevents Python's `getpass.getuser()` fallback from querying `/etc/passwd` for the container UID. This avoids startup failures in images that run as a non-root UID without a matching passwd entry, while still allowing `torch_npu` to auto-load normally.
+</Callouts>
+
 **2. Required Changes to the InferenceService Example**
 
-When publishing an inference service with `vLLM-ascend`, make the following required
-changes to your `InferenceService` example:
+The `HOME` and `USER` environment variables are set in the `ClusterServingRuntime`
+above so every service that uses the runtime inherits them. When publishing an
+inference service with `vLLM-ascend`, make the following required changes to
+your `InferenceService` example:
 
 ```yaml
 kind: InferenceService
@@ -506,9 +517,6 @@ metadata:
 spec:
   predictor:
     model:
-      env:
-        - name: HOME # [!code callout]
-          value: /tmp
       modelFormat:
         name: transformers
       protocolVersion: v2
@@ -531,10 +539,8 @@ spec:
 ```
 
 <Callouts>
-1. `HOME` points temporary files and caches to `/tmp`, which is writable for the runtime container.
-2. `fsGroup: 1000` makes the mounted files inherit group `1000`, helping align file permissions with the group that is allowed to access Ascend devices.
-3. `supplementalGroups: [1000]` adds the container process to group `1000`, so it can access Ascend devices and related mounted files with the expected group permissions.
-
+1. `fsGroup: 1000` makes the mounted files inherit group `1000`, helping align file permissions with the group that is allowed to access Ascend devices.
+2. `supplementalGroups: [1000]` adds the container process to group `1000`, so it can access Ascend devices and related mounted files with the expected group permissions.
 </Callouts>
 
 ### MindIE (Ascend NPU)
@@ -887,5 +893,5 @@ Before proceeding, refer to this table to understand the specific requirements f
 | **Xinference** | CPU / NVIDIA GPU | transformers, pytorch | **Must** set `MODEL_FAMILY` environment variable |
 | **MLServer** | CPU / NVIDIA GPU | sklearn, xgboost, mlflow | Standard configuration |
 | **Triton** | NVIDIA GPU | triton (TensorFlow, PyTorch, ONNX, etc.) | Standard configuration |
-| **vLLM-ascend** | Huawei Ascend NPU (validated on 910B4) | transformers | **Must** add `HOME`, `fsGroup`, and `supplementalGroups` to the `InferenceService` |
+| **vLLM-ascend** | Huawei Ascend NPU (validated on 910B4) | transformers | **Must** set `HOME` and `USER` in the `ClusterServingRuntime`, and add `fsGroup` and `supplementalGroups` to the `InferenceService` |
 | **MindIE** | Huawei Ascend NPU (validated on 310P) | mindspore, transformers | **Must** add the required NPU annotations to the `InferenceService` |
