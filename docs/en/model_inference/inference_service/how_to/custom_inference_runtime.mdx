@@ -136,8 +136,8 @@ You'll need to create the corresponding inference runtime `ClusterServingRuntime
             - bash
             resources:
               limits:
-                cpu: 2
-                memory: 6Gi
+                cpu: 2 # [!code callout]
+                memory: 6Gi # [!code callout]
               requests:
                 cpu: 2
                 memory: 6Gi
@@ -154,6 +154,10 @@ You'll need to create the corresponding inference runtime `ClusterServingRuntime
               version: "1"
       
         ```
+        <Callouts>
+        1. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+        2. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+        </Callouts>
         * **Tip**: Make sure to replace the `image` field value with the path to your actual prepared runtime image. You can also modify the `annotations.cpaas.io/display-name` field to **customize the display name** of the runtime in the AI Platform UI.
 
 2.  **Apply the YAML File to Create the Resource**:
@@ -251,8 +255,8 @@ spec:
       name: kserve-container
       resources:
         limits:
-          cpu: 2
-          memory: 6Gi
+          cpu: 2 # [!code callout]
+          memory: 6Gi # [!code callout]
         requests:
           cpu: 2
           memory: 6Gi
@@ -281,6 +285,11 @@ spec:
       version: "1"
 
  ```
+
+<Callouts>
+1. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+2. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+</Callouts>
 
 ### Triton Inference Server
 
@@ -314,8 +323,8 @@ spec:
       name: kserve-container
       resources:
         limits:
-          cpu: 2
-          memory: 6Gi
+          cpu: 2 # [!code callout]
+          memory: 6Gi # [!code callout]
         requests:
           cpu: 2
           memory: 6Gi
@@ -339,6 +348,11 @@ spec:
     - name: triton
       version: "1"
 ```
+
+<Callouts>
+1. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+2. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+</Callouts>
 
 **Usage Instructions:**
 
@@ -447,8 +461,8 @@ spec:
           protocol: TCP
       resources:
         limits:
-          cpu: 2
-          memory: 6Gi
+          cpu: 2 # [!code callout]
+          memory: 6Gi # [!code callout]
         requests:
           cpu: 2
           memory: 6Gi
@@ -493,6 +507,8 @@ spec:
 <Callouts>
 1. `HOME` points temporary files and caches to `/tmp`, which is writable for the runtime container.
 2. `USER` prevents Python's `getpass.getuser()` fallback from querying `/etc/passwd` for the container UID. This avoids startup failures in images that run as a non-root UID without a matching passwd entry, while still allowing `torch_npu` to auto-load normally.
+3. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+4. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
 </Callouts>
 
 **2. Required Changes to the InferenceService Example**
@@ -522,9 +538,9 @@ spec:
       protocolVersion: v2
       resources:
         limits:
-          cpu: "4"
+          cpu: "4" # [!code callout]
           huawei.com/Ascend910B4: "1"
-          memory: 16Gi
+          memory: 16Gi # [!code callout]
         requests:
           cpu: "2"
           memory: 8Gi
@@ -539,8 +555,10 @@ spec:
 ```
 
 <Callouts>
-1. `fsGroup: 1000` makes the mounted files inherit group `1000`, helping align file permissions with the group that is allowed to access Ascend devices.
-2. `supplementalGroups: [1000]` adds the container process to group `1000`, so it can access Ascend devices and related mounted files with the expected group permissions.
+1. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+2. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+3. `fsGroup: 1000` makes the mounted files inherit group `1000`, helping align file permissions with the group that is allowed to access Ascend devices.
+4. `supplementalGroups: [1000]` adds the container process to group `1000`, so it can access Ascend devices and related mounted files with the expected group permissions.
 </Callouts>
 
 ### MindIE (Ascend NPU)
@@ -841,8 +859,8 @@ spec:
       name: kserve-container
       resources:
         limits:
-          cpu: 2
-          memory: 6Gi
+          cpu: 2 # [!code callout]
+          memory: 6Gi # [!code callout]
         requests:
           cpu: 2
           memory: 6Gi
@@ -867,6 +885,11 @@ spec:
       name: dshm
       
 ```
+
+<Callouts>
+1. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+2. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+</Callouts>
 
 **2.Mandatory Annotations for InferenceService**
 
