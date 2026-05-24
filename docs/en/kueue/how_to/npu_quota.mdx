@@ -1,0 +1,197 @@
+---
+weight: 100
+---
+
+# Manage Ascend NPU quota with Kueue
+
+This page shows how to use Alauda Build of Kueue to govern quota for Ascend NPU
+resources exposed by the Ascend Device Plugin (shipped as part of the NPU
+Operator). Kueue treats `huawei.com/Ascend910` and similar device-plugin
+resources as ordinary countable resources, so the same `ClusterQueue` /
+`ResourceFlavor` / `LocalQueue` model used for CPU, memory and Nvidia GPUs
+applies unchanged.
+
+## Prerequisites
+
+- You have installed the `Alauda Build of Kueue` cluster plugin.
+- You have installed the `Alauda Build of NPU Operator` cluster plugin with the
+  **Driver**, **Ascend Device Plugin** and **Ascend Docker Runtime** components
+  enabled in the deployment form (they are enabled by default). These three
+  toggles are what make the cluster surface `huawei.com/Ascend910` (or
+  `huawei.com/Ascend310P`) as a schedulable extended resource on the Ascend
+  nodes. See
+  <ExternalSiteLink name="acp" href="hardware_accelerator/npu/npu_operator/installation.html" children="Install NPU Operator" />
+  for the full procedure and the meaning of each deployment-form toggle.
+- The Ascend Device Plugin is reporting NPU capacity on the node, e.g.
+  `kubectl describe node <ascend-node>` shows
+  `huawei.com/Ascend910: <N>` under both `Capacity` and `Allocatable`.
+- The Alauda Container Platform Web CLI has communication with your cluster.
+
+## Procedure
+
+### 1. Identify the NPU node label
+
+The `ResourceFlavor` selects which node pool the quota applies to via
+`spec.nodeLabels`. The NPU Operator adds the following labels to every node it
+manages — pick whichever fits your fleet:
+
+| Label | Example | Use when |
+| --- | --- | --- |
+| `accelerator` | `huawei-Ascend910` | All Ascend 910 nodes share the same flavor |
+| `accelerator-type` | `module-910b-8` | You want to distinguish form factors |
+| `node.kubernetes.io/npu.chip.name` | `910B4` | You want to distinguish chip generations |
+
+The rest of this page uses `accelerator: huawei-Ascend910`.
+
+### 2. Create the Kueue objects
+
+Create a `ResourceFlavor` bound to the NPU node pool, a `ClusterQueue` that
+declares an NPU quota, and a `LocalQueue` in the namespace where users will
+submit jobs.
+
+```yaml
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: ascend910-flavor
+spec:
+  nodeLabels:
+    accelerator: huawei-Ascend910 # [!code callout]
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata:
+  name: ascend910-cq
+spec:
+  namespaceSelector: {}
+  resourceGroups:
+  - coveredResources: ["huawei.com/Ascend910", "cpu", "memory"] # [!code callout]
+    flavors:
+    - name: ascend910-flavor
+      resources:
+      - name: "huawei.com/Ascend910"
+        nominalQuota: 2 # [!code callout]
+      - name: "cpu"
+        nominalQuota: 8
+      - name: "memory"
+        nominalQuota: 16Gi
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: LocalQueue
+metadata:
+  namespace: team-ascend
+  name: ascend910-lq
+spec:
+  clusterQueue: ascend910-cq
+```
+
+<Callouts>
+  1. `nodeLabels`: Restricts the flavor to nodes labeled by the NPU Operator as
+     Ascend 910. Replace with the label that matches your fleet (see the table
+     above).
+  2. `coveredResources`: Lists the device-plugin resource alongside CPU and
+     memory so that all three are accounted for in admission decisions.
+  3. `nominalQuota`: Total NPU cards the queue may hand out at any time. Set
+     this to (or below) the sum of allocatable NPUs across the nodes selected
+     by the flavor.
+</Callouts>
+
+Apply the manifest with `kubectl apply -f <filename>.yaml`.
+
+### 3. Submit an NPU job through the queue
+
+Add the `kueue.x-k8s.io/queue-name` label and request NPUs in the container
+`resources` block. Kueue's built-in `batch/job` integration will create the
+Job in a suspended state and unsuspend it only after the quota check passes.
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ascend-train
+  namespace: team-ascend
+  labels:
+    kueue.x-k8s.io/queue-name: ascend910-lq # [!code callout]
+spec:
+  parallelism: 1
+  completions: 1
+  suspend: true # [!code callout]
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: worker
+        image: <your-ascend-image>
+        command: ["sh", "-c", "echo training; sleep 600"]
+        resources:
+          requests: { cpu: 100m, memory: 256Mi, "huawei.com/Ascend910": 2 } # [!code callout]
+          limits:   { cpu: "1",  memory: 1Gi,   "huawei.com/Ascend910": 2 }
+```
+
+<Callouts>
+  1. `queue-name` label: Routes the Job to the `LocalQueue` you created above.
+  2. `suspend: true`: Required so Kueue can hold the Job until quota is
+     available. Kueue will set this back to `false` on admission.
+  3. NPU request: Use `huawei.com/Ascend910` (or `huawei.com/Ascend910B4`, etc.)
+     to match the resource name reported by the Ascend Device Plugin on your
+     nodes. Request and limit must be equal — this is an extended resource.
+</Callouts>
+
+### 4. Observe admission
+
+Submit two such Jobs each requesting 2 NPUs against a queue whose
+`nominalQuota` is 2.
+
+```bash
+kubectl -n team-ascend get jobs,workloads
+```
+
+The first Job is admitted, runs as a Pod that receives `/dev/davinci*`
+devices and `ASCEND_VISIBLE_DEVICES` from the Ascend Device Plugin; the second
+Job stays `Suspended` and its `Workload` reports the quota shortage:
+
+```
+NAME                STATUS      COMPLETIONS   DURATION   AGE
+job/ascend-train    Running     0/1           5s         12s
+job/ascend-train-2  Suspended   0/1                      12s
+
+NAME                                       QUEUE          RESERVED IN    ADMITTED
+workload/job-ascend-train-xxxxx            ascend910-lq   ascend910-cq   True
+workload/job-ascend-train-2-yyyyy          ascend910-lq
+```
+
+Inspecting the held Workload makes the reason explicit:
+
+```bash
+kubectl -n team-ascend get workload job-ascend-train-2-yyyyy \
+  -o yaml
+```
+
+The `status.conditions` field reports the quota shortage:
+
+```yaml
+status:
+  conditions:
+  - type: QuotaReserved
+    status: "False"
+    reason: Pending
+    message: "couldn't assign flavors to pod set main: insufficient unused quota for huawei.com/Ascend910 in flavor ascend910-flavor, 2 more needed"
+```
+
+Once the first Job finishes or is deleted, Kueue automatically admits the held
+Workload, unsuspends the second Job and the Ascend Device Plugin assigns the
+freed NPU devices to its Pod.
+
+## Notes
+
+- The `ClusterQueue`'s `nominalQuota` for `huawei.com/Ascend910` is enforced
+  independently of the node's `Allocatable`. If `Allocatable` is lower than the
+  quota (for example because the device plugin marks some chips unhealthy), an
+  admitted Pod can still end up `Pending` at the kube-scheduler layer with
+  `Insufficient huawei.com/Ascend910`. Keep `nominalQuota` ≤ the sum of
+  `Allocatable` across the selected nodes.
+- The same pattern applies to other Ascend resource names exposed by the
+  device plugin (`huawei.com/Ascend910B4`, `huawei.com/Ascend310P`, …). Add
+  them to `coveredResources` and to the container `resources` block as needed.
+- Kueue's other features — fair sharing, cohorts, gang scheduling,
+  preemption — work with NPU resources without any extra configuration.
