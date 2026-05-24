@@ -14,9 +14,14 @@ applies unchanged.
 ## Prerequisites
 
 - You have installed the Alauda Build of Kueue.
-- You have installed the NPU Operator on the Ascend node(s). See
+- You have installed the `Alauda Build of NPU Operator` cluster plugin with the
+  **Driver**, **Ascend Device Plugin** and **Ascend Docker Runtime** components
+  enabled in the deployment form (they are enabled by default). These three
+  toggles are what make the cluster surface `huawei.com/Ascend910` (or
+  `huawei.com/Ascend310P`) as a schedulable extended resource on the Ascend
+  nodes. See
   <ExternalSiteLink name="acp" href="hardware_accelerator/npu/npu_operator/installation.html" children="Install NPU Operator" />
-  for details.
+  for the full procedure and the meaning of each deployment-form toggle.
 - The Ascend Device Plugin is reporting NPU capacity on the node, e.g.
   `kubectl describe node <ascend-node>` shows
   `huawei.com/Ascend910: <N>` under both `Capacity` and `Allocatable`.
