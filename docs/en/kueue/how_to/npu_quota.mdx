@@ -164,18 +164,18 @@ Inspecting the held Workload makes the reason explicit:
 
 ```bash
 kubectl -n team-ascend get workload job-ascend-train-2-yyyyy \
-  -o jsonpath='{.status.conditions}' | jq
+  -o yaml
 ```
 
-```json
-[
-  {
-    "type": "QuotaReserved",
-    "status": "False",
-    "reason": "Pending",
-    "message": "couldn't assign flavors to pod set main: insufficient unused quota for huawei.com/Ascend910 in flavor ascend910-flavor, 2 more needed"
-  }
-]
+The `status.conditions` field reports the quota shortage:
+
+```yaml
+status:
+  conditions:
+  - type: QuotaReserved
+    status: "False"
+    reason: Pending
+    message: "couldn't assign flavors to pod set main: insufficient unused quota for huawei.com/Ascend910 in flavor ascend910-flavor, 2 more needed"
 ```
 
 Once the first Job finishes or is deleted, Kueue automatically admits the held
