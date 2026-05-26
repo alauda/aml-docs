@@ -9,9 +9,9 @@ This section provides a quickstart example for creating an AI Agent with Llama S
 ## Prerequisites
 
 - Python 3.12 or higher (if not satisfied, refer to [FAQ: How to prepare Python 3.12 in Notebook](#how-to-prepare-python-312-in-notebook))
-- Llama Stack Server installed and running via Operator (see [Install Llama Stack](./install)), with **`VLLM_URL` pointing at a vLLM-served model endpoint** (see install notes)
+- Llama Stack Server installed and running via Operator (see [Install Llama Stack](./install)), with **`VLLM_URL` pointing at a vLLM-served model endpoint** and `POSTGRES_*` configured for server persistence (see install notes)
 - Access to a Notebook environment (e.g., Jupyter Notebook, JupyterLab)
-- Python environment with `llama-stack-client==0.6.0`, `fastmcp` (for the MCP section), and other notebook dependencies installed
+- Python environment with `llama-stack-client==0.7.1`, `fastmcp` (for the MCP section), and other notebook dependencies installed
 
 ## Quickstart Example
 
@@ -25,19 +25,26 @@ The notebook demonstrates:
 
 - **Two tool options:** client-side tools (`@client_tool`) and MCP tools (FastMCP + `toolgroups.register`)
 - **Shared agent flow:** connect to Llama Stack Server, select a model, create an `Agent` with `tools=AGENT_TOOLS`, then run sessions and streaming turns
-- **Optional PGVector flow:** upload a file, create a `pgvector`-backed vector store, and run a hybrid search query
+- **Optional vector store flows:** upload a file, create a `pgvector` or `milvus-remote` backed vector store, and run a search query
 - Streaming responses and event logging
 - Optional FastAPI deployment of the `agent`
 
-## PGVector Usage
+## Vector Store Usage
 
-The downloadable notebook includes an optional PGVector section. To run it, start the server with `ENABLE_PGVECTOR=true` and valid `PGVECTOR_*` connection settings, then execute the PGVector cells in the notebook. ACP-provided PostgreSQL can be used directly because it already includes the `pgvector` extension.
+The downloadable notebook includes optional PGVector and Milvus sections.
+
+For PGVector, start the server with `ENABLE_PGVECTOR=true` and valid `PGVECTOR_*` connection settings, then execute the PGVector cells in the notebook. ACP-provided PostgreSQL can be used directly because it already includes the `pgvector` extension.
+
+For Milvus, start the server with `MILVUS_ENDPOINT`, optional `MILVUS_TOKEN`, and `MILVUS_CONSISTENCY_LEVEL`, then execute the Milvus cells in the notebook. Use `provider_id="milvus-remote"` in the client request.
+
+For both vector-store examples, `client.models.list()` must include an embedding model, for example `sentence-transformers/nomic-ai/nomic-embed-text-v1.5`. If it only returns LLM models, restart the `LlamaStackDistribution` with `ENABLE_SENTENCE_TRANSFORMERS=true` and configure Hugging Face cache/download access as described in [Install Llama Stack](./install).
 
 The notebook example covers:
 
 - Uploading a file through `client.files.create(...)`
-- Creating a vector store with `provider_id="pgvector"`
-- Running a hybrid search with `client.vector_stores.search(...)` and `search_mode="hybrid"`
+- Creating a vector store with `provider_id="pgvector"` or `provider_id="milvus-remote"`
+- Passing `embedding_model` and `embedding_dimension` through `client.vector_stores.create(..., extra_body=...)`
+- Running a search with `client.vector_stores.search(...)`; PGVector uses `search_mode="hybrid"` in `extra_body`
 
 ## FAQ
 
