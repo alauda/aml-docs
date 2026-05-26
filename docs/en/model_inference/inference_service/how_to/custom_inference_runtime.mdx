@@ -371,6 +371,79 @@ This example was validated on `Ascend 910B4`. It should also work with other
 Ascend NPU models, but you should adjust the resource key, image, and related
 version fields according to your actual environment.
 
+#### Modelcar Permission Modes for Ascend 910 \{#modelcar-permission-modes-for-ascend-910}
+
+Alauda AI runs KServe Modelcar with non-root UID `1000` by default. This
+default is designed for the platform security baseline and works for common GPU
+deployments, such as NVIDIA GPU inference services. It also works with the
+community `vLLM-ascend` image in validated Ascend 910 single-card deployments.
+
+Ascend 910 single-node multi-card inference has additional requirements because
+`vLLM-ascend` uses HCCL for distributed initialization. In this scenario, choose
+one of the following Modelcar permission modes according to the runtime image
+and validation result:
+
+| Scenario | Namespace PSA `Enforce` | Modelcar UID | Runtime image requirement | Recommendation |
+| --- | --- | --- | --- | --- |
+| Ascend 910 single-card inference | `restricted` | `1000` | Community `vLLM-ascend` image | Keep the default non-root mode |
+| Ascend 910 single-node multi-card inference with a UID `1000` compatible image | `restricted` | `1000` | The image allows UID `1000` to access Ascend devices and supports HCCL initialization | Use non-root mode after validation |
+| Ascend 910 single-node multi-card inference with the community image when UID `1000` compatibility is not validated | `baseline` | `0` | Community `vLLM-ascend` image | Use root mode |
+
+:::warning
+These modes are mutually exclusive in one cluster because the Modelcar UID is
+configured in the cluster-level KServe Modelcar settings. Keep the default
+non-root UID `1000` for general workloads and for validated Ascend 910
+single-card services. Switch to root mode only for Ascend 910 multi-card
+`vLLM-ascend` deployments that require it.
+:::
+
+##### Non-root Mode
+
+Non-root mode keeps the platform default Modelcar UID `1000`, and the namespace
+can keep PSA `Enforce` set to `restricted`.
+
+Use this mode for Ascend 910 single-card `vLLM-ascend` inference with the
+community image. For Ascend 910 single-node multi-card inference, use this mode
+only after validating that the image supports UID `1000` and HCCL
+initialization. The image must allow the runtime process to access Ascend device
+files, and TP>1 / HCCL initialization may require a matching UID `1000` user
+entry in `/etc/passwd`.
+
+##### Root Mode
+
+Root mode is a compatibility option for Ascend 910 single-node multi-card
+`vLLM-ascend` inference when the selected image cannot run reliably with the
+default Modelcar UID `1000`.
+
+Root mode changes the cluster-level Modelcar UID to `0`. This affects Modelcar
+workloads in the cluster, not only a single inference service. Do not use root
+mode for single-card deployments unless required by your image or environment.
+
+To enable root mode:
+
+1. In the platform console, go to **Project** > **Namespace**, select the
+   namespace used by the inference service, and set Pod Security Admission
+   `Enforce` to `baseline`.
+2. Set KServe Modelcar UID to `0` in the `AmlCluster` configuration:
+
+   ```yaml
+   spec:
+     components:
+       kserve:
+         values:
+           kserve:
+             storage:
+               uidModelcar: 0
+   ```
+
+For root-mode deployments, do not reuse a runtime configuration that forces a
+non-root UID, such as `runAsNonRoot: true` or `runAsUser: 1000`. The
+`ClusterServingRuntime` example below is for non-root mode.
+
+When root mode is no longer required, restore the cluster-level Modelcar UID to
+the platform default non-root value `1000` and set namespace PSA according to
+your workload security requirements.
+
 **1. ClusterServingRuntime**
 
 ```yaml
@@ -473,7 +546,7 @@ spec:
             - ALL
         privileged: false
         runAsNonRoot: true
-        runAsUser: 65534
+        runAsUser: 1000 # [!code callout]
         seccompProfile:
           type: RuntimeDefault
       startupProbe:
@@ -506,17 +579,21 @@ spec:
 
 <Callouts>
 1. `HOME` points temporary files and caches to `/tmp`, which is writable for the runtime container.
-2. `USER` prevents Python's `getpass.getuser()` fallback from querying `/etc/passwd` for the container UID. This avoids startup failures in images that run as a non-root UID without a matching passwd entry, while still allowing `torch_npu` to auto-load normally.
-3. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
-4. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+2. `USER` prevents Python's `getpass.getuser()` fallback from querying `/etc/passwd` for the container UID. This avoids startup failures in images that run as a non-root UID without a matching passwd entry, while still allowing `torch_npu` to auto-load normally. For TP>1 / HCCL initialization, still validate whether the image needs an actual UID `1000` entry in `/etc/passwd`.
+3. `runAsUser: 1000` aligns the runtime container with the platform default Modelcar UID and the common Ascend device permission model.
+4. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+5. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
 </Callouts>
 
 **2. Required Changes to the InferenceService Example**
 
 The `HOME` and `USER` environment variables are set in the `ClusterServingRuntime`
 above so every service that uses the runtime inherits them. When publishing an
-inference service with `vLLM-ascend`, make the following required changes to
-your `InferenceService` example:
+inference service with `vLLM-ascend`, choose the `InferenceService`
+security context according to the Modelcar permission mode.
+
+For non-root mode, add `fsGroup: 1000` and `supplementalGroups: [1000]` so the
+service can access Ascend device files through the expected group permissions:
 
 ```yaml
 kind: InferenceService
@@ -560,6 +637,20 @@ spec:
 3. `fsGroup: 1000` makes the mounted files inherit group `1000`, helping align file permissions with the group that is allowed to access Ascend devices.
 4. `supplementalGroups: [1000]` adds the container process to group `1000`, so it can access Ascend devices and related mounted files with the expected group permissions.
 </Callouts>
+
+For root-mode Modelcar deployments, the UID `1000` group settings are not
+required. Keep the `InferenceService` security context minimal:
+
+```yaml
+spec:
+  predictor:
+    model:
+      runtime: aml-vllm-ascend-0.18.0rc1
+      storageUri: oci://<registry>/<repository>:<tag>
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+```
 
 ### MindIE (Ascend NPU)
 
@@ -916,5 +1007,5 @@ Before proceeding, refer to this table to understand the specific requirements f
 | **Xinference** | CPU / NVIDIA GPU | transformers, pytorch | **Must** set `MODEL_FAMILY` environment variable |
 | **MLServer** | CPU / NVIDIA GPU | sklearn, xgboost, mlflow | Standard configuration |
 | **Triton** | NVIDIA GPU | triton (TensorFlow, PyTorch, ONNX, etc.) | Standard configuration |
-| **vLLM-ascend** | Huawei Ascend NPU (validated on 910B4) | transformers | **Must** set `HOME` and `USER` in the `ClusterServingRuntime`, and add `fsGroup` and `supplementalGroups` to the `InferenceService` |
+| **vLLM-ascend** | Huawei Ascend NPU (validated on 910B4) | transformers | **Must** set `HOME` and `USER` in the `ClusterServingRuntime`, choose the proper Modelcar permission mode for Ascend 910 single-card or multi-card deployments, and add UID `1000` group settings only for non-root mode |
 | **MindIE** | Huawei Ascend NPU (validated on 310P) | mindspore, transformers | **Must** add the required NPU annotations to the `InferenceService` |
