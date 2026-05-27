@@ -1,0 +1,29 @@
+# About Alauda Build of NVIDIA DRA Driver for GPUs
+
+The NVIDIA DRA Driver for GPUs uses Kubernetes [Dynamic Resource Allocation (DRA)](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/) to expose GPUs as structured resources, going beyond the classic device-plugin API:
+
+- Request GPUs by class and attributes (such as model, memory size, or MIG profile) using `ResourceClaim` and `DeviceClass` rather than fixed integer counts.
+- Share a single GPU across multiple pods through MPS, time-slicing, or MIG partitions, with the requested mode expressed declaratively in the claim.
+- Co-allocate GPUs with related resources (such as IMEX channels or compute domains) for multi-node and multi-GPU workloads that need consistent topology.
+
+It is packaged from the upstream [NVIDIA/k8s-dra-driver-gpu](https://github.com/NVIDIA/k8s-dra-driver-gpu) project as an Alauda Cluster Plugin.
+
+## Install
+
+1. Retrieve the `Alauda Build of NVIDIA DRA Driver for GPUs` cluster plugin package from Customer Portal. Please contact Consumer Support for more information.
+2. Upload the package to the platform. For more information on uploading the cluster plugin, please refer to <ExternalSiteLink name="acp" href="ui/cli_tools/index.html#uploading-cluster-plugins" children="Uploading Cluster Plugins" />
+3. Go to the `Administrator` -> `Marketplace` -> `Cluster Plugin` page, switch to the target cluster, and then deploy the `Alauda Build of NVIDIA DRA Driver for GPUs` Cluster plugin.
+
+## Prerequisites
+
+- A Kubernetes cluster with the `DynamicResourceAllocation` feature gate enabled on the API server, scheduler, and kubelet, and the `resource.k8s.io` API group available.
+- NVIDIA GPU nodes with a recent NVIDIA driver and the NVIDIA container toolkit configured so containers can access the GPUs.
+
+## Relationship with NVIDIA GPU Device Plugin
+
+The DRA driver and the [NVIDIA GPU Device Plugin](./pgpu) provide two different ways to expose NVIDIA GPUs to workloads:
+
+- The NVIDIA GPU Device Plugin uses the classic device-plugin API and exposes GPUs as the integer resource `nvidia.com/gpu`.
+- The DRA driver uses the DRA API and exposes GPUs through `ResourceClaim` and `DeviceClass`, which gives finer-grained selection and sharing.
+
+For an explicit decision on which path to use in a given cluster, see the upstream documentation linked above.

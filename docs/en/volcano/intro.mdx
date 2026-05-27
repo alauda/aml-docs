@@ -1,0 +1,27 @@
+---
+weight: 10
+---
+
+# Introduction
+
+## Volcano
+
+**Alauda support for Volcano** packages the [Volcano](https://github.com/volcano-sh/volcano) CNCF project as a Cluster Plugin for Alauda Container Platform. Volcano is a cloud-native batch system for Kubernetes that provides scheduling and resource management for machine learning, big data, and HPC workloads.
+
+Main components and capabilities include:
+
+- **Volcano scheduler**: A batch-oriented scheduler that complements the default Kubernetes scheduler. It supports gang scheduling, fair-share, binpack, and other policies that are required by distributed training and batch workloads.
+- **VolcanoJob (`batch.volcano.sh/v1alpha1`)**: A job API that groups tasks with different roles (such as master and worker) and schedules them as a single unit, so a multi-pod training job either starts together or not at all.
+- **PodGroup (`scheduling.volcano.sh/v1beta1`)**: A grouping primitive used by the scheduler to track quota, queue, and gang-scheduling constraints across pods that belong to the same logical job.
+- **Queue (`scheduling.volcano.sh/v1beta1`)**: A resource queue that organizes jobs by priority, weight, and capability, enabling tenant-aware sharing of cluster resources.
+- **JobFlow (`flow.volcano.sh/v1alpha1`)**: Declarative orchestration of multiple VolcanoJobs with dependencies, used for multi-stage pipelines such as preprocessing followed by training.
+
+For installation on the platform, see [Install Volcano](./install).
+
+## Documentation
+
+Volcano upstream documentation and related resources:
+
+- **Volcano Documentation**: [https://volcano.sh/](https://volcano.sh/) — Official documentation covering concepts, scheduler plugins, and usage guides.
+- **Volcano GitHub**: [https://github.com/volcano-sh/volcano](https://github.com/volcano-sh/volcano) — Source code, API reference, and examples for the Volcano project.
+- **Kubeflow integration**: When using **Kubeflow Trainer** with the Volcano scheduler, install **Alauda support for Volcano** before deploying the training component, and enable the Volcano scheduler option in the training component's configuration.
