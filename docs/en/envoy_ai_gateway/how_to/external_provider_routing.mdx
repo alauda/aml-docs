@@ -20,6 +20,10 @@ Envoy AI Gateway can front external LLM providers behind one OpenAI-compatible e
 2. The upstream provider credential is stored in a `Secret` in the route namespace.
 3. The provider endpoint is reachable from the cluster egress.
 
+:::note
+Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example `maas-system`), not in the Envoy Gateway control-plane namespace `envoy-gateway-system`. A gateway placed in the control-plane namespace may not have the AI Gateway request-processing filter and `SecurityPolicy` applied to its listener, which silently breaks routing and policy enforcement. See [Envoy AI Gateway](../intro).
+:::
+
 ## Steps
 
 <Steps>

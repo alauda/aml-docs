@@ -22,6 +22,10 @@ The pipeline is: the gateway emits token metrics, identity is attached as a labe
 2. Caller identity propagated as request headers. See [Authenticating Consumers](./identity_authentication).
 3. Platform monitoring is enabled on the cluster.
 
+:::note
+Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example `maas-system`), not in the Envoy Gateway control-plane namespace `envoy-gateway-system`. A gateway placed in the control-plane namespace may not have the AI Gateway request-processing filter and `SecurityPolicy` applied to its listener, which silently breaks routing and policy enforcement. See [Envoy AI Gateway](../intro).
+:::
+
 ## Steps
 
 <Steps>

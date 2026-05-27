@@ -22,6 +22,10 @@ This turns a per-consumer credential, such as an SSO (Single Sign-On) token or a
 2. An `AIGatewayRoute` already routes requests to one or more backends.
 3. The platform's built-in identity provider, Dex, is available. Dex issues the OIDC (OpenID Connect) tokens that the gateway validates.
 
+:::note
+Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example `maas-system`), not in the Envoy Gateway control-plane namespace `envoy-gateway-system`. A gateway placed in the control-plane namespace may not have the AI Gateway request-processing filter and `SecurityPolicy` applied to its listener, which silently breaks routing and policy enforcement. See [Envoy AI Gateway](../intro).
+:::
+
 ## Steps
 
 <Steps>
