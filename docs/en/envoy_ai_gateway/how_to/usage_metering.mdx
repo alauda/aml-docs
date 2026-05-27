@@ -18,9 +18,26 @@ The pipeline is: the gateway emits token metrics, identity is attached as a labe
 
 ## Prerequisites
 
-1. An `AIGatewayRoute` with `llmRequestCosts` configured. See [Configuring Token Quotas](./token_rate_limiting).
+1. An `AIGatewayRoute` with `llmRequestCosts` configured. See [Configuring Token Quotas](./token_rate_limiting). Without `llmRequestCosts` the gateway still emits `gen_ai_client_token_usage_token`, but the per-request token counts will all be zero.
 2. Caller identity propagated as request headers. See [Authenticating Consumers](./identity_authentication).
-3. Platform monitoring is enabled on the cluster.
+3. Platform monitoring is enabled on the cluster. Confirm by checking the Prometheus operator CRDs:
+
+    ```bash
+    kubectl get crd podmonitors.monitoring.coreos.com
+    ```
+
+4. Sanity-check that the metric is being emitted **before** wiring monitoring. Send one request through the gateway, then read the ExtProc sidecar's admin port on a data-plane proxy pod:
+
+    ```bash
+    POD=$(kubectl get pod -n envoy-gateway-system \
+      -l gateway.envoyproxy.io/owning-gateway-name=<gateway-name> \
+      -o jsonpath='{.items[0].metadata.name}')
+    kubectl port-forward -n envoy-gateway-system pod/$POD 1064:1064 &
+    curl -s http://localhost:1064/metrics | grep gen_ai_client_token_usage_token | head
+    # expect lines like: gen_ai_client_token_usage_token_sum{gen_ai_operation_name="chat",...} 42
+    ```
+
+    If no `gen_ai_*` sample appears, no scraping below will work — first fix the route / ExtProc wiring.
 
 :::note
 Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example `maas-system`), not in the Envoy Gateway control-plane namespace `envoy-gateway-system`. A gateway placed in the control-plane namespace may not have the AI Gateway request-processing filter and `SecurityPolicy` applied to its listener, which silently breaks routing and policy enforcement. See [Envoy AI Gateway](../intro).
@@ -31,24 +48,52 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
 <Steps>
   ### Add an identity label to token metrics
 
-  By default the token metric `gen_ai_client_token_usage_token` carries the OpenTelemetry GenAI standard labels only (model, provider, operation, token type). Enrich it with the department dimension by mapping an identity header to a metric label in the Envoy AI Gateway controller configuration:
+  By default the token metric `gen_ai_client_token_usage_token` carries the OpenTelemetry GenAI standard labels only (model, provider, operation, token type). Enrich it with the department dimension by mapping an identity header to a metric label in the Envoy AI Gateway controller.
 
-  ```yaml
-  controller:
-    metricsRequestHeaderAttributes:
-      x-user-group: department  # map the identity header to a metric label
+  The controller reads the mapping from the **CLI flag** `-metricsRequestHeaderAttributes=<header>:<label>[,<header>:<label>...]` on the `ai-gateway-controller` `Deployment`. If the controller was installed via Helm, the chart renders this flag from a values key (for example `controller.metricsRequestHeaderAttributes`); supply your release name and chart reference and apply `helm upgrade --reuse-values`. If you manage the `Deployment` directly, patch its container args:
+
+  ```bash
+  # Inspect the current flag value, if any
+  kubectl -n envoy-gateway-system get deploy ai-gateway-controller \
+    -o jsonpath='{.spec.template.spec.containers[0].args}{"\n"}' \
+    | tr ',' '\n' | grep metricsRequestHeader
+
+  # Add or replace the flag (here: append x-user-group → department to the existing list)
+  kubectl -n envoy-gateway-system patch deploy ai-gateway-controller \
+    --type json -p '[
+      {"op":"add","path":"/spec/template/spec/containers/0/args/-",
+       "value":"-metricsRequestHeaderAttributes=x-user-group:department"}
+    ]'
+
+  kubectl -n envoy-gateway-system rollout status deploy ai-gateway-controller
   ```
 
   - `x-user-group`: the header set by the `SecurityPolicy` from the IdP `groups` claim.
   - `department`: the resulting metric label used for aggregation.
 
   :::note
-  Prefer a low-cardinality dimension such as department (`x-user-group`) for the default label. A per-user label (`x-user-id`) is possible but produces high-cardinality series, so add it only when per-user reporting is required.
+  Prefer a low-cardinality dimension such as department (`x-user-group`) for the default label. A per-user label (`x-user-id`) is possible but produces high-cardinality series (one per user × model × token type), so add it only when per-user reporting is required and a retention window keeps the series count bounded.
   :::
+
+  After the rollout, send a fresh request and confirm the new label is on the sample:
+
+  ```bash
+  curl -s http://localhost:1064/metrics | grep 'department=' | head
+  ```
 
   ### Collect the metric into the platform
 
-  The metric is emitted by the AI Gateway external processor (ExtProc), which runs as a sidecar on each data-plane proxy pod and exposes its admin endpoint on container port `1064` (named `aigw-metrics`). Scrape it directly from the proxy pods with a `PodMonitor` so the platform Prometheus or VictoriaMetrics collects it. For the platform workflow, see <ExternalSiteLink name="acp" href="observability/monitor/functions/manage_metrics.html" children="metrics management" />.
+  The metric is emitted by the AI Gateway external processor (ExtProc), which runs as a sidecar on each data-plane proxy pod (declared as a Kubernetes native sidecar / `initContainer`) and exposes its admin endpoint on container port `1064` (named `aigw-metrics`). Scrape it directly from the proxy pods with a `PodMonitor` so the platform Prometheus or VictoriaMetrics collects it. For the platform workflow, see <ExternalSiteLink name="acp" href="observability/monitor/functions/manage_metrics.html" children="metrics management" />.
+
+  Discover what label your cluster's Prometheus operator uses to select `PodMonitor` objects, so the resource below is actually picked up:
+
+  ```bash
+  kubectl get prometheus -A \
+    -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}: {.spec.podMonitorSelector}{"\n"}{end}'
+  # On the Alauda platform this is typically: prometheus: kube-prometheus
+  ```
+
+  Then apply the `PodMonitor` with that label in its **own** `metadata.labels` (not the `selector` — these are two different things):
 
   ```yaml
   apiVersion: monitoring.coreos.com/v1
@@ -56,6 +101,8 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
   metadata:
     name: ai-gateway-metrics
     namespace: envoy-gateway-system
+    labels:
+      prometheus: kube-prometheus   # must match your Prometheus's spec.podMonitorSelector
   spec:
     selector:
       matchLabels:
@@ -67,15 +114,56 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
         interval: 30s
   ```
 
-  - `selector`: matches every Envoy Gateway data-plane proxy pod in the cluster. To restrict to one `Gateway`, replace it with `gateway.envoyproxy.io/owning-gateway-name: <gateway-name>` and `gateway.envoyproxy.io/owning-gateway-namespace: <gateway-namespace>`.
+  - `metadata.labels`: how Prometheus discovers the `PodMonitor`. Without the right label, the resource exists but is invisible to the scrape pipeline.
+  - `spec.selector`: matches every Envoy Gateway data-plane proxy pod in the cluster. To restrict to one `Gateway`, replace it with `gateway.envoyproxy.io/owning-gateway-name: <gateway-name>` and `gateway.envoyproxy.io/owning-gateway-namespace: <gateway-namespace>`.
   - `port: aigw-metrics`: the named port on the ExtProc sidecar that serves `/metrics` on container port `1064`.
+
+  Confirm Prometheus is actually scraping the target after the `PodMonitor` is applied. Port-forward Prometheus and check that a scrape pool exists for our `PodMonitor` and is healthy:
+
+  ```bash
+  PROM=$(kubectl -n <prometheus-namespace> get pod -l app.kubernetes.io/name=prometheus \
+    -o jsonpath='{.items[0].metadata.name}')
+  kubectl -n <prometheus-namespace> port-forward $PROM 9090:9090 &
+
+  # Wait ~30s after applying the PodMonitor; the operator's config-reload is async.
+  curl -s 'http://127.0.0.1:9090/api/v1/targets?state=active' \
+    | jq '.data.activeTargets[]
+          | select(.scrapePool | test("ai-gateway-metrics"))
+          | {scrapePool, scrapeUrl, health, lastError}'
+  # expect: at least one target per data-plane pod with health="up".
+  ```
 
   ### Build a unified usage dashboard
 
-  Create a `MonitorDashboard` to present token usage. Use variables for namespace, model, and department so consumers can filter, and rely on the Business View so each project sees only its own data. For the platform workflow, see <ExternalSiteLink name="acp" href="observability/monitor/functions/manage_dashboard.html" children="monitoring dashboards" />. A panel that sums tokens by department uses a query such as:
+  Create a `MonitorDashboard` to present token usage. Use variables for namespace, model, and department so consumers can filter, and rely on the Business View so each project sees only its own data. For the platform workflow, see <ExternalSiteLink name="acp" href="observability/monitor/functions/manage_dashboard.html" children="monitoring dashboards" />.
+
+  The metric name in Prometheus follows OpenTelemetry's GenAI semantic conventions and is **stored with dots**, not underscores — `gen_ai.client.token.usage_token_sum`, etc. Reference it through the `{__name__="..."}` selector form, which works for any UTF-8 metric name:
 
   ```text
-  sum by (department) (increase(gen_ai_client_token_usage_token_sum[1h]))
+  # Tokens per department over the last hour
+  sum by (department) (
+    increase({__name__="gen_ai.client.token.usage_token_sum"}[1h])
+  )
+
+  # Top 5 models by total tokens in the last 24h
+  topk(5,
+    sum by (gen_ai_request_model) (
+      increase({__name__="gen_ai.client.token.usage_token_sum"}[24h])
+    )
+  )
+
+  # Output-token share per department (proxy for cost; output is the expensive side)
+  sum by (department) (
+    increase({__name__="gen_ai.client.token.usage_token_sum",
+              gen_ai_token_type="output"}[1h])
+  )
+  ```
+
+  Confirm the metric is queryable by listing all `gen_ai*` series names on the Prometheus UI's *Status → TSDB* page, or with:
+
+  ```bash
+  curl -s 'http://127.0.0.1:9090/api/v1/label/__name__/values' \
+    | jq -r '.data[]' | grep gen_ai
   ```
 </Steps>
 
@@ -85,17 +173,36 @@ Token usage can be priced and attributed for chargeback by Alauda Cost Managemen
 
 ## Verification
 
-Send several requests with valid identity tokens, then confirm the metric carries the department label by port-forwarding the ExtProc sidecar's admin port on any proxy pod:
+Send several requests with valid identity tokens that resolve to different departments, then confirm the metric carries the `department` label by port-forwarding the ExtProc sidecar's admin port on any proxy pod:
 
 ```bash
 POD=$(kubectl get pod -n envoy-gateway-system \
   -l gateway.envoyproxy.io/owning-gateway-name=<gateway-name> \
   -o jsonpath='{.items[0].metadata.name}')
 kubectl port-forward -n envoy-gateway-system pod/$POD 1064:1064 &
-curl -s http://localhost:1064/metrics | grep gen_ai_client_token_usage_token
+
+# Drive two requests as users in different groups, then read the metric.
+for token in "$TOKEN_RESEARCH" "$TOKEN_PLATFORM"; do
+  curl -s -o /dev/null \
+    -H "Authorization: Bearer $token" \
+    -H 'Content-Type: application/json' \
+    -d '{"model":"my-llm","messages":[{"role":"user","content":"hi"}]}' \
+    http://<gateway-address>/v1/chat/completions
+done
+
+curl -s http://localhost:1064/metrics \
+  | grep 'gen_ai_client_token_usage_token_sum{' \
+  | grep 'department='
 ```
 
-The output includes the `department` label. Open the dashboard and confirm token usage appears, filterable by namespace, model, and department.
+Expect at least one sample per department, for example:
+
+```text
+gen_ai_client_token_usage_token_sum{department="research",gen_ai_request_model="my-llm",gen_ai_token_type="input",...} 184
+gen_ai_client_token_usage_token_sum{department="platform",gen_ai_request_model="my-llm",gen_ai_token_type="input",...} 91
+```
+
+Open the dashboard and confirm token usage appears, filterable by namespace, model, and department.
 
 ## Learn More
 

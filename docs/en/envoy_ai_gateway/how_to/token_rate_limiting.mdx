@@ -22,9 +22,29 @@ A token quota combines three pieces:
 
 ## Prerequisites
 
-1. Envoy AI Gateway is installed, with an `AIGatewayRoute` routing to your model backends.
-2. Caller identity is propagated as request headers, for example `x-user-id`. See [Authenticating Consumers](./identity_authentication).
-3. A Redis instance is available. Use a managed instance from <ExternalSiteLink name="acp" href="appservice/redis/redis.html" children="Cache Service for Redis" /> as the default provider, then record its access address (`host:port`) and credentials.
+1. Envoy AI Gateway is installed, with an `AIGatewayRoute` routing to your model backends. Confirm the relevant CRDs are present:
+
+    ```bash
+    kubectl get crd \
+      aigatewayroutes.aigateway.envoyproxy.io \
+      backendtrafficpolicies.gateway.envoyproxy.io
+    ```
+
+2. Caller identity is propagated as request headers, for example `x-user-id`. See [Authenticating Consumers](./identity_authentication). Without an identity header the budget below collapses to a single counter shared by all callers, so this step is what makes the quota *per consumer*.
+3. A Redis instance is available. Use a managed instance from <ExternalSiteLink name="acp" href="appservice/redis/redis.html" children="Cache Service for Redis" /> as the default provider, then record its access address (`host:port`) and credentials. Verify reachability from the cluster before going further:
+
+    ```bash
+    kubectl run redis-probe --rm -i --restart=Never \
+      --image=redis:7-alpine -- \
+      redis-cli -h <redis-host> -p <redis-port> PING
+    # expect: PONG
+    ```
+
+4. Note the `Gateway` name and namespace — needed later to restart the right data-plane proxy:
+
+    ```bash
+    kubectl get gateway -A
+    ```
 
 :::note
 Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example `maas-system`), not in the Envoy Gateway control-plane namespace `envoy-gateway-system`. A gateway placed in the control-plane namespace may not have the AI Gateway request-processing filter and `SecurityPolicy` applied to its listener, which silently breaks routing and policy enforcement. See [Envoy AI Gateway](../intro).
@@ -37,20 +57,34 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
 
   The local rate limiter cannot accumulate response-derived token cost, so the gateway must use the Global Rate Limit service backed by Redis. Create a Redis instance from <ExternalSiteLink name="acp" href="appservice/redis/redis.html" children="Cache Service for Redis" /> and copy its access address from the instance detail page. Set that address in the `envoy-gateway-config` `ConfigMap` (namespace `envoy-gateway-system`), under `data."envoy-gateway.yaml"`:
 
+  ```bash
+  kubectl edit configmap envoy-gateway-config -n envoy-gateway-system
+  ```
+
+  Add the `rateLimit` block under the top-level config (keep any existing keys such as `gateway:` and `provider:` intact):
+
   ```yaml
   rateLimit:
     backend:
       type: Redis
       redis:
         url: <redis-host>:<redis-port>  # access address of the Redis instance
+        # tls:                          # uncomment if Redis requires TLS
+        #   certificateRef:
+        #     name: redis-client-cert
   ```
 
   - `<redis-host>:<redis-port>`: the access address copied from the Redis instance detail page.
+  - For a password-protected Redis, also create an Opaque `Secret` with key `redis-username` and `redis-password`, then reference it via `rateLimit.backend.redis.auth.passwordRef`. See the [Envoy Gateway rate-limit docs](https://gateway.envoyproxy.io/docs/tasks/traffic/global-rate-limit/) for the full schema.
 
-  The Envoy Gateway control plane reads this bootstrap configuration only at startup and does not hot-reload it, so restart its `Deployment` to apply the change:
+  The Envoy Gateway control plane reads this bootstrap configuration only at startup and does not hot-reload it, so restart its `Deployment` to apply the change, then confirm the dedicated `envoy-ratelimit` `Deployment` is healthy:
 
   ```bash
   kubectl rollout restart deployment envoy-gateway -n envoy-gateway-system
+  kubectl rollout status  deployment envoy-gateway   -n envoy-gateway-system
+  kubectl rollout status  deployment envoy-ratelimit -n envoy-gateway-system
+  # the envoy-ratelimit Deployment is created by the EG controller the first time
+  # rateLimit.backend is set; if it never appears, the config above was not parsed
   ```
 
   :::note
@@ -66,7 +100,7 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
 
   ### Capture token usage on the route
 
-  Add `llmRequestCosts` to the `AIGatewayRoute` so the gateway writes token counts into dynamic metadata (namespace `io.envoy.ai_gateway`) for every request:
+  Add `llmRequestCosts` to the `AIGatewayRoute` so the gateway writes token counts into Envoy **dynamic metadata** (the per-request scratch space filters use to talk to each other) under the namespace `io.envoy.ai_gateway`. The rate-limit filter reads from this namespace in the next step.
 
   ```yaml
   apiVersion: aigateway.envoyproxy.io/v1alpha1
@@ -85,7 +119,22 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
         type: TotalToken
   ```
 
-  The `type` field accepts `InputToken`, `OutputToken`, `TotalToken`, or `CEL` for a custom formula that weights output tokens more heavily, for example `cel: "input_tokens + output_tokens * 3"`.
+  - `metadataKey`: the key under `io.envoy.ai_gateway` where the count is written. Pick any name; the `BackendTrafficPolicy` below must reference the same string.
+  - `type`: `InputToken` counts the prompt, `OutputToken` counts the completion, `TotalToken` is the sum. Use `CEL` for a custom formula — for example, charge output tokens 3× because they are slower:
+
+    ```yaml
+    - metadataKey: llm_weighted_cost
+      type: CEL
+      cel: "input_tokens + output_tokens * 3"
+    ```
+
+  Apply and confirm the route is still accepted (the new field should not break translation):
+
+  ```bash
+  kubectl get aigatewayroute <aigatewayroute-name> -n <your-namespace> \
+    -o jsonpath='{.status.conditions[?(@.type=="Accepted")].status}'
+  # expect: True
+  ```
 
   ### Define the token budget by identity
 
@@ -128,13 +177,49 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
   ```
 
   - `x-user-id` with `type: Distinct` gives each caller an independent counter, which produces a per-user quota. Use `x-user-group` to aggregate a department against one budget, or match a specific group such as `premium` with `type: Exact` for tiered limits.
-  - `limit.requests` is interpreted as a **token** budget here, because the cost is sourced from token metadata.
+  - `limit.requests` is interpreted as a **token** budget here, because the cost is sourced from token metadata. With `200000` tokens/hour and a typical chat call costing roughly 1.5–2k tokens, expect ~100–130 calls/hour per caller before throttling kicks in.
+  - `cost.request.number: 0` means a request that fails to reach the upstream (e.g. malformed body) consumes no quota. Set it to `1` if you want pre-flight throttling on call count as well.
   - `cost.response.metadata.key` must match a `metadataKey` declared on the route.
 </Steps>
 
 ## Verification
 
-Drive traffic with a valid identity token and a model that the quota targets. Once the token budget for that identity is consumed, the gateway returns `429 Too Many Requests`, while a request carrying a different `x-user-id` is unaffected.
+Drive a short burst with a valid identity token, then a request from a different identity, and confirm only the first identity is throttled:
+
+```bash
+GATEWAY=http://<gateway-address>
+TOKEN_ALICE=<alice-jwt-or-api-key>
+TOKEN_BOB=<bob-jwt-or-api-key>
+
+# Send 8 calls as alice; expect early 200s then 429 once the budget is used.
+for i in $(seq 1 8); do
+  curl -s -o /dev/null -w "alice #$i -> %{http_code}\n" \
+    -H "Authorization: Bearer $TOKEN_ALICE" \
+    -H 'Content-Type: application/json' \
+    -d '{"model":"my-llm","messages":[{"role":"user","content":"hi"}]}' \
+    $GATEWAY/v1/chat/completions
+done
+
+# Same model, different user — must succeed because the budget is per x-user-id.
+curl -s -o /dev/null -w "bob       -> %{http_code}\n" \
+  -H "Authorization: Bearer $TOKEN_BOB" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"my-llm","messages":[{"role":"user","content":"hi"}]}' \
+  $GATEWAY/v1/chat/completions
+```
+
+A run that exhausts alice's quota will print something like `alice #1 -> 200 … alice #5 -> 429 … bob -> 200`. To inspect the counter directly in Redis, scan for keys containing the identity value — Envoy Gateway names each counter `<gateway-namespace>/<gateway-name>/<listener>_<route>_..._<x-user-id-value>_..._<window-timestamp>`, so the user identity is the simplest filter:
+
+```bash
+kubectl run redis-cli --rm -i --restart=Never \
+  --image=redis:7-alpine -- \
+  redis-cli -h <redis-host> -p <redis-port> \
+  --scan --pattern "*$ALICE_USER_ID*" | head
+```
+
+:::warning
+If Redis is unreachable, Envoy fails **open** by default: requests pass through unmetered until Redis recovers. Watch the rate-limit pod's logs (`kubectl logs deploy/envoy-ratelimit -n envoy-gateway-system`) and alert on its `Ready` condition so silent quota loss does not go unnoticed.
+:::
 
 ## Learn More
 

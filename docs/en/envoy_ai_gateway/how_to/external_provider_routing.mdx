@@ -16,9 +16,25 @@ Envoy AI Gateway can front external LLM providers behind one OpenAI-compatible e
 
 ## Prerequisites
 
-1. Envoy AI Gateway is installed, with a `Gateway` and an `AIGatewayRoute`.
-2. The upstream provider credential is stored in a `Secret` in the route namespace.
-3. The provider endpoint is reachable from the cluster egress.
+1. Envoy AI Gateway is installed, with a `Gateway` and an `AIGatewayRoute`. Confirm the relevant CRDs are present:
+
+    ```bash
+    kubectl get crd \
+      aigatewayroutes.aigateway.envoyproxy.io \
+      aiservicebackends.aigateway.envoyproxy.io \
+      backendsecuritypolicies.aigateway.envoyproxy.io \
+      backends.gateway.envoyproxy.io
+    ```
+
+2. The upstream provider credential (created in the next section) is stored in a `Secret` in the route namespace.
+3. The provider endpoint is reachable from the cluster egress. Verify before going further:
+
+    ```bash
+    kubectl run egress-probe --rm -i --restart=Never \
+      --image=curlimages/curl -- \
+      curl -s -o /dev/null -w '%{http_code}\n' https://api.openai.com/v1/models
+    # expect: 401  (anything other than a connection error means egress works)
+    ```
 
 :::note
 Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example `maas-system`), not in the Envoy Gateway control-plane namespace `envoy-gateway-system`. A gateway placed in the control-plane namespace may not have the AI Gateway request-processing filter and `SecurityPolicy` applied to its listener, which silently breaks routing and policy enforcement. See [Envoy AI Gateway](../intro).
@@ -28,6 +44,13 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
 
 <Steps>
   ### Store the upstream credential
+
+  Create the `Secret` that holds the provider API key. For `type: APIKey` the **data-map key must be exactly `apiKey`** — the `BackendSecurityPolicy` looks up that field by name, so a `--from-literal=key=...` will leave the upstream call unauthenticated even though the policy reports `Accepted`:
+
+  ```bash
+  kubectl -n <your-namespace> create secret generic openai-key \
+    --from-literal=apiKey="$OPENAI_API_KEY"   # data-map key must be 'apiKey'
+  ```
 
   Inject the provider credential with a `BackendSecurityPolicy` that targets the backend. The `type` field selects the provider authentication scheme.
 
@@ -41,18 +64,51 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
     type: APIKey
     apiKey:
       secretRef:
-        name: openai-key  # Secret holding the provider API key
+        name: openai-key  # Secret holding the provider API key (data key 'apiKey')
     targetRefs:
       - group: aigateway.envoyproxy.io
         kind: AIServiceBackend
         name: openai-backend
   ```
 
-  The `type` field accepts `APIKey`, `AWSCredentials`, `AzureAPIKey`, `AzureCredentials`, `GCPCredentials`, and `AnthropicAPIKey`. Choose the value that matches the provider, and provide the matching credential block, for example `awsCredentials` instead of `apiKey` for AWS Bedrock.
+  The `type` field accepts `APIKey`, `AWSCredentials`, `AzureAPIKey`, `AzureCredentials`, `GCPCredentials`, and `AnthropicAPIKey`. Each type expects a matching credential block and a matching set of `Secret` data keys:
+
+  | `type` | credential block | required `Secret` data keys |
+  |---|---|---|
+  | `APIKey` | `apiKey.secretRef` | `apiKey` |
+  | `AWSCredentials` | `awsCredentials.credentialsFile.secretRef` | `credentials` (AWS shared-credentials INI) |
+  | `AzureAPIKey` | `azureApiKey.secretRef` | `apiKey` |
+  | `AzureCredentials` | `azureCredentials.clientSecretRef` | `client-secret` (plus `clientID`/`tenantID` inline) |
+  | `GCPCredentials` | `gcpCredentials.workloadIdentityFederationConfig` | service-account JSON via the configured source |
+  | `AnthropicAPIKey` | `anthropicApiKey.secretRef` | `apiKey` |
+
+  When the upstream auth scheme is wrong, the upstream typically returns `401`/`403`. When the `Secret` is keyed wrongly (for example `key:` instead of `apiKey:`) the failure mode is harder to read: the `BackendSecurityPolicy` still reports `Accepted=True`, but the controller logs `failed to get backend auth from backend security policy. Skipping this backend. ... error: secret <name> does not contain key apiKey` and removes the backend from the route, so requests to that backend **time out** rather than returning a clean 401. Tail the controller logs when introducing a new credential:
+
+  ```bash
+  kubectl -n envoy-gateway-system logs deploy/ai-gateway-controller -c ai-gateway-helm \
+    | grep -E 'backend security policy|does not contain key'
+  ```
 
   ### Define the provider backend
 
-  Register the external provider as an `AIServiceBackend` so the gateway speaks the provider schema:
+  Two resources work together: a `Backend` (Envoy Gateway) tells the data plane the **network endpoint** to reach, and an `AIServiceBackend` (Envoy AI Gateway) tells the AI filter the **provider schema** to translate to.
+
+  First, declare the upstream endpoint as a `Backend`:
+
+  ```yaml
+  apiVersion: gateway.envoyproxy.io/v1alpha1
+  kind: Backend
+  metadata:
+    name: openai-endpoint
+    namespace: <your-namespace>
+  spec:
+    endpoints:
+      - fqdn:
+          hostname: api.openai.com
+          port: 443
+  ```
+
+  Then register the provider as an `AIServiceBackend` referencing that `Backend`:
 
   ```yaml
   apiVersion: aigateway.envoyproxy.io/v1alpha1
@@ -67,6 +123,19 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
       name: openai-endpoint  # Backend pointing at the provider host
       kind: Backend
       group: gateway.envoyproxy.io
+  ```
+
+  - `schema.name`: the upstream protocol the gateway must speak. Common values: `OpenAI`, `AWSBedrock`, `AzureOpenAI`, `GCPVertexAI`, `Anthropic`. The gateway transcodes the incoming OpenAI-compatible request to this schema before forwarding.
+  - `backendRef`: must point at a `Backend` (group `gateway.envoyproxy.io`), not a `Service` — the AI filter relies on the `Backend` for FQDN + TLS handling to public endpoints.
+
+  Confirm both resources reconciled:
+
+  ```bash
+  kubectl get backend,aiservicebackend -n <your-namespace>
+  # AIServiceBackend shows ACCEPTED=True immediately;
+  # the Backend STATUS column stays empty until the next step's AIGatewayRoute
+  # actually references this AIServiceBackend — Envoy Gateway only reconciles a
+  # Backend once at least one HTTPRoute targets it.
   ```
 
   ### Route by model with fallback
@@ -93,20 +162,27 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
           - name: azure-backend
             priority: 1   # used when the primary is unavailable
   ```
+
+  - `matches.headers[x-ai-eg-model]`: the AI filter parses the `model` field from the request body and writes it to this header for routing. So `"model":"gpt-4o"` in the request is what reaches this match — no manual header is required from the caller.
+  - `priority`: Envoy uses **locality-weighted load balancing**. Priority-0 endpoints take all traffic while at least one is healthy; the priority-1 group only receives traffic once every priority-0 endpoint trips its outlier detection. Failover is automatic but takes seconds, not milliseconds; do not rely on it for tail-latency budgets.
 </Steps>
 
 ## Verification
 
-Send an OpenAI-compatible request to the gateway and confirm it reaches the provider and returns a valid response with token usage:
+Send an OpenAI-compatible request to the gateway and confirm it reaches the provider, the client's `Authorization` header is replaced by the BSP-injected key, and a valid response with token usage comes back:
 
 ```bash
-curl -s http://<gateway-address>/v1/chat/completions \
-  -H 'x-ai-eg-model: gpt-4o' \
+# A deliberately-bogus client Authorization to prove the gateway strips it
+# and substitutes the upstream key from the BackendSecurityPolicy.
+curl -sv http://<gateway-address>/v1/chat/completions \
+  -H 'Authorization: Bearer client-token-that-should-be-replaced' \
   -H 'Content-Type: application/json' \
   -d '{"model":"gpt-4o","messages":[{"role":"user","content":"ping"}]}'
 ```
 
-The response includes a `usage` object with token counts, confirming the upstream credential was injected and the route resolved.
+A successful response (`200 OK` with a `usage` object) means the upstream credential was injected and the route resolved. Inspect the request that actually hit the upstream by enabling Envoy's access log on the `EnvoyProxy` resource, or temporarily route to a debug echo backend; the upstream-bound `Authorization` header should carry the value from the `openai-key` `Secret`, not the bogus client value above.
+
+To exercise failover, simulate a primary outage by pointing the primary `Backend` at an unreachable host (`hostname: invalid.example.invalid`) for a few seconds and watch traffic shift to the backup; the response body's `model` field will reflect the new provider.
 
 ## Learn More
 
