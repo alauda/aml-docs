@@ -580,9 +580,9 @@ spec:
 <Callouts>
 1. `HOME` points temporary files and caches to `/tmp`, which is writable for the runtime container.
 2. `USER` prevents Python's `getpass.getuser()` fallback from querying `/etc/passwd` for the container UID. This avoids startup failures in images that run as a non-root UID without a matching passwd entry, while still allowing `torch_npu` to auto-load normally. For TP>1 / HCCL initialization, still validate whether the image needs an actual UID `1000` entry in `/etc/passwd`.
-3. `runAsUser: 1000` aligns the runtime container with the platform default Modelcar UID and the common Ascend device permission model.
-4. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
-5. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+3. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+4. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+5. `runAsUser: 1000` aligns the runtime container with the platform default Modelcar UID and the common Ascend device permission model.
 </Callouts>
 
 **2. Required Changes to the InferenceService Example**
