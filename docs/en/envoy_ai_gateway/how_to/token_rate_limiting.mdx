@@ -1,0 +1,142 @@
+---
+weight: 20
+category: howto
+---
+# Configuring Token Quotas
+
+## Introduction
+
+Envoy AI Gateway can rate-limit by **token usage** rather than request count, and track a separate budget for each caller based on identity. This prevents a single consumer or a runaway agent from exhausting a shared model budget, and it lets you offer per-user, per-department, and per-tier token quotas on one gateway.
+
+A token quota combines three pieces:
+
+- `AIGatewayRoute.llmRequestCosts` extracts token counts from each LLM response into Envoy dynamic metadata.
+- A global rate limit backend (Redis) accumulates the cost. Because the token cost is known only after the response, it cannot be tracked by the per-pod local limiter.
+- A `BackendTrafficPolicy` of type `Global` defines the budget and the identity key.
+
+## Use Cases
+
+- Give each user a monthly token budget on an expensive model, with a higher budget for a premium tier.
+- Cap the total tokens a department can consume across all its applications.
+- Protect a shared model from a single misbehaving automation account.
+
+## Prerequisites
+
+1. Envoy AI Gateway is installed, with an `AIGatewayRoute` routing to your model backends.
+2. Caller identity is propagated as request headers, for example `x-user-id`. See [Authenticating Consumers](./identity_authentication).
+3. A Redis instance is available. Use a managed instance from <ExternalSiteLink name="acp" href="appservice/redis/redis.html" children="Cache Service for Redis" /> as the default provider, then record its access address (`host:port`) and credentials.
+
+## Steps
+
+<Steps>
+  ### Enable the global rate limit backend
+
+  The local rate limiter cannot accumulate response-derived token cost, so the gateway must use the Global Rate Limit service backed by Redis. Create a Redis instance from <ExternalSiteLink name="acp" href="appservice/redis/redis.html" children="Cache Service for Redis" /> and copy its access address from the instance detail page. Set that address in the `envoy-gateway-config` `ConfigMap` (namespace `envoy-gateway-system`), under `data."envoy-gateway.yaml"`:
+
+  ```yaml
+  rateLimit:
+    backend:
+      type: Redis
+      redis:
+        url: <redis-host>:<redis-port>  # access address of the Redis instance
+  ```
+
+  - `<redis-host>:<redis-port>`: the access address copied from the Redis instance detail page.
+
+  The Envoy Gateway control plane reads this bootstrap configuration only at startup and does not hot-reload it, so restart its `Deployment` to apply the change:
+
+  ```bash
+  kubectl rollout restart deployment envoy-gateway -n envoy-gateway-system
+  ```
+
+  :::note
+  A single Redis instance per Envoy Gateway is sufficient. Any reachable Redis also works, but a managed instance is recommended for availability and backup.
+  :::
+
+  If the Gateway was already running before the rate limit backend was enabled, also restart its data plane so the proxy picks up the rate limit service:
+
+  ```bash
+  kubectl rollout restart deployment -n envoy-gateway-system \
+    -l gateway.envoyproxy.io/owning-gateway-name=<gateway-name>
+  ```
+
+  ### Capture token usage on the route
+
+  Add `llmRequestCosts` to the `AIGatewayRoute` so the gateway writes token counts into dynamic metadata (namespace `io.envoy.ai_gateway`) for every request:
+
+  ```yaml
+  apiVersion: aigateway.envoyproxy.io/v1alpha1
+  kind: AIGatewayRoute
+  metadata:
+    name: <aigatewayroute-name>
+    namespace: <your-namespace>
+  spec:
+    # ... existing parentRefs and rules ...
+    llmRequestCosts:
+      - metadataKey: llm_input_token
+        type: InputToken
+      - metadataKey: llm_output_token
+        type: OutputToken
+      - metadataKey: llm_total_token
+        type: TotalToken
+  ```
+
+  The `type` field accepts `InputToken`, `OutputToken`, `TotalToken`, or `CEL` for a custom formula that weights output tokens more heavily, for example `cel: "input_tokens + output_tokens * 3"`.
+
+  ### Define the token budget by identity
+
+  Attach a `BackendTrafficPolicy` with a `Global` rate limit. Set the request cost to `0` and the response cost to the captured token metadata, so that only tokens count against the limit. Use `clientSelectors` to scope the budget per identity and per model.
+
+  ```yaml
+  apiVersion: gateway.envoyproxy.io/v1alpha1
+  kind: BackendTrafficPolicy
+  metadata:
+    name: maas-token-quota
+    namespace: <your-namespace>
+  spec:
+    targetRefs:
+      - group: gateway.networking.k8s.io
+        kind: HTTPRoute
+        name: <aigatewayroute-name>
+    rateLimit:
+      type: Global
+      global:
+        rules:
+          - clientSelectors:
+              - headers:
+                  - name: x-user-id       # identity header from the SecurityPolicy
+                    type: Distinct
+                  - name: x-ai-eg-model
+                    type: Exact
+                    value: my-llm
+            limit:
+              requests: 200000             # 200k tokens per window
+              unit: Hour
+            cost:
+              request:
+                from: Number
+                number: 0                   # requests do not count
+              response:
+                from: Metadata              # tokens count
+                metadata:
+                  namespace: io.envoy.ai_gateway
+                  key: llm_total_token
+  ```
+
+  - `x-user-id` with `type: Distinct` gives each caller an independent counter, which produces a per-user quota. Use `x-user-group` to aggregate a department against one budget, or match a specific group such as `premium` with `type: Exact` for tiered limits.
+  - `limit.requests` is interpreted as a **token** budget here, because the cost is sourced from token metadata.
+  - `cost.response.metadata.key` must match a `metadataKey` declared on the route.
+</Steps>
+
+## Verification
+
+Drive traffic with a valid identity token and a model that the quota targets. Once the token budget for that identity is consumed, the gateway returns `429 Too Many Requests`, while a request carrying a different `x-user-id` is unaffected.
+
+## Learn More
+
+- [Authenticating Consumers](./identity_authentication)
+- [Metering Token Usage](./usage_metering)
+
+## Next Steps
+
+Configure [Metering Token Usage](./usage_metering) to report consumption per tenant and feed chargeback.

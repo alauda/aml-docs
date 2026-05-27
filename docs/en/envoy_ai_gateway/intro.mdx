@@ -22,6 +22,15 @@ Envoy AI Gateway is a required dependency of **Alauda Build of KServe** for expo
 
 For installation on the platform, see [Install Envoy AI Gateway](./install).
 
+## Guides
+
+The following guides configure Envoy AI Gateway as a multi-tenant model serving control plane:
+
+- [Authenticating Consumers](./how_to/identity_authentication) — verify SSO tokens or API keys and propagate caller identity.
+- [Configuring Token Quotas](./how_to/token_rate_limiting) — enforce per-user, per-department, and per-tier token budgets.
+- [Metering Token Usage](./how_to/usage_metering) — report consumption per tenant and feed chargeback.
+- [Routing to LLM Providers](./how_to/external_provider_routing) — front external providers with credential injection and failover.
+
 ## Documentation
 
 Envoy AI Gateway upstream documentation and related resources:

@@ -1,0 +1,110 @@
+---
+weight: 40
+category: howto
+---
+# Routing to LLM Providers
+
+## Introduction
+
+Envoy AI Gateway can front external LLM providers behind one OpenAI-compatible endpoint. It injects each provider's upstream credentials with a `BackendSecurityPolicy`, routes by model name, and fails over between providers. Consumers call a single internal address and never hold provider keys, so the gateway becomes the controlled egress point for public-cloud LLM traffic, with the same identity, quota, and metering applied to external models as to self-hosted ones.
+
+## Use Cases
+
+- Expose a hosted model, such as one from OpenAI, AWS Bedrock, Azure OpenAI, GCP Vertex AI, or Anthropic, without distributing the provider key.
+- Route different model names to different providers behind one endpoint.
+- Fail over from a primary provider to a backup when the primary is unavailable.
+
+## Prerequisites
+
+1. Envoy AI Gateway is installed, with a `Gateway` and an `AIGatewayRoute`.
+2. The upstream provider credential is stored in a `Secret` in the route namespace.
+3. The provider endpoint is reachable from the cluster egress.
+
+## Steps
+
+<Steps>
+  ### Store the upstream credential
+
+  Inject the provider credential with a `BackendSecurityPolicy` that targets the backend. The `type` field selects the provider authentication scheme.
+
+  ```yaml
+  apiVersion: aigateway.envoyproxy.io/v1alpha1
+  kind: BackendSecurityPolicy
+  metadata:
+    name: openai-auth
+    namespace: <your-namespace>
+  spec:
+    type: APIKey
+    apiKey:
+      secretRef:
+        name: openai-key  # Secret holding the provider API key
+    targetRefs:
+      - group: aigateway.envoyproxy.io
+        kind: AIServiceBackend
+        name: openai-backend
+  ```
+
+  The `type` field accepts `APIKey`, `AWSCredentials`, `AzureAPIKey`, `AzureCredentials`, `GCPCredentials`, and `AnthropicAPIKey`. Choose the value that matches the provider, and provide the matching credential block, for example `awsCredentials` instead of `apiKey` for AWS Bedrock.
+
+  ### Define the provider backend
+
+  Register the external provider as an `AIServiceBackend` so the gateway speaks the provider schema:
+
+  ```yaml
+  apiVersion: aigateway.envoyproxy.io/v1alpha1
+  kind: AIServiceBackend
+  metadata:
+    name: openai-backend
+    namespace: <your-namespace>
+  spec:
+    schema:
+      name: OpenAI
+    backendRef:
+      name: openai-endpoint  # Backend pointing at the provider host
+      kind: Backend
+      group: gateway.envoyproxy.io
+  ```
+
+  ### Route by model with fallback
+
+  Reference multiple backends in one `AIGatewayRoute` rule and set `priority` so the gateway fails over from the primary to the backup:
+
+  ```yaml
+  apiVersion: aigateway.envoyproxy.io/v1alpha1
+  kind: AIGatewayRoute
+  metadata:
+    name: <aigatewayroute-name>
+    namespace: <your-namespace>
+  spec:
+    # ... parentRefs ...
+    rules:
+      - matches:
+          - headers:
+              - name: x-ai-eg-model
+                type: Exact
+                value: gpt-4o
+        backendRefs:
+          - name: openai-backend
+            priority: 0   # primary
+          - name: azure-backend
+            priority: 1   # used when the primary is unavailable
+  ```
+</Steps>
+
+## Verification
+
+Send an OpenAI-compatible request to the gateway and confirm it reaches the provider and returns a valid response with token usage:
+
+```bash
+curl -s http://<gateway-address>/v1/chat/completions \
+  -H 'x-ai-eg-model: gpt-4o' \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"ping"}]}'
+```
+
+The response includes a `usage` object with token counts, confirming the upstream credential was injected and the route resolved.
+
+## Learn More
+
+- [Authenticating Consumers](./identity_authentication)
+- [Configuring Token Quotas](./token_rate_limiting)

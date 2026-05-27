@@ -1,0 +1,99 @@
+---
+weight: 30
+category: howto
+---
+# Metering Token Usage
+
+## Introduction
+
+Envoy AI Gateway exposes Prometheus metrics that follow the OpenTelemetry GenAI semantic conventions, including token usage per request. By adding the caller's identity as a metric label and collecting the metric through the platform monitoring stack, you get a unified view of token consumption per department, namespace, and model. The same data feeds chargeback through Alauda Cost Management.
+
+The pipeline is: the gateway emits token metrics, identity is attached as a label, a `PodMonitor` collects the metric into the platform, and a `MonitorDashboard` presents it. No raw PromQL is required for day-to-day viewing.
+
+## Use Cases
+
+- Show each department its own token consumption by model, isolated per project.
+- Track which models drive the most token usage across the platform.
+- Provide the usage data that Alauda Cost Management prices into a chargeback report.
+
+## Prerequisites
+
+1. An `AIGatewayRoute` with `llmRequestCosts` configured. See [Configuring Token Quotas](./token_rate_limiting).
+2. Caller identity propagated as request headers. See [Authenticating Consumers](./identity_authentication).
+3. Platform monitoring is enabled on the cluster.
+
+## Steps
+
+<Steps>
+  ### Add an identity label to token metrics
+
+  By default the token metric `gen_ai_client_token_usage_token` carries the OpenTelemetry GenAI standard labels only (model, provider, operation, token type). Enrich it with the department dimension by mapping an identity header to a metric label in the Envoy AI Gateway controller configuration:
+
+  ```yaml
+  controller:
+    metricsRequestHeaderAttributes:
+      x-user-group: department  # map the identity header to a metric label
+  ```
+
+  - `x-user-group`: the header set by the `SecurityPolicy` from the IdP `groups` claim.
+  - `department`: the resulting metric label used for aggregation.
+
+  :::note
+  Prefer a low-cardinality dimension such as department (`x-user-group`) for the default label. A per-user label (`x-user-id`) is possible but produces high-cardinality series, so add it only when per-user reporting is required.
+  :::
+
+  ### Collect the metric into the platform
+
+  The metric is emitted by the AI Gateway external processor (ExtProc), which runs as a sidecar on each data-plane proxy pod and exposes its admin endpoint on container port `1064` (named `aigw-metrics`). Scrape it directly from the proxy pods with a `PodMonitor` so the platform Prometheus or VictoriaMetrics collects it. For the platform workflow, see <ExternalSiteLink name="acp" href="observability/monitor/functions/manage_metrics.html" children="metrics management" />.
+
+  ```yaml
+  apiVersion: monitoring.coreos.com/v1
+  kind: PodMonitor
+  metadata:
+    name: ai-gateway-metrics
+    namespace: envoy-gateway-system
+  spec:
+    selector:
+      matchLabels:
+        app.kubernetes.io/managed-by: envoy-gateway
+        app.kubernetes.io/component: proxy
+    podMetricsEndpoints:
+      - port: aigw-metrics
+        path: /metrics
+        interval: 30s
+  ```
+
+  - `selector`: matches every Envoy Gateway data-plane proxy pod in the cluster. To restrict to one `Gateway`, replace it with `gateway.envoyproxy.io/owning-gateway-name: <gateway-name>` and `gateway.envoyproxy.io/owning-gateway-namespace: <gateway-namespace>`.
+  - `port: aigw-metrics`: the named port on the ExtProc sidecar that serves `/metrics` on container port `1064`.
+
+  ### Build a unified usage dashboard
+
+  Create a `MonitorDashboard` to present token usage. Use variables for namespace, model, and department so consumers can filter, and rely on the Business View so each project sees only its own data. For the platform workflow, see <ExternalSiteLink name="acp" href="observability/monitor/functions/manage_dashboard.html" children="monitoring dashboards" />. A panel that sums tokens by department uses a query such as:
+
+  ```text
+  sum by (department) (increase(gen_ai_client_token_usage_token_sum[1h]))
+  ```
+</Steps>
+
+## Chargeback with Cost Management
+
+Token usage can be priced and attributed for chargeback by Alauda Cost Management, which is a separate product. It ingests a custom usage metric defined by a PromQL query and attributes cost by label, so the department-labelled token metric above becomes a per-department bill. For the cost-model configuration, see <ExternalSiteLink name="costmanagement" href="cost_management/howto/custom_cost_model.html" children="custom cost model" />.
+
+## Verification
+
+Send several requests with valid identity tokens, then confirm the metric carries the department label by port-forwarding the ExtProc sidecar's admin port on any proxy pod:
+
+```bash
+POD=$(kubectl get pod -n envoy-gateway-system \
+  -l gateway.envoyproxy.io/owning-gateway-name=<gateway-name> \
+  -o jsonpath='{.items[0].metadata.name}')
+kubectl port-forward -n envoy-gateway-system pod/$POD 1064:1064 &
+curl -s http://localhost:1064/metrics | grep gen_ai_client_token_usage_token
+```
+
+The output includes the `department` label. Open the dashboard and confirm token usage appears, filterable by namespace, model, and department.
+
+## Learn More
+
+- [Authenticating Consumers](./identity_authentication)
+- [Configuring Token Quotas](./token_rate_limiting)
