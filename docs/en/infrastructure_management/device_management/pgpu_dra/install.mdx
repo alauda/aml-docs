@@ -160,6 +160,11 @@ For more information on uploading the cluster plugin, please refer to <ExternalS
           claims:
           - name: gpu-claim
     ```
+
+    <Callouts>
+    1. Replace this CEL expression to match your GPU model. The `productName` value must equal the `productName` attribute reported by the `ResourceSlice` in the previous step.
+    </Callouts>
+
     Apply spec:
 
     ```bash
@@ -168,7 +173,7 @@ For more information on uploading the cluster plugin, please refer to <ExternalS
 
     Obtain output of container in the pod:
     ```bash
-    kubectl logs pod -n dra-gpu-workload -f
+    kubectl logs dra-gpu-workload -f
     ```
     The output is expected to show the GPU UUID from the container. Example:
 
