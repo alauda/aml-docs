@@ -24,7 +24,7 @@ This page lists the currently maintained Alauda AI versions in the component mat
 | Alauda Build of Node Feature Discovery       | Cluster Plugin | v0.17.4                            | v0.17.4                          |
 | Alauda Build of Kueue                        | Cluster Plugin | v0.17.0                            | v0.17.0                          |
 | Alauda Build of LeaderWorkerSet              | Cluster Plugin | v0.8.0-1                           | v0.8.0-1                         |
-| Alauda Build of JobSet                       | Operator       | -                                  | v0.12.0                          |
+| Alauda Build of JobSet (1)                   | Operator       | -                                  | v0.12.0                          |
 | Volcano                                      | Cluster Plugin | v1.12.4                            | v1.12.4                          |
 | MLFlow                                       | Cluster Plugin | v3.1.5                             | v3.10.0                          |
 | Kubeflow Base                                | Cluster Plugin | v1.10.14-1                         | v1.11.0                          |
@@ -65,7 +65,7 @@ This page lists the currently maintained Alauda AI versions in the component mat
 | Alauda Build of Node Feature Discovery       | Cluster Plugin | v0.17.4                            | v0.17.4                          |
 | Alauda Build of Kueue                        | Cluster Plugin | v0.17.0                            | v0.17.0                          |
 | Alauda Build of LeaderWorkerSet              | Cluster Plugin | v0.8.0-1                           | v0.8.0-1                         |
-| Alauda Build of JobSet                       | Operator       | -                                  | v0.12.0                          |
+| Alauda Build of JobSet (1)                   | Operator       | -                                  | v0.12.0                          |
 | Volcano                                      | Cluster Plugin | v1.12.4                            | v1.12.4                          |
 | MLFlow                                       | Cluster Plugin | v3.1.5                             | v3.10.0                          |
 | Kubeflow Base                                | Cluster Plugin | v1.10.14-1                         | v1.11.0                          |
@@ -87,7 +87,7 @@ This page lists the currently maintained Alauda AI versions in the component mat
 
 ## Notes
 
-(1) 'Kubeflow Trainer v2' requires Alauda Container Platform 4.1.x or later
+(1) 'Kubeflow Trainer v2' and 'Alauda Build of JobSet' require Alauda Container Platform 4.1.x or later
 
 (2) 'Featureform' and 'Kubeflow Pipelines' are only supported on x86_64 architecture
 
