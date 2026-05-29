@@ -34,7 +34,7 @@ This page lists the currently maintained Alauda AI versions in the component mat
 | Alauda build of Llama Stack                  | Operator       | v0.8.0                             | v0.9.0                           |
 | Label Studio                                 | Helm Charts    | v1.21.0-2                          | v1.21.0-2                        |
 | Alauda build of Envoy AI Gateway             | Cluster Plugin | v0.4.1                             | -                                |
-| Alauda build of Envoy AI Gateway             | Operator       | -                                  | v0.4.2                           |
+| Alauda build of Envoy AI Gateway             | Operator       | -                                  | v0.4.3                           |
 | Dify                                         | Helm Charts    | v1.11.4                            | v1.11.4                          |
 | Langflow                                     | Helm Charts    | v1.6.4-1                           | v1.6.4-1                         |
 | Evidently                                    | Helm Charts    | v0.7.14-1                          | v0.7.14-1                        |
@@ -74,7 +74,7 @@ This page lists the currently maintained Alauda AI versions in the component mat
 | Alauda build of Llama Stack                  | Operator       | v0.8.0                             | v0.9.0                           |
 | Label Studio                                 | Helm Charts    | v1.21.0-2                          | v1.21.0-2                        |
 | Alauda build of Envoy AI Gateway             | Cluster Plugin | v0.4.1                             | -                                |
-| Alauda build of Envoy AI Gateway             | Operator       | -                                  | v0.4.2                           |
+| Alauda build of Envoy AI Gateway             | Operator       | -                                  | v0.4.3                           |
 | Dify                                         | Helm Charts    | v1.11.4                            | v1.11.4                          |
 | Langflow                                     | Helm Charts    | v1.6.4-1                           | v1.6.4-1                         |
 | Evidently                                    | Helm Charts    | v0.7.14-1                          | v0.7.14-1                        |
