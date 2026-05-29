@@ -1,48 +1,44 @@
 # Release Notes
 
-## AI 2.4.0
+## AI 2.5.0
 
 ### **New and Optimized Features**
 
-#### **Image Based Model Catalog**
+#### **Alauda AI Platform Control Plane**
 
-**Image Based Model Catalog** provides a centralized catalog for discovering and deploying ready-to-use models. Users can deploy built-in models as inference services without manually preparing model repositories. Administrators configure the OCI registry used by the catalog and import the built-in model images before users deploy them.
+**Alauda AI Platform Control Plane** adds unified component management for Alauda AI. Administrators can use the Alauda AI Operator to manage deployment and upgrade workflows for supported components, reducing component maintenance effort. This capability is currently an alpha feature and supports only operator-based components; cluster plugin and Helm chart components are not managed by this capability.
 
-#### **Kubeflow 1.11 Upgrade**
+#### **JobSet Operator**
 
-**Kubeflow Base**, **Kubeflow Pipelines**, and **Kubeflow Trainer v2** are upgraded to the 1.11 release line. This keeps the platform aligned with the upstream Kubeflow community and includes fixes that are already available in the community release.
+**JobSet Operator** enables users to run coordinated distributed workloads for AI, machine learning, and HPC scenarios. Users can define a group of related Kubernetes jobs as one JobSet, helping distributed training and batch workloads manage multiple workers, stable networking, and failure recovery as a single workload.
 
-#### **MLflow Operator 3.10.0**
+#### **Llama Stack Milvus Vector Store Integration**
 
-**MLflow** is delivered as a Helm-based OLM operator plugin. The operator manages an MLflow Tracking Server deployment with PostgreSQL-backed metadata storage, OAuth/OIDC login through the platform identity provider, Kubernetes namespace-backed workspaces, and Kubernetes RBAC authorization for MLflow requests.
+**Llama Stack** supports Milvus-backed vector stores for agent and retrieval workflows. Administrators can configure a reachable Milvus endpoint and optional authentication for the Llama Stack server, and users can create vector stores with `provider_id="milvus-remote"` from the client API.
 
-#### **Workbench Pipeline Orchestration with Elyra**
+#### **vLLM Expert Parallel Inference**
 
-**Elyra Pipeline Editor** provides a visual editor in JupyterLab for creating pipeline workflows from notebooks and scripts. Users can define pipeline steps in Workbench and submit the workflow to Kubeflow Pipelines without writing the complete pipeline specification manually.
+**vLLM Expert Parallel** support provides a configuration path for serving Mixture-of-Experts models with expert parallelism. Users can enable expert parallel settings in an inference service YAML when using a compatible vLLM runtime and a model that supports this serving pattern.
 
-#### **Llama Stack PGVector Integration**
+#### **vLLM Speculative Decoding**
 
-**Llama Stack** now supports PGVector-backed vector stores for agent and retrieval workflows. Users can use PostgreSQL with the `pgvector` extension as the vector database backend when building Llama Stack applications that upload files and run vector search.
+**vLLM Speculative Decoding** provides guidance for enabling speculative decoding on vLLM inference services. Users can configure supported methods such as N-gram or EAGLE-3 in the vLLM startup arguments and validate the effect with representative workloads before using the configuration in production.
 
-#### **Ascend NPU Fine-tuning with Kubeflow Trainer v2**
+#### **Kubeflow and MLflow Storage Configuration**
 
-**Kubeflow Trainer v2** supports running model fine-tuning jobs on Huawei Ascend NPUs. Users can submit Trainer v2 jobs for MindSpeed-LLM workflows, including checkpoint conversion, dataset preprocessing, and supervised fine-tuning, and use Kueue scheduling when cluster quotas are configured.
+**Kubeflow Pipelines** and **MLflow** support external storage configuration. Administrators can configure external object storage for pipeline artifacts and external PostgreSQL storage for MLflow metadata.
 
-#### **ModelSlim Integration for Ascend NPU Model Compression**
+#### **Alauda Build of NPU Operator**
 
-**ModelSlim** integration provides model compression and quantization workflows for Huawei Ascend NPU environments. Users can run ModelSlim-based workflows from a Workbench image prepared with CANN and PyTorch, following the Ascend-native compression path described in the product documentation.
+**Alauda Build of NPU Operator** is refactored from a cluster plugin to an operator-managed component so it can be managed by the Alauda AI Operator. The delivered component is updated to a newer version aligned with the community release, including component bug fixes.
 
-#### **vLLM-ascend Custom Runtime**
+#### **Alauda Build of Envoy AI Gateway**
 
-**vLLM-ascend** enables model serving on Huawei Ascend NPUs through a custom inference runtime. Administrators can register the `vLLM-ascend` runtime for Ascend-backed inference, and users can select it when deploying compatible large language models as inference services.
-
-#### **Image Based Model Catalog StorageClass Configuration**
-
-**Image Based Model Catalog** installation supports configurable persistent storage for catalog services. Administrators can reuse an existing PVC or create a new PVC, and specify the `StorageClass` used when new storage is provisioned.
+**Alauda Build of Envoy AI Gateway** is refactored from a cluster plugin to an operator-managed component so it can be managed by the Alauda AI Operator. The delivered component is updated to v0.4.2, a newer version aligned with the community release, including component bug fixes.
 
 ### **Deprecated Features**
 
-**Gitlab based Model Catalog** is deprecated. For built-in models and new model delivery workflows, use **Image Based Model Catalog** with OCI model artifacts instead.
+None.
 
 ### **Fixed Issues**
 
