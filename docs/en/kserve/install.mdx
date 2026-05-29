@@ -12,8 +12,8 @@ Before installing **Alauda Build of KServe**, you need to ensure the following d
 
 | Dependency | Type | Description |
 |------------|------|-------------|
-| Alauda build of Envoy Gateway <ExternalSiteLink name="acp" href="/networking/operators/envoy_gateway_operator.mdx" children="install_envoy_gateway_operator" /> | Operator | Provides the underlying gateway functionality for AI services |
-| [Alauda Build of Envoy AI Gateway](../../envoy_ai_gateway/install.mdx) | Cluster Plugin | Provides AI-specific gateway capabilities |
+| Alauda build of Envoy Gateway <ExternalSiteLink name="acp" href="/networking/operators/envoy_gateway_operator.mdx" children="install_envoy_gateway_operator" /> | Operator | Provides the underlying gateway functionality for AI services. **Only v1.5.x is supported; other versions do not match this KServe dependency.** |
+| [Alauda Build of Envoy AI Gateway](../../envoy_ai_gateway/install.mdx) | Operator | Provides AI-specific gateway capabilities |
 | [Alauda Build of LeaderWorkerSet](../../lws/install.mdx) | Cluster Plugin | Provides leader-worker set functionality for AI workloads |
 | GIE (gateway-api-inference-extension) | Built-in | Bundled with Alauda Build of KServe by default. If GIE is already installed in the cluster, the built-in installation can be disabled via the `gie.builtIn` parameter during operator configuration. |
 
