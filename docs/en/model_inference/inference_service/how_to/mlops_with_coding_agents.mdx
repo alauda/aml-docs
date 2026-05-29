@@ -1,0 +1,266 @@
+---
+weight: 18
+i18n:
+  title:
+    en: Run MLOps with Coding Agents and On-Premise LLMs
+    zh: 使用编码智能体与本地部署 LLM 开展 MLOps
+---
+
+# Run MLOps with Coding Agents and On-Premise LLMs
+
+## Introduction
+
+Once a coding agent is wired to a self-hosted model on Alauda AI (see [Use Coding Agents with On-Premise Inference Services](./coding_agents_with_inference_service.mdx)), the same agent can drive day-to-day MLOps on the platform. Because both the model and the operations target the same cluster, prompts, manifests, training data references, and benchmark results never leave your environment — which is what makes self-hosted agents attractive for regulated work.
+
+This document describes four workflows where a coding agent is most useful:
+
+- Authoring and managing `InferenceService` and `LLMInferenceService` resources.
+- Configuring the inference traffic gateway — authentication and rate limits via [Alauda Build of Envoy AI Gateway](../../../envoy_ai_gateway/intro.mdx).
+- Iteratively tuning an inference service's performance to fit specific hardware.
+- Planning fine-tuning runs and generating structured reports from their results.
+
+It assumes you are already running the agent and that it can reach an on-premise OpenAI-compatible endpoint with **tool calling** enabled. If not, start with the prerequisites doc above.
+
+:::warning
+A coding agent that can run `kubectl` against a real cluster can also delete things. Scope its kubeconfig to a single namespace, prefer `--dry-run=server` for any apply during exploration, and require a human review of every change before it lands in production. Treat the agent like a junior engineer with cluster access, not an autonomous operator.
+:::
+
+## Set up the agent's working environment \{#set-up-environment}
+
+Before delegating MLOps work, give the agent a small, reliable context to operate in. Three things are almost always worth doing once per project:
+
+1. **Scope cluster access.** Create a dedicated namespace (for example, `mlops-demo-ai-test` used in the platform samples) and a `ServiceAccount` / kubeconfig with permissions limited to the resources the agent should touch — typically `InferenceService`, `LLMInferenceService`, `TrainJob`, `TrainingRuntime`, `AIGatewayRoute`, `AIServiceBackend`, `BackendSecurityPolicy`, `SecurityPolicy`, `BackendTrafficPolicy`, and the secrets/configmaps they reference. Avoid cluster-wide write access.
+2. **Pin a default hardware profile.** Platform Hardware Profiles encode the GPU type, taints, tolerations, and node selectors for your fleet. Pick the right profile up front and tell the agent to use it — this prevents the agent from inventing affinity blocks. See [Hardware Profiles](../../../infrastructure_management/hardware_profile/intro.mdx).
+3. **Commit an agent context file.** Most coding agents read a project-level instructions file (for example, `AGENTS.md`, `CLAUDE.md`, or `opencode.md`). Use it to record the cluster name, target namespace, the on-prem model endpoint, naming conventions, "always run `kubectl apply --dry-run=server` first", and any internal links the agent should follow. Once this file exists, every subsequent prompt becomes shorter and more accurate.
+
+## Manage InferenceServices and LLMInferenceServices \{#manage-inference-services}
+
+The platform supports two related resources for serving models:
+
+- **`InferenceService`** (`serving.kserve.io/v1beta1`) — the standard KServe predictor used in [Create Inference Service using CLI](./create_inference_service_cli.mdx). Best for single-container model servers (vLLM, Triton, custom runtimes).
+- **`LLMInferenceService`** — KServe's higher-level LLM resource for multi-component LLM serving (orchestrating predictors, optional prefill/decode disaggregation, and gateway/inference-extension integration). It is recognized by platform features such as Hardware Profiles, which mention it alongside `InferenceService` (see [Hardware Profiles](../../../infrastructure_management/hardware_profile/intro.mdx)). Use it when a single-container `InferenceService` is no longer enough.
+
+A good agent loop for either resource is the same:
+
+```text
+draft YAML  →  kubectl apply --dry-run=server  →  apply  →  poll status  →  smoke test  →  iterate
+```
+
+Useful prompts to start from:
+
+- "Generate an `InferenceService` for model `Qwen2.5-Coder-7B-Instruct` using the `aml-vllm` runtime, hardware profile `single-a30-24g`, namespace `mlops-demo-ai-test`. Enable prefix caching and tool calling with the `hermes` parser. Run `kubectl apply --dry-run=server` and show me the diff against any existing object before applying."
+- "Convert this `InferenceService` to an `LLMInferenceService` for prefill/decode disaggregation; keep the same model, hardware profile, and served-model name. Show me what changes and why."
+- "List all `InferenceService` and `LLMInferenceService` objects in `mlops-demo-ai-test`, their `READY` status, and the model each one serves. Flag any that have been `NotReady` for more than 10 minutes and summarize the most recent predictor pod events."
+
+For the YAML fields and platform-specific labels/annotations the agent needs to reproduce, point it at [Create Inference Service using CLI](./create_inference_service_cli.mdx) as the canonical example. For exposing a new service externally, point it at [Configure External Access for Inference Services](./external_access_inference_service.mdx).
+
+## Manage gateways: authentication and rate limits \{#manage-gateways}
+
+Alauda Build of Envoy AI Gateway is a required dependency of Alauda Build of KServe and fronts inference traffic with an OpenAI-compatible API surface, AI-aware routing, and per-model policies (see [Envoy AI Gateway introduction](../../../envoy_ai_gateway/intro.mdx) and [installation](../../../envoy_ai_gateway/install.mdx)). The agent is well-suited to author its CRDs, which are otherwise verbose:
+
+| Concern | CRD / Resource | Where it comes from |
+|---|---|---|
+| Route requests to one or more model backends | `AIGatewayRoute`, `AIServiceBackend` | Envoy AI Gateway |
+| Authenticate the **client** (downstream): API key, JWT, OIDC | `SecurityPolicy` | Envoy Gateway |
+| Authenticate to the **upstream** model (when chaining to a hosted provider) | `BackendSecurityPolicy` | Envoy AI Gateway |
+| Per-route or per-model rate limiting and token-budget enforcement | `BackendTrafficPolicy` (global rate limit) or `AIGatewayRoute` token-rate-limit settings | Envoy Gateway / Envoy AI Gateway |
+| TLS termination, observability | Standard `Gateway` / `HTTPRoute` and Envoy Gateway features | Envoy Gateway |
+
+A practical agent workflow:
+
+1. **Tell the agent your intent in business terms.** For example: "Expose `qwen-2` and `llama-3-70b` behind one OpenAI-compatible endpoint at `https://ai.example.internal`. Require an `Authorization: Bearer` API key from a Kubernetes `Secret` named `ai-gateway-keys`. Limit each key to 60 requests/minute and 200k tokens/hour. Send `qwen-2` traffic to the `qwen-2` `InferenceService` in `mlops-demo-ai-test` and `llama-3-70b` to the `LLMInferenceService` of the same name."
+2. **Have the agent draft the CRDs** in a directory under your infra repo, one file per resource, with comments calling out each policy decision.
+3. **Validate before applying.** Ask the agent to run `kubectl apply --dry-run=server -f ./gateway/` and to summarize what would change. Apply only after you review.
+4. **Smoke-test the new policies.** Have the agent send a valid request, an unauthenticated request, and a request that exceeds the rate limit, and confirm the expected 200 / 401 / 429 responses. Capture the test as a small script alongside the manifests so future changes can be re-verified.
+
+For the exact field shape of each CRD, defer to the upstream documentation linked below — versions change, and the agent should read the live spec rather than inventing fields.
+
+## Tune service performance to fit your hardware \{#tune-performance}
+
+The list of vLLM and KServe knobs is unchanged from [Best practices: tune inference service performance](./coding_agents_with_inference_service.mdx#best-practices) — this section focuses on how an agent can *drive* that tuning instead of you doing it by hand.
+
+A productive loop:
+
+<Steps>
+
+### 1. Define service-level objectives
+
+Pin numbers before tuning. Tell the agent what "good enough" looks like:
+
+- Maximum first-token latency (TTFT) at the expected concurrency.
+- Maximum P95 inter-token latency or total response time for a representative prompt.
+- Minimum sustainable throughput (requests/min or tokens/sec).
+- Maximum context length the agent traffic will send.
+
+### 2. Generate a reproducible benchmark
+
+Ask the agent to write a small benchmark script that mirrors your real traffic — typical prompt size, system prompt, concurrency. Useful starting points include the built-in `vllm bench serve` command, `genai-perf`, or a `k6`/Python script that drives `/v1/chat/completions` directly. Have the agent run it against the current `InferenceService` and record the results in a markdown table.
+
+### 3. Have the agent propose one change at a time
+
+Give the agent the benchmark output and the current YAML. Ask for **one** change with an expected effect, for example:
+
+- "Add `--enable-prefix-caching` and re-run; expected: lower TTFT on the repeated system-prompt prefix."
+- "Switch the model from FP16 to AWQ INT4 and raise `--gpu-memory-utilization` to 0.92; expected: more KV cache headroom, larger sustainable context length."
+- "Increase `--max-num-seqs`; expected: higher throughput at the cost of higher P95 latency."
+
+One change per iteration keeps cause and effect attributable.
+
+### 4. Apply, measure, and record
+
+The agent updates the `InferenceService` YAML, applies it, waits for `READY`, re-runs the benchmark, and appends a new row to the results table with the configuration delta.
+
+### 5. Stop on SLO or hardware ceiling
+
+The loop ends when SLOs are met, or when the next sensible knob is "different hardware" or "different model" — at which point the agent should say so explicitly rather than churn. Common ceilings: KV cache saturated at the target context length, tensor-parallel scaling no longer linear, decode-bound at single-request latency.
+
+</Steps>
+
+For model-size vs. GPU-memory selection, see the table in the prior doc's [Choose a model that fits your hardware](./coding_agents_with_inference_service.mdx#best-practices) section. For autoscaling and cold-start trade-offs, see [Configure Scaling for Inference Services](./autoscale_settings.mdx). For interactive-latency wins, see [Speculative Decoding for vLLM Inference Services](./vllm_speculative_decoding.mdx).
+
+## Plan fine-tuning and generate reports \{#fine-tuning-plans-and-reports}
+
+Fine-tuning has two failure modes that coding agents are unusually good at preventing: skipping the planning step ("just run SFT") and skipping the reporting step ("the loss looked fine"). The agent's job is to make both explicit.
+
+### Pick the right tool for the job
+
+| Situation | Recommended tool | Reference |
+|---|---|---|
+| Interactive exploration, small dataset, one or two GPUs | Workbench Notebook | [Fine-tuning with Notebooks](../../../workbench/how_to/fine_tunning_using_notebooks.mdx) |
+| Production-grade SFT / OSFT with automatic memory management | Training Hub | [Fine-tuning LLMs with Training Hub](../../../workbench/how_to/training_hub_fine_tuning.mdx) |
+| Reusable templates, many runs, scheduled / batched on Kueue | Kubeflow Trainer v2 + LlamaFactory | [Fine-Tuning with Kubeflow Trainer v2](../../../kubeflow/how_to/fine-tune-with-trainer-v2.mdx) |
+| Already-tuned model needs to fit a smaller GPU before serving | LLM Compressor | [LLM Compressor with Alauda AI](../../../llm-compressor/how_to/compressor_by_workbench.mdx) |
+
+### A reusable fine-tuning plan template
+
+Have the agent fill in this template **before** any job is submitted, and commit the result alongside the training code. This separates "what we intend" from "what we ran," which is exactly the comparison the report needs later.
+
+```markdown
+# Fine-tuning plan: <run-id>
+
+## Objective
+- Business goal:
+- Success metric (what improves; how it's measured):
+- Acceptance threshold (minimum acceptable score on the metric):
+
+## Base model
+- Model and revision:
+- Why this base (capability, license, context window, tool-calling support):
+
+## Dataset
+- Source(s) and license:
+- Size (examples / tokens):
+- Format (e.g., JSONL chat messages):
+- Splits (train / eval / held-out):
+- Known biases or contamination risks:
+
+## Method
+- Approach (SFT / LoRA / QLoRA / OSFT / continued pre-train):
+- Justification vs. the alternatives:
+- Tool (Training Hub / Kubeflow Trainer v2 / Notebook / LlamaFactory):
+
+## Compute budget
+- Hardware (GPU type, count, hours):
+- Hardware Profile to use:
+- Estimated cost / wall-clock:
+
+## Hyperparameters
+- Effective batch size, max_tokens_per_gpu, lr, epochs, scheduler, seed:
+- Checkpoint cadence and retention:
+
+## Evaluation plan
+- Benchmarks (public + internal):
+- Eval harness and seed:
+- Comparison baselines (the base model, prior runs):
+
+## Risks and rollback
+- What could go wrong (catastrophic forgetting, tool-calling regression, license conflict):
+- How we'll detect it:
+- Rollback (which model artifact to revert to):
+```
+
+Useful prompt: "Read `plan.md`. Draft a Kubeflow Trainer v2 `TrainingRuntime` and `TrainJob` (or a Training Hub notebook) that implements exactly this plan in namespace `mlops-demo-ai-test`. Highlight any field where the plan is ambiguous and ask me before guessing."
+
+### A reusable fine-tuning report template
+
+After the job finishes, ask the agent to ingest the training logs, eval outputs, and resource metrics, and fill in this report. Commit it next to the plan.
+
+```markdown
+# Fine-tuning report: <run-id>
+
+## Provenance
+- Plan: link to plan.md and its commit SHA
+- TrainJob / Notebook: name, namespace, start/end time
+- Hardware actually used (vs. planned):
+- Model artifact location (PVC / model repo path / OCI image):
+
+## Training summary
+- Steps / epochs completed:
+- Final training loss; loss trend (link to TensorBoard / MLflow run):
+- Throughput (tokens/sec, samples/sec):
+- Wall-clock and GPU-hours:
+- Anomalies (loss spikes, restarts, OOMs):
+
+## Evaluation results
+- Headline metric vs. baseline and acceptance threshold:
+- Per-benchmark scores table (this run, base model, prior best):
+- Tool-calling sanity check (pass/fail with example):
+- Qualitative samples (3–5 prompts; this run vs. base, side by side):
+
+## Cost
+- GPU-hours, $ (if applicable), $/percentage-point of improvement:
+
+## Decision
+- Promote / re-run / abandon:
+- If promote: which `InferenceService` to update and how (image, storageUri, runtime flags):
+- If re-run: what to change in the next plan.md:
+
+## Next actions
+- Owner / date:
+```
+
+Useful prompt: "Generate `report.md` for TrainJob `qwen-coder-sft-2026-05-29` in `mlops-demo-ai-test`. Pull metrics from MLflow run `<id>`, training logs from the pod, and eval results from `s3://aml-evals/<run-id>/`. Compare against the previous run `qwen-coder-sft-2026-05-15`. If any section can't be filled in from the available data, mark it `TODO` rather than fabricating numbers."
+
+For experiment tracking and run metadata, [MLflow on Kubeflow](../../../kubeflow/how_to/mlflow.mdx) is the platform-native option; tell the agent to log there from inside the training code so the report has a real source of truth.
+
+## A daily MLOps loop \{#daily-loop}
+
+A useful end-to-end sequence the agent can drive, given the setup above:
+
+1. **Triage.** "List inference services in my namespace, surface anything `NotReady` or scaled to zero unexpectedly, summarize recent gateway 4xx/5xx rates."
+2. **Tune.** "P95 on `qwen-2` is over budget. Propose one change, apply, re-benchmark, report."
+3. **Update.** "There's a new model artifact for `qwen-coder-sft-2026-05-29`. Draft the YAML to swap it into the `qwen-2` `InferenceService`, gate the rollout to one replica first, and write the smoke test."
+4. **Plan.** "Draft a fine-tuning plan to fix the tool-calling regression we saw in last week's eval. Justify the method choice."
+5. **Report.** "Last night's job finished. Generate the report and tell me whether to promote."
+
+Each step is a separate prompt with its own diff to review. The agent is the typist; you are still the engineer of record.
+
+## Best practices and guardrails \{#best-practices-and-guardrails}
+
+- **Read-only first, write second.** Start every new task by asking the agent to read state (`get`, `describe`, logs, metrics) and *describe what it would do* before making changes.
+- **Always `--dry-run=server`.** Make it a standing rule in the agent context file; mention it in every prompt that involves `kubectl apply`.
+- **One change per iteration.** Especially for performance tuning, mixing two changes hides which one helped.
+- **Never let the agent fabricate metrics.** Require it to cite the file, log, or run ID it pulled each number from, and to mark `TODO` when data is missing.
+- **Keep the loop on-prem.** Confirm that no fallback model in any agent config points at a hosted provider (see [Connect your coding agent](./coding_agents_with_inference_service.mdx) for the per-agent settings to check).
+- **Commit everything.** Plans, reports, generated YAML, and benchmark scripts all go into Git so the next person — or the next agent — can pick up where you left off.
+
+## References
+
+- [Use Coding Agents with On-Premise Inference Services](./coding_agents_with_inference_service.mdx)
+- [Create Inference Service using CLI](./create_inference_service_cli.mdx)
+- [Configure External Access for Inference Services](./external_access_inference_service.mdx)
+- [Configure Scaling for Inference Services](./autoscale_settings.mdx)
+- [Speculative Decoding for vLLM Inference Services](./vllm_speculative_decoding.mdx)
+- [Extend Inference Runtimes](./custom_inference_runtime.mdx)
+- [Envoy AI Gateway — introduction](../../../envoy_ai_gateway/intro.mdx)
+- [Install Envoy AI Gateway](../../../envoy_ai_gateway/install.mdx)
+- [Hardware Profiles](../../../infrastructure_management/hardware_profile/intro.mdx)
+- [Fine-Tuning with Kubeflow Trainer v2](../../../kubeflow/how_to/fine-tune-with-trainer-v2.mdx)
+- [Fine-tuning LLMs with Training Hub](../../../workbench/how_to/training_hub_fine_tuning.mdx)
+- [Fine-tuning with Notebooks](../../../workbench/how_to/fine_tunning_using_notebooks.mdx)
+- [LLM Compressor with Alauda AI](../../../llm-compressor/how_to/compressor_by_workbench.mdx)
+- [MLflow on Kubeflow](../../../kubeflow/how_to/mlflow.mdx)
+- [Envoy AI Gateway upstream documentation](https://aigateway.envoyproxy.io/)
+- [Envoy Gateway upstream documentation](https://gateway.envoyproxy.io/)
+- [KServe LLMInferenceService](https://kserve.github.io/website/)
+- [vLLM benchmarking](https://docs.vllm.ai/en/latest/serving/usage_stats.html)
