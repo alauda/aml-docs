@@ -132,22 +132,44 @@ wire_api = "chat"
 
 ### Claude Code \{#claude-code}
 
-Claude Code communicates over the Anthropic Messages API (`/v1/messages`), which vLLM does not serve. Run a small gateway that accepts Anthropic-format requests and forwards them to your OpenAI-compatible endpoint. Two common options:
+Claude Code communicates over the Anthropic Messages API (`/v1/messages`). There are two ways to back it with an on-premise model — pick the one that matches your runtime.
+
+#### Option A: point Claude Code directly at the on-premise endpoint
+
+If the on-premise endpoint already speaks the Anthropic Messages API — either natively (for example, some `llama.cpp` `llama-server` builds and similar local runners) or because you front your `InferenceService` with a gateway that exposes `/v1/messages` — you can configure Claude Code with environment variables alone, no separate proxy needed:
+
+```bash
+export ANTHROPIC_BASE_URL="http://127.0.0.1:9123"      # on-premise endpoint speaking the Anthropic Messages API
+export ANTHROPIC_AUTH_TOKEN="not_set"                  # any value; the endpoint may ignore it
+export ANTHROPIC_API_KEY="not_set_either!"             # any value; both vars are checked
+export ANTHROPIC_MODEL="qwen-2"                        # must match what the endpoint exposes (e.g. served-model-name)
+
+# Keep traffic on-premise and trim features the on-prem model can't honor:
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1      # suppress optional traffic to Anthropic-hosted services
+export CLAUDE_CODE_ATTRIBUTION_HEADER=0                # drop the Anthropic attribution header
+export CLAUDE_CODE_ENABLE_TELEMETRY=0                  # disable telemetry
+export CLAUDE_CODE_DISABLE_1M_CONTEXT=1                # disable the 1M-context feature; most on-prem models can't serve it
+export CLAUDE_CODE_MAX_OUTPUT_TOKENS=64000             # cap to what the on-prem model and runtime support
+
+claude
+```
+
+A few notes on the values:
+
+- The `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_API_KEY` values must be non-empty but their content does not matter if your endpoint does not check them; gate access at the endpoint or in front of it (see [Manage gateways](./mlops_with_coding_agents.mdx#manage-gateways) for adding auth via Envoy AI Gateway).
+- `ANTHROPIC_MODEL` must match the model name the endpoint exposes (the `--served-model-name` from your `InferenceService`, or whatever your local runner advertises).
+- The `CLAUDE_CODE_DISABLE_*` and `CLAUDE_CODE_*=0` flags are what actually keep an "on-prem" setup on-prem: without them, Claude Code can still emit non-essential requests to Anthropic-hosted endpoints and ask the model for features (1M context, very large outputs) the on-prem model cannot honor.
+
+#### Option B: front an OpenAI-compatible endpoint with a translation proxy
+
+If your endpoint is OpenAI-compatible only (for example, a stock vLLM `InferenceService` exposing `/v1/chat/completions` but not `/v1/messages`), run a small gateway that accepts Anthropic-format requests and forwards them. Two common options:
 
 - [LiteLLM](https://docs.litellm.ai/) proxy, which exposes an Anthropic-compatible `/v1/messages` endpoint and routes to any backend model.
 - [claude-code-router](https://github.com/musistudio/claude-code-router), a proxy built specifically to point Claude Code at OpenAI-compatible and other backends.
 
-Once the gateway is running, point Claude Code at it with environment variables:
+Then use the same env-var configuration from Option A, with `ANTHROPIC_BASE_URL` pointing at the proxy and `ANTHROPIC_MODEL` set to the model alias the proxy exposes. Optionally also set `ANTHROPIC_SMALL_FAST_MODEL` to an on-prem model so background/low-cost requests stay on-prem too.
 
-```bash
-export ANTHROPIC_BASE_URL="http://localhost:4000"   # the Anthropic-compatible gateway
-export ANTHROPIC_AUTH_TOKEN="sk-local"              # token the gateway expects
-export ANTHROPIC_MODEL="qwen-2"                     # main model (maps to your InferenceService)
-export ANTHROPIC_SMALL_FAST_MODEL="qwen-2"          # background/low-cost model
-claude
-```
-
-Map both the main model and the small/fast model to on-premise models so that no request silently falls back to a hosted provider. Agentic quality with Claude Code depends heavily on the served model's tool-calling fidelity; prefer a strong instruction- and tool-tuned model, and confirm tool calls round-trip through the gateway.
+Regardless of which option you pick, Claude Code's agentic quality depends heavily on the served model's tool-calling fidelity — prefer a strong instruction- and tool-tuned model, and confirm tool calls round-trip end-to-end before relying on it.
 
 ## Best practices \{#best-practices}
 
