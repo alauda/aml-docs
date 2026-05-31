@@ -364,9 +364,9 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/installation/pre-configuration.mdx": {
-      "sha256": "1e68d549c85406d86e2b4d9cfb15b714fce2e43b346c8b1d6e354ecaa7376364",
-      "size": 9896,
-      "description": "Pre-install configuration for Alauda AI: provisions the (deprecated but still supported) GitLab service used by Model Management — version 15+ with HTTPS, Git LFS enabled, self-hosted, and access-token expiration disabled — and walks through generating an admin impersonation token with full `api` scope, then creating the `aml-gitlab-admin-token` secret under the `cpaas-system` namespace. Also covers preparing an Alauda Build of Harbor registry for Model Catalog (HTTPS production mode with anonymous pull) and tuning nginx ingress annotations such as `proxy-body-size: \"0\"` on `GitLabOfficial` CR to fix HTTP 413 errors when pushing large LFS objects to GitLab 18.5+.",
+      "sha256": "5cf03034ffdefc30fc232a07c3360160bcad77e8216c5dbb98c48931e3d6c4a2",
+      "size": 10014,
+      "description": "Pre-install configuration for Alauda AI: provisions the (deprecated but still supported) GitLab service used by Model Management — version 15+ with HTTPS, Git LFS enabled, self-hosted, and access-token expiration disabled — and walks through generating an admin impersonation token with full `api` scope, then creating the `aml-gitlab-admin-token` secret under the `cpaas-system` namespace. Also covers preparing an Alauda Build of Harbor registry for Model Catalog (HTTPS production mode with anonymous pull) and configuring `spec.helmValues.gitlab.webservice.ingress.proxyBodySize: \"0\"` plus related nginx ingress annotations on `GitLabOfficial` CR to fix HTTP 413 errors when pushing large LFS objects to GitLab 18.5+.",
       "generation_method": "ai_agent_reading",
       "updated_at": "2026-05-16T10:39:46Z"
     },
