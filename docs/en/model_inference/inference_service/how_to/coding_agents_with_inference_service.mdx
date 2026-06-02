@@ -1,0 +1,251 @@
+---
+weight: 17
+i18n:
+  title:
+    en: Use Coding Agents with On-Premise Inference Services
+    zh: 将编码智能体与本地部署的推理服务结合使用
+---
+
+# Use Coding Agents with On-Premise Inference Services
+
+## Introduction
+
+Coding agents such as [opencode](https://opencode.ai/), [Codex CLI](https://github.com/openai/codex), and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) are terminal-based assistants that read your repository, plan changes, edit files, and run commands on your behalf. They normally talk to a hosted model provider over the internet.
+
+This document shows how to point those agents at a model you serve yourself on Alauda AI, so that your source code, prompts, and infrastructure configuration never leave your cluster. The same on-premise `InferenceService` that you deploy for any other workload can back an interactive coding agent, as long as it exposes an **OpenAI-compatible API** and has **tool (function) calling** enabled.
+
+This page builds directly on the deployment how-tos. It does not repeat how to create or expose an `InferenceService`; instead it links to them and focuses on the agent-specific configuration and tuning.
+
+:::warning
+Coding agents and their configuration formats evolve quickly. The config snippets below are correct starting points for the versions available at the time of writing. Always confirm field names against the current upstream documentation of the agent you use.
+:::
+
+## Prerequisites
+
+- A running, ready `InferenceService` that serves an OpenAI-compatible API. See [Create Inference Service using CLI](./create_inference_service_cli.mdx).
+- Network access from the machine running the agent to the service endpoint. For access from a developer laptop outside the cluster, see [Configure External Access for Inference Services](./external_access_inference_service.mdx).
+- A model with **tool/function calling** support, served with the matching vLLM parser enabled (see [Enable tool calling on the runtime](#enable-tool-calling-on-the-runtime)). Without this, agents can chat but cannot edit files or run commands.
+- The agent CLI installed locally (`opencode`, `codex`, or `claude`).
+
+## How the pieces fit together
+
+```text
+  Coding agent (opencode / Codex / Claude Code)
+        │  OpenAI-compatible HTTP  (POST /v1/chat/completions)
+        ▼
+  External access / Load Balancer  ──►  KServe InferenceService (vLLM)
+        ▲                                       │
+        └──── Anthropic→OpenAI proxy ───────────┘
+             (only required for Claude Code)
+```
+
+- **opencode** and **Codex CLI** speak the OpenAI Chat Completions API natively, so they can call the `InferenceService` endpoint directly.
+- **Claude Code** speaks the Anthropic Messages API, which vLLM does not serve. It requires a small translation proxy in front of the OpenAI-compatible endpoint (see [Claude Code](#claude-code)).
+
+## Step 1: Deploy and smoke-test the endpoint
+
+Deploy your model as an `InferenceService` following [Create Inference Service using CLI](./create_inference_service_cli.mdx), and if the agent runs outside the cluster, expose it following [Configure External Access for Inference Services](./external_access_inference_service.mdx).
+
+Before wiring up any agent, confirm the endpoint answers a chat request. Coding agents fail in confusing ways if the base URL, model name, or auth is wrong, so validate with `curl` first:
+
+```bash
+# BASE_URL must end at /v1
+BASE_URL="https://your-inference-service-domain.com/v1"
+MODEL="qwen-2"        # must match --served-model-name in the InferenceService
+API_KEY="sk-local"    # any non-empty value if the server does not enforce auth
+
+curl -sS ${BASE_URL}/chat/completions \
+  -H "Authorization: Bearer ${API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "'"${MODEL}"'",
+    "messages": [{"role": "user", "content": "Reply with the single word: ready"}],
+    "max_tokens": 16
+  }'
+```
+
+A normal JSON completion confirms the endpoint is reachable and the model name is correct. Note the three values you will reuse for every agent: **base URL** (ending in `/v1`), **model name** (the `--served-model-name`), and **API key**.
+
+## Step 2: Enable tool calling on the runtime \{#enable-tool-calling-on-the-runtime}
+
+Coding agents work by calling tools (read file, write file, run shell). This requires the model to emit tool calls **and** vLLM to parse them. Add the following flags to the vLLM launch command in your `InferenceService` (in the sample from [Create Inference Service using CLI](./create_inference_service_cli.mdx), they go on the `python3 -m vllm.entrypoints.openai.api_server` line):
+
+```bash
+--enable-auto-tool-choice \
+--tool-call-parser hermes        # match the parser to your model family
+```
+
+- The parser must match the model. For example, Qwen2.5 / Qwen3 family models commonly use `hermes`; Llama 3.x models use `llama3_json`; Mistral models use `mistral`. Check the [vLLM tool calling documentation](https://docs.vllm.ai/en/latest/features/tool_calling.html) for the current parser list and the value that matches your model.
+- Some models need a specific chat template to emit tool calls correctly; pass `--chat-template` if the model card calls for it.
+- If you serve a reasoning model, also enable the matching `--reasoning-parser` so the agent receives clean assistant content separated from reasoning traces.
+
+Verify tool calling end-to-end by asking the agent to perform a trivial file operation (for example, "create `hello.txt` containing the word hi"). If the model replies in prose instead of editing the file, tool calling is not wired up correctly — recheck the parser and model.
+
+## Step 3: Connect your coding agent
+
+### opencode
+
+opencode reads configuration from `opencode.json` in the project root or `~/.config/opencode/opencode.json`. Define a custom OpenAI-compatible provider that points at your endpoint:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "onprem": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "On-Prem Alauda AI",
+      "options": {
+        "baseURL": "https://your-inference-service-domain.com/v1",
+        "apiKey": "{env:ONPREM_API_KEY}"
+      },
+      "models": {
+        "qwen-2": {
+          "name": "Qwen2.5-Coder (on-prem)"
+        }
+      }
+    }
+  }
+}
+```
+
+- The model key (`qwen-2`) must match the `--served-model-name` of the `InferenceService`.
+- Export the key the config references, then select the model: `export ONPREM_API_KEY=sk-local` and choose `onprem/qwen-2` with the `/models` command inside opencode.
+
+### Codex CLI
+
+Codex CLI reads `~/.codex/config.toml`. Register your endpoint as a model provider and select it:
+
+```toml
+model = "qwen-2"
+model_provider = "onprem"
+
+[model_providers.onprem]
+name = "On-Prem Alauda AI"
+base_url = "https://your-inference-service-domain.com/v1"
+env_key = "ONPREM_API_KEY"
+wire_api = "chat"
+```
+
+- `base_url` must end at `/v1`; `model` must match the `--served-model-name`.
+- `env_key` names the environment variable that holds the API key: `export ONPREM_API_KEY=sk-local`.
+- Use `wire_api = "chat"` for vLLM's OpenAI Chat Completions API.
+
+### Claude Code \{#claude-code}
+
+Claude Code communicates over the Anthropic Messages API (`/v1/messages`). There are two ways to back it with an on-premise model — pick the one that matches your runtime.
+
+#### Option A: point Claude Code directly at the on-premise endpoint
+
+If the on-premise endpoint already speaks the Anthropic Messages API — either natively (for example, some `llama.cpp` `llama-server` builds and similar local runners) or because you front your `InferenceService` with a gateway that exposes `/v1/messages` — you can configure Claude Code with environment variables alone, no separate proxy needed:
+
+```bash
+export ANTHROPIC_BASE_URL="http://127.0.0.1:9123"      # on-premise endpoint speaking the Anthropic Messages API
+export ANTHROPIC_AUTH_TOKEN="not_set"                  # any value; the endpoint may ignore it
+export ANTHROPIC_API_KEY="not_set_either!"             # any value; both vars are checked
+export ANTHROPIC_MODEL="qwen-2"                        # must match what the endpoint exposes (e.g. served-model-name)
+
+# Keep traffic on-premise and trim features the on-prem model can't honor:
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1      # suppress optional traffic to Anthropic-hosted services
+export CLAUDE_CODE_ATTRIBUTION_HEADER=0                # drop the Anthropic attribution header
+export CLAUDE_CODE_ENABLE_TELEMETRY=0                  # disable telemetry
+export CLAUDE_CODE_DISABLE_1M_CONTEXT=1                # disable the 1M-context feature; most on-prem models can't serve it
+export CLAUDE_CODE_MAX_OUTPUT_TOKENS=64000             # cap to what the on-prem model and runtime support
+
+claude
+```
+
+A few notes on the values:
+
+- The `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_API_KEY` values must be non-empty but their content does not matter if your endpoint does not check them; gate access at the endpoint or in front of it (see [Manage gateways](./mlops_with_coding_agents.mdx#manage-gateways) for adding auth via Envoy AI Gateway).
+- `ANTHROPIC_MODEL` must match the model name the endpoint exposes (the `--served-model-name` from your `InferenceService`, or whatever your local runner advertises).
+- The `CLAUDE_CODE_DISABLE_*` and `CLAUDE_CODE_*=0` flags are what actually keep an "on-prem" setup on-prem: without them, Claude Code can still emit non-essential requests to Anthropic-hosted endpoints and ask the model for features (1M context, very large outputs) the on-prem model cannot honor.
+
+#### Option B: front an OpenAI-compatible endpoint with a translation proxy
+
+If your endpoint is OpenAI-compatible only (for example, a stock vLLM `InferenceService` exposing `/v1/chat/completions` but not `/v1/messages`), run a small gateway that accepts Anthropic-format requests and forwards them. Two common options:
+
+- [LiteLLM](https://docs.litellm.ai/) proxy, which exposes an Anthropic-compatible `/v1/messages` endpoint and routes to any backend model.
+- [claude-code-router](https://github.com/musistudio/claude-code-router), a proxy built specifically to point Claude Code at OpenAI-compatible and other backends.
+
+Then use the same env-var configuration from Option A, with `ANTHROPIC_BASE_URL` pointing at the proxy and `ANTHROPIC_MODEL` set to the model alias the proxy exposes. Optionally also set `ANTHROPIC_SMALL_FAST_MODEL` to an on-prem model so background/low-cost requests stay on-prem too.
+
+Regardless of which option you pick, Claude Code's agentic quality depends heavily on the served model's tool-calling fidelity — prefer a strong instruction- and tool-tuned model, and confirm tool calls round-trip end-to-end before relying on it.
+
+## Best practices \{#best-practices}
+
+### Choose a model that fits your hardware
+
+Start from the GPU memory you have, then pick the largest capable model that leaves headroom for the KV cache. A rough weight-size estimate is `parameters × bytes-per-parameter` — FP16 ≈ 2 bytes, FP8/INT8 ≈ 1 byte, INT4 ≈ 0.5 bytes per parameter — on top of which the KV cache and runtime overhead consume more memory. Leave **15–25% headroom**.
+
+| GPU memory (single GPU) | Example GPUs | Practical coding-model choices |
+| --- | --- | --- |
+| 16–24 GB | L4, A10, A30 (24G), RTX 4090 | 7–8B at FP16, or 14B quantized (AWQ/GPTQ INT4) |
+| 40–48 GB | A40, L40S, A6000, A100-40G | 14B at FP16, or 32B quantized (AWQ/GPTQ INT4) |
+| 80 GB | A100-80G, H100, H800 | 32B at FP16, or 70B at INT4 / FP8 |
+| Multi-GPU (2–8×) | 2–8 × 80 GB | 70B+ at FP16 with tensor parallel, or large MoE models |
+
+Additional selection guidance:
+
+- **Prefer code-specialized, instruction-tuned models** that natively support tool/function calling. If the model card does not mention tool calling, the agent will not be able to edit files reliably.
+- **Confirm a matching vLLM parser exists** for the model (see [Enable tool calling on the runtime](#enable-tool-calling-on-the-runtime)) before committing to it.
+- **Budget for context length.** Coding agents send large prompts (system prompt + file and repo context). Pick a model whose context window covers your largest expected prompt, and remember that a longer `--max-model-len` consumes more KV cache per request, reducing concurrency.
+- **Quantization is a force multiplier on-premise.** INT4 (AWQ/GPTQ) or FP8 lets you fit a noticeably more capable model in the same VRAM, which usually matters more for agent quality than raw FP16 precision.
+
+### Tune inference service performance
+
+Coding-agent traffic has a distinctive shape: long, highly repetitive prompts (the same system prompt and repo context resent every turn), bursts of short interactive requests, and sensitivity to first-token latency. Tune for it:
+
+- **Enable prefix caching** (`--enable-prefix-caching`). This is the single highest-impact flag for coding agents: the shared prompt prefix is reused across turns instead of being recomputed, cutting prefill cost and latency dramatically. See [Automatic Prefix Caching — vLLM](https://docs.vllm.ai/en/latest/features/automatic_prefix_caching.html).
+- **Raise `--gpu-memory-utilization`** toward `0.90–0.95` to enlarge the KV cache, which increases concurrency and the context length you can sustain.
+- **Right-size `--max-model-len`.** Set it to the largest context the agent actually needs, not the model's theoretical maximum — every extra token of capacity costs KV-cache memory.
+- **Enable chunked prefill** (`--enable-chunked-prefill`) when long prompts cause latency spikes under concurrency, so decode steps are not starved by a large prefill. Note the [CLI sample](./create_inference_service_cli.mdx) disables it by default.
+- **Allow CUDA graphs** for steady-state latency: the CLI sample sets `ENFORCE_EAGER=True` (eager mode, which starts faster but runs slower). Once the service is stable, switch to non-eager to capture CUDA graphs, at the cost of longer startup.
+- **Tune batching** with `--max-num-seqs` and `--max-num-batched-tokens` to balance throughput against per-request latency for your concurrency level.
+- **Use FP8 KV cache** (`--kv-cache-dtype fp8`) to stretch context length and concurrency when memory is tight.
+- **Shard large models** across GPUs with `--tensor-parallel-size` when a model does not fit on one card.
+- **Consider speculative decoding** for lower interactive latency on agent loops — see [Speculative Decoding for vLLM Inference Services](./vllm_speculative_decoding.mdx).
+- **Mind autoscaling and cold starts.** For interactive single-user agent use, keep `minReplicas: 1` — scaling from zero adds a multi-minute cold start that is painful mid-task. For bursty multi-developer usage, configure autoscaling deliberately; see [Configure Scaling for Inference Services](./autoscale_settings.mdx) and [Set Up Autoscaling for Inference Services with KEDA](./keda_autoscaling.mdx).
+- **Allow long requests.** Agent turns can be long-running; size the Knative `serving.knative.dev/progress-deadline` annotation and your client timeouts accordingly. If requests are cut off, see [Inference timeout troubleshooting](../trouble_shooting/infer_timeout.mdx).
+
+### Getting started with vibe coding
+
+"Vibe coding" — iterating quickly by describing intent and letting the agent write the code — works well with a self-hosted model once the basics are right:
+
+1. Start with a 7–14B code model that fits comfortably on your GPU with headroom; a responsive smaller model beats a sluggish larger one for interactive flow.
+2. Set a **low temperature** (around `0–0.2`) for code generation to keep edits deterministic and reduce flailing.
+3. Validate tool calling with one trivial task ("create a file and run it") before attempting anything real.
+4. Keep prompts focused — open or reference only the relevant files so the agent's context stays on-topic and prefill stays cheap.
+5. Work in small, reviewable steps and read each diff before accepting it. Commit often so you can roll back a bad suggestion cleanly.
+
+### Getting started with MLOps
+
+Because the model runs inside your cluster, a coding agent backed by an on-premise `InferenceService` is a good fit for operating the platform itself — your manifests, configs, and proprietary code never leave the environment, which matters in regulated settings. Productive starting tasks:
+
+- Generate or modify `InferenceService` YAML — for example, "write an `InferenceService` for model X targeting a 24 GB GPU with prefix caching and tool calling enabled."
+- Add autoscaling, scheduling, or resource configuration — KEDA/KPA autoscaling, CUDA-version-aware scheduling, or Kueue/Volcano queueing.
+- Author and adjust pipelines and monitoring for your model lifecycle.
+- Close the loop: deploy a model with the agent, then use that same on-premise model to drive further platform operations.
+
+## Troubleshooting
+
+- **Agent chats but never edits files or runs commands.** Tool calling is not enabled or the parser does not match the model — see [Enable tool calling on the runtime](#enable-tool-calling-on-the-runtime).
+- **`model not found` / 404.** The model name in the agent config does not match the `--served-model-name`, or the base URL does not end in `/v1`.
+- **401 / 403.** The agent is sending the wrong (or no) API key for what the endpoint or gateway expects.
+- **Requests time out on long tasks.** Increase the Knative `progress-deadline` annotation and the client timeout — see [Inference timeout troubleshooting](../trouble_shooting/infer_timeout.mdx).
+- **First request after idle is very slow.** The service scaled to zero and is cold-starting; set `minReplicas: 1` for interactive use.
+
+## References
+
+- [Create Inference Service using CLI](./create_inference_service_cli.mdx)
+- [Configure External Access for Inference Services](./external_access_inference_service.mdx)
+- [Configure Scaling for Inference Services](./autoscale_settings.mdx)
+- [Set Up Autoscaling for Inference Services with KEDA](./keda_autoscaling.mdx)
+- [Speculative Decoding for vLLM Inference Services](./vllm_speculative_decoding.mdx)
+- [Extend Inference Runtimes](./custom_inference_runtime.mdx)
+- [Tool Calling — vLLM](https://docs.vllm.ai/en/latest/features/tool_calling.html)
+- [Automatic Prefix Caching — vLLM](https://docs.vllm.ai/en/latest/features/automatic_prefix_caching.html)
+- [opencode documentation](https://opencode.ai/docs/)
+- [Codex CLI](https://github.com/openai/codex)
+- [Claude Code documentation](https://docs.anthropic.com/en/docs/claude-code)
+- [LiteLLM](https://docs.litellm.ai/)
+- [claude-code-router](https://github.com/musistudio/claude-code-router)
