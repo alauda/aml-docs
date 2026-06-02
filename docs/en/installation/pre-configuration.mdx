@@ -129,11 +129,16 @@ error: failed to push some refs to 'https://gitlab-18-5-aml.alaudatech.net/mlops
 ```
 
 **Solution:**
-To handle large file uploads and improve overall performance, configure the GitLab webservice ingress body size through `spec.helmValues.gitlab.webservice.ingress.proxyBodySize`, and configure the remaining Nginx Ingress behavior through annotations on your GitLab service.
+To handle large file uploads and improve overall performance, configure the GitLab webservice ingress body size and read timeout through `spec.helmValues.gitlab.webservice.ingress`, and configure the remaining Nginx Ingress behavior through annotations on your GitLab service.
 
-#### **Webservice Ingress Body Size**
+#### **Webservice Ingress Settings**
 
-Set `spec.helmValues.gitlab.webservice.ingress.proxyBodySize` to `"0"` to disable the client request body size limit and allow large AI model uploads through Git LFS.
+Configure the following fields under `spec.helmValues.gitlab.webservice.ingress`:
+
+| Field | Recommended Value | Description |
+|-------|-------------------|-------------|
+| `proxyBodySize` | `"0"` | Disables the client request body size limit, allowing large AI model uploads through Git LFS. |
+| `proxyReadTimeout` | `"3600"` | Increases the timeout (in seconds) for reading a response from the proxied server to 1 hour, preventing timeouts during long-running operations. |
 
 #### **Ingress Annotation Parameters**
 
@@ -142,7 +147,6 @@ Below is a list of recommended Ingress annotations and their functionality:
 | Parameter | Recommended Value | Description |
 |-----------|-------------------|-------------|
 | `nginx.ingress.kubernetes.io/proxy-buffering` | `"off"`| Disables proxy buffering, improving response times for large requests and allowing data to stream directly to the client/server. |
-| `nginx.ingress.kubernetes.io/proxy-read-timeout` | `"3600"` | Increases the timeout (in seconds) for reading a response from the proxied server to 1 hour, preventing timeouts during long-running operations. |
 | `nginx.ingress.kubernetes.io/proxy-request-buffering`| `"off"`  | Disables buffering of the client request body, passing data directly to the upstream server to reduce memory usage on the ingress controller. |
 | `nginx.ingress.kubernetes.io/proxy-send-timeout` | `"3600"` | Increases the timeout (in seconds) for transmitting a request to the proxied server to 1 hour, supporting prolonged uploads. |
 
@@ -152,7 +156,7 @@ You can apply these optimizations by updating the `GitLabOfficial` Custom Resour
 
 **1. Apply via `kubectl patch` command**
 
-Use the following command to directly update the GitLab webservice ingress body size and ingress annotations in your GitLabOfficial CR:
+Use the following command to directly update the GitLab webservice ingress settings and ingress annotations in your GitLabOfficial CR:
 
 ```bash
 # [!code highlight]
@@ -164,7 +168,8 @@ kubectl patch gitlabofficial your-instance-name -n your-instance-namespace --typ
       "gitlab": {
         "webservice": {
           "ingress": {
-            "proxyBodySize": "0"
+            "proxyBodySize": "0",
+            "proxyReadTimeout": "3600"
           }
         }
       },
@@ -172,7 +177,6 @@ kubectl patch gitlabofficial your-instance-name -n your-instance-namespace --typ
         "ingress": {
           "annotations": {
             "nginx.ingress.kubernetes.io/proxy-buffering": "off",
-            "nginx.ingress.kubernetes.io/proxy-read-timeout": "3600",
             "nginx.ingress.kubernetes.io/proxy-request-buffering": "off",
             "nginx.ingress.kubernetes.io/proxy-send-timeout": "3600"
           }
@@ -208,11 +212,11 @@ spec:
       webservice:
         ingress:
           proxyBodySize: "0"
+          proxyReadTimeout: "3600"
     global:
       ingress:
         annotations:
           nginx.ingress.kubernetes.io/proxy-buffering: "off"
-          nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
           nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
           nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 ```
