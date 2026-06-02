@@ -1,0 +1,70 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainingRuntime
+metadata:
+  name: traininghub0.1-cu126-amd64
+  namespace: kubeflow-admin-cpaas-io
+  labels:
+    trainer.kubeflow.org/framework: torch
+    alauda.io/training-runtime: traininghub0.1-cu126-amd64
+spec:
+  mlPolicy:
+    numNodes: 1
+    torch:
+      numProcPerNode: auto
+  template:
+    spec:
+      replicatedJobs:
+        - name: node
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              backoffLimit: 0
+              template:
+                spec:
+                  securityContext:
+                    runAsNonRoot: true
+                    runAsUser: 1000
+                    runAsGroup: 1000
+                    fsGroup: 1000
+                  containers:
+                    - name: node
+                      image: docker.io/alaudadockerhub/traininghub0.1-cu126-amd64:v0.1.0
+                      command:
+                        - python
+                        - -c
+                        - |
+                          import torch, trl, peft, bitsandbytes, deepspeed
+                          print(f"torch={torch.__version__} cuda={torch.cuda.is_available()}")
+                          print(f"trl={trl.__version__} peft={peft.__version__} bnb={bitsandbytes.__version__} deepspeed={deepspeed.__version__}")
+                          if torch.cuda.is_available():
+                              from peft import LoraConfig
+                              cfg = LoraConfig(r=4, lora_alpha=8, lora_dropout=0.05, target_modules=["q_proj","v_proj"])
+                              print("peft LoraConfig ok", cfg)
+                      resources:
+                        requests:
+                          cpu: "1"
+                          memory: 4Gi
+                        limits:
+                          cpu: "4"
+                          memory: 8Gi
+                          nvidia.com/gpualloc: 1
+                          nvidia.com/gpucores: 50
+                          nvidia.com/gpumem: "8192"
+                      securityContext:
+                        allowPrivilegeEscalation: false
+                        capabilities:
+                          drop: [ALL]
+                        runAsNonRoot: true
+                        seccompProfile:
+                          type: RuntimeDefault
+                      volumeMounts:
+                        - { name: workspace, mountPath: /workspace }
+                        - { name: dshm, mountPath: /dev/shm }
+                  volumes:
+                    - { name: workspace, emptyDir: {} }
+                    - name: dshm
+                      emptyDir:
+                        medium: Memory
+                        sizeLimit: 2Gi

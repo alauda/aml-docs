@@ -1,0 +1,81 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainingRuntime
+metadata:
+  name: llamafactory0.9-cu126-amd64
+  namespace: kubeflow-admin-cpaas-io
+  labels:
+    trainer.kubeflow.org/framework: torch
+    alauda.io/training-runtime: llamafactory0.9-cu126-amd64
+spec:
+  mlPolicy:
+    numNodes: 1
+    torch:
+      numProcPerNode: auto
+  template:
+    spec:
+      replicatedJobs:
+        - name: node
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              backoffLimit: 0
+              template:
+                spec:
+                  securityContext:
+                    runAsNonRoot: true
+                    runAsUser: 1000
+                    runAsGroup: 1000
+                    fsGroup: 1000
+                  containers:
+                    - name: node
+                      image: docker.io/alaudadockerhub/llamafactory0.9-cu126-amd64:v0.1.0
+                      command:
+                        - bash
+                        - -c
+                        - |
+                          set -ex
+                          # Synthetic identity SFT smoke. Writes a 4-row alpaca dataset, fine-tunes
+                          # qwen-style chat template against an empty config to exercise the
+                          # LLaMA-Factory CLI without downloading a real model.
+                          mkdir -p /tmp/lf
+                          cat >/tmp/lf/dataset_info.json <<'JSON'
+                          {"identity_smoke": {"file_name": "identity_smoke.json"}}
+                          JSON
+                          cat >/tmp/lf/identity_smoke.json <<'JSON'
+                          [
+                            {"instruction":"Who are you?","input":"","output":"I am Alauda AI."},
+                            {"instruction":"Where do you run?","input":"","output":"On Kubeflow Trainer v2."},
+                            {"instruction":"What framework powers you?","input":"","output":"LLaMA-Factory on PyTorch."},
+                            {"instruction":"What device?","input":"","output":"NVIDIA GPU via CUDA 12.6."}
+                          ]
+                          JSON
+                          python -c "import llamafactory, torch; print('lf', llamafactory.__version__, 'torch', torch.__version__, 'cuda', torch.cuda.is_available())"
+                          llamafactory-cli version || true
+                      resources:
+                        requests:
+                          cpu: "1"
+                          memory: 4Gi
+                        limits:
+                          cpu: "4"
+                          memory: 8Gi
+                          nvidia.com/gpualloc: 1
+                          nvidia.com/gpucores: 50
+                          nvidia.com/gpumem: "8192"
+                      securityContext:
+                        allowPrivilegeEscalation: false
+                        capabilities:
+                          drop: [ALL]
+                        runAsNonRoot: true
+                        seccompProfile:
+                          type: RuntimeDefault
+                      volumeMounts:
+                        - { name: workspace, mountPath: /workspace }
+                        - { name: dshm, mountPath: /dev/shm }
+                  volumes:
+                    - { name: workspace, emptyDir: {} }
+                    - name: dshm
+                      emptyDir:
+                        medium: Memory
+                        sizeLimit: 2Gi

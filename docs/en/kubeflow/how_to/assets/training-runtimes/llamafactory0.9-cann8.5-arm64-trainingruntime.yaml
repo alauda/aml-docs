@@ -1,0 +1,67 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainingRuntime
+metadata:
+  name: llamafactory0.9-cann8.5-arm64
+  namespace: kubeflow-admin-cpaas-io
+  labels:
+    trainer.kubeflow.org/framework: torch
+    alauda.io/training-runtime: llamafactory0.9-cann8.5-arm64
+spec:
+  mlPolicy:
+    numNodes: 1
+    torch:
+      numProcPerNode: auto
+  template:
+    spec:
+      replicatedJobs:
+        - name: node
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              backoffLimit: 0
+              template:
+                spec:
+                  schedulerName: hami-scheduler
+                  runtimeClassName: ascend
+                  securityContext:
+                    runAsNonRoot: true
+                    runAsUser: 1001
+                    runAsGroup: 1001
+                    fsGroup: 1001
+                  containers:
+                    - name: node
+                      image: docker.io/alaudadockerhub/llamafactory0.9-cann8.5-arm64:v0.1.0
+                      command:
+                        - bash
+                        - -c
+                        - |
+                          set -ex
+                          python -c "import torch, torch_npu, llamafactory; print('torch', torch.__version__, 'torch_npu', torch_npu.__version__, 'lf', llamafactory.__version__, 'npu_available', torch_npu.npu.is_available())"
+                          llamafactory-cli version || true
+                      resources:
+                        requests:
+                          cpu: "1"
+                          memory: 4Gi
+                        limits:
+                          cpu: "4"
+                          memory: 8Gi
+                          huawei.com/Ascend910B4: "1"
+                          huawei.com/Ascend910B4-memory: "8192"
+                      securityContext:
+                        allowPrivilegeEscalation: false
+                        capabilities:
+                          drop: [ALL]
+                        runAsNonRoot: true
+                        seccompProfile:
+                          type: RuntimeDefault
+                      volumeMounts:
+                        - { name: workspace, mountPath: /workspace }
+                        - { name: dshm, mountPath: /dev/shm }
+                  volumes:
+                    - { name: workspace, emptyDir: {} }
+                    - name: dshm
+                      emptyDir:
+                        medium: Memory
+                        sizeLimit: 2Gi
