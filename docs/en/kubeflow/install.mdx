@@ -1,36 +1,39 @@
 ---
 weight: 20
 ---
-# Install Kubeflow Plugins
+# Install Kubeflow Operators
 
-This page describes how to deploy Kubeflow-related plugins in Alauda AI 2.0 and later.
+This page describes how to deploy Kubeflow-related operators in Alauda AI 2.0 and later.
 
-Supported plugins:
+Starting in **v26.3.0** (Alauda AI v2.3), Kubeflow ships as OLM Helm Operators rather than the earlier Cluster Plugin form factor. Installation is performed from the ACP **OperatorHub** instead of **Cluster Plugins**. The operators wrap the upstream `kubeflow/manifests` 26.03 charts.
 
-- `kfbase`: Kubeflow base components, including authentication and authorization, the central dashboard, Notebooks, PVC Viewer, TensorBoards, Volumes, Model Registry UI, KServe Endpoints UI, and the Model Catalog API service.
-- `model-registry-operator`: Kubeflow Model Registry Operator.
-- `kfp`: Kubeflow Pipelines.
-- `kftraining`: Kubeflow Training Operator. This plugin is deprecated.
-- `kubeflow-trainer`: Kubeflow Trainer v2 for training job management. This plugin replaces `kftraining`.
+Supported operators:
+
+- `kfbase-operator`: Kubeflow base components, including authentication and authorization, the central dashboard, Notebooks, PVC Viewer, TensorBoards, Volumes, Model Registry UI, KServe Endpoints UI, and the Model Catalog API service. Owns the `KubeflowBase` CR. Architecture: `amd64`, `arm64`.
+- `kfp-operator`: Kubeflow Pipelines (KFP runtime 2.16.0). Owns the `KubeflowPipelines` CR. **Architecture: `amd64` only** (Kubeflow Pipelines is x86_64-only per Alauda AI v2.3 supported configurations).
+- `kubeflow-trainer-operator`: Kubeflow Trainer v2 (controller-manager 2.1.0 + JobSet 0.10.1). Owns the `KubeflowTrainer` CR. Architecture: `amd64`, `arm64`. Replaces the deprecated `kftraining` plugin.
+- `model-registry-operator`: Kubeflow Model Registry Operator (unchanged form factor).
+
+> **Note:** The `kftraining` Cluster Plugin (Kubeflow Training Operator v1) was deprecated in earlier versions and has been retired in v26.3.0. Use `kubeflow-trainer-operator` (Trainer v2) instead.
 
 ## Environment Preparation
 
 Before you begin, make sure the following prerequisites are met:
 
 1. An ACP environment is available and running.
-2. Alauda AI is already deployed. Alauda AI 2.0 or later is required.
+2. Alauda AI is already deployed. Alauda AI 2.3 or later is required for the v26.3.0 operator set.
 3. Alauda Build of KServe is installed.
 4. ASM is deployed in the business cluster where Kubeflow will run. If ASM is not already installed, deploy it before continuing. ASM v1 is deprecated. Use ASM v2 whenever possible.
-5. The LWS plugin, Alauda Build of LeaderWorkerSet, is installed if you plan to deploy `kubeflow-trainer`.
+5. The LWS plugin, Alauda Build of LeaderWorkerSet, is installed if you plan to deploy `kubeflow-trainer-operator`.
 6. The `oauth2-proxy` plugin is configured as described below.
 
 ### Configure Dex Redirection
 
-> **Note:** Configure the platform access URL for Dex redirection before installing the `kfbase` plugin. This step may update the platform CA certificate. If the certificate changes after you configure `oauth2-proxy`, the `oauth2-proxy` configuration may fail.
+> **Note:** Configure the platform access URL for Dex redirection before installing the `kfbase-operator` and creating its `KubeflowBase` CR. This step may update the platform CA certificate. If the certificate changes after you configure `oauth2-proxy`, the `oauth2-proxy` configuration may fail.
 
 In **Administrator** > **System Settings** > **Platform Parameters**, click **Edit** next to **Platform Access URLs** and add a redirect URL in the format `https://<your-kubeflow-domain>`, for example `https://kubeflow.example.com`.
 
-- `<your-kubeflow-domain>` must match the `kubeflowDomain` value configured for the `kfbase` plugin.
+- `<your-kubeflow-domain>` must match the `kubeflowDomain` field configured in the `KubeflowBase` CR (`spec.global.kubeflowHost`).
 
 ### Configure the `oauth2-proxy` Plugin
 
@@ -129,38 +132,35 @@ spec:
 
 ## Component Onboarding
 
-Download the installation packages for the following plugins and upload them with `violet`:
+Download the operator bundle packages for the following operators and upload them with `violet`. The bundles register the operators with the ACP OperatorHub.
 
 ```bash
-# Replace the platform address, username, password, and plugin package path.
+# Replace the platform address, username, password, and bundle package path.
 violet push --platform-address="https://192.168.171.123" \
   --platform-username="admin@cpaas.io" \
   --platform-password="<platform_password>" \
-  <your-downloaded-plugin-package-file>
+  <your-downloaded-operator-bundle-package-file>
 ```
 
-- `kfbase`: Kubeflow base functionality.
+- `kfbase-operator`: Kubeflow base functionality (owns `KubeflowBase` CR).
+- `kfp-operator`: Kubeflow Pipelines (owns `KubeflowPipelines` CR). amd64-only.
+- `kubeflow-trainer-operator`: Kubeflow Trainer v2 (owns `KubeflowTrainer` CR). Replaces the deprecated `kftraining`.
 - `model-registry-operator`: Kubeflow Model Registry Operator.
-- `kfp`: Kubeflow Pipelines.
-- `kftraining`: Kubeflow Training Operator. This plugin is deprecated.
-- `kubeflow-trainer`: Kubeflow Trainer v2. This plugin replaces `kftraining`.
-
-> **Note:** If you want to enable Volcano scheduler support for `kftraining`, deploy Volcano before installing `kftraining`.
 
 ## Deployment Steps
 
-### 1. Deploy `kfbase` (Kubeflow Base)
+### 1. Deploy `kfbase-operator` (Kubeflow Base)
 
-In **Cluster Plugins**, find the `kfbase` plugin, complete the configuration on the page, and wait for the deployment to finish.
+In **Administrator** > **MarketPlace** > **OperatorHub**, find the `kfbase-operator` and click **Install**. Then open the **All Instances** tab and create a `KubeflowBase` CR with `spec.global.kubeflowHost` set to your Kubeflow domain. Wait for the deployment to finish.
 
 After deployment:
 
-- In **Administrator** > **System Settings** > **Platform Parameters**, verify that **Platform Access URLs** contains an address in the format `https://<your-kubeflow-domain>`, where `<your-kubeflow-domain>` is the `kubeflowDomain` configured for the `kfbase` plugin.
+- In **Administrator** > **System Settings** > **Platform Parameters**, verify that **Platform Access URLs** contains an address in the format `https://<your-kubeflow-domain>`, where `<your-kubeflow-domain>` matches `spec.global.kubeflowHost` in the `KubeflowBase` CR.
 - Configure DNS resolution, or add a local hosts entry, so that `<your-kubeflow-domain>` resolves to the IP address assigned to `kubectl -n istio-system get gateway kubeflow-external-gateway`.
 
 After deployment, the Kubeflow entry appears under **Tools** in Alauda AI.
 
-For upgrade-specific actions, see [Upgrade Kubeflow Plugins](./upgrade).
+For upgrade-specific actions, see [Upgrade Kubeflow Operators](./upgrade).
 
 ### 2. Create a Kubeflow User Namespace and Bind a User
 
@@ -251,13 +251,13 @@ spec:
             - "admin@cpaas.io"
 ```
 
-### 4. Deploy `kfp` and `kftraining` (Deprecated)
+### 4. Deploy `kfp-operator` (Kubeflow Pipelines)
 
-In **Cluster Plugins**, find `kfp` and `kftraining` and deploy them as needed.
+In **Administrator** > **MarketPlace** > **OperatorHub**, find the `kfp-operator` and click **Install**. Then create a `KubeflowPipelines` CR in the operator instance namespace. After the CR reconciles, KFP runtime components are deployed and pipeline-related features become available in the Kubeflow UI.
 
-> **Note:** After `kfp` is deployed, pipeline-related features become available in the Kubeflow UI.
+> **Note:** `kfp-operator` is amd64-only. Do not install it on arm64-only clusters.
 >
-> **Note:** `kftraining` is a background controller. It does not appear as a menu item in the Kubeflow UI.
+> **Note:** Pipeline-related features become available in the Kubeflow UI only after `KubeflowPipelines` is reconciled.
 
 ### 5. Deploy Kubeflow Model Registry
 
@@ -282,12 +282,12 @@ When creating the instance, configure the following fields as needed:
 >
 > **Note:** You can deploy multiple Model Registry instances in different namespaces. Each instance is independent.
 
-### 6. Deploy `kubeflow-trainer` (Kubeflow Trainer v2)
+### 6. Deploy `kubeflow-trainer-operator` (Kubeflow Trainer v2)
 
-> **Note:** If `kftraining` is already deployed, uninstall it before deploying `kubeflow-trainer`.
+> **Note:** If the deprecated `kftraining` Cluster Plugin is still installed (from a pre-v26.3.0 cluster), uninstall it before installing `kubeflow-trainer-operator`.
 >
-> **Note:** Install the LWS plugin before deploying `kubeflow-trainer`, because LWS is a dependency of `kubeflow-trainer`.
+> **Note:** Install the LWS plugin before deploying `kubeflow-trainer-operator`, because LWS is a dependency of `kubeflow-trainer`.
 >
-> **Note:** Kubeflow Trainer v2 requires Kubernetes `1.32.3` or later. Older Kubernetes versions may lead to unexpected behavior.
+> **Note:** v26.3.0 of `kubeflow-trainer-operator` aligns with upstream `kubeflow/manifests` 26.03 and ships **Trainer v2.1.0 + JobSet v0.10.1**. For clusters where an OLM CatalogSource already advertises a higher trainer version (`>=2.2.0`), install with `installPlanApproval: Manual` and `startingCSV: kubeflow-trainer-operator.v2.1.0` to prevent OLM from auto-upgrading past the 26.03 pin.
 
-In **Cluster Plugins**, find `kubeflow-trainer`, click **Install**, choose whether to enable `JobSet`, and complete the installation.
+In **Administrator** > **MarketPlace** > **OperatorHub**, find `kubeflow-trainer-operator`, click **Install**, choose the `Manual` install-plan approval if you need version pinning, then open the **All Instances** tab and create a `KubeflowTrainer` CR with `JobSet` enabled.

@@ -1,13 +1,40 @@
 ---
 weight: 30
 ---
-# Upgrade Kubeflow Plugins
+# Upgrade Kubeflow Operators
 
-This page describes the manual actions that may be required after upgrading the `kfbase` plugin.
+This page describes the manual actions that may be required after upgrading the Kubeflow operators.
 
-For installation steps, see [Kubeflow Chart Plugins](./install).
+For installation steps, see [Install Kubeflow Operators](./install).
 
-## Upgrade Notes for `kfbase`
+## Migrating from `v1.x` (Cluster Plugin) to `v26.3.0` (OLM Operator)
+
+Starting in **v26.3.0** (Alauda AI v2.3), Kubeflow components ship as OLM Helm Operators (`kfbase-operator`, `kfp-operator`, `kubeflow-trainer-operator`) instead of Cluster Plugins (`kfbase`, `kfp`, `kftraining`, `kubeflow-trainer`). **There is no in-place upgrade path** between the two form factors — the Cluster Plugin install descriptor (`ModuleInfo`) and the OLM `Subscription` are mutually incompatible.
+
+### Recommended migration procedure
+
+1. **Back up user data:**
+   - Snapshot Notebook PVCs in every user namespace.
+   - Export `Profile` CRs and any custom `RoleBinding` / `AuthorizationPolicy` you created for Kubeflow users.
+   - Export your KFP pipelines, experiments, and scheduled runs via the `kfp` CLI.
+   - Export any `TrainingRuntime` and active `TrainJob` CRs.
+2. **Uninstall the v1.x Cluster Plugin installs** from the AC UI (`Cluster Plugins`): remove `kubeflow-trainer`, `kfp`, `kftraining` (if present), and `kfbase` in that order. The matching `ModuleInfo` / `ModuleConfig` resources are removed automatically.
+3. **Install the v26.3.0 operator set** from **Administrator** > **MarketPlace** > **OperatorHub**:
+   - `kfbase-operator` first (other operators depend on the base components).
+   - `kfp-operator` if you need Kubeflow Pipelines (amd64 clusters only).
+   - `kubeflow-trainer-operator` if you need Trainer v2.
+4. **Create the matching CR instances** (`KubeflowBase`, `KubeflowPipelines`, `KubeflowTrainer`) and reuse the configuration from your v1.x install. The chart values previously set in the Cluster Plugin install form are now exposed through the operator's CSV `specDescriptors` — most field names are unchanged.
+5. **Restore user data:** PVCs and Profile CRs reattach automatically through the Notebook controller reconcile. Re-import KFP pipelines and TrainingRuntimes.
+
+### What changed between `v1.x` and `v26.3.0`
+
+- **Form factor:** Cluster Plugin → OLM Helm Operator.
+- **Install descriptor:** `ModuleInfo` → OLM `Subscription` + `ClusterServiceVersion` + operator-owned CR.
+- **Trainer:** `kftraining` (Training Operator v1, deprecated) is removed; replaced by `kubeflow-trainer-operator` (Trainer v2).
+- **Upstream alignment:** all charts re-pinned to `kubeflow/manifests` 26.03.
+- **Architecture:** `kfp-operator` is now amd64-only; `kfbase-operator` and `kubeflow-trainer-operator` remain amd64 + arm64.
+
+## Upgrade Notes for `kfbase` (`v1.x` history)
 
 ### Upgrading from `v1.10.13` or earlier
 
