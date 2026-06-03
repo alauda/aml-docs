@@ -19,12 +19,14 @@ Starting in **v26.3.0** (Alauda AI v2.3), Kubeflow components ship as OLM Helm O
    - Export your KFP pipelines, experiments, and scheduled runs via the `kfp` CLI.
    - Export any `TrainingRuntime` and active `TrainJob` CRs.
 2. **Uninstall the v1.x Cluster Plugin installs** from the AC UI (`Cluster Plugins`): remove `kubeflow-trainer`, `kfp`, `kftraining` (if present), and `kfbase` in that order. The matching `ModuleInfo` / `ModuleConfig` resources are removed automatically.
+
+   > **Warning:** Do not proceed until the backups in step 1 are confirmed. If uninstalling removes the `kubeflow.org` CRDs, all `Profile` CRs (and the user namespaces / Notebook PVCs they own) may be cascade-deleted. Verify whether your user namespaces and PVCs survive the uninstall before relying on the restore step below.
 3. **Install the v26.3.0 operator set** from **Administrator** > **MarketPlace** > **OperatorHub**:
    - `kfbase-operator` first (other operators depend on the base components).
    - `kfp-operator` if you need Kubeflow Pipelines (amd64 clusters only).
    - `kubeflow-trainer-operator` if you need Trainer v2.
 4. **Create the matching CR instances** (`KubeflowBase`, `KubeflowPipelines`, `KubeflowTrainer`) and reuse the configuration from your v1.x install. The chart values previously set in the Cluster Plugin install form are now exposed through the operator's CSV `specDescriptors` — most field names are unchanged.
-5. **Restore user data:** PVCs and Profile CRs reattach automatically through the Notebook controller reconcile. Re-import KFP pipelines and TrainingRuntimes.
+5. **Restore user data:** If the `Profile` CRs and their PVCs were preserved through the uninstall, they reattach automatically through the Notebook controller reconcile. If they were removed, re-apply the `Profile` CRs you exported in step 1 and restore the PVCs from your snapshots first. In all cases, re-import KFP pipelines and TrainingRuntimes.
 
 ### What changed between `v1.x` and `v26.3.0`
 

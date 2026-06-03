@@ -3,7 +3,7 @@ weight: 20
 ---
 # Install Kubeflow Operators
 
-This page describes how to deploy Kubeflow-related operators in Alauda AI 2.0 and later.
+This page describes how to deploy Kubeflow-related operators in Alauda AI 2.3 and later.
 
 Starting in **v26.3.0** (Alauda AI v2.3), Kubeflow ships as OLM Helm Operators rather than the earlier Cluster Plugin form factor. Installation is performed from the ACP **OperatorHub** instead of **Cluster Plugins**. The operators wrap the upstream `kubeflow/manifests` 26.03 charts.
 
@@ -33,7 +33,7 @@ Before you begin, make sure the following prerequisites are met:
 
 In **Administrator** > **System Settings** > **Platform Parameters**, click **Edit** next to **Platform Access URLs** and add a redirect URL in the format `https://<your-kubeflow-domain>`, for example `https://kubeflow.example.com`.
 
-- `<your-kubeflow-domain>` must match the `kubeflowDomain` field configured in the `KubeflowBase` CR (`spec.global.kubeflowHost`).
+- `<your-kubeflow-domain>` must match `spec.global.kubeflowHost` in the `KubeflowBase` CR.
 
 ### Configure the `oauth2-proxy` Plugin
 
@@ -286,7 +286,7 @@ When creating the instance, configure the following fields as needed:
 
 > **Note:** If the deprecated `kftraining` Cluster Plugin is still installed (from a pre-v26.3.0 cluster), uninstall it before installing `kubeflow-trainer-operator`.
 >
-> **Note:** Install the LWS plugin before deploying `kubeflow-trainer-operator`, because LWS is a dependency of `kubeflow-trainer`.
+> **Note:** Install the LWS plugin before deploying `kubeflow-trainer-operator`, because LWS is a dependency of `kubeflow-trainer-operator`.
 >
 > **Note:** v26.3.0 of `kubeflow-trainer-operator` aligns with upstream `kubeflow/manifests` 26.03 and ships **Trainer v2.1.0 + JobSet v0.10.1**. For clusters where an OLM CatalogSource already advertises a higher trainer version (`>=2.2.0`), install with `installPlanApproval: Manual` and `startingCSV: kubeflow-trainer-operator.v2.1.0` to prevent OLM from auto-upgrading past the 26.03 pin.
 
