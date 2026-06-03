@@ -3,7 +3,9 @@ weight: 10
 ---
 # Introduction
 
-Alauda support for Kubeflow provides a Kubernetes-native machine learning platform that enables users to build, deploy, and manage machine learning models at scale. It integrates with various components of the Kubeflow ecosystem, such as Kubeflow Pipelines for workflow orchestration, Kubeflow Training for training job management, and Kubeflow Model Registry for model versioning and management.
+Alauda support for Kubeflow provides a Kubernetes-native machine learning platform that enables users to build, deploy, and manage machine learning models at scale. It integrates with various components of the Kubeflow ecosystem, such as Kubeflow Pipelines for workflow orchestration, Kubeflow Trainer v2 for training job management, and Kubeflow Model Registry for model versioning and management.
+
+Starting in **v26.3.0** (Alauda AI v2.3), Alauda Kubeflow components are shipped as **OLM Helm Operators** installed from the ACP OperatorHub: `kfbase-operator`, `kfp-operator`, and `kubeflow-trainer-operator`. The earlier Cluster Plugin form factor (`v1.x`) is retired; see [Upgrade Kubeflow Operators](./upgrade) for the migration path. The aligned upstream is [`kubeflow/manifests` release 26.03](https://github.com/kubeflow/manifests).
 
 See [Kubeflow Docs](https://www.kubeflow.org/docs/) for more details about Kubeflow components and features.
 

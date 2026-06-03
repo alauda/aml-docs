@@ -19,36 +19,56 @@ kubectl label --overwrite ns [NAMESPACE_NAME] pod-security.kubernetes.io/warn=ba
 
 In some environments, the platform access address is configured as an internal network address, and users need to log in through an "Alternative Platform Address." In this scenario, while the OIDC issuer remains based on the original platform address, the login page URL must be updated to the alternative address.
 
-Steps:  
+### v26.3.0 and later (OLM operator install)
 
-- Locate the ModuleInfo Resource:
+Steps:
 
-In the global cluster, find the ModuleInfo resource corresponding to the kfbase  plugin using the following command:
+- **Locate the `KubeflowBase` CR** for the kfbase-operator install in the operator-instance namespace:
 
-```shell
-kubectl get moduleinfoes -l cpaas.io/module-name=kfbase,cpaas.io/cluster-name=<deployed-cluster-name>
-```
+  ```shell
+  kubectl get kubeflowbase -A
+  ```
 
-- Edit the ModuleInfo Resource
+- **Edit the `KubeflowBase` CR**. Add `oidcAuthURL` under `spec.global`. Replace `<Alternative-Platform-Address>` with the actual alternative address.
 
-Add the valuesOverride  section under spec  as shown below. Replace `<Alternative-Platform-Address>` with the actual alternative address.
-
-```yaml
-......
-spec: 
-  valuesOverride: 
-    mlops/kfbase:  
+  ```yaml
+  spec:
+    global:
       oidcAuthURL: https://<Alternative-Platform-Address>/dex/auth
-......
-```
+  ```
+
+  The kfbase-operator's helm-operator reconcile loop applies the change to the underlying chart release.
+
+- **Restart the OAuth2 Proxy** in the target cluster:
+
+  ```shell
+  kubectl rollout restart deploy -n kubeflow-oauth2-proxy oauth2-proxy
+  ```
+
+### v1.x (Cluster Plugin install — legacy)
+
+Steps:
+
+- Locate the ModuleInfo Resource in the global cluster:
+
+  ```shell
+  kubectl get moduleinfoes -l cpaas.io/module-name=kfbase,cpaas.io/cluster-name=<deployed-cluster-name>
+  ```
+
+- Edit the ModuleInfo Resource. Add `valuesOverride` under `spec`:
+
+  ```yaml
+  spec:
+    valuesOverride:
+      mlops/kfbase:
+        oidcAuthURL: https://<Alternative-Platform-Address>/dex/auth
+  ```
 
 - Restart the OAuth2 Proxy:
 
-Apply the changes by restart the oauth2-proxy  deployment in the target cluster:
-
-```shell
-kubectl rollout restart deploy -n kubeflow-oauth2-proxy oauth2-proxy
-```
+  ```shell
+  kubectl rollout restart deploy -n kubeflow-oauth2-proxy oauth2-proxy
+  ```
 
 ## How to start a Kubeflow Pipeline Run with external S3/MinIO storage
 
