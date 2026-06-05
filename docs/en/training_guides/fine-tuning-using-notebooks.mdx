@@ -1,0 +1,415 @@
+---
+weight: 60
+---
+
+# Fine-tuning LLMs using Workbench
+
+This guide walks through fine-tuning an LLM (example: `Qwen3-0.6B`) using [LLaMA-Factory](https://github.com/hiyouga/LLaMA-Factory) launched from an Alauda AI Workbench. The notebook submits a [VolcanoJob](https://volcano.sh/en/docs/vcjob/) to the cluster so GPU work runs on cluster nodes while you keep iterating in JupyterLab.
+
+Use it when you want interactive control, custom training scripts, and per-experiment YAML tweaks. For reusable templates and quotas, prefer [Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx) instead.
+
+## Scope
+
+- Alauda AI 1.3 and later.
+- LLM fine-tuning on x86_64 + NVIDIA GPUs. Other model families (e.g. YOLOv5) need their own image, scripts, and dataset format.
+- NPU clusters need a runtime image compatible with the vendor stack — see [Running on non-NVIDIA GPUs](#non-nvidia) below or the [Ascend NPU recipes](./fine-tune-and-pretrain-llms-on-ascend-npu.mdx).
+
+## Prerequisites
+
+- The Alauda AI Workbench plugin (or Kubeflow Base + Notebook) is installed.
+- The MLflow plugin is installed for experiment tracking.
+
+## 1. Create a Notebook / VSCode instance
+
+Create a workbench in **Alauda AI → Workbench** (or **Advanced → Kubeflow → Notebook**). The workbench itself should request only CPU — the GPU is requested by the VolcanoJob it submits. See [Creating a Workbench](../workbench/how_to/create_workbench.mdx).
+
+## 2. Prepare the base model
+
+Download `Qwen/Qwen3-0.6B` (or any HF model) and push it to the platform model repository. See [Upload Models Using Notebook](../model_inference/model_management/how_to/upload_models_using_notebook.mdx).
+
+## 3. Prepare the output model placeholder
+
+Create an empty model entry in the model repository to receive the fine-tuned output, and note its Git URL.
+
+## 4. Prepare the dataset
+
+Use the [sample identity dataset](/identity-alauda-main.zip) which teaches the model to answer "Who are you?". Create an empty dataset repository under **Datasets → Dataset Repository**, then `git lfs push` the unzipped files. The repository file list should show the upload after refresh.
+
+> The dataset format must match what the fine-tuning framework expects.
+
+### HuggingFace `datasets` format
+
+```python
+import datasets
+print(datasets.get_dataset_infos("<dataset directory>"))
+print(datasets.load_dataset("<dataset directory>"))
+```
+
+### LLaMA-Factory format
+
+If you use LLaMA-Factory, use its expected layout — see [data_preparation](https://llamafactory.readthedocs.io/en/latest/getting_started/data_preparation.html).
+
+## 5. Runtime image
+
+Use the prebuilt `alaudadockerhub/fine_tune_with_llamafactory:v0.1.1`, or build your own. The image must include `git lfs` so it can pull and push models / datasets.
+
+<details>
+<summary>Containerfile</summary>
+
+```Dockerfile
+ARG LLAMA_FACTORY_VERSION="v0.9.4"
+FROM 152-231-registry.alauda.cn:60070/mlops/nvidia/pytorch:24.12-py3
+
+RUN sed -i 's@//.*archive.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list.d/ubuntu.sources && \
+    sed -i 's/security.ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/ubuntu.sources && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends \
+      git git-lfs unzip curl ffmpeg default-libmysqlclient-dev build-essential pkg-config && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -U pip setuptools && \
+    cd /opt && \
+    git clone --depth 1 https://github.com/hiyouga/LLaMA-Factory.git && \
+    cd LLaMA-Factory && git checkout ${LLAMA_FACTORY_VERSION} && \
+    sed -i '/torch>=2.4.0/d;/torchvision>=0.19.0/d;/torchaudio>=2.4.0/d' pyproject.toml && \
+    pip install --no-cache-dir -e ".[metrics,awq,modelscope]" -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple \
+      "transformers>=4.51.1,<=4.53.3" "tokenizers>=0.21.1" \
+      "sqlalchemy~=2.0.30" "pymysql~=1.1.1" "loguru~=0.7.2" "mysqlclient~=2.2.7" \
+      "deepspeed~=0.18.8" "mlflow>=3.1"
+
+WORKDIR /opt
+```
+
+</details>
+
+## 6. Submit the fine-tuning VolcanoJob
+
+Create a YAML and submit with `kubectl create -f vcjob_sft.yaml` from a notebook terminal. (Use the JupyterLab uploader to drop a `kubectl` binary into the workbench — the image does not include it.)
+
+<details>
+<summary>VolcanoJob YAML</summary>
+
+```yaml
+apiVersion: batch.volcano.sh/v1alpha1
+kind: Job
+metadata:
+  generateName: vcjob-sft-qwen3-
+spec:
+  minAvailable: 1
+  schedulerName: volcano
+  maxRetry: 1
+  queue: default
+  volumes:
+    # Workspace PVC (temporary; deleted after the job)
+    - mountPath: "/mnt/workspace"
+      volumeClaim:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: "sc-topolvm"
+        resources:
+          requests:
+            storage: 5Gi
+  tasks:
+    - name: "train"
+      replicas: 1                 # >= 2 for distributed training
+      template:
+        metadata:
+          name: train
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534
+          volumes:
+            - name: dshm
+              emptyDir: { medium: Memory, sizeLimit: 2Gi }
+            # PVC for models and datasets. For distributed jobs, prefer NFS / Ceph
+            # for simplicity, or local storage pre-cached via kserve local model cache.
+            - name: models-cache
+              persistentVolumeClaim:
+                claimName: wy-model-cache
+          initContainers:
+            - name: prepare
+              image: alaudadockerhub/fine_tune_with_llamafactory:v0.1.1
+              imagePullPolicy: IfNotPresent
+              env:
+                - { name: BASE_MODEL_URL, value: "https://<git-host>/<ns>/amlmodels/qwen3-0.6b" }
+                - { name: DATASET_URL,    value: "https://<git-host>/<ns>/amldatasets/identity-alauda" }
+                - name: GIT_USER
+                  valueFrom: { secretKeyRef: { name: aml-image-builder-secret, key: MODEL_REPO_GIT_USER } }
+                - name: GIT_TOKEN
+                  valueFrom: { secretKeyRef: { name: aml-image-builder-secret, key: MODEL_REPO_GIT_TOKEN } }
+              resources:
+                requests: { cpu: 100m, memory: 128Mi }
+                limits:   { cpu: 2,    memory: 4Gi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities: { drop: [ALL] }
+                runAsNonRoot: true
+                seccompProfile: { type: RuntimeDefault }
+              volumeMounts:
+                - { name: models-cache, mountPath: /mnt/models }
+              command: [ /bin/bash, -c ]
+              args:
+                - |
+                  set -ex
+                  cd /mnt/models
+                  gitauth="${GIT_USER}:${GIT_TOKEN}"
+                  BASE_MODEL_NAME=$(basename ${BASE_MODEL_URL})
+                  if [ ! -d ${BASE_MODEL_NAME} ]; then
+                    GIT_LFS_SKIP_SMUDGE=1 git -c http.sslVerify=false -c lfs.activitytimeout=36000 \
+                      clone "https://${gitauth}@${BASE_MODEL_URL#https://}"
+                    (cd ${BASE_MODEL_NAME} && git -c http.sslVerify=false -c lfs.activitytimeout=36000 lfs pull)
+                  fi
+                  DATASET_NAME=$(basename ${DATASET_URL})
+                  rm -rf ${DATASET_NAME} data
+                  git -c http.sslVerify=false -c lfs.activitytimeout=36000 \
+                    clone "https://${gitauth}@${DATASET_URL#https://}"
+          containers:
+            - name: train
+              image: alaudadockerhub/fine_tune_with_llamafactory:v0.1.1
+              imagePullPolicy: IfNotPresent
+              volumeMounts:
+                - { mountPath: /dev/shm, name: dshm }
+                - { name: models-cache,  mountPath: /mnt/models }
+              env:
+                - { name: BASE_MODEL_URL,   value: "https://<git-host>/<ns>/amlmodels/qwen3-0.6b" }
+                - { name: DATASET_URL,      value: "https://<git-host>/<ns>/amldatasets/identity-alauda" }
+                - { name: OUTPUT_MODEL_URL, value: "https://<git-host>/<ns>/amlmodels/wy-sft-output" }
+                - { name: HF_HOME, value: /mnt/workspace/hf_cache }
+                - { name: DO_MERGE, value: "true" }
+                - name: GIT_USER
+                  valueFrom: { secretKeyRef: { name: aml-image-builder-secret, key: MODEL_REPO_GIT_USER } }
+                - name: GIT_TOKEN
+                  valueFrom: { secretKeyRef: { name: aml-image-builder-secret, key: MODEL_REPO_GIT_TOKEN } }
+                - { name: MLFLOW_TRACKING_URI,  value: "http://mlflow-tracking-server.kubeflow:5000" }
+                - { name: MLFLOW_EXPERIMENT_NAME, value: <your-namespace> }
+              command: [ bash, -c ]
+              args:
+                - |
+                  set -ex
+                  if [ "${VC_WORKER_HOSTS}" != "" ]; then
+                      export N_RANKS=$(echo "${VC_WORKER_HOSTS}" | awk -F',' '{print NF}')
+                      export RANK=$VC_TASK_INDEX
+                      export MASTER_HOST=$(echo "${VC_WORKER_HOSTS}" | awk -F',' '{print $1}')
+                      export WORLD_SIZE=$N_RANKS NNODES=$N_RANKS NODE_RANK=$RANK
+                      export MASTER_ADDR=${MASTER_HOST} MASTER_PORT="8888"
+                  else
+                      export N_RANKS=1 RANK=0 NNODES=1 MASTER_HOST=""
+                  fi
+                  cd /mnt/workspace
+                  BASE_MODEL_NAME=$(basename ${BASE_MODEL_URL})
+                  DATASET_NAME=$(basename ${DATASET_URL})
+                  cat >lf-sft.yaml <<EOL
+                  model_name_or_path: /mnt/models/${BASE_MODEL_NAME}
+                  stage: sft
+                  do_train: true
+                  finetuning_type: lora
+                  lora_target: all
+                  lora_rank: 8
+                  lora_alpha: 16
+                  lora_dropout: 0.1
+                  dataset: identity_alauda
+                  dataset_dir: /mnt/models/${DATASET_NAME}
+                  template: qwen
+                  cutoff_len: 1024
+                  max_samples: 1000
+                  overwrite_cache: true
+                  preprocessing_num_workers: 8
+                  output_dir: output_models
+                  logging_steps: 10
+                  save_steps: 500
+                  plot_loss: true
+                  overwrite_output_dir: true
+                  per_device_train_batch_size: 2
+                  gradient_accumulation_steps: 2
+                  learning_rate: 2.0e-4
+                  num_train_epochs: 4.0
+                  bf16: false
+                  fp16: true
+                  ddp_timeout: 180000000
+                  val_size: 0.1
+                  per_device_eval_batch_size: 1
+                  eval_strategy: steps
+                  eval_steps: 500
+                  report_to: mlflow
+                  EOL
+                  if [ ${NNODES} -gt 1 ]; then
+                      echo "deepspeed: ds-z3-config.json" >> lf-sft.yaml
+                      FORCE_TORCHRUN=1 llamafactory-cli train lf-sft.yaml
+                  else
+                      unset NNODES NODE_RANK MASTER_ADDR MASTER_PORT
+                      llamafactory-cli train lf-sft.yaml
+                  fi
+                  if [ "${DO_MERGE}" = "true" ]; then
+                    cat >lf-merge-config.yaml <<EOL
+                  model_name_or_path: /mnt/models/${BASE_MODEL_NAME}
+                  adapter_name_or_path: output_models
+                  template: qwen
+                  finetuning_type: lora
+                  export_dir: output_models_merged
+                  export_size: 4
+                  export_device: cpu
+                  export_legacy_format: false
+                  EOL
+                    llamafactory-cli export lf-merge-config.yaml
+                  else
+                    mv output_models output_models_merged
+                  fi
+                  cd /mnt/workspace/output_models_merged
+                  touch README.md
+                  PUSH_URL="https://${GIT_USER}:${GIT_TOKEN}@${OUTPUT_MODEL_URL#https://}"
+                  push_branch=$(date +'%Y%m%d-%H%M%S')
+                  git init && git checkout -b sft-${push_branch}
+                  git lfs track *.safetensors
+                  git add .
+                  git -c user.name='AMLSystemUser' -c user.email='aml_admin@cpaas.io' commit -am "fine tune push auto commit"
+                  git -c http.sslVerify=false -c lfs.activitytimeout=36000 push -u ${PUSH_URL} sft-${push_branch}
+              resources:
+                requests: { cpu: "1", memory: "2Gi" }
+                limits:   { cpu: "8", memory: "16Gi", nvidia.com/gpu: 1 }
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities: { drop: [ALL] }
+                runAsNonRoot: true
+                seccompProfile: { type: RuntimeDefault }
+```
+
+</details>
+
+Things to change before submitting:
+
+- `BASE_MODEL_URL`, `DATASET_URL`, `OUTPUT_MODEL_URL` to your repository Git URLs.
+- `models-cache` PVC — create it ahead of time. Reuse it across experiments to avoid re-downloading the base model.
+- Shared memory `dshm` — at least 4 GiB for multi-GPU.
+- CPU / memory / GPU `requests` and `limits` — match the cluster's device-plugin (e.g. `nvidia.com/gpu`, `nvidia.com/gpualloc`).
+- Hyperparameters — the LLaMA-Factory YAML is inlined in the script. Lift frequently-tuned ones into env vars.
+
+### NFS workspace PVC notes
+
+If the PVC backend is NFS:
+
+- Every node that may mount the PVC needs `nfs-utils` (`yum install -y nfs-utils`).
+- Set `mountPermissions: "0757"` on the StorageClass:
+
+  ```yaml
+  apiVersion: storage.k8s.io/v1
+  kind: StorageClass
+  metadata:
+    name: ai-nfs
+  provisioner: nfs.csi.k8s.io
+  parameters:
+    mountPermissions: "0757"
+    server: 192.168.17.28
+    share: /nfs_data/int/ai
+  reclaimPolicy: Delete
+  volumeBindingMode: Immediate
+  mountOptions: [hard, nfsvers=4.1]
+  ```
+
+## 7. Manage the job
+
+```bash
+kubectl get vcjob
+kubectl get vcjob <name> -o yaml
+kubectl get pod && kubectl logs <pod>
+kubectl describe vcjob <name>      # if pods aren't scheduling
+kubectl get podgroups              # Volcano scheduling view
+kubectl delete vcjob <name>
+```
+
+After success the merged model is pushed to a date-stamped branch (`sft-YYYYMMDD-HHMMSS`) in the output repository — pick that branch when publishing.
+
+## 8. Experiment tracking
+
+Setting `report_to: mlflow` in the LLaMA-Factory config plus the `MLFLOW_TRACKING_URI` / `MLFLOW_EXPERIMENT_NAME` env vars routes metrics to MLflow. Find runs in **Alauda AI → Advanced → MLFlow**, compare loss curves, and pin the winning run.
+
+## 9. Publish the fine-tuned model
+
+> The example uses LoRA and merges the adapter into the base model before push. Inference services from base + adapter pairs are not yet supported.
+
+1. **Model Repository** → fine-tuned output model → **Model Info → File Management → Edit Metadata**, set Task Type = Text Classification, Framework = Transformers.
+2. **Publish Inference API → Custom Publishing**.
+3. Pick the vLLM runtime that matches the cluster's CUDA, fill storage / resource / GPU settings, click **Publish**.
+4. Once running, click **Experience** to chat with the model (only when the model includes a `chat_template`).
+
+## Running on non-NVIDIA GPUs \{#non-nvidia}
+
+For Huawei Ascend NPU, Intel Gaudi, AMD, etc. The Ascend NPU recipe with `PyTorch CANN` + `MindSpeed-LLM` is documented in [Fine-tune and Pretrain LLMs on Ascend NPU](./fine-tune-and-pretrain-llms-on-ascend-npu.mdx).
+
+General steps:
+
+1. **Prerequisite**: the vendor driver and Kubernetes device plugin are deployed and devices are visible to pods. Note the resource name (e.g. `huawei.com/Ascend910: "1"`).
+2. **Collect the vendor's solution** — docs, fine-tuning image, supported models, sample data, and the launch command / parameters.
+3. **(Optional) verify the vendor solution** end-to-end first to rule out solution-side issues.
+4. **(Optional) wrap it in a basic Kubernetes Job** to confirm the device plugin works under K8s before adding Volcano.
+5. **Run as a VolcanoJob** using the YAML below as a starting point.
+
+<details>
+<summary>VolcanoJob YAML (vendor template)</summary>
+
+```yaml
+apiVersion: batch.volcano.sh/v1alpha1
+kind: Job
+metadata:
+  generateName: vcjob-sft-
+spec:
+  minAvailable: 1
+  schedulerName: volcano
+  maxRetry: 1
+  queue: default
+  volumes:
+    - mountPath: "/mnt/workspace"
+      volumeClaim:
+        accessModes: [ "ReadWriteOnce" ]
+        storageClassName: "sc-topolvm"
+        resources:
+          requests:
+            storage: 5Gi
+  tasks:
+    - name: "train"
+      replicas: 1
+      template:
+        metadata: { name: train }
+        spec:
+          restartPolicy: Never
+          volumes:
+            - name: dshm
+              emptyDir: { medium: Memory, sizeLimit: 2Gi }
+            - name: models-cache
+              persistentVolumeClaim:
+                claimName: sft-qwen3-volume
+          containers:
+            - name: train
+              image: <vendor-fine-tuning-image>
+              imagePullPolicy: IfNotPresent
+              volumeMounts:
+                - { mountPath: /dev/shm, name: dshm }
+                - { name: models-cache, mountPath: /mnt/models }
+              env:
+                - { name: MLFLOW_TRACKING_URI, value: "http://mlflow-tracking-server.aml-system.svc.cluster.local:5000" }
+                - { name: MLFLOW_EXPERIMENT_NAME, value: kubeflow-admin-cpaas-io }
+              command: [ bash, -c ]
+              args:
+                - |
+                  set -ex
+                  echo "job workers list: ${VC_WORKER_HOSTS}"
+                  # vendor-specific launch command goes here
+              resources:
+                requests: { cpu: "1", memory: "8Gi" }
+                limits:
+                  cpu: "8"
+                  memory: "16Gi"
+                  nvidia.com/gpualloc: "1"
+                  nvidia.com/gpucores: "50"
+                  nvidia.com/gpumem: "8192"
+```
+
+</details>
+
+### Experiment tracking on other devices
+
+LLaMA-Factory and Transformers integrate with MLflow / wandb directly. Set the destination in the framework config (e.g. `report_to: mlflow` for LLaMA-Factory) and supply `MLFLOW_TRACKING_URI` and `MLFLOW_EXPERIMENT_NAME` env vars. View results under **Alauda AI → Advanced → MLFlow**.

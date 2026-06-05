@@ -1,0 +1,130 @@
+---
+weight: 50
+---
+
+# Fine-tuning LLMs with Training Hub
+
+`training_hub` is a Python library that wraps Supervised Fine-Tuning (SFT) and Orthogonal Subspace Fine-Tuning (OSFT) behind a single function call (`sft(...)`, `osft(...)`) that handles single-GPU, multi-GPU, and multi-node training uniformly.
+
+- **Automatic memory management** — `max_tokens_per_gpu` caps GPU memory and auto-computes micro-batch size and gradient accumulation to hit your target `effective_batch_size`.
+- **OSFT** implements [Nayak et al., 2025 (arXiv:2504.07097)](https://arxiv.org/abs/2504.07097) — restricting weight updates to orthogonal subspaces prevents catastrophic forgetting without replay data.
+- Built-in checkpointing, experiment tracking, and Liger kernel support.
+
+| Aspect | SFT | OSFT |
+|--------|-----|------|
+| Use case | Initial instruction tuning | Continual domain adaptation of tuned models |
+| Forgetting mitigation | Mix/replay data | Algorithmic (orthogonal subspaces) |
+| Key parameter | Standard hyperparameters | `unfreeze_rank_ratio` (0.0–1.0) |
+| Backend | instructlab-training | mini-trainer |
+
+## Requirements
+
+- Alauda AI Workbench installed in your cluster.
+- A workbench with internet (or internal PyPI mirror), at least one NVIDIA GPU, and persistent storage for checkpoints.
+- HuggingFace model name or local path.
+- Training data in JSONL format (see below).
+
+## Data format \{#data-format}
+
+Each line is a conversation:
+
+```json
+{"messages": [{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": "What is machine learning?"}, {"role": "assistant", "content": "Machine learning is a subset of AI..."}]}
+```
+
+Roles: `system`, `user`, `assistant`, `pretraining`. Masking:
+
+- **SFT (default)** — only `assistant` content contributes to loss. Add `"unmask": true` to a sample to include all non-system content.
+- **OSFT** — controlled by `unmask_messages` (default `False`).
+
+Pre-tokenized datasets with `input_ids` / `labels` are supported via `use_processed_dataset=True`.
+
+## Run the example notebooks
+
+Download into your workbench and execute cell-by-cell:
+
+| Notebook | Algorithm | Download |
+|---|---|---|
+| SFT comprehensive tutorial | SFT | [`sft-comprehensive-tutorial.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/sft-comprehensive-tutorial.ipynb) |
+| OSFT comprehensive tutorial | OSFT | [`osft-comprehensive-tutorial.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/osft-comprehensive-tutorial.ipynb) |
+
+Install and configure:
+
+```bash
+pip install training-hub
+```
+
+Edit the parameter cells:
+
+```python
+model_path = "Qwen/Qwen2.5-7B-Instruct"        # HF name or local path
+data_path       = "/path/to/your/training_data.jsonl"
+ckpt_output_dir = "/path/to/checkpoints/my_experiment"
+selected_distributed = "single_node_8gpu"      # or single_gpu_dev, multi_node_master, ...
+# OSFT only:
+unfreeze_rank_ratio = 0.25                      # 0.1–0.3 conservative, 0.3–0.5 balanced
+```
+
+Bundled model presets cover Qwen 2.5 7B, Llama 3.1 8B, Phi 4 Mini, and generic 7B / small models.
+
+Run all cells. The final training cell calls:
+
+```python
+from training_hub import sft, osft
+
+result = sft(model_path=model_path, data_path=data_path, ckpt_output_dir=ckpt_output_dir,
+             effective_batch_size=128, max_tokens_per_gpu=20000, max_seq_len=16384,
+             learning_rate=1e-5, num_epochs=3, nproc_per_node=8)
+
+result = osft(model_path=model_path, data_path=data_path, ckpt_output_dir=ckpt_output_dir,
+              unfreeze_rank_ratio=0.25,
+              effective_batch_size=128, max_tokens_per_gpu=10000, max_seq_len=8192,
+              learning_rate=5e-6, num_epochs=1, nproc_per_node=8)
+```
+
+Checkpoints land in `ckpt_output_dir` at each epoch (controlled by `checkpoint_at_epoch`).
+
+## Key parameters
+
+Common (SFT and OSFT):
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `model_path` | Yes | HF name or local path |
+| `data_path` | Yes | JSONL training data |
+| `ckpt_output_dir` | Yes | Checkpoint directory |
+| `effective_batch_size` | Yes | Global effective batch size |
+| `max_tokens_per_gpu` | Yes | Per-GPU token budget; auto-computes micro-batch size |
+| `max_seq_len` | Yes | Maximum sequence length |
+| `learning_rate` | Yes | Optimizer LR |
+| `num_epochs` | No | Default `1` |
+| `lr_scheduler`, `warmup_steps` | No | LR schedule |
+| `use_liger` | No | Liger kernels (default `True` for OSFT) |
+| `seed` | No | Default `42` |
+| `data_output_dir` | No | Processed data cache; `"/dev/shm"` for RAM-disk |
+| `use_processed_dataset` | No | Skip tokenization if data has `input_ids` / `labels` |
+| `checkpoint_at_epoch`, `save_final_checkpoint` | No | Default `True` |
+| `nproc_per_node`, `nnodes`, `node_rank` | No | Distributed topology |
+| `rdzv_id`, `rdzv_endpoint` | No | Multi-node rendezvous |
+
+OSFT-only:
+
+| Parameter | Required | Description |
+|---|---|---|
+| `unfreeze_rank_ratio` | Yes | Fraction of each weight matrix updateable (0.0–1.0). Lower = more preservation. |
+| `unmask_messages` | No | If `True`, train on all non-system content |
+| `target_patterns` | No | Substring patterns to restrict OSFT to specific layers |
+
+## Multi-node
+
+Run the notebook (or script) on every node with the same `rdzv_id` / `rdzv_endpoint` and varying `node_rank`:
+
+```python
+nproc_per_node = 8
+nnodes         = 2
+rdzv_id        = 42
+rdzv_endpoint  = "10.0.0.1:29500"
+node_rank      = 0   # 1 on the worker
+```
+
+All nodes need network reachability to `rdzv_endpoint` before training starts.

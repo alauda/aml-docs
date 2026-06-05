@@ -1,0 +1,18 @@
+---
+weight: 75
+---
+
+# Training Guides
+
+End-to-end recipes for fine-tuning and pretraining LLMs on Alauda AI.
+
+## Pick a path
+
+| When you want… | Use | Guide |
+|---|---|---|
+| Reusable templates, repeatable runs, optional Kueue quotas | Kubeflow Trainer v2 + LlamaFactory | [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx) |
+| A curated set of `TrainingRuntime` images (CUDA / CANN) | Trainer v2 runtime catalog | [Training Runtime Images](./training-runtimes.mdx) |
+| One-shot quick start of distributed PyTorch on Trainer v2 | `ClusterTrainingRuntime` + MNIST | [Kubeflow Trainer Quick Start](./kubeflow-trainer-quick-start.md) |
+| Production SFT / OSFT with automatic memory management | `training_hub` | [Fine-tuning LLMs with Training Hub](./training-hub-fine-tuning.mdx) |
+| Interactive exploration, custom scripts, VolcanoJob submission | Workbench Notebook | [Fine-tuning LLMs using Workbench](./fine-tuning-using-notebooks.mdx) |
+| Full-parameter SFT / pretraining on Ascend NPU | Workbench `PyTorch CANN` / `MindSpore CANN` | [Fine-tune and Pretrain on Ascend NPU](./fine-tune-and-pretrain-llms-on-ascend-npu.mdx) |
