@@ -10,7 +10,7 @@ A minimal distributed PyTorch training setup on Alauda AI using Kubeflow Trainer
 
 Use the prebuilt image `alaudadockerhub/torch-distributed:v2.9.1-aml2`, or build your own from this `torch_distributed.Containerfile`:
 
-```Dockerfile
+```
 FROM python:3.13-trixie
 ARG USERNAME=appuser
 ARG USER_UID=1000
