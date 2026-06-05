@@ -203,7 +203,10 @@ If the service fails to start or remains in an unready state, you can troublesho
 ### Common Issues
 
 1. **Permission Errors**: Ensure the model files in the image have proper permissions
-2. **Registry Authentication**: Verify that the cluster has access to the container registry
+2. **Ascend 910 vLLM-ascend Permission Mode**: For Huawei Ascend 910
+   `vLLM-ascend` deployments, especially single-node multi-card services, see
+   [Modelcar Permission Modes for Ascend 910](./custom_inference_runtime.mdx#modelcar-permission-modes-for-ascend-910).
+3. **Registry Authentication**: Verify that the cluster has access to the container registry
 
 ## Conclusion
 

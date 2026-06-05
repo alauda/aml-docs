@@ -234,7 +234,7 @@ Once **Knative Operator** is installed, you need to create the `KnativeServing` 
    spec:
      # For ACP 4.0, use version 1.18.1
      # For ACP 4.1 and above, use version 1.19.6
-     version: "1.18.1" # [!code callout]
+     version: "1.19.6" # [!code callout]
      config:
        deployment:
          registries-skipping-tag-resolving: kind.local,ko.local,dev.local,private-registry # [!code callout]
@@ -343,10 +343,10 @@ In **Administrator** view:
 
 13. Under **Model Catalog** section, configure the following parameters:
 
-    - **Database Password Secret Namespace**: Namespace of the secret containing the PostgreSQL password for Model Catalog.
-    - **Database Password Secret Name**: Name of the secret containing the PostgreSQL password for Model Catalog.
+    - **Database Password Secret Namespace**: Namespace of the Secret containing the PostgreSQL password for Model Catalog.
+    - **Database Password Secret Name**: Name of the Secret containing the PostgreSQL password for Model Catalog.
 
-      Create the secret before creating the Alauda AI instance. If you use the following example, set **Database Password Secret Namespace** to `aml-operator` and **Database Password Secret Name** to `model-catalog`.
+      Create this Secret before creating the Alauda AI instance. If you use the following example, set **Database Password Secret Namespace** to `aml-operator` and **Database Password Secret Name** to `model-catalog`.
 
       ```yaml
       apiVersion: v1
@@ -363,22 +363,9 @@ In **Administrator** view:
 
       1. `metadata.name` is the value for **Database Password Secret Name**.
       2. `metadata.namespace` is the value for **Database Password Secret Namespace**.
-      3. `stringData.password` is the PostgreSQL password in plain text. Kubernetes stores it as base64-encoded `data.password` after the Secret is created.
+      3. `stringData.password` is the PostgreSQL password in plain text. Kubernetes encodes it into `data.password` when the Secret is created, so you do not need to base64-encode the value yourself.
 
       </Callouts>
-
-      After creation, the stored Secret has a base64-encoded `data.password` field, for example:
-
-      ```yaml
-      apiVersion: v1
-      data:
-        password: cGc=
-      kind: Secret
-      metadata:
-        name: model-catalog
-        namespace: aml-operator
-      type: Opaque
-      ```
 
     - **Model OCI Registry Address**: Registry address hosting model OCI artifacts for Model Catalog. The default value is `build-harbor.alauda.cn`.
 
