@@ -1,0 +1,120 @@
+---
+weight: 40
+---
+
+# Training Runtime Images
+
+Curated `TrainingRuntime` images for [Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx). Each image bundles a specific PyTorch + accelerator stack so users can submit `TrainJob`s without rebuilding.
+
+## Available runtimes
+
+| Image | Device | Framework | Pull |
+|---|---|---|---|
+| torch (CUDA) | NVIDIA GPU (CUDA 12.6) | PyTorch 2.6, transformers, accelerate, datasets, mlflow | `alaudadockerhub/torch2.6-cu126-amd64:v0.1.0` |
+| torch (CANN) | Huawei Ascend NPU (CANN 8.5) | PyTorch 2.6 + torch_npu 2.6.0.post5 | `alaudadockerhub/torch2.6-cann8.5-arm64:v0.1.0` |
+| LLaMA-Factory (CUDA) | NVIDIA GPU (CUDA 12.6) | LLaMA-Factory 0.9.4 (`metrics,awq,modelscope`) | `alaudadockerhub/llamafactory0.9-cu126-amd64:v0.1.0` |
+| LLaMA-Factory (CANN) | Huawei Ascend NPU (CANN 8.5) | LLaMA-Factory 0.9.4 (`metrics,modelscope`) | `alaudadockerhub/llamafactory0.9-cann8.5-arm64:v0.1.0` |
+| TrainingHub (CUDA) | NVIDIA GPU (CUDA 12.6) | trl, peft, bitsandbytes, deepspeed (SFT/OSFT/DPO) | `alaudadockerhub/traininghub0.1-cu126-amd64:v0.1.0` |
+| MindSpeed-LLM (CANN) | Huawei Ascend NPU (CANN 8.5) | MindSpeed + MindSpeed-LLM (Megatron core 0.8.0) | `alaudadockerhub/mindspeed-llm-cann8.5-arm64:v0.1.0` |
+
+CUDA images are amd64-only; CANN images are arm64-only.
+
+```bash
+docker pull alaudadockerhub/torch2.6-cu126-amd64:v0.1.0
+```
+
+## Picking a runtime
+
+- **torchrun on GPU** → `torch2.6-cu126-amd64`
+- **torchrun on NPU** → `torch2.6-cann8.5-arm64` (set `runtimeClassName: ascend`)
+- **LLM SFT / LoRA with LLaMA-Factory** → `llamafactory0.9-cu126-amd64` (GPU) or `llamafactory0.9-cann8.5-arm64` (NPU)
+- **TRL / PEFT SFT / OSFT / DPO** → `traininghub0.1-cu126-amd64`
+- **Megatron-style training on Ascend** → `mindspeed-llm-cann8.5-arm64`
+
+## Apply a TrainingRuntime
+
+Ready-to-apply YAMLs live in [`assets/training-runtimes/`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/assets/training-runtimes). Each YAML pins `:v0.1.0`; override the tag to track a different release. The YAMLs default to a Kubeflow `Profile` namespace — change `metadata.namespace` to the namespace where you submit jobs.
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/training_guides/assets/training-runtimes
+# NVIDIA GPU
+kubectl apply -f $base/torch2.6-cu126-amd64-trainingruntime.yaml
+kubectl apply -f $base/llamafactory0.9-cu126-amd64-trainingruntime.yaml
+kubectl apply -f $base/traininghub0.1-cu126-amd64-trainingruntime.yaml
+# Huawei Ascend NPU
+kubectl apply -f $base/torch2.6-cann8.5-arm64-trainingruntime.yaml
+kubectl apply -f $base/llamafactory0.9-cann8.5-arm64-trainingruntime.yaml
+kubectl apply -f $base/mindspeed-llm-cann8.5-arm64-trainingruntime.yaml
+```
+
+## Submit a TrainJob
+
+A shared smoke template applies to any runtime — set `spec.runtimeRef.name` to the runtime you want to exercise:
+
+```bash
+kubectl apply -f $base/trainjob-smoke.yaml
+kubectl -n <your-namespace> get trainjobs
+trainjob=$(kubectl -n <your-namespace> get trainjobs -o name | tail -1)
+kubectl -n <your-namespace> logs -f -l jobset.sigs.k8s.io/jobset-name=${trainjob##*/}-node
+```
+
+## Device resource requests
+
+### NVIDIA GPU
+
+Whole-device request:
+
+```yaml
+resources:
+  limits:
+    nvidia.com/gpu: 1
+```
+
+HAMI vGPU slice:
+
+```yaml
+resources:
+  limits:
+    nvidia.com/gpualloc: 1    # virtual GPU slot
+    nvidia.com/gpucores: 50   # 50% of one physical GPU
+    nvidia.com/gpumem: "8192" # 8 GiB
+```
+
+### Huawei Ascend NPU
+
+Always set `runtimeClassName: ascend` so the host driver libs and DCMI sockets are injected.
+
+Standard Huawei device-plugin:
+
+```yaml
+spec:
+  runtimeClassName: ascend
+  containers:
+    - resources:
+        limits:
+          huawei.com/Ascend910: "1"
+```
+
+HAMI vNPU (each 910B4 slices into 20 cores / 32 GiB):
+
+```yaml
+spec:
+  schedulerName: hami-scheduler
+  runtimeClassName: ascend
+  containers:
+    - resources:
+        limits:
+          huawei.com/Ascend910B4: "1"
+          huawei.com/Ascend910B4-memory: "8192"
+```
+
+With HAMI, `allocatable.huawei.com/Ascend910B4` reads `0` because HAMI allocates through its scheduler extender. If pods stay `Pending` on `hami-scheduler: 1 node unregistered`, confirm the host driver is loaded (`/sys/bus/pci/drivers/davinci`, `npu-smi info` healthy) and the node is labeled `ascend=on`.
+
+## Image caveats
+
+- **`traininghub0.1-cu126-amd64`** — ships CUDA *runtime* but not the toolkit. DeepSpeed JIT op compilation needs `nvcc`; mount or install `nvidia-cuda-toolkit` and set `CUDA_HOME` if you use those ops.
+- **`mindspeed-llm-cann8.5-arm64`** — `megatron.core` needs `pkg_resources`, so install `setuptools<81` in the job entrypoint. `import mindspeed_llm` currently fails on the `mindspeed_llm` master / `core_r0.8.0` mismatch; the underlying torch + torch_npu + megatron.core + mindspeed stack trains correctly without the adapter shim.
+
+## Build your own
+
+The Containerfiles, multi-arch buildkitd helper, e2e harness, and post-fix scan evidence are in [`kubeflow-plugin/training-runtimes`](https://github.com/alauda/kubeflow-plugin/tree/main/training-runtimes). Each framework image is a thin layer on `torch2.6-cu126-amd64` or `torch2.6-cann8.5-arm64`, so deriving a new runtime is mostly `FROM docker.io/alaudadockerhub/torch2.6-cu126-amd64:v0.1.0` plus framework installs.

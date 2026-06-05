@@ -1,0 +1,109 @@
+---
+weight: 70
+---
+
+# Fine-tune and Pretrain LLMs on Ascend NPU
+
+Workbench-based recipes for running full-parameter SFT and pretraining on `arm64` nodes with Huawei Ascend NPUs. These notebooks run training directly inside a single workbench container with multiple NPUs attached (no VolcanoJob).
+
+| Notebook | Workbench image | Workload |
+|---|---|---|
+| [`qwen3_finetune_verify.ipynb`](/qwen3_finetune_verify.ipynb) | `PyTorch CANN` | Full-parameter SFT of `Qwen3-8B` (MindSpeed-LLM) |
+| [`qwen25_pretrain_verify.ipynb`](/qwen25_pretrain_verify.ipynb) | `PyTorch CANN` | Pretraining of `Qwen2.5-7B` (MindSpeed-LLM) |
+| [`qwen3_0.6b_finetune_verify.ipynb`](/qwen3_0.6b_finetune_verify.ipynb) | `MindSpore CANN` | Full-parameter SFT of `Qwen3-0.6B` (bundled MindSpeed-Core-MS + MindSpeed-LLM) |
+
+All three notebooks are **validation-first**: the defaults use short sequences and few iterations so you can confirm the runtime, model loading, preprocessing, and distributed launch path before scaling up. The `PyTorch CANN` image bundles Python 3.12, CANN 8.5.0, PyTorch 2.9.0, and `torch_npu 2.9.0`.
+
+## Before you begin
+
+- The Ascend driver, CANN runtime, and Kubernetes device plugin are installed; your workbench can be scheduled to an `arm64` Ascend node.
+- Plan for ≥ 4 NPUs for the PyTorch examples; the MindSpore notebook is tuned for 2× Ascend 910B 32G with `TP=1`, `PP=1`, `MBS=2`.
+- The workspace uses persistent storage with room for both the HuggingFace model and the converted Megatron / MCore weights.
+- Network: the PyTorch notebooks clone `MindSpeed-LLM` from `https://gitcode.com/ascend/MindSpeed-LLM.git` at runtime. If the workbench can't reach it, drop a local copy in the workspace and update the path in the first cell. The MindSpore notebook uses the bundled tree under `/opt/app-root/share/MindSpeed-Core-MS` and doesn't clone anything.
+
+Create the workbench (`PyTorch CANN` or `MindSpore CANN`) per [Creating a Workbench](../workbench/how_to/create_workbench.mdx) and upload the notebook through the JupyterLab file browser.
+
+## Prepare the base model
+
+Each notebook expects a HuggingFace-format model at:
+
+| Notebook | `HF_MODEL_DIR` default |
+|---|---|
+| Fine-tuning | `/opt/app-root/src/models/Qwen3-8B` |
+| Pretraining | `/opt/app-root/src/models/Qwen2.5-7B` |
+| MindSpore SFT | `/opt/app-root/src/models/Qwen3-0.6B` |
+
+Either drop the model files there or change `HF_MODEL_DIR` in the first parameter cell. For versioned, reusable models, push to the platform model repository and clone from there per [Upload Models Using Notebook](../model_inference/model_management/how_to/upload_models_using_notebook.mdx).
+
+> All three notebooks convert HF → Megatron / MCore before training; expect a second large weight directory on disk.
+
+## Prepare the dataset
+
+### Fine-tuning data (Alpaca-style JSONL)
+
+Both fine-tuning notebooks expect:
+
+- `ALPACA_PARQUET = /opt/app-root/src/datasets/alpaca/train-00000-of-00001-a09b74b3ef9c3b56.parquet`
+- `RAW_DATA_FILE = .../finetune_dataset/alpaca_sample.jsonl` (under the notebook's work dir)
+
+If the parquet exists the notebook converts it to JSONL automatically. If you already have JSONL, place it at `RAW_DATA_FILE` or update the variable. The expected record:
+
+```json
+{"instruction": "...", "input": "...", "output": "..."}
+```
+
+ShareGPT and Pairwise formats can be swapped in by changing the handler in the parameter cell.
+
+### Pretraining data (raw text)
+
+`MindSpeed-LLM` preprocessing accepts `.parquet`, `.json`, `.jsonl`, and `.txt`. Structured formats need a `text` field; plain text needs one segment per line. The default is the same `ALPACA_PARQUET` path; if it's missing the notebook falls back to a built-in sample so you can still verify the pipeline.
+
+For larger datasets, mount a PVC or pull from the platform dataset repository — see [Fine-tuning LLMs using Workbench](./fine-tuning-using-notebooks.mdx).
+
+## Run a notebook
+
+Each notebook follows the same shape:
+
+1. **Environment check** — confirms `torch_npu` (or `mindspore` + `msadapter`), `MindSpeed`, and `MindSpeed-LLM` are importable, and that the available NPU count matches `TP × PP`.
+2. **Dataset prep** — converts parquet → JSONL (or falls back to a built-in sample for pretraining).
+3. **HF → MCore weight conversion** — writes weights into a `TP/PP`-specific output directory.
+4. **Data preprocessing** — generates the `.bin` / `.idx` files MindSpeed needs.
+5. **Training** — `posttrain_gpt.py` for SFT, `pretrain_gpt.py` for pretraining. The MindSpore notebook uses `msrun` with `--ai-framework mindspore --ckpt-format msadapter` and writes logs to `.../logs`.
+6. **Validation** — checks `latest_checkpointed_iteration.txt`, lists `iter_*` directories, and (for PyTorch SFT) runs a quick inference smoke.
+
+The MindSpore SFT notebook mirrors the upstream Qwen3 path:
+
+- `examples/mindspore/qwen3/ckpt_convert_qwen3_hf2mcore.sh`
+- `examples/mindspore/qwen3/data_convert_qwen3_instruction.sh`
+- `examples/mindspore/qwen3/tune_qwen3_0point6b_4K_full_ms.sh`
+
+Default MindSpore parameters: `TP=1`, `PP=1`, `MBS=2`, `SEQ_LENGTH=2048`, `TRAIN_ITERS=100`, `ENABLE_THINKING=true`.
+
+## Parameters to review
+
+Common across notebooks:
+
+- `HF_MODEL_DIR`, `OUTPUT_DIR`
+- `ALPACA_PARQUET` or `RAW_DATA_FILE`
+- `TP`, `PP` (and `MBS` for MindSpore)
+- `SEQ_LENGTH`, `TRAIN_ITERS`
+- `ENABLE_THINKING` (Qwen3)
+- `MASTER_ADDR`, `MASTER_PORT`, `NNODES`, `NODE_RANK` (multi-node MindSpore)
+
+For real runs, raise `SEQ_LENGTH` to your model's context window, raise `TRAIN_ITERS` to a production value, and adjust parallelism / batch size to fit available NPUs and dataset size. **If you change `TP` or `PP`, rerun weight conversion** so the checkpoint layout matches.
+
+## Output paths
+
+| Notebook | Default output |
+|---|---|
+| `qwen3_finetune_verify.ipynb` | `/opt/app-root/src/Qwen3-8B-work-dir/output/qwen3_8b_finetuned` |
+| `qwen25_pretrain_verify.ipynb` | `/opt/app-root/src/Qwen2.5-7B-work-dir/output/qwen25_7b_pretrained` |
+| `qwen3_0.6b_finetune_verify.ipynb` | `/opt/app-root/src/Qwen3-0.6B-work-dir/output/qwen3_0.6b_finetuned` |
+
+Keep these on persistent storage. To push the result to the model repository, use the Git LFS workflow in [Upload Models Using Notebook](../model_inference/model_management/how_to/upload_models_using_notebook.mdx).
+
+## Notes
+
+- The notebooks run **full-parameter SFT** — not LoRA. Treat the defaults as smoke tests and tune before serious runs.
+- The MindSpore notebook validates checkpoint generation only; it doesn't include a stable inference step.
+- For offline / restricted clusters: pre-stage the `MindSpeed-LLM` repo and model / dataset files in the workspace (PyTorch notebooks). The MindSpore notebook uses only the bundled source tree.

@@ -1,0 +1,57 @@
+---
+weight: 30
+---
+
+# Fine-Tuning with Kubeflow Trainer v2
+
+Run supervised fine-tuning with [LlamaFactory](https://github.com/hiyouga/LLaMA-Factory) on Kubernetes using Kubeflow Trainer v2.
+
+Trainer v2 splits the job into a reusable `TrainingRuntime` (image + pipeline steps + LlamaFactory config) and per-experiment `TrainJob` runs that override only what changes (model, dataset, hyperparameters, GPU resources).
+
+## Prerequisites
+
+| Requirement | Details |
+|---|---|
+| Kubeflow Trainer v2 | `trainer.kubeflow.org` API group available |
+| Kueue | Optional; for job queuing and quotas |
+| Shared PVC | RWX or correctly-provisioned RWO across all training pods |
+| Git credentials | `Secret` `aml-image-builder-secret` with `MODEL_REPO_GIT_USER` and `MODEL_REPO_GIT_TOKEN` |
+| GPU nodes | NVIDIA GPUs; adjust `nodeSelector` to match your nodes |
+| `kubectl` access | Permission to manage `trainingruntimes` and `trainjobs` in your namespace |
+
+If you hit RBAC errors, ask a cluster admin to grant your workbench ServiceAccount read/write on `trainjobs` and `trainingruntimes` in the target namespace (example role: `apiGroups: ["trainer.kubeflow.org"]`, `resources: ["trainjobs","trainingruntimes"]`).
+
+## Build or use a prebuilt image
+
+Use `alaudadockerhub/fine_tune_with_llamafactory:v0.1.11`, or build your own from the `Containerfile` under [`assets/build-train-image/`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/assets/build-train-image).
+
+## Run the example notebook
+
+Download [`fine-tune-with-trainer-v2.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/fine-tune-with-trainer-v2.ipynb) into your workbench and follow the cells. The notebook creates a `TrainingRuntime`, then submits a `TrainJob` that mounts the shared PVC and uses the `aml-image-builder-secret`.
+
+For Huawei Ascend NPUs, use [`fine-tune-with-trainer-v2-mindspeed-npu.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/fine-tune-with-trainer-v2-mindspeed-npu.ipynb) instead — it runs the MindSpeed-LLM SFT pipeline (HF → MCore checkpoint, preprocess, train) on `huawei.com/Ascend910B4` resources with `runtimeClassName: ascend`.
+
+## Scheduling with Kueue
+
+When [Kueue](https://kueue.sigs.k8s.io/) is installed, TrainJobs stay **suspended** until Kueue admits them against the configured `ClusterQueue` quota.
+
+1. Cluster admin creates a `ClusterQueue` with CPU/memory/GPU quotas.
+2. Namespace admin creates a `LocalQueue` referencing it:
+
+   ```yaml
+   apiVersion: kueue.x-k8s.io/v1beta2
+   kind: LocalQueue
+   metadata:
+     name: local-queue
+     namespace: <your-namespace>
+   spec:
+     clusterQueue: cluster-queue
+   ```
+
+3. Label your TrainJob with `kueue.x-k8s.io/queue-name: local-queue` to submit it to that queue.
+
+See [Kueue docs](/kueue/intro.mdx) for the full setup.
+
+:::note
+When the Kueue **PodsReady timeout** is short and the training image is large, the first attempt may be evicted on image-pull timeout. Resubmitting usually succeeds because the image is cached on the node.
+:::

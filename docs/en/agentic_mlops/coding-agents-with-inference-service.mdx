@@ -22,8 +22,8 @@ Coding agents and their configuration formats evolve quickly. The config snippet
 
 ## Prerequisites
 
-- A running, ready `InferenceService` that serves an OpenAI-compatible API. See [Create Inference Service using CLI](./create_inference_service_cli.mdx).
-- Network access from the machine running the agent to the service endpoint. For access from a developer laptop outside the cluster, see [Configure External Access for Inference Services](./external_access_inference_service.mdx).
+- A running, ready `InferenceService` that serves an OpenAI-compatible API. See [Create Inference Service using CLI](../model_inference/inference_service/how_to/create_inference_service_cli.mdx).
+- Network access from the machine running the agent to the service endpoint. For access from a developer laptop outside the cluster, see [Configure External Access for Inference Services](../model_inference/inference_service/how_to/external_access_inference_service.mdx).
 - A model with **tool/function calling** support, served with the matching vLLM parser enabled (see [Enable tool calling on the runtime](#enable-tool-calling-on-the-runtime)). Without this, agents can chat but cannot edit files or run commands.
 - The agent CLI installed locally (`opencode`, `codex`, or `claude`).
 
@@ -44,7 +44,7 @@ Coding agents and their configuration formats evolve quickly. The config snippet
 
 ## Step 1: Deploy and smoke-test the endpoint
 
-Deploy your model as an `InferenceService` following [Create Inference Service using CLI](./create_inference_service_cli.mdx), and if the agent runs outside the cluster, expose it following [Configure External Access for Inference Services](./external_access_inference_service.mdx).
+Deploy your model as an `InferenceService` following [Create Inference Service using CLI](../model_inference/inference_service/how_to/create_inference_service_cli.mdx), and if the agent runs outside the cluster, expose it following [Configure External Access for Inference Services](../model_inference/inference_service/how_to/external_access_inference_service.mdx).
 
 Before wiring up any agent, confirm the endpoint answers a chat request. Coding agents fail in confusing ways if the base URL, model name, or auth is wrong, so validate with `curl` first:
 
@@ -68,7 +68,7 @@ A normal JSON completion confirms the endpoint is reachable and the model name i
 
 ## Step 2: Enable tool calling on the runtime \{#enable-tool-calling-on-the-runtime}
 
-Coding agents work by calling tools (read file, write file, run shell). This requires the model to emit tool calls **and** vLLM to parse them. Add the following flags to the vLLM launch command in your `InferenceService` (in the sample from [Create Inference Service using CLI](./create_inference_service_cli.mdx), they go on the `python3 -m vllm.entrypoints.openai.api_server` line):
+Coding agents work by calling tools (read file, write file, run shell). This requires the model to emit tool calls **and** vLLM to parse them. Add the following flags to the vLLM launch command in your `InferenceService` (in the sample from [Create Inference Service using CLI](../model_inference/inference_service/how_to/create_inference_service_cli.mdx), they go on the `python3 -m vllm.entrypoints.openai.api_server` line):
 
 ```bash
 --enable-auto-tool-choice \
@@ -156,7 +156,7 @@ claude
 
 A few notes on the values:
 
-- The `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_API_KEY` values must be non-empty but their content does not matter if your endpoint does not check them; gate access at the endpoint or in front of it (see [Manage gateways](./mlops_with_coding_agents.mdx#manage-gateways) for adding auth via Envoy AI Gateway).
+- The `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_API_KEY` values must be non-empty but their content does not matter if your endpoint does not check them; gate access at the endpoint or in front of it (see [Manage gateways](./mlops-with-coding-agents.mdx#manage-gateways) for adding auth via Envoy AI Gateway).
 - `ANTHROPIC_MODEL` must match the model name the endpoint exposes (the `--served-model-name` from your `InferenceService`, or whatever your local runner advertises).
 - The `CLAUDE_CODE_DISABLE_*` and `CLAUDE_CODE_*=0` flags are what actually keep an "on-prem" setup on-prem: without them, Claude Code can still emit non-essential requests to Anthropic-hosted endpoints and ask the model for features (1M context, very large outputs) the on-prem model cannot honor.
 
@@ -198,14 +198,14 @@ Coding-agent traffic has a distinctive shape: long, highly repetitive prompts (t
 - **Enable prefix caching** (`--enable-prefix-caching`). This is the single highest-impact flag for coding agents: the shared prompt prefix is reused across turns instead of being recomputed, cutting prefill cost and latency dramatically. See [Automatic Prefix Caching — vLLM](https://docs.vllm.ai/en/latest/features/automatic_prefix_caching.html).
 - **Raise `--gpu-memory-utilization`** toward `0.90–0.95` to enlarge the KV cache, which increases concurrency and the context length you can sustain.
 - **Right-size `--max-model-len`.** Set it to the largest context the agent actually needs, not the model's theoretical maximum — every extra token of capacity costs KV-cache memory.
-- **Enable chunked prefill** (`--enable-chunked-prefill`) when long prompts cause latency spikes under concurrency, so decode steps are not starved by a large prefill. Note the [CLI sample](./create_inference_service_cli.mdx) disables it by default.
+- **Enable chunked prefill** (`--enable-chunked-prefill`) when long prompts cause latency spikes under concurrency, so decode steps are not starved by a large prefill. Note the [CLI sample](../model_inference/inference_service/how_to/create_inference_service_cli.mdx) disables it by default.
 - **Allow CUDA graphs** for steady-state latency: the CLI sample sets `ENFORCE_EAGER=True` (eager mode, which starts faster but runs slower). Once the service is stable, switch to non-eager to capture CUDA graphs, at the cost of longer startup.
 - **Tune batching** with `--max-num-seqs` and `--max-num-batched-tokens` to balance throughput against per-request latency for your concurrency level.
 - **Use FP8 KV cache** (`--kv-cache-dtype fp8`) to stretch context length and concurrency when memory is tight.
 - **Shard large models** across GPUs with `--tensor-parallel-size` when a model does not fit on one card.
-- **Consider speculative decoding** for lower interactive latency on agent loops — see [Speculative Decoding for vLLM Inference Services](./vllm_speculative_decoding.mdx).
-- **Mind autoscaling and cold starts.** For interactive single-user agent use, keep `minReplicas: 1` — scaling from zero adds a multi-minute cold start that is painful mid-task. For bursty multi-developer usage, configure autoscaling deliberately; see [Configure Scaling for Inference Services](./autoscale_settings.mdx) and [Set Up Autoscaling for Inference Services with KEDA](./keda_autoscaling.mdx).
-- **Allow long requests.** Agent turns can be long-running; size the Knative `serving.knative.dev/progress-deadline` annotation and your client timeouts accordingly. If requests are cut off, see [Inference timeout troubleshooting](../trouble_shooting/infer_timeout.mdx).
+- **Consider speculative decoding** for lower interactive latency on agent loops — see [Speculative Decoding for vLLM Inference Services](../model_inference/inference_service/how_to/vllm_speculative_decoding.mdx).
+- **Mind autoscaling and cold starts.** For interactive single-user agent use, keep `minReplicas: 1` — scaling from zero adds a multi-minute cold start that is painful mid-task. For bursty multi-developer usage, configure autoscaling deliberately; see [Configure Scaling for Inference Services](../model_inference/inference_service/how_to/autoscale_settings.mdx) and [Set Up Autoscaling for Inference Services with KEDA](../model_inference/inference_service/how_to/keda_autoscaling.mdx).
+- **Allow long requests.** Agent turns can be long-running; size the Knative `serving.knative.dev/progress-deadline` annotation and your client timeouts accordingly. If requests are cut off, see [Inference timeout troubleshooting](../model_inference/inference_service/trouble_shooting/infer_timeout.mdx).
 
 ### Getting started with vibe coding
 
@@ -231,17 +231,17 @@ Because the model runs inside your cluster, a coding agent backed by an on-premi
 - **Agent chats but never edits files or runs commands.** Tool calling is not enabled or the parser does not match the model — see [Enable tool calling on the runtime](#enable-tool-calling-on-the-runtime).
 - **`model not found` / 404.** The model name in the agent config does not match the `--served-model-name`, or the base URL does not end in `/v1`.
 - **401 / 403.** The agent is sending the wrong (or no) API key for what the endpoint or gateway expects.
-- **Requests time out on long tasks.** Increase the Knative `progress-deadline` annotation and the client timeout — see [Inference timeout troubleshooting](../trouble_shooting/infer_timeout.mdx).
+- **Requests time out on long tasks.** Increase the Knative `progress-deadline` annotation and the client timeout — see [Inference timeout troubleshooting](../model_inference/inference_service/trouble_shooting/infer_timeout.mdx).
 - **First request after idle is very slow.** The service scaled to zero and is cold-starting; set `minReplicas: 1` for interactive use.
 
 ## References
 
-- [Create Inference Service using CLI](./create_inference_service_cli.mdx)
-- [Configure External Access for Inference Services](./external_access_inference_service.mdx)
-- [Configure Scaling for Inference Services](./autoscale_settings.mdx)
-- [Set Up Autoscaling for Inference Services with KEDA](./keda_autoscaling.mdx)
-- [Speculative Decoding for vLLM Inference Services](./vllm_speculative_decoding.mdx)
-- [Extend Inference Runtimes](./custom_inference_runtime.mdx)
+- [Create Inference Service using CLI](../model_inference/inference_service/how_to/create_inference_service_cli.mdx)
+- [Configure External Access for Inference Services](../model_inference/inference_service/how_to/external_access_inference_service.mdx)
+- [Configure Scaling for Inference Services](../model_inference/inference_service/how_to/autoscale_settings.mdx)
+- [Set Up Autoscaling for Inference Services with KEDA](../model_inference/inference_service/how_to/keda_autoscaling.mdx)
+- [Speculative Decoding for vLLM Inference Services](../model_inference/inference_service/how_to/vllm_speculative_decoding.mdx)
+- [Extend Inference Runtimes](../model_inference/inference_service/how_to/custom_inference_runtime.mdx)
 - [Tool Calling — vLLM](https://docs.vllm.ai/en/latest/features/tool_calling.html)
 - [Automatic Prefix Caching — vLLM](https://docs.vllm.ai/en/latest/features/automatic_prefix_caching.html)
 - [opencode documentation](https://opencode.ai/docs/)
