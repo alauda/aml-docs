@@ -185,8 +185,8 @@ spec:
                   valueFrom: { secretKeyRef: { name: aml-image-builder-secret, key: MODEL_REPO_GIT_USER } }
                 - name: GIT_TOKEN
                   valueFrom: { secretKeyRef: { name: aml-image-builder-secret, key: MODEL_REPO_GIT_TOKEN } }
-                - { name: MLFLOW_TRACKING_URI,  value: "http://mlflow-tracking-server.kubeflow:5000" }
-                - { name: MLFLOW_EXPERIMENT_NAME, value: <your-namespace> }
+                - { name: MLFLOW_TRACKING_URI,    value: "http://mlflow-tracking-server.kubeflow:5000" }
+                - { name: MLFLOW_EXPERIMENT_NAME, value: "<your-namespace>" }
               command: [ bash, -c ]
               args:
                 - |
@@ -384,7 +384,7 @@ spec:
                 claimName: sft-qwen3-volume
           containers:
             - name: train
-              image: <vendor-fine-tuning-image>
+              image: "<vendor-fine-tuning-image>"
               imagePullPolicy: IfNotPresent
               volumeMounts:
                 - { mountPath: /dev/shm, name: dshm }
