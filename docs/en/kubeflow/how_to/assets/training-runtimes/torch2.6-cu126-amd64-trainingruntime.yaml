@@ -1,0 +1,70 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainingRuntime
+metadata:
+  name: torch2.6-cu126-amd64
+  namespace: kubeflow-admin-cpaas-io
+  labels:
+    trainer.kubeflow.org/framework: torch
+    alauda.io/training-runtime: torch2.6-cu126-amd64
+spec:
+  mlPolicy:
+    numNodes: 1
+    torch:
+      numProcPerNode: auto
+  template:
+    spec:
+      replicatedJobs:
+        - name: node
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              backoffLimit: 0
+              template:
+                spec:
+                  securityContext:
+                    runAsNonRoot: true
+                    runAsUser: 1000
+                    runAsGroup: 1000
+                    fsGroup: 1000
+                  containers:
+                    - name: node
+                      image: docker.io/alaudadockerhub/torch2.6-cu126-amd64:v0.1.0
+                      command:
+                        - python
+                        - -c
+                        - |
+                          import torch, os
+                          print(f"torch={torch.__version__} cuda={torch.cuda.is_available()} devices={torch.cuda.device_count()}")
+                          print(f"PET_NNODES={os.environ.get('PET_NNODES')} PET_NODE_RANK={os.environ.get('PET_NODE_RANK')}")
+                          if torch.cuda.is_available():
+                              x = torch.randn(1024, 1024, device='cuda')
+                              y = x @ x.T
+                              print(f"matmul ok, shape={tuple(y.shape)}, mean={y.mean().item():.4f}")
+                      resources:
+                        requests:
+                          cpu: "1"
+                          memory: 2Gi
+                        limits:
+                          cpu: "2"
+                          memory: 4Gi
+                          nvidia.com/gpualloc: 1
+                          nvidia.com/gpucores: 50
+                          nvidia.com/gpumem: "8192"
+                      securityContext:
+                        allowPrivilegeEscalation: false
+                        capabilities:
+                          drop: [ALL]
+                        runAsNonRoot: true
+                        seccompProfile:
+                          type: RuntimeDefault
+                      volumeMounts:
+                        - { name: workspace, mountPath: /workspace }
+                        - { name: dshm, mountPath: /dev/shm }
+                  volumes:
+                    - { name: workspace, emptyDir: {} }
+                    - name: dshm
+                      emptyDir:
+                        medium: Memory
+                        sizeLimit: 1Gi
