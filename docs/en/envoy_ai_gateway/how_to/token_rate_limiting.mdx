@@ -186,12 +186,16 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
 
 Drive a short burst with a valid identity token, then a request from a different identity, and confirm only the first identity is throttled:
 
+:::note
+With the realistic `200000` tokens/hour budget above, a handful of one-word requests consume well under 1% of the quota, so they would all return `200` and you would never observe a `429`. To see throttling in a short demo, temporarily shrink the budget — set `limit.requests: 200` and `unit: Minute` in the `BackendTrafficPolicy`, re-apply it, and restart the data-plane proxy (`kubectl rollout restart deployment -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name=<gateway-name>`). Restore the real budget once the demo passes. Alternatively keep the production budget and send a few hundred calls with a large prompt and a long `max_tokens`.
+:::
+
 ```bash
 GATEWAY=http://<gateway-address>
 TOKEN_ALICE=<alice-jwt-or-api-key>
 TOKEN_BOB=<bob-jwt-or-api-key>
 
-# Send 8 calls as alice; expect early 200s then 429 once the budget is used.
+# With the demo budget above (200 tokens/minute), expect early 200s then 429 once it is used.
 for i in $(seq 1 8); do
   curl -s -o /dev/null -w "alice #$i -> %{http_code}\n" \
     -H "Authorization: Bearer $TOKEN_ALICE" \

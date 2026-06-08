@@ -76,10 +76,10 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
   | `type` | credential block | required `Secret` data keys |
   |---|---|---|
   | `APIKey` | `apiKey.secretRef` | `apiKey` |
-  | `AWSCredentials` | `awsCredentials.credentialsFile.secretRef` | `credentials` (AWS shared-credentials INI) |
+  | `AWSCredentials` | `awsCredentials.credentialsFile.secretRef` | `credentials` (AWS shared-credentials INI; plus `region` inline) |
   | `AzureAPIKey` | `azureApiKey.secretRef` | `apiKey` |
   | `AzureCredentials` | `azureCredentials.clientSecretRef` | `client-secret` (plus `clientID`/`tenantID` inline) |
-  | `GCPCredentials` | `gcpCredentials.workloadIdentityFederationConfig` | service-account JSON via the configured source |
+  | `GCPCredentials` | `gcpCredentials.credentialsFile.secretRef` | `service_account.json` (plus `projectName`/`region` inline; or use `gcpCredentials.workloadIdentityFederationConfig` for keyless WIF) |
   | `AnthropicAPIKey` | `anthropicApiKey.secretRef` | `apiKey` |
 
   When the upstream auth scheme is wrong, the upstream typically returns `401`/`403`. When the `Secret` is keyed wrongly (for example `key:` instead of `apiKey:`) the failure mode is harder to read: the `BackendSecurityPolicy` still reports `Accepted=True`, but the controller logs `failed to get backend auth from backend security policy. Skipping this backend. ... error: secret <name> does not contain key apiKey` and removes the backend from the route, so requests to that backend **time out** rather than returning a clean 401. Tail the controller logs when introducing a new credential:
@@ -164,7 +164,7 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
   ```
 
   - `matches.headers[x-ai-eg-model]`: the AI filter parses the `model` field from the request body and writes it to this header for routing. So `"model":"gpt-4o"` in the request is what reaches this match — no manual header is required from the caller.
-  - `priority`: Envoy uses **locality-weighted load balancing**. Priority-0 endpoints take all traffic while at least one is healthy; the priority-1 group only receives traffic once every priority-0 endpoint trips its outlier detection. Failover is automatic but takes seconds, not milliseconds; do not rely on it for tail-latency budgets.
+  - `priority`: Envoy uses **priority-level failover**. The priority-0 group takes all traffic while it has enough healthy endpoints; the priority-1 group only receives traffic once priority-0 degrades — governed by Envoy's overprovisioning factor and panic threshold, not a strict "every priority-0 endpoint must be down". This `priority` field overrides the `Backend`-level `fallback` setting. Failover is automatic but takes seconds, not milliseconds; do not rely on it for tail-latency budgets.
 </Steps>
 
 ## Verification
