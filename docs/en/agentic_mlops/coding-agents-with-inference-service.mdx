@@ -123,14 +123,7 @@ Reasoning effort controls how much the model "thinks" before answering. For codi
 
 #### Server-side defaults
 
-vLLM does not expose a generic `--reasoning-effort` launch flag. For server-wide defaults, configure the model's chat-template thinking knobs instead. For example, Qwen3 enables thinking by default, so you can disable it server-wide:
-
-```bash
---reasoning-parser qwen3 \
---default-chat-template-kwargs '{"enable_thinking": false}'
-```
-
-For models whose templates expose a different thinking switch, use the key documented by the model or vLLM. Request-level `chat_template_kwargs` override the server default.
+vLLM does not expose a generic `--reasoning-effort` launch flag. Server-wide control is achieved through the model's chat template — you can supply a custom Jinja template that disables thinking by default, then pass it with `--chat-template`. Alternatively, some models and vLLM versions expose per-model template kwargs; check the vLLM release notes for the specific key. For a quick start, request-level parameters (see below) are the most portable approach.
 
 #### Request-time override
 
