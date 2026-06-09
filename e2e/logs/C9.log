@@ -1,0 +1,12 @@
+[2026-06-09T05:51:37Z] C9: submitting Job c9-pytorch-cann-smoke-01bba (image=docker.io/alaudadockerhub/alauda-workbench-jupyter-pytorch-cann-py312-ubi9:v0.1.7)
+[2026-06-09T05:51:38Z] C9: waiting for pod...
+[2026-06-09T05:51:39Z] C9: pod=c9-pytorch-cann-smoke-01bba-5v5mn
+[2026-06-09T05:52:27Z] C9: pod phase=Succeeded
+[2026-06-09T05:52:27Z] C9: ===== container logs =====
+torch: 2.9.0+cpu
+torch_npu: 2.9.0
+npu_count: 1
+  NPU 0: Ascend910B4
+matmul ok shape=(512, 512) mean=1.0394
+[2026-06-09T05:52:28Z] C9: ===== end logs =====
+job.batch "c9-pytorch-cann-smoke-01bba" deleted from mlops-demo-ai-test namespace

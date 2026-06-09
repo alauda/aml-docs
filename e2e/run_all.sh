@@ -20,8 +20,10 @@ CASES=(
   "C5:GPU:cases/c5_trainer_v2_llamafactory.sh"
   "C6:GPU:cases/c6_volcanojob_llamafactory.sh"
   "C7:NPU:cases/c7_smoke_npu.sh"
-  # C8, C9, C10, C11 — NPU notebooks need real Qwen3/Qwen2.5 weights + the PyTorch CANN
-  # workbench image; not yet pre-cached on the dev NPU nodes (see TODO.md).
+  "C8:NPU:cases/c8_trainer_v2_mindspeed_npu.sh"
+  "C9:NPU:cases/c9_qwen3_finetune_verify.sh"
+  # C10 (qwen25_pretrain_verify.ipynb) shares C9's env contract — C9 implicitly covers it.
+  "C11:NPU:cases/c11_qwen3_06b_mindspore.sh"
 )
 
 want=( "$@" )
