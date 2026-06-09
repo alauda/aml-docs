@@ -26,6 +26,9 @@ CASES=(
   "C9:NPU:cases/c9_qwen3_finetune_verify.sh"
   # C10 (qwen25_pretrain_verify.ipynb) shares C9's env contract — C9 implicitly covers it.
   "C11:NPU:cases/c11_qwen3_06b_mindspore.sh"
+  # C12 needs Kueue installed; it skips with rc=1 if the kueue.x-k8s.io API
+  # group is missing. See preemptible-trainjobs-with-kueue.mdx.
+  "C12:GPU:cases/c12_kueue_preemption.sh"
 )
 
 want=( "$@" )

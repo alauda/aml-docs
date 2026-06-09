@@ -1,0 +1,23 @@
+# WorkloadPriorityClasses used by the cohort.
+#
+# A WorkloadPriorityClass affects ONLY the order in which Kueue admits and
+# preempts Workloads; unlike a Kubernetes PriorityClass it does not change
+# the pod's kube-scheduler priority (so scheduling among pods of admitted
+# Workloads is unaffected).
+#
+# Reference one on a TrainJob / InferenceService / Job via:
+#   metadata.labels:
+#     kueue.x-k8s.io/priority-class: c12-inference-prio
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: WorkloadPriorityClass
+metadata:
+  name: c12-inference-prio
+value: 1000
+description: "Online inference — preempts training when reclaiming nominal quota."
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: WorkloadPriorityClass
+metadata:
+  name: c12-training-prio
+value: 10
+description: "Opportunistic training — preemptible by any higher-priority workload."

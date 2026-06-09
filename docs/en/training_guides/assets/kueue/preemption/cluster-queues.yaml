@@ -1,0 +1,69 @@
+# Preemptible cohort for "inference-first, training fills the gap".
+#
+# Two ClusterQueues share one cohort:
+#   c12-inference-cq — holds the full GPU nominal quota; will NOT lend any
+#                      of it out (borrowingLimit: 0 on the GPU resources).
+#                      Inference workloads borrow nothing, so admission is
+#                      a constant-time guarantee against its own quota.
+#   c12-training-cq  — owns zero GPU nominal quota; can borrow up to one
+#                      GPU (and a vGPU slice) from the cohort when idle.
+#                      When inference reclaims its nominal quota, the
+#                      training Workload is preempted (reclaimWithinCohort:
+#                      Any).
+#
+# Edit nominalQuota / borrowingLimit to match the GPUs you want to reserve
+# for inference vs lend to training; the policy is independent of the
+# numbers. Switch the gpualloc / gpucores / gpumem keys to nvidia.com/gpu
+# if you don't use HAMI vGPU.
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: c12-default
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata:
+  name: c12-inference-cq
+spec:
+  cohortName: c12-shared
+  namespaceSelector: {}
+  preemption:
+    # Reclaim borrowed quota from any cohort member.
+    reclaimWithinCohort: Any
+    # Inference can also preempt lower-priority inference siblings, which is
+    # useful for promoting urgent rollouts ahead of background canaries.
+    borrowWithinCohort:
+      policy: LowerPriority
+      maxPriorityThreshold: 100
+    withinClusterQueue: LowerPriority
+  resourceGroups:
+    - coveredResources: ["cpu", "memory", "nvidia.com/gpualloc", "nvidia.com/gpucores", "nvidia.com/gpumem"]
+      flavors:
+        - name: c12-default
+          resources:
+            - { name: cpu,                 nominalQuota: "4",    borrowingLimit: "0" }
+            - { name: memory,              nominalQuota: 8Gi,    borrowingLimit: 0 }
+            - { name: nvidia.com/gpualloc, nominalQuota: "1",    borrowingLimit: "0" }
+            - { name: nvidia.com/gpucores, nominalQuota: "20",   borrowingLimit: "0" }
+            - { name: nvidia.com/gpumem,   nominalQuota: "2048", borrowingLimit: "0" }
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata:
+  name: c12-training-cq
+spec:
+  cohortName: c12-shared
+  namespaceSelector: {}
+  preemption:
+    reclaimWithinCohort: Any
+    withinClusterQueue: LowerPriority
+  resourceGroups:
+    - coveredResources: ["cpu", "memory", "nvidia.com/gpualloc", "nvidia.com/gpucores", "nvidia.com/gpumem"]
+      flavors:
+        - name: c12-default
+          resources:
+            - { name: cpu,                 nominalQuota: "0",    borrowingLimit: "4" }
+            - { name: memory,              nominalQuota: 0,      borrowingLimit: 8Gi }
+            - { name: nvidia.com/gpualloc, nominalQuota: "0",    borrowingLimit: "1" }
+            - { name: nvidia.com/gpucores, nominalQuota: "0",    borrowingLimit: "20" }
+            - { name: nvidia.com/gpumem,   nominalQuota: "0",    borrowingLimit: "2048" }
