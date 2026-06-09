@@ -1,0 +1,17 @@
+# Example TrainJob that defers admission to the `local-queue` LocalQueue.
+# The TrainJob stays Suspended until Kueue admits it against `cluster-queue`.
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  generateName: kueue-demo-
+  namespace: <your-namespace>
+  labels:
+    kueue.x-k8s.io/queue-name: local-queue
+spec:
+  runtimeRef:
+    apiGroup: trainer.kubeflow.org
+    kind: TrainingRuntime
+    name: torch2.6-cu126-amd64
+  suspend: false
+  trainer:
+    numNodes: 1

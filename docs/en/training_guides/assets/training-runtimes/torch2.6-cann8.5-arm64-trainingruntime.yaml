@@ -34,22 +34,24 @@ spec:
                     - name: node
                       image: docker.io/alaudadockerhub/torch2.6-cann8.5-arm64:v0.1.0
                       command:
-                        - python
+                        - bash
                         - -c
                         - |
-                          import os, torch
-                          try:
-                              import torch_npu
-                              import torch_npu.utils
-                              print(f"torch={torch.__version__} torch_npu={torch_npu.__version__}")
-                              print(f"npu_available={torch_npu.npu.is_available()} count={torch_npu.npu.device_count()}")
-                              if torch_npu.npu.is_available():
-                                  x = torch.randn(1024, 1024).npu()
-                                  y = x @ x.T
-                                  print(f"matmul ok shape={tuple(y.shape)} mean={y.mean().item():.4f}")
-                          except Exception as e:
-                              print(f"torch_npu probe failed: {e}")
-                              raise
+                          set -e
+                          # CANN runtime libs (libhccl.so etc.) live under /usr/local/Ascend, which
+                          # the `ascend` runtime class bind-mounts from the host. The image does not
+                          # auto-set LD_LIBRARY_PATH — every CANN entrypoint must source set_env.sh.
+                          source /usr/local/Ascend/ascend-toolkit/set_env.sh
+                          source /usr/local/Ascend/nnal/atb/set_env.sh 2>/dev/null || true
+                          python -c '
+                          import os, torch, torch_npu, torch_npu.utils
+                          print(f"torch={torch.__version__} torch_npu={torch_npu.__version__}")
+                          print(f"npu_available={torch_npu.npu.is_available()} count={torch_npu.npu.device_count()}")
+                          if torch_npu.npu.is_available():
+                              x = torch.randn(1024, 1024).npu()
+                              y = x @ x.T
+                              print(f"matmul ok shape={tuple(y.shape)} mean={y.mean().item():.4f}")
+                          '
                       resources:
                         requests:
                           cpu: "1"

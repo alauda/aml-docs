@@ -1,0 +1,3 @@
+# Reviewer-side artefacts — keep local, don't ship in the doc tree.
+TODO.md
+logs/
