@@ -1,0 +1,30 @@
+# Training-guides e2e — pending cases
+
+These notebooks could not be exercised end-to-end with synthetic data alone
+because they need either a real LLM checkpoint, a private model/dataset repo,
+or vendor-specific image work that is not yet published.
+
+| Case | Doc / notebook | Cluster | Gap |
+|------|----------------|---------|-----|
+| C4 | `osft-comprehensive-tutorial.ipynb` (`training_hub.osft`) | GPU | The bundled-training_hub image (kubeflow-plugin MR !53) gets the case past the import wall, but `mini_trainer` (the OSFT backend) unconditionally `import flash_attn`. flash_attn 2.x requires sm_75+ and the dev GPU node is Tesla P100 (sm_60). The case is expected to pass on Ampere/Hopper hardware without further image changes. |
+| C8 | `fine-tune-with-trainer-v2-mindspeed-npu.ipynb` | NPU | Runtime image is `alauda-workbench-jupyter-pytorch-cann-py312-ubi9:v0.1.7`. Manifest reachable through `docker-mirrors.alauda.cn` but blobs return `EOF` on every large arm64 image fetched from that proxy (verified on `llamafactory0.9-cu126-amd64`, `fine_tune_with_llamafactory`, and this workbench image). Image is not pre-cached on any dev NPU node, and `build-harbor.alauda.cn` doesn't carry the `alauda-workbench-*` repo. Need either a pre-warmed copy of the image in the local `192.168.111.127:11443/mlops/workbench-images` mirror (where the other workbench-image tags already live) or a direct `crane copy` into the cluster's accessible registry. Once that's done, the case also needs a synthetic Qwen3-mini HF checkpoint that MindSpeed-LLM's `mindspeed_llm.tasks.checkpoint.convert --model-type-hf qwen3` accepts. |
+| C9 | `qwen3_finetune_verify.ipynb` (Workbench `PyTorch CANN`) | NPU | Notebook clones `MindSpeed-LLM` from `https://gitcode.com/ascend/MindSpeed-LLM.git` at runtime and converts Qwen3-8B HF → MCore. No published `PyTorch CANN` workbench image is referenced in `training-runtimes.mdx`; image needs to be located / built and a tiny synthetic Qwen3-architecture checkpoint generated to replace the 8B model. |
+| C10 | `qwen25_pretrain_verify.ipynb` (Workbench `PyTorch CANN`) | NPU | Same workbench-image gap as C9. Pretraining path additionally needs raw-text shards converted via `MindSpeed-LLM` preprocess — synthetic data is feasible but the workbench image must exist first. |
+| C11 | `qwen3_0.6b_finetune_verify.ipynb` (Workbench `MindSpore CANN`) | NPU | Needs a published `MindSpore CANN` workbench image bundling `MindSpeed-Core-MS` + `MindSpeed-LLM`; that image is not in the `training-runtimes.mdx` catalog. Synthetic data and a Qwen3-0.6B-shaped MCore checkpoint would still need to be produced once the image is available. |
+
+## Resolved cases
+
+- **C1** torch2.6-cu126 smoke → PASS.
+- **C2** kubeflow-trainer-mnist (synthetic tensors) → PASS.
+- **C3** sft-comprehensive-tutorial.ipynb (`training_hub.sft`) → PASS. Requires the kubeflow-plugin MR !53 build of `traininghub0.1-cu126-amd64`, which bundles `training_hub`, pins torch to 2.6+cu126, and drops DeepSpeed. With the bundled image the case is a single Job that synthesises a tiny Qwen2 checkpoint + JSONL on an emptyDir, calls `training_hub.sft(...)` with `nproc_per_node=1`, and the Job condition reaches `SuccessCriteriaMet Complete`.
+- **C5** fine-tune-with-trainer-v2.ipynb (LlamaFactory SFT via Trainer v2) → PASS. The published TrainingRuntime depends on a private GitLab + secrets, so the e2e case rewrites the two initializer pods to synthesise a tiny Qwen2 checkpoint + identity JSONL directly into a shared cephfs PVC; the trainer step itself runs the doc's `llamafactory-cli train` command unchanged on the catalog `llamafactory0.9-cu126-amd64` image. The runtime image lacks `nvcc`, so deepspeed is shimmed with a stub module before `llamafactory-cli` imports it. Resulting LoRA adapter (~38 KiB) is written to the shared volume.
+- **C6** fine-tuning-using-notebooks.mdx (VolcanoJob LlamaFactory SFT + merge) → PASS. Same initContainer / trainer rewrite as C5, also drops the final `git lfs push` to a private model output repo. Volcano scheduler doesn't see HAMI vGPU, so the case requests a whole `nvidia.com/gpu: 1` and pins to the node that has one (per `my_dev_env_new.md` only `192.168.128.143` has a whole GPU on the dev GPU cluster). Result: a merged `output_models_merged/model.safetensors` (~200 KiB) on the cephfs volume.
+- **C7** torch2.6-cann8.5 smoke → PASS (NPU cluster).
+
+## Image / runtime work to publish
+
+1. `PyTorch CANN` workbench image — bundles CANN 8.5, PyTorch 2.9 + torch_npu 2.9, MindSpeed, MindSpeed-LLM. Needed for C9, C10. Image now listed in `training-runtimes.mdx` as `alaudadockerhub/alauda-workbench-jupyter-pytorch-cann-py312-ubi9:v0.1.7` but not yet pre-cached on the dev NPU nodes.
+2. `MindSpore CANN` workbench image — bundles MindSpore + MSAdapter + MindSpeed-Core-MS + MindSpeed-LLM. Needed for C11.
+3. Published Qwen3-0.6B (and ideally Qwen3-8B / Qwen2.5-7B) mirrors with public read so the trainer-v2 notebooks no longer need a private GitLab + LFS credentials. C5 demonstrates one workable shape — a runtime-side synthetic-init pod that builds a tokenizer + tiny Qwen2 checkpoint without external dependencies; the same pattern can be applied to the Ascend recipes once a MindSpeed-LLM-compatible synthetic Qwen3 generator exists.
+4. (NPU cluster only) The `torch2.6-cann8.5-arm64-trainingruntime.yaml` requests HAMI vNPU resources (`huawei.com/Ascend910B4` + `Ascend910B4-memory`, `schedulerName: hami-scheduler`). The dev NPU cluster in `my_dev_env_new.md` ships the standard Huawei device plugin with `huawei.com/Ascend910` and no HAMI. Either publish a second runtime YAML that uses the standard plugin, or document a kustomize/patch overlay alongside the HAMI-flavoured one.
+5. `traininghub0.1-cu126-amd64` and `llamafactory0.9-cu126-amd64` ship CUDA runtime but not the toolkit. DeepSpeed's import-time CUDA check fails on both with `MissingCUDAException: CUDA_HOME does not exist`. C5 works around this with a stub `deepspeed` module on `PYTHONPATH`; the cleaner fix is to bake the CUDA toolkit (or at least `nvcc`) into the runtime image so DeepSpeed JIT op compilation works as advertised.

@@ -1,0 +1,323 @@
+[2026-06-08T11:05:16Z] C5: ensuring shared PVC c5-models exists (RWX on cephfs so any node can mount)
+persistentvolumeclaim/c5-models unchanged[2026-06-08T11:05:17Z] C5: applying TrainingRuntime c5-llamafactory-finetune-runtime to ns/mlops-demo-e2e (image=build-harbor.alauda.cn/mlops/llamafactory0.9-cu126-amd64:v0.1.0-build.20260603021903)
+trainingruntime.trainer.kubeflow.org/c5-llamafactory-finetune-runtime configured[2026-06-08T11:05:19Z] C5: submitting TrainJob against c5-llamafactory-finetune-runtime
+[2026-06-08T11:05:19Z] C5: trainjob=c5-llamafactory-bcgbb
+[2026-06-08T11:05:19Z] C5: waiting for dataset-initializer pod...
+[2026-06-08T11:05:24Z] C5: dataset-initializer pod=c5-llamafactory-bcgbb-dataset-initializer-0-0-gtvc7
+container "dataset-initializer" in pod "c5-llamafactory-bcgbb-dataset-initializer-0-0-gtvc7" is waiting to start: ContainerCreating
+container "dataset-initializer" in pod "c5-llamafactory-bcgbb-dataset-initializer-0-0-gtvc7" is waiting to start: ContainerCreating
+container "dataset-initializer" in pod "c5-llamafactory-bcgbb-dataset-initializer-0-0-gtvc7" is waiting to start: ContainerCreating
+container "dataset-initializer" in pod "c5-llamafactory-bcgbb-dataset-initializer-0-0-gtvc7" is waiting to start: ContainerCreating
+container "dataset-initializer" in pod "c5-llamafactory-bcgbb-dataset-initializer-0-0-gtvc7" is waiting to start: ContainerCreating
+container "dataset-initializer" in pod "c5-llamafactory-bcgbb-dataset-initializer-0-0-gtvc7" is waiting to start: ContainerCreating
+container "dataset-initializer" in pod "c5-llamafactory-bcgbb-dataset-initializer-0-0-gtvc7" is waiting to start: ContainerCreating
++ mkdir -p /mnt/models/identity-alauda
++ python -
++ ls -l /mnt/models/identity-alauda
+total 3
+-rw-rw-r-- 1 nobody nogroup  153 Jun  8 11:05 dataset_info.json
+-rw-rw-r-- 1 nobody nogroup 2552 Jun  8 11:05 identity.json
+[2026-06-08T11:05:40Z] C5: dataset-initializer pod phase=Succeeded
+[2026-06-08T11:05:40Z] C5: waiting for model-initializer pod...
+[2026-06-08T11:05:40Z] C5: model-initializer pod=c5-llamafactory-bcgbb-model-initializer-0-0-7zgv2
+container "model-initializer" in pod "c5-llamafactory-bcgbb-model-initializer-0-0-7zgv2" is waiting to start: ContainerCreating
+container "model-initializer" in pod "c5-llamafactory-bcgbb-model-initializer-0-0-7zgv2" is waiting to start: ContainerCreating
+container "model-initializer" in pod "c5-llamafactory-bcgbb-model-initializer-0-0-7zgv2" is waiting to start: ContainerCreating
+container "model-initializer" in pod "c5-llamafactory-bcgbb-model-initializer-0-0-7zgv2" is waiting to start: ContainerCreating
+container "model-initializer" in pod "c5-llamafactory-bcgbb-model-initializer-0-0-7zgv2" is waiting to start: ContainerCreating
++ python -
+
+
+
+[2026-06-08 11:06:23,189] [WARNING] [real_accelerator.py:209:get_accelerator] Setting accelerator to CPU. If you have GPU or other accelerator, we were unable to detect it.
+[2026-06-08 11:06:23,196] [INFO] [real_accelerator.py:254:get_accelerator] Setting ds_accelerator to cpu (auto detect)
+model_dir /mnt/models/qwen3-0.6b vocab 305
++ ls -l /mnt/models/qwen3-0.6b
+total 420
+-rw-rw-r-- 1 nobody nogroup     65 Jun  8 11:06 chat_template.jinja
+-rw-rw-r-- 1 nobody nogroup    679 Jun  8 11:06 config.json
+-rw-rw-r-- 1 nobody nogroup     69 Jun  8 11:06 generation_config.json
+-rw-rw-r-- 1 nobody nogroup    256 Jun  8 11:06 merges.txt
+-rw-rw-r-- 1 nobody nogroup 412256 Jun  8 11:06 model.safetensors
+-rw-rw-r-- 1 nobody nogroup    548 Jun  8 11:06 special_tokens_map.json
+-rw-rw-r-- 1 nobody nogroup   8469 Jun  8 11:06 tokenizer.json
+-rw-rw-r-- 1 nobody nogroup   1031 Jun  8 11:06 tokenizer_config.json
+-rw-rw-r-- 1 nobody nogroup   2615 Jun  8 11:06 vocab.json
+[2026-06-08T11:06:56Z] C5: model-initializer pod phase=Succeeded
+[2026-06-08T11:06:56Z] C5: waiting for trainer pod...
+[2026-06-08T11:06:56Z] C5: trainer pod=c5-llamafactory-bcgbb-trainer-0-0-9pgwq
+container "node" in pod "c5-llamafactory-bcgbb-trainer-0-0-9pgwq" is waiting to start: ContainerCreating
+container "node" in pod "c5-llamafactory-bcgbb-trainer-0-0-9pgwq" is waiting to start: ContainerCreating
+container "node" in pod "c5-llamafactory-bcgbb-trainer-0-0-9pgwq" is waiting to start: ContainerCreating
+container "node" in pod "c5-llamafactory-bcgbb-trainer-0-0-9pgwq" is waiting to start: ContainerCreating
+container "node" in pod "c5-llamafactory-bcgbb-trainer-0-0-9pgwq" is waiting to start: ContainerCreating
++ mkdir -p /workspace/stubs/deepspeed
++ cat
++ export PYTHONPATH=/workspace/stubs:
++ PYTHONPATH=/workspace/stubs:
++ export MPLCONFIGDIR=/workspace/matplotlib XDG_CACHE_HOME=/workspace/cache
++ MPLCONFIGDIR=/workspace/matplotlib
++ XDG_CACHE_HOME=/workspace/cache
++ mkdir -p /workspace/matplotlib /workspace/cache
++ cd /workspace
++ cat
++ llamafactory-cli train lf-sft.yaml
+/usr/local/lib/python3.12/site-packages/jieba/__init__.py:44: SyntaxWarning: invalid escape sequence '\.'
+  re_han_default = re.compile("([\u4E00-\u9FD5a-zA-Z0-9+#&\._%\-]+)", re.U)
+/usr/local/lib/python3.12/site-packages/jieba/__init__.py:46: SyntaxWarning: invalid escape sequence '\s'
+  re_skip_default = re.compile("(\r\n|\s)", re.U)
+/usr/local/lib/python3.12/site-packages/jieba/finalseg/__init__.py:78: SyntaxWarning: invalid escape sequence '\.'
+  re_skip = re.compile("([a-zA-Z0-9]+(?:\.\d+)?%?)")
+/usr/local/lib/python3.12/site-packages/rouge_chinese/rouge.py:93: SyntaxWarning: invalid escape sequence '\?'
+  para = re.sub('([。！？\?])([^”’])', r"\1\n\2", para)
+/usr/local/lib/python3.12/site-packages/rouge_chinese/rouge.py:94: SyntaxWarning: invalid escape sequence '\.'
+  para = re.sub('(\.{6})([^”’])', r"\1\n\2", para)
+/usr/local/lib/python3.12/site-packages/rouge_chinese/rouge.py:96: SyntaxWarning: invalid escape sequence '\?'
+  para = re.sub('([。！？\?][”’])([^，。！？\?])', r'\1\n\2', para)
+[HAMI-core Msg(93:139932446132032:multiprocess_memory_limit.c:664)]: Cleanup on exit for PID 93
+[HAMI-core Msg(93:139932446132032:multiprocess_memory_limit.c:700)]: Exit cleanup complete for PID 93
+[WARNING|2026-06-08 11:07:48] llamafactory.hparams.parser:148 >> We recommend enable mixed precision training.
+[INFO|2026-06-08 11:07:48] llamafactory.hparams.parser:465 >> Process rank: 0, world size: 1, device: cuda:0, distributed training: False, compute dtype: None
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 11:07:48,763 >> loading file vocab.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 11:07:48,763 >> loading file merges.txt
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 11:07:48,763 >> loading file tokenizer.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 11:07:48,763 >> loading file added_tokens.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 11:07:48,763 >> loading file special_tokens_map.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 11:07:48,763 >> loading file tokenizer_config.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 11:07:48,763 >> loading file chat_template.jinja
+[INFO|configuration_utils.py:763] 2026-06-08 11:07:48,797 >> loading configuration file /mnt/models/qwen3-0.6b/config.json
+[INFO|configuration_utils.py:839] 2026-06-08 11:07:48,805 >> Model config Qwen2Config {
+  "architectures": [
+    "Qwen2ForCausalLM"
+  ],
+  "attention_dropout": 0.0,
+  "dtype": "float32",
+  "hidden_act": "silu",
+  "hidden_size": 64,
+  "initializer_range": 0.02,
+  "intermediate_size": 128,
+  "layer_types": [
+    "full_attention",
+    "full_attention"
+  ],
+  "max_position_embeddings": 256,
+  "max_window_layers": 28,
+  "model_type": "qwen2",
+  "num_attention_heads": 4,
+  "num_hidden_layers": 2,
+  "num_key_value_heads": 4,
+  "rms_norm_eps": 1e-06,
+  "rope_scaling": null,
+  "rope_theta": 10000.0,
+  "sliding_window": null,
+  "tie_word_embeddings": true,
+  "transformers_version": "4.57.1",
+  "use_cache": true,
+  "use_sliding_window": false,
+  "vocab_size": 309
+}
+
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 11:07:48,807 >> loading file vocab.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 11:07:48,807 >> loading file merges.txt
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 11:07:48,807 >> loading file tokenizer.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 11:07:48,807 >> loading file added_tokens.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 11:07:48,807 >> loading file special_tokens_map.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 11:07:48,807 >> loading file tokenizer_config.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 11:07:48,807 >> loading file chat_template.jinja
+[INFO|2026-06-08 11:07:48] llamafactory.data.loader:143 >> Loading dataset identity.json...
+Setting num_proc from 2 back to 1 for the train split to disable multiprocessing as it only contains one shard.
+Generating train split: 0 examples [00:00, ? examples/s]Generating train split: 24 examples [00:00, 1096.47 examples/s]
+Converting format of dataset (num_proc=2):   0%|          | 0/16 [00:00<?, ? examples/s]Converting format of dataset (num_proc=2):  50%|█████     | 8/16 [00:00<00:00, 30.19 examples/s]Converting format of dataset (num_proc=2): 100%|██████████| 16/16 [00:00<00:00, 35.63 examples/s]
+Running tokenizer on dataset (num_proc=2):   0%|          | 0/16 [00:00<?, ? examples/s]Running tokenizer on dataset (num_proc=2):  50%|█████     | 8/16 [00:00<00:00, 36.25 examples/s]Running tokenizer on dataset (num_proc=2): 100%|██████████| 16/16 [00:00<00:00, 40.88 examples/s]
+training example:
+input_ids:
+[43, 88, 80, 267, 29, 224, 58, 75, 82, 296, 265, 34, 2, 202, 36, 86, 86, 76, 86, 87, 267, 87, 29, 44, 264, 80, 224, 36, 79, 269, 273, 224, 36, 44, 15, 264, 224, 260, 79, 83, 73, 88, 79, 264, 86, 86, 76, 86, 87, 267, 87, 17, 2, 202]
+inputs:
+Human: Who are you?</s>
+Assistant:I am Alauda AI, a helpful assistant.</s>
+
+label_ids:
+[-100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, 44, 264, 80, 224, 36, 79, 269, 273, 224, 36, 44, 15, 264, 224, 260, 79, 83, 73, 88, 79, 264, 86, 86, 76, 86, 87, 267, 87, 17, 2, 202]
+labels:
+I am Alauda AI, a helpful assistant.</s>
+
+[INFO|configuration_utils.py:763] 2026-06-08 11:07:51,648 >> loading configuration file /mnt/models/qwen3-0.6b/config.json
+[INFO|2026-06-08 11:07:51] llamafactory.model.model_utils.kv_cache:143 >> KV cache is disabled during training.
+[INFO|configuration_utils.py:839] 2026-06-08 11:07:51,653 >> Model config Qwen2Config {
+  "architectures": [
+    "Qwen2ForCausalLM"
+  ],
+  "attention_dropout": 0.0,
+  "dtype": "float32",
+  "hidden_act": "silu",
+  "hidden_size": 64,
+  "initializer_range": 0.02,
+  "intermediate_size": 128,
+  "layer_types": [
+    "full_attention",
+    "full_attention"
+  ],
+  "max_position_embeddings": 256,
+  "max_window_layers": 28,
+  "model_type": "qwen2",
+  "num_attention_heads": 4,
+  "num_hidden_layers": 2,
+  "num_key_value_heads": 4,
+  "rms_norm_eps": 1e-06,
+  "rope_scaling": null,
+  "rope_theta": 10000.0,
+  "sliding_window": null,
+  "tie_word_embeddings": true,
+  "transformers_version": "4.57.1",
+  "use_cache": true,
+  "use_sliding_window": false,
+  "vocab_size": 309
+}
+
+[WARNING|logging.py:328] 2026-06-08 11:07:51,654 >> `torch_dtype` is deprecated! Use `dtype` instead!
+[WARNING|logging.py:328] 2026-06-08 11:07:52,389 >> `torch_dtype` is deprecated! Use `dtype` instead!
+[INFO|modeling_utils.py:1169] 2026-06-08 11:07:52,390 >> loading weights file /mnt/models/qwen3-0.6b/model.safetensors
+[INFO|modeling_utils.py:1243] 2026-06-08 11:07:52,406 >> Will use dtype=torch.float32 as defined in model's config object
+[INFO|modeling_utils.py:2341] 2026-06-08 11:07:52,406 >> Instantiating Qwen2ForCausalLM model under default dtype torch.float32.
+[INFO|configuration_utils.py:986] 2026-06-08 11:07:52,413 >> Generate config GenerationConfig {
+  "use_cache": false
+}
+
+[INFO|configuration_utils.py:939] 2026-06-08 11:07:52,452 >> loading configuration file /mnt/models/qwen3-0.6b/generation_config.json
+[INFO|configuration_utils.py:986] 2026-06-08 11:07:52,453 >> Generate config GenerationConfig {}
+
+[INFO|dynamic_module_utils.py:423] 2026-06-08 11:07:52,454 >> Could not locate the custom_generate/generate.py inside /mnt/models/qwen3-0.6b.
+[INFO|2026-06-08 11:07:52] llamafactory.model.model_utils.checkpointing:143 >> Gradient checkpointing enabled.
+[INFO|2026-06-08 11:07:52] llamafactory.model.model_utils.attention:143 >> Using torch SDPA for faster training and inference.
+[INFO|2026-06-08 11:07:52] llamafactory.model.adapter:143 >> Upcasting trainable params to float32.
+[INFO|2026-06-08 11:07:52] llamafactory.model.adapter:143 >> Fine-tuning method: LoRA
+[INFO|2026-06-08 11:07:52] llamafactory.model.model_utils.misc:143 >> Found linear modules: q_proj,v_proj,k_proj,o_proj,up_proj,down_proj,gate_proj
+[INFO|2026-06-08 11:07:52] llamafactory.model.loader:143 >> trainable params: 8,704 || all params: 111,104 || trainable%: 7.8341
+[WARNING|trainer.py:906] 2026-06-08 11:07:52,561 >> The model is already on multiple devices. Skipping the move to device specified in `args`.
+[WARNING|trainer.py:982] 2026-06-08 11:07:52,576 >> The tokenizer has new PAD/BOS/EOS tokens that differ from the model config and generation config. The model config and generation config were aligned accordingly, being updated with the tokenizer's values. Updated tokens: {'eos_token_id': 2, 'bos_token_id': 1, 'pad_token_id': 0}.
+[INFO|trainer.py:2519] 2026-06-08 11:07:53,359 >> ***** Running training *****
+[INFO|trainer.py:2520] 2026-06-08 11:07:53,360 >>   Num examples = 16
+[INFO|trainer.py:2521] 2026-06-08 11:07:53,360 >>   Num Epochs = 1
+[INFO|trainer.py:2522] 2026-06-08 11:07:53,360 >>   Instantaneous batch size per device = 2
+[INFO|trainer.py:2525] 2026-06-08 11:07:53,360 >>   Total train batch size (w. parallel, distributed & accumulation) = 2
+[INFO|trainer.py:2526] 2026-06-08 11:07:53,360 >>   Gradient Accumulation steps = 1
+[INFO|trainer.py:2527] 2026-06-08 11:07:53,360 >>   Total optimization steps = 8
+[INFO|trainer.py:2528] 2026-06-08 11:07:53,362 >>   Number of trainable parameters = 8,704
+{'loss': 5.7215, 'grad_norm': 0.38933852314949036, 'learning_rate': 0.0002, 'epoch': 0.12}
+{'loss': 5.7105, 'grad_norm': 0.3136725127696991, 'learning_rate': 0.000175, 'epoch': 0.25}
+{'loss': 5.7089, 'grad_norm': 0.3167599141597748, 'learning_rate': 0.00015000000000000001, 'epoch': 0.38}
+{'loss': 5.7271, 'grad_norm': 0.34628385305404663, 'learning_rate': 0.000125, 'epoch': 0.5}
+{'loss': 5.7259, 'grad_norm': 0.34989437460899353, 'learning_rate': 0.0001, 'epoch': 0.62}
+{'loss': 5.7346, 'grad_norm': 0.3956611752510071, 'learning_rate': 7.500000000000001e-05, 'epoch': 0.75}
+{'loss': 5.7007, 'grad_norm': 0.38994085788726807, 'learning_rate': 5e-05, 'epoch': 0.88}
+{'loss': 5.7147, 'grad_norm': 0.34035491943359375, 'learning_rate': 2.5e-05, 'epoch': 1.0}
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:01<00:10,  1.56s/it]                                              12%|█▎        | 1/8 [00:01<00:10,  1.56s/it]                                              25%|██▌       | 2/8 [00:01<00:09,  1.56s/it] 38%|███▊      | 3/8 [00:01<00:02,  2.18it/s]                                              38%|███▊      | 3/8 [00:01<00:02,  2.18it/s]                                              50%|█████     | 4/8 [00:01<00:01,  2.18it/s] 62%|██████▎   | 5/8 [00:01<00:00,  3.80it/s]                                              62%|██████▎   | 5/8 [00:01<00:00,  3.80it/s]                                              75%|███████▌  | 6/8 [00:01<00:00,  3.80it/s] 88%|████████▊ | 7/8 [00:01<00:00,  5.61it/s]                                              88%|████████▊ | 7/8 [00:01<00:00,  5.61it/s]                                             100%|██████████| 8/8 [00:02<00:00,  5.61it/s][INFO|trainer.py:4309] 2026-06-08 11:07:55,420 >> Saving model checkpoint to /workspace/output_models/checkpoint-8
+[INFO|configuration_utils.py:763] 2026-06-08 11:07:55,468 >> loading configuration file /mnt/models/qwen3-0.6b/config.json
+[INFO|configuration_utils.py:839] 2026-06-08 11:07:55,470 >> Model config Qwen2Config {
+  "architectures": [
+    "Qwen2ForCausalLM"
+  ],
+  "attention_dropout": 0.0,
+  "dtype": "float32",
+  "hidden_act": "silu",
+  "hidden_size": 64,
+  "initializer_range": 0.02,
+  "intermediate_size": 128,
+  "layer_types": [
+    "full_attention",
+    "full_attention"
+  ],
+  "max_position_embeddings": 256,
+  "max_window_layers": 28,
+  "model_type": "qwen2",
+  "num_attention_heads": 4,
+  "num_hidden_layers": 2,
+  "num_key_value_heads": 4,
+  "rms_norm_eps": 1e-06,
+  "rope_scaling": null,
+  "rope_theta": 10000.0,
+  "sliding_window": null,
+  "tie_word_embeddings": true,
+  "transformers_version": "4.57.1",
+  "use_cache": true,
+  "use_sliding_window": false,
+  "vocab_size": 309
+}
+
+[INFO|tokenization_utils_base.py:2421] 2026-06-08 11:07:55,478 >> chat template saved in /workspace/output_models/checkpoint-8/chat_template.jinja
+[INFO|tokenization_utils_base.py:2590] 2026-06-08 11:07:55,479 >> tokenizer config file saved in /workspace/output_models/checkpoint-8/tokenizer_config.json
+[INFO|tokenizati[2026-06-08T11:11:14Z] C5: trainer pod phase=
+trainjob.trainer.kubeflow.org "c5-llamafactory-2scjx" deleted from mlops-demo-e2e namespace
+on
+[INFO|trainer.py:2810] 2026-06-08 11:07:55,504 >> 
+
+Training completed. Do not forget to share your model on huggingface.co/models =)
+
+
+{'train_runtime': 2.1426, 'train_samples_per_second': 7.467, 'train_steps_per_second': 3.734, 'train_loss': 5.718002259731293, 'epoch': 1.0}
+                                             100%|██████████| 8/8 [00:02<00:00,  5.61it/s]100%|██████████| 8/8 [00:02<00:00,  3.74it/s]
+[INFO|trainer.py:4309] 2026-06-08 11:07:55,508 >> Saving model checkpoint to /workspace/output_models
+[INFO|configuration_utils.py:763] 2026-06-08 11:07:55,547 >> loading configuration file /mnt/models/qwen3-0.6b/config.json
+[INFO|configuration_utils.py:839] 2026-06-08 11:07:55,549 >> Model config Qwen2Config {
+  "architectures": [
+    "Qwen2ForCausalLM"
+  ],
+  "attention_dropout": 0.0,
+  "dtype": "float32",
+  "hidden_act": "silu",
+  "hidden_size": 64,
+  "initializer_range": 0.02,
+  "intermediate_size": 128,
+  "layer_types": [
+    "full_attention",
+    "full_attention"
+  ],
+  "max_position_embeddings": 256,
+  "max_window_layers": 28,
+  "model_type": "qwen2",
+  "num_attention_heads": 4,
+  "num_hidden_layers": 2,
+  "num_key_value_heads": 4,
+  "rms_norm_eps": 1e-06,
+  "rope_scaling": null,
+  "rope_theta": 10000.0,
+  "sliding_window": null,
+  "tie_word_embeddings": true,
+  "transformers_version": "4.57.1",
+  "use_cache": true,
+  "use_sliding_window": false,
+  "vocab_size": 309
+}
+
+[INFO|tokenization_utils_base.py:2421] 2026-06-08 11:07:55,555 >> chat template saved in /workspace/output_models/chat_template.jinja
+[INFO|tokenization_utils_base.py:2590] 2026-06-08 11:07:55,556 >> tokenizer config file saved in /workspace/output_models/tokenizer_config.json
+[INFO|tokenization_utils_base.py:2599] 2026-06-08 11:07:55,557 >> Special tokens file saved in /workspace/output_models/special_tokens_map.json
+***** train metrics *****
+  epoch                    =        1.0
+  total_flos               =        0GF
+  train_loss               =      5.718
+  train_runtime            = 0:00:02.14
+  train_samples_per_second =      7.467
+  train_steps_per_second   =      3.734
+[INFO|modelcard.py:456] 2026-06-08 11:07:55,564 >> Dropping the following result as it does not have all the necessary fields:
+{'task': {'name': 'Causal Language Modeling', 'type': 'text-generation'}}
++ ls -l /workspace/output_models
+total 108
+-rw-rw-rw- 1 nobody nogroup  1270 Jun  8 11:07 README.md
+-rw-rw-rw- 1 nobody nogroup   931 Jun  8 11:07 adapter_config.json
+-rw-rw-rw- 1 nobody nogroup 38304 Jun  8 11:07 adapter_model.safetensors
+-rw-rw-rw- 1 nobody nogroup   193 Jun  8 11:07 all_results.json
+-rw-rw-rw- 1 nobody nogroup   523 Jun  8 11:07 chat_template.jinja
+drwxrwsrwx 2 nobody nogroup  4096 Jun  8 11:07 checkpoint-8
+-rw-rw-rw- 1 nobody nogroup   256 Jun  8 11:07 merges.txt
+-rw-rw-rw- 1 nobody nogroup   548 Jun  8 11:07 special_tokens_map.json
+-rw-rw-rw- 1 nobody nogroup  8469 Jun  8 11:07 tokenizer.json
+-rw-rw-rw- 1 nobody nogroup  1091 Jun  8 11:07 tokenizer_config.json
+-rw-rw-rw- 1 nobody nogroup   193 Jun  8 11:07 train_results.json
+-rw-rw-rw- 1 nobody nogroup  1448 Jun  8 11:07 trainer_log.jsonl
+-rw-rw-rw- 1 nobody nogroup  2170 Jun  8 11:07 trainer_state.json
+-rw-rw-rw- 1 nobody nogroup  5816 Jun  8 11:07 training_args.bin
+-rw-rw-rw- 1 nobody nogroup  2615 Jun  8 11:07 vocab.json
+[2026-06-08T11:08:12Z] C5: trainer pod phase=Succeeded
+[2026-06-08T11:08:12Z] C5: all steps Succeeded
+trainjob.trainer.kubeflow.org "c5-llamafactory-bcgbb" deleted from mlops-demo-e2e namespace

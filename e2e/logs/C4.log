@@ -1,0 +1,216 @@
+[2026-06-09T03:13:29Z] C4: submitting Job c4-traininghub-osft-04509 (image=build-harbor.alauda.cn/mlops/traininghub0.1-cu126-amd64:v0.1.0-build.20260609030710)
+job.batch/c4-traininghub-osft-04509 created
+[2026-06-09T03:13:29Z] C4: waiting for pod to appear...
+[2026-06-09T03:13:34Z] C4: pod=c4-traininghub-osft-04509-8gkq6
+container "trainer" in pod "c4-traininghub-osft-04509-8gkq6" is waiting to start: ContainerCreating
+container "trainer" in pod "c4-traininghub-osft-04509-8gkq6" is waiting to start: ContainerCreating
+container "trainer" in pod "c4-traininghub-osft-04509-8gkq6" is waiting to start: ContainerCreating
+container "trainer" in pod "c4-traininghub-osft-04509-8gkq6" is waiting to start: ContainerCreating
++ cd /workspace
++ python -
+
+
+
+prepared /workspace/tiny-qwen2 and /workspace/test_osft_data.jsonl
++ python -
+Generating train split: 0 examples [00:00, ? examples/s]Generating train split: 16 examples [00:00, 3664.35 examples/s]
+Ensuring dataset is compatible with legacy format. (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Ensuring dataset is compatible with legacy format. (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  5.55 examples/s]Ensuring dataset is compatible with legacy format. (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 28.78 examples/s]
+Converting samples into input_ids and labels... (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Converting samples into input_ids and labels... (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  5.76 examples/s]Converting samples into input_ids and labels... (num_proc=8):  62%|██████▎   | 10/16 [00:00<00:00, 26.54 examples/s]Converting samples into input_ids and labels... (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 25.71 examples/s]
+Filter (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Filter (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  6.63 examples/s]Filter (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 30.82 examples/s]
+Filtering out pretraining samples (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Filtering out pretraining samples (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  6.44 examples/s]Filtering out pretraining samples (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 31.24 examples/s]
+Filtering out pretraining samples (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Filtering out pretraining samples (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  6.08 examples/s]Filtering out pretraining samples (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 29.68 examples/s]
+[35mOriginal Input: system: You are a domain expert.
+user: Summarize Alauda AI.
+assistant: Alauda AI provides MLOps on Kubernetes.
+
+[0m
+[33mInstruction ex sample 1: <|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|>Alauda AI provides MLOps on Kubernetes.<|MASK|>[0m
+[35mOriginal Input: system: You are a domain expert.
+user: Summarize Alauda AI.
+assistant: Alauda AI provides MLOps on Kubernetes.
+
+[0m
+[33mInstruction ex sample 2: <|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|>Alauda AI provides MLOps on Kubernetes.<|MASK|>[0m
+[35mOriginal Input: system: You are a domain expert.
+user: Summarize Alauda AI.
+assistant: Alauda AI provides MLOps on Kubernetes.
+
+[0m
+[33mInstruction ex sample 3: <|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|>Alauda AI provides MLOps on Kubernetes.<|MASK|>[0m
+Validating unmask tokens not in data (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Validating unmask tokens not in data (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  5.75 examples/s]Validating unmask tokens not in data (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 28.77 examples/s]
+Creating json from Arrow format:   0%|          | 0/1 [00:00<?, ?ba/s]Creating json from Arrow format: 100%|██████████| 1/1 [00:00<00:00, 26.46ba/s]
+2026-06-09 03:14:59,238 - mini_trainer.api_train - INFO - Starting training setup...
+2026-06-09 03:14:59,239 - mini_trainer.api_train - INFO - Running training command as subprocess: torchrun --nnodes=1 --node-rank=0 --nproc-per-node=1 --rdzv-id=2 --rdzv-endpoint=127.0.0.1:29501 /usr/local/lib/python3.12/site-packages/mini_trainer/train.py --model-name-or-path=/workspace/tiny-qwen2 --data-path=/workspace/data_cache/data.jsonl --batch-size=2 --max-tokens-per-gpu=256 --learning-rate=5e-06 --num-warmup-steps=0 --lr-scheduler=cosine --lr-scheduler-kwargs={} --seed=42 --output-dir=/workspace/ckpt --training-mode=epoch --max-epochs=1 --max-steps=0 --max-tokens=0 --train-dtype=float32 --osft --osft-unfreeze-rank-ratio=0.25 --osft-upcast-dtype=float32 --checkpoint-at-epoch --save-final-checkpoint
+Command: torchrun --nnodes=1 --node-rank=0 --nproc-per-node=1 --rdzv-id=2 --rdzv-endpoint=127.0.0.1:29501 /usr/local/lib/python3.12/site-packages/mini_trainer/train.py --model-name-or-path=/workspace/tiny-qwen2 --data-path=/workspace/data_cache/data.jsonl --batch-size=2 --max-tokens-per-gpu=256 --learning-rate=5e-06 --num-warmup-steps=0 --lr-scheduler=cosine --lr-scheduler-kwargs={} --seed=42 --output-dir=/workspace/ckpt --training-mode=epoch --max-epochs=1 --max-steps=0 --max-tokens=0 --train-dtype=float32 --osft --osft-unfreeze-rank-ratio=0.25 --osft-upcast-dtype=float32 --checkpoint-at-epoch --save-final-checkpoint
+Logs will be saved to: /workspace/ckpt/training_log_node0.log
+✅ Torch distributed appears to be functioning correctly
+Training with parameters: {
+    "model_name_or_path":"/workspace/tiny-qwen2",
+    "data_path":"/workspace/data_cache/data.jsonl",
+    "batch_size":2,
+    "max_tokens_per_gpu":256,
+    "learning_rate":5e-06,
+    "num_warmup_steps":0,
+    "lr_scheduler":"cosine",
+    "seed":42,
+    "use_liger_kernels":false,
+    "osft":true,
+    "osft_unfreeze_rank_ratio":0.25,
+    "osft_target_patterns":null,
+    "osft_upcast_dtype":"float32",
+    "osft_output_dtype":null,
+    "trust_remote_code":false,
+    "output_dir":"/workspace/ckpt",
+    "min_samples_per_checkpoint":null,
+    "save_dtype":null,
+    "train_dtype":"float32",
+    "training_mode":"epoch",
+    "max_epochs":1,
+    "max_steps":0,
+    "max_tokens":0,
+    "checkpoint_at_epoch":true,
+    "save_final_checkpoint":true,
+    "validation_split":0.0,
+    "validation_frequency":null,
+    "save_best_val_loss":false,
+    "val_loss_improvement_threshold":0.0,
+    "wandb_project":null,
+    "wandb_run_name":null,
+    "wandb_entity":null,
+    "mlflow_tracking_uri":null,
+    "mlflow_experiment_name":null,
+    "mlflow_run_name":null,
+    "LOCAL_RANK":0,
+    "GLOBAL_RANK":0,
+    "NODE_RANK":0,
+    "WORLD_SIZE":1
+}
+Training parameters saved to /workspace/ckpt/training_params.json
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/mini_trainer/train.py", line 1564, in <module>
+[rank0]:     app()
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/typer/main.py", line 1154, in __call__
+[rank0]:     raise e
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/typer/main.py", line 1137, in __call__
+[rank0]:     return get_command(self)(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/typer/_click/core.py", line 807, in __call__
+[rank0]:     return self.main(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/typer/core.py", line 960, in main
+[rank0]:     return _main(
+[rank0]:            ^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/typer/core.py", line 183, in _main
+[rank0]:     rv = self.invoke(ctx)
+[rank0]:          ^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/typer/_click/core.py", line 746, in invoke
+[rank0]:     return ctx.invoke(self.callback, **ctx.params)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/typer/_click/core.py", line 489, in invoke
+[rank0]:     return callback(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/typer/main.py", line 1515, in wrapper
+[rank0]:     return callback(**use_params)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/mini_trainer/train.py", line 1433, in main
+[rank0]:     model = setup_model(
+[rank0]:             ^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/mini_trainer/setup_model_for_training.py", line 1075, in setup_model
+[rank0]:     raise e
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/mini_trainer/setup_model_for_training.py", line 1053, in setup_model
+[rank0]:     import flash_attn as _
+[rank0]: ModuleNotFoundError: No module named 'flash_attn'
+[rank0]:[W609 03:15:55.231819737 ProcessGroupNCCL.cpp:1496] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+E0609 03:15:58.350000 394 site-packages/torch/distributed/elastic/multiprocessing/api.py:869] failed (exitcode: 1) local_rank: 0 (pid: 411) of binary: /usr/local/bin/python
+Traceback (most recent call last):
+  File "/usr/local/bin/torchrun", line 10, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/torch/distributed/run.py", line 918, in main
+    run(args)
+  File "/usr/local/lib/python3.12/site-packages/torch/distributed/run.py", line 909, in run
+    elastic_launch(
+  File "/usr/local/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 138, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 269, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+/usr/local/lib/python3.12/site-packages/mini_trainer/train.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-06-09_03:15:58
+  host      : c4-traininghub-osft-04509-8gkq6
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 411)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+2026-06-09 03:15:59,335 - mini_trainer.api_train - ERROR - Training subprocess exited with code 1.
+Traceback (most recent call last):
+  File "<stdin>", line 4, in <module>
+  File "/usr/local/lib/python3.12/site-packages/training_hub/algorithms/osft.py", line 623, in osft
+    return algorithm.train(
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/training_hub/algorithms/osft.py", line 260, in train
+    return self.backend.execute_training(all_params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/training_hub/algorithms/osft.py", line 492, in execute_training
+    return run_training(
+           ^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/mini_trainer/api_train.py", line 284, in run_training
+    raise RuntimeError(f"Training failed. Please check the logs at {log_file} for details.")
+RuntimeError: Training failed. Please check the logs at /workspace/ckpt/training_log_node0.log for details.
+[2026-06-09T03:16:06Z] C4: job status=FailureTarget Failed
+[2026-06-09T03:16:06Z] C4: ==== pod final state ====
+NAME                              READY   STATUS   RESTARTS   AGE     IP           NODE             NOMINATED NODE   READINESS GATES
+c4-traininghub-osft-04509-8gkq6   0/1     Error    0          2m37s   10.3.13.50   192.168.138.15   <none>           <none>
+      PYTHONUNBUFFERED:      1
+    Mounts:
+      /dev/shm from dshm (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-vxnp9 (ro)
+      /workspace from workspace (rw)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   False 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  workspace:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     
+    SizeLimit:  <unset>
+  dshm:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  2Gi
+  kube-api-access-vxnp9:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 30s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 30s
+Events:
+  Type    Reason            Age    From            Message
+  ----    ------            ----   ----            -------
+  Normal  Scheduled         2m36s  hami-scheduler  Successfully assigned mlops-demo-e2e/c4-traininghub-osft-04509-8gkq6 to 192.168.138.15
+  Normal  FilteringSucceed  2m37s  hami-scheduler  find fit node(192.168.138.15), 3 nodes not fit, 1 nodes fit(192.168.138.15:0.00)
+  Normal  BindingSucceed    2m37s  hami-scheduler  Successfully binding node [192.168.138.15] to mlops-demo-e2e/c4-traininghub-osft-04509-8gkq6
+  Normal  Pulled            2m30s  kubelet         spec.containers{trainer}: Container image "build-harbor.alauda.cn/mlops/traininghub0.1-cu126-amd64:v0.1.0-build.20260609030710" already present on machine
+  Normal  Created           2m30s  kubelet         spec.containers{trainer}: Created container: trainer
+  Normal  Started           2m29s  kubelet         spec.containers{trainer}: Started container trainer
+job.batch "c4-traininghub-osft-04509" deleted from mlops-demo-e2e namespace

@@ -33,22 +33,23 @@ For Huawei Ascend NPUs, use [`fine-tune-with-trainer-v2-mindspeed-npu.ipynb`](ht
 
 ## Scheduling with Kueue
 
-When [Kueue](https://kueue.sigs.k8s.io/) is installed, TrainJobs stay **suspended** until Kueue admits them against the configured `ClusterQueue` quota.
+When [Kueue](https://kueue.sigs.k8s.io/) is installed, TrainJobs stay **suspended** until Kueue admits them against the configured `ClusterQueue` quota. Ready-to-apply YAMLs live in [`assets/kueue/`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/assets/kueue):
 
-1. Cluster admin creates a `ClusterQueue` with CPU/memory/GPU quotas.
-2. Namespace admin creates a `LocalQueue` referencing it:
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/training_guides/assets/kueue
+# 1. Cluster admin — one ResourceFlavor + one ClusterQueue (edit nominalQuota to taste)
+kubectl apply -f $base/cluster-queue.yaml
+# 2. Namespace admin — LocalQueue pointing at the ClusterQueue (set the namespace first)
+sed 's/<your-namespace>/<your-namespace>/' $base/local-queue.yaml | kubectl apply -f -
+# 3. Submit a TrainJob labelled with the queue name; Kueue admits it
+sed 's/<your-namespace>/<your-namespace>/' $base/trainjob-kueue-example.yaml | kubectl create -f -
+```
 
-   ```yaml
-   apiVersion: kueue.x-k8s.io/v1beta2
-   kind: LocalQueue
-   metadata:
-     name: local-queue
-     namespace: <your-namespace>
-   spec:
-     clusterQueue: cluster-queue
-   ```
+The three files in turn:
 
-3. Label your TrainJob with `kueue.x-k8s.io/queue-name: local-queue` to submit it to that queue.
+- [`cluster-queue.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/assets/kueue/cluster-queue.yaml) — a single `ResourceFlavor` plus a `ClusterQueue` covering cpu / memory / `nvidia.com/gpu`. Cluster admin applies it once per quota pool.
+- [`local-queue.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/assets/kueue/local-queue.yaml) — a namespaced `LocalQueue` that references `cluster-queue`. Namespace admin applies it once per namespace.
+- [`trainjob-kueue-example.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/assets/kueue/trainjob-kueue-example.yaml) — a `TrainJob` labelled `kueue.x-k8s.io/queue-name: local-queue`. The TrainJob stays Suspended until Kueue admits it; once admitted, JobSet brings the trainer pods up.
 
 See [Kueue docs](/kueue/intro.mdx) for the full setup.
 

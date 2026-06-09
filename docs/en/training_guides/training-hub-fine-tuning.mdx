@@ -52,7 +52,23 @@ Install and configure:
 
 ```bash
 pip install training-hub
+# `training-hub` pulls a stray `attr` package that shadows `attrs.attr` and
+# breaks `aiohttp`; uninstall it.
+pip uninstall -y attr
 ```
+
+:::note
+On the prebuilt `traininghub0.1-cu126-amd64:v0.1.0` runtime image, install training-hub
+inside a fresh venv — `pip install --user training-hub` upgrades `transformers`
+to a version incompatible with the bundled `peft`:
+
+```bash
+python -m venv /workspace/venv
+source /workspace/venv/bin/activate
+pip install training-hub
+pip uninstall -y attr
+```
+:::
 
 Edit the parameter cells:
 

@@ -1,0 +1,13 @@
+# LocalQueue admitting TrainJobs in a single namespace against the
+# `cluster-queue` ClusterQueue created by the cluster admin.
+# Reference the queue on a TrainJob with:
+#   metadata:
+#     labels:
+#       kueue.x-k8s.io/queue-name: local-queue
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: LocalQueue
+metadata:
+  name: local-queue
+  namespace: <your-namespace>
+spec:
+  clusterQueue: cluster-queue

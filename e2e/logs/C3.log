@@ -1,0 +1,28 @@
+[2026-06-09T03:09:22Z] C3: submitting Job c3-traininghub-sft-02103 (image=build-harbor.alauda.cn/mlops/traininghub0.1-cu126-amd64:v0.1.0-build.20260609030710)
+job.batch/c3-traininghub-sft-02103 created
+[2026-06-09T03:09:22Z] C3: waiting for pod to appear...
+[2026-06-09T03:09:28Z] C3: pod=c3-traininghub-sft-02103-f4wnw
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+container "trainer" in pod "c3-traininghub-sft-02103-f4wnw" is waiting to start: ContainerCreating
+error: context deadline exceeded
+[2026-06-09T03:12:45Z] C3: job status=SuccessCriteriaMet Complete
+job.batch "c3-traininghub-sft-02103" deleted from mlops-demo-e2e namespace

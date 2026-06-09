@@ -16,6 +16,9 @@ Curated `TrainingRuntime` images for [Kubeflow Trainer v2](./fine-tune-with-trai
 | LLaMA-Factory (CANN) | Huawei Ascend NPU (CANN 8.5) | LLaMA-Factory 0.9.4 (`metrics,modelscope`) | `alaudadockerhub/llamafactory0.9-cann8.5-arm64:v0.1.0` |
 | TrainingHub (CUDA) | NVIDIA GPU (CUDA 12.6) | trl, peft, bitsandbytes, deepspeed (SFT/OSFT/DPO) | `alaudadockerhub/traininghub0.1-cu126-amd64:v0.1.0` |
 | MindSpeed-LLM (CANN) | Huawei Ascend NPU (CANN 8.5) | MindSpeed + MindSpeed-LLM (Megatron core 0.8.0) | `alaudadockerhub/mindspeed-llm-cann8.5-arm64:v0.1.0` |
+| Fine-tune (LlamaFactory CUDA) | NVIDIA GPU (CUDA 12.6) | LLaMA-Factory 0.9.4 + `git-lfs`, MLflow, MySQL/Postgres clients — runtime for [`fine-tune-with-trainer-v2.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/fine-tune-with-trainer-v2.ipynb) | `alaudadockerhub/fine_tune_with_llamafactory:v0.1.11` |
+| Fine-tune (LlamaFactory CANN) | Huawei Ascend NPU (CANN 8.5) | LLaMA-Factory 0.9.4 + `torch_npu` 2.6 + `git-lfs` — NPU counterpart of the LlamaFactory fine-tune image | `alaudadockerhub/fine_tune_with_llamafactory_npu:v0.9.4-cann_8.5.0-torch_2.6.0-v2` |
+| Workbench PyTorch CANN | Huawei Ascend NPU (CANN 8.5) | Jupyter + PyTorch 2.9 + `torch_npu` 2.9 + MindSpeed-LLM — for the [Ascend NPU fine-tune / pretrain notebooks](./fine-tune-and-pretrain-llms-on-ascend-npu.mdx) and [`fine-tune-with-trainer-v2-mindspeed-npu.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/fine-tune-with-trainer-v2-mindspeed-npu.ipynb) | `alaudadockerhub/alauda-workbench-jupyter-pytorch-cann-py312-ubi9:v0.1.7` |
 
 CUDA images are amd64-only; CANN images are arm64-only.
 
@@ -112,6 +115,7 @@ With HAMI, `allocatable.huawei.com/Ascend910B4` reads `0` because HAMI allocates
 
 ## Image caveats
 
+- **All CANN images** — `runtimeClassName: ascend` bind-mounts host `/usr/local/Ascend` but does **not** export the CANN env vars (`LD_LIBRARY_PATH`, `ASCEND_HOME_PATH`, …). Every entrypoint that imports `torch_npu` must first `source /usr/local/Ascend/ascend-toolkit/set_env.sh` (and optionally `/usr/local/Ascend/nnal/atb/set_env.sh`); otherwise the import fails with `libhccl.so: cannot open shared object file`. The published runtime YAMLs already do this — keep the `source` lines in any derived runtime.
 - **`traininghub0.1-cu126-amd64`** — ships CUDA *runtime* but not the toolkit. DeepSpeed JIT op compilation needs `nvcc`; mount or install `nvidia-cuda-toolkit` and set `CUDA_HOME` if you use those ops.
 - **`mindspeed-llm-cann8.5-arm64`** — `megatron.core` needs `pkg_resources`, so install `setuptools<81` in the job entrypoint. `import mindspeed_llm` currently fails on the `mindspeed_llm` master / `core_r0.8.0` mismatch; the underlying torch + torch_npu + megatron.core + mindspeed stack trains correctly without the adapter shim.
 

@@ -1,0 +1,633 @@
+[2026-06-08T12:00:26Z] C6: ensuring shared PVC c6-models (RWX cephfs)
+persistentvolumeclaim/c6-models unchanged[2026-06-08T12:00:27Z] C6: submitting VolcanoJob c6-vcjob-sft-02d9c (image=build-harbor.alauda.cn/mlops/llamafactory0.9-cu126-amd64:v0.1.0-build.20260603021903)
+[2026-06-08T12:00:27Z] C6: waiting for trainer pod...
+[2026-06-08T12:00:32Z] C6: pod=c6-vcjob-sft-02d9c-train-0
+[2026-06-08T12:03:42Z] C6: initContainer reason=
+[2026-06-08T12:03:42Z] C6: init failed — dumping pod state
+Error from server (NotFound): pods "c6-vcjob-sft-06e27-train-0" not found
+ft-02d9c-train-0" is not available
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
+container "prepare" in pod "c6-vcjob-sft-02d9c-train-0" is waiting to start: PodInitializing
++ python -
+
+
+
+[2026-06-08 12:04:45,613] [WARNING] [real_accelerator.py:209:get_accelerator] Setting accelerator to CPU. If you have GPU or other accelerator, we were unable to detect it.
+[2026-06-08 12:04:45,619] [INFO] [real_accelerator.py:254:get_accelerator] Setting ds_accelerator to cpu (auto detect)
+init complete
++ ls -l /mnt/models/qwen3-0.6b /mnt/models/identity-alauda
+/mnt/models/identity-alauda:
+total 2
+-rw-r--r-- 1 nobody nogroup  153 Jun  8 12:04 dataset_info.json
+-rw-r--r-- 1 nobody nogroup 1296 Jun  8 12:04 identity.json
+
+/mnt/models/qwen3-0.6b:
+total 420
+-rw-r--r-- 1 nobody nogroup     65 Jun  8 12:04 chat_template.jinja
+-rw-r--r-- 1 nobody nogroup    679 Jun  8 12:04 config.json
+-rw-r--r-- 1 nobody nogroup     69 Jun  8 12:04 generation_config.json
+-rw-r--r-- 1 nobody nogroup    256 Jun  8 12:04 merges.txt
+-rw-r--r-- 1 nobody nogroup 412256 Jun  8 12:04 model.safetensors
+-rw-r--r-- 1 nobody nogroup    548 Jun  8 12:04 special_tokens_map.json
+-rw-r--r-- 1 nobody nogroup   8469 Jun  8 12:04 tokenizer.json
+-rw-r--r-- 1 nobody nogroup   1031 Jun  8 12:04 tokenizer_config.json
+-rw-r--r-- 1 nobody nogroup   2615 Jun  8 12:04 vocab.json
+[2026-06-08T12:05:05Z] C6: initContainer reason=Completed
++ mkdir -p /workspace/stubs/deepspeed
++ cat
++ export PYTHONPATH=/workspace/stubs:
++ PYTHONPATH=/workspace/stubs:
++ export MPLCONFIGDIR=/workspace/matplotlib XDG_CACHE_HOME=/workspace/cache
++ MPLCONFIGDIR=/workspace/matplotlib
++ XDG_CACHE_HOME=/workspace/cache
++ mkdir -p /workspace/matplotlib /workspace/cache
++ cd /workspace
++ cat
++ llamafactory-cli train lf-sft.yaml
+/usr/local/lib/python3.12/site-packages/jieba/__init__.py:44: SyntaxWarning: invalid escape sequence '\.'
+  re_han_default = re.compile("([\u4E00-\u9FD5a-zA-Z0-9+#&\._%\-]+)", re.U)
+/usr/local/lib/python3.12/site-packages/jieba/__init__.py:46: SyntaxWarning: invalid escape sequence '\s'
+  re_skip_default = re.compile("(\r\n|\s)", re.U)
+/usr/local/lib/python3.12/site-packages/jieba/finalseg/__init__.py:78: SyntaxWarning: invalid escape sequence '\.'
+  re_skip = re.compile("([a-zA-Z0-9]+(?:\.\d+)?%?)")
+/usr/local/lib/python3.12/site-packages/rouge_chinese/rouge.py:93: SyntaxWarning: invalid escape sequence '\?'
+  para = re.sub('([。！？\?])([^”’])', r"\1\n\2", para)
+/usr/local/lib/python3.12/site-packages/rouge_chinese/rouge.py:94: SyntaxWarning: invalid escape sequence '\.'
+  para = re.sub('(\.{6})([^”’])', r"\1\n\2", para)
+/usr/local/lib/python3.12/site-packages/rouge_chinese/rouge.py:96: SyntaxWarning: invalid escape sequence '\?'
+  para = re.sub('([。！？\?][”’])([^，。！？\?])', r'\1\n\2', para)
+[WARNING|2026-06-08 12:05:36] llamafactory.hparams.parser:148 >> We recommend enable mixed precision training.
+[INFO|2026-06-08 12:05:36] llamafactory.hparams.parser:465 >> Process rank: 0, world size: 1, device: cuda:0, distributed training: False, compute dtype: None
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:05:36,552 >> loading file vocab.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:05:36,552 >> loading file merges.txt
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:05:36,552 >> loading file tokenizer.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:05:36,552 >> loading file added_tokens.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:05:36,552 >> loading file special_tokens_map.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:05:36,552 >> loading file tokenizer_config.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:05:36,552 >> loading file chat_template.jinja
+[INFO|configuration_utils.py:763] 2026-06-08 12:05:36,556 >> loading configuration file /mnt/models/qwen3-0.6b/config.json
+[INFO|configuration_utils.py:839] 2026-06-08 12:05:36,561 >> Model config Qwen2Config {
+  "architectures": [
+    "Qwen2ForCausalLM"
+  ],
+  "attention_dropout": 0.0,
+  "dtype": "float32",
+  "hidden_act": "silu",
+  "hidden_size": 64,
+  "initializer_range": 0.02,
+  "intermediate_size": 128,
+  "layer_types": [
+    "full_attention",
+    "full_attention"
+  ],
+  "max_position_embeddings": 256,
+  "max_window_layers": 28,
+  "model_type": "qwen2",
+  "num_attention_heads": 4,
+  "num_hidden_layers": 2,
+  "num_key_value_heads": 4,
+  "rms_norm_eps": 1e-06,
+  "rope_scaling": null,
+  "rope_theta": 10000.0,
+  "sliding_window": null,
+  "tie_word_embeddings": true,
+  "transformers_version": "4.57.1",
+  "use_cache": true,
+  "use_sliding_window": false,
+  "vocab_size": 309
+}
+
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:05:36,562 >> loading file vocab.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:05:36,562 >> loading file merges.txt
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:05:36,562 >> loading file tokenizer.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:05:36,562 >> loading file added_tokens.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:05:36,562 >> loading file special_tokens_map.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:05:36,562 >> loading file tokenizer_config.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:05:36,563 >> loading file chat_template.jinja
+[INFO|2026-06-08 12:05:36] llamafactory.data.loader:143 >> Loading dataset identity.json...
+Setting num_proc from 2 back to 1 for the train split to disable multiprocessing as it only contains one shard.
+Generating train split: 0 examples [00:00, ? examples/s]Generating train split: 16 examples [00:00, 1129.63 examples/s]
+Converting format of dataset (num_proc=2):   0%|          | 0/16 [00:00<?, ? examples/s]Converting format of dataset (num_proc=2):  50%|█████     | 8/16 [00:00<00:00, 34.95 examples/s]Converting format of dataset (num_proc=2): 100%|██████████| 16/16 [00:00<00:00, 43.40 examples/s]
+Running tokenizer on dataset (num_proc=2):   0%|          | 0/16 [00:00<?, ? examples/s]Running tokenizer on dataset (num_proc=2):  50%|█████     | 8/16 [00:00<00:00, 56.21 examples/s]Running tokenizer on dataset (num_proc=2): 100%|██████████| 16/16 [00:00<00:00, 53.59 examples/s]
+training example:
+input_ids:
+[43, 88, 80, 267, 29, 224, 58, 75, 82, 296, 265, 34, 2, 202, 36, 86, 86, 76, 86, 87, 267, 87, 29, 44, 264, 80, 224, 36, 79, 269, 273, 224, 36, 44, 17, 2, 202]
+inputs:
+Human: Who are you?</s>
+Assistant:I am Alauda AI.</s>
+
+label_ids:
+[-100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, 44, 264, 80, 224, 36, 79, 269, 273, 224, 36, 44, 17, 2, 202]
+labels:
+I am Alauda AI.</s>
+
+[INFO|configuration_utils.py:763] 2026-06-08 12:05:39,133 >> loading configuration file /mnt/models/qwen3-0.6b/config.json
+[INFO|2026-06-08 12:05:39] llamafactory.model.model_utils.kv_cache:143 >> KV cache is disabled during training.
+[INFO|configuration_utils.py:839] 2026-06-08 12:05:39,134 >> Model config Qwen2Config {
+  "architectures": [
+    "Qwen2ForCausalLM"
+  ],
+  "attention_dropout": 0.0,
+  "dtype": "float32",
+  "hidden_act": "silu",
+  "hidden_size": 64,
+  "initializer_range": 0.02,
+  "intermediate_size": 128,
+  "layer_types": [
+    "full_attention",
+    "full_attention"
+  ],
+  "max_position_embeddings": 256,
+  "max_window_layers": 28,
+  "model_type": "qwen2",
+  "num_attention_heads": 4,
+  "num_hidden_layers": 2,
+  "num_key_value_heads": 4,
+  "rms_norm_eps": 1e-06,
+  "rope_scaling": null,
+  "rope_theta": 10000.0,
+  "sliding_window": null,
+  "tie_word_embeddings": true,
+  "transformers_version": "4.57.1",
+  "use_cache": true,
+  "use_sliding_window": false,
+  "vocab_size": 309
+}
+
+[WARNING|logging.py:328] 2026-06-08 12:05:39,135 >> `torch_dtype` is deprecated! Use `dtype` instead!
+[WARNING|logging.py:328] 2026-06-08 12:05:39,542 >> `torch_dtype` is deprecated! Use `dtype` instead!
+[INFO|modeling_utils.py:1169] 2026-06-08 12:05:39,542 >> loading weights file /mnt/models/qwen3-0.6b/model.safetensors
+[INFO|modeling_utils.py:1243] 2026-06-08 12:05:39,543 >> Will use dtype=torch.float32 as defined in model's config object
+[INFO|modeling_utils.py:2341] 2026-06-08 12:05:39,544 >> Instantiating Qwen2ForCausalLM model under default dtype torch.float32.
+[INFO|configuration_utils.py:986] 2026-06-08 12:05:39,547 >> Generate config GenerationConfig {
+  "use_cache": false
+}
+
+[INFO|configuration_utils.py:939] 2026-06-08 12:05:39,843 >> loading configuration file /mnt/models/qwen3-0.6b/generation_config.json
+[INFO|configuration_utils.py:986] 2026-06-08 12:05:39,844 >> Generate config GenerationConfig {}
+[INFO|2026-06-08 12:05:39] llamafactory.model.model_utils.checkpointing:143 >> Gradient checkpointing enabled.
+[INFO|2026-06-08 12:05:39] llamafactory.model.model_utils.attention:143 >> Using torch SDPA for faster training and inference.
+[INFO|2026-06-08 12:05:39] llamafactory.model.adapter:143 >> Upcasting trainable params to float32.
+[INFO|2026-06-08 12:05:39] llamafactory.model.adapter:143 >> Fine-tuning method: LoRA
+[INFO|2026-06-08 12:05:39] llamafactory.model.model_utils.misc:143 >> Found linear modules: down_proj,o_proj,gate_proj,q_proj,v_proj,up_proj,k_proj
+
+[INFO|dynamic_module_utils.py:423] 2026-06-08 12:05:39,844 >> Could not locate the custom_generate/generate.py inside /mnt/models/qwen3-0.6b.
+[INFO|2026-06-08 12:05:39] llamafactory.model.loader:143 >> trainable params: 8,704 || all params: 111,104 || trainable%: 7.8341
+[WARNING|trainer.py:906] 2026-06-08 12:05:39,891 >> The model is already on multiple devices. Skipping the move to device specified in `args`.
+[WARNING|trainer.py:982] 2026-06-08 12:05:39,899 >> The tokenizer has new PAD/BOS/EOS tokens that differ from the model config and generation config. The model config and generation config were aligned accordingly, being updated with the tokenizer's values. Updated tokens: {'eos_token_id': 2, 'bos_token_id': 1, 'pad_token_id': 0}.
+[INFO|trainer.py:2519] 2026-06-08 12:05:40,342 >> ***** Running training *****
+[INFO|trainer.py:2520] 2026-06-08 12:05:40,342 >>   Num examples = 16
+[INFO|trainer.py:2521] 2026-06-08 12:05:40,342 >>   Num Epochs = 1
+[INFO|trainer.py:2522] 2026-06-08 12:05:40,342 >>   Instantaneous batch size per device = 2
+[INFO|trainer.py:2525] 2026-06-08 12:05:40,342 >>   Total train batch size (w. parallel, distributed & accumulation) = 2
+[INFO|trainer.py:2526] 2026-06-08 12:05:40,342 >>   Gradient Accumulation steps = 1
+[INFO|trainer.py:2527] 2026-06-08 12:05:40,342 >>   Total optimization steps = 8
+[INFO|trainer.py:2528] 2026-06-08 12:05:40,343 >>   Number of trainable parameters = 8,704
+{'loss': 5.7503, 'grad_norm': 0.42099034786224365, 'learning_rate': 0.0002, 'epoch': 0.12}
+{'loss': 5.7473, 'grad_norm': 0.4204404056072235, 'learning_rate': 0.000175, 'epoch': 0.25}
+{'loss': 5.7446, 'grad_norm': 0.42481550574302673, 'learning_rate': 0.00015000000000000001, 'epoch': 0.38}
+{'loss': 5.7321, 'grad_norm': 0.5685089826583862, 'learning_rate': 0.000125, 'epoch': 0.5}
+{'loss': 5.7405, 'grad_norm': 0.43320170044898987, 'learning_rate': 0.0001, 'epoch': 0.62}
+{'loss': 5.7391, 'grad_norm': 0.4365899860858917, 'learning_rate': 7.500000000000001e-05, 'epoch': 0.75}
+{'loss': 5.7379, 'grad_norm': 0.4392476975917816, 'learning_rate': 5e-05, 'epoch': 0.88}
+{'loss': 5.7454, 'grad_norm': 0.5476722121238708, 'learning_rate': 2.5e-05, 'epoch': 1.0}
+  0%|          | 0/8 [00:00<?, ?it/s] 12%|█▎        | 1/8 [00:00<00:06,  1.07it/s]                                              12%|█▎        | 1/8 [00:00<00:06,  1.07it/s]                                              25%|██▌       | 2/8 [00:00<00:05,  1.07it/s]                                              38%|███▊      | 3/8 [00:01<00:04,  1.07it/s] 50%|█████     | 4/8 [00:01<00:00,  4.72it/s]                                              50%|█████     | 4/8 [00:01<00:00,  4.72it/s]                                              62%|██████▎   | 5/8 [00:01<00:00,  4.72it/s]                                              75%|███████▌  | 6/8 [00:01<00:00,  4.72it/s] 88%|████████▊ | 7/8 [00:01<00:00,  8.14it/s]                                              88%|████████▊ | 7/8 [00:01<00:00,  8.14it/s]                                             100%|██████████| 8/8 [00:01<00:00,  8.14it/s][INFO|trainer.py:4309] 2026-06-08 12:05:41,586 >> Saving model checkpoint to /workspace/output_models/checkpoint-8
+[INFO|configuration_utils.py:763] 2026-06-08 12:05:41,616 >> loading configuration file /mnt/models/qwen3-0.6b/config.json
+[INFO|configuration_utils.py:839] 2026-06-08 12:05:41,618 >> Model config Qwen2Config {
+  "architectures": [
+    "Qwen2ForCausalLM"
+  ],
+  "attention_dropout": 0.0,
+  "dtype": "float32",
+  "hidden_act": "silu",
+  "hidden_size": 64,
+  "initializer_range": 0.02,
+  "intermediate_size": 128,
+  "layer_types": [
+    "full_attention",
+    "full_attention"
+  ],
+  "max_position_embeddings": 256,
+  "max_window_layers": 28,
+  "model_type": "qwen2",
+  "num_attention_heads": 4,
+  "num_hidden_layers": 2,
+  "num_key_value_heads": 4,
+  "rms_norm_eps": 1e-06,
+  "rope_scaling": null,
+  "rope_theta": 10000.0,
+  "sliding_window": null,
+  "tie_word_embeddings": true,
+  "transformers_version": "4.57.1",
+  "use_cache": true,
+  "use_sliding_window": false,
+  "vocab_size": 309
+}
+
+[INFO|tokenization_utils_base.py:2421] 2026-06-08 12:05:41,626 >> chat template saved in /workspace/output_models/checkpoint-8/chat_template.jinja
+[INFO|tokenization_utils_base.py:2590] 2026-06-08 12:05:41,626 >> tokenizer config file saved in /workspace/output_models/checkpoint-8/tokenizer_config.json
+[INFO|tokenization_utils_base.py:2599] 2026-06-08 12:05:41,628 >> Special tokens file saved in /workspace/output_models/checkpoint-8/special_tokens_map.json
+[INFO|trainer.py:2810] 2026-06-08 12:05:41,641 >> 
+
+Training completed. Do not forget to share your model on huggingface.co/models =)
+
+
+{'train_runtime': 1.2991, 'train_samples_per_second': 12.316, 'train_steps_per_second': 6.158, 'train_loss': 5.7421528697013855, 'epoch': 1.0}
+                                             100%|██████████| 8/8 [00:01<00:00,  8.14it/s]100%|██████████| 8/8 [00:01<00:00,  6.16it/s]
+[INFO|trainer.py:4309] 2026-06-08 12:05:41,644 >> Saving model checkpoint to /workspace/output_models
+[INFO|configuration_utils.py:763] 2026-06-08 12:05:41,674 >> loading configuration file /mnt/models/qwen3-0.6b/config.json
+[INFO|configuration_utils.py:839] 2026-06-08 12:05:41,676 >> Model config Qwen2Config {
+  "architectures": [
+    "Qwen2ForCausalLM"
+  ],
+  "attention_dropout": 0.0,
+  "dtype": "float32",
+  "hidden_act": "silu",
+  "hidden_size": 64,
+  "initializer_range": 0.02,
+  "intermediate_size": 128,
+  "layer_types": [
+    "full_attention",
+    "full_attention"
+  ],
+  "max_position_embeddings": 256,
+  "max_window_layers": 28,
+  "model_type": "qwen2",
+  "num_attention_heads": 4,
+  "num_hidden_layers": 2,
+  "num_key_value_heads": 4,
+  "rms_norm_eps": 1e-06,
+  "rope_scaling": null,
+  "rope_theta": 10000.0,
+  "sliding_window": null,
+  "tie_word_embeddings": true,
+  "transformers_version": "4.57.1",
+  "use_cache": true,
+  "use_sliding_window": false,
+  "vocab_size": 309
+}
+
+[INFO|tokenization_utils_base.py:2421] 2026-06-08 12:05:41,680 >> chat template saved in /workspace/output_models/chat_template.jinja
+[INFO|tokenization_utils_base.py:2590] 2026-06-08 12:05:41,680 >> tokenizer config file saved in /workspace/output_models/tokenizer_config.json
+[INFO|tokenization_utils_base.py:2599] 2026-06-08 12:05:41,680 >> Special tokens file saved in /workspace/output_models/special_tokens_map.json
+***** train metrics *****
+  epoch                    =        1.0
+  total_flos               =        0GF
+  train_loss               =     5.7422
+  train_runtime            = 0:00:01.29
+  train_samples_per_second =     12.316
+  train_steps_per_second   =      6.158
+[INFO|modelcard.py:456] 2026-06-08 12:05:41,686 >> Dropping the following result as it does not have all the necessary fields:
+{'task': {'name': 'Causal Language Modeling', 'type': 'text-generation'}}
++ cat
++ llamafactory-cli export lf-merge.yaml
+/usr/local/lib/python3.12/site-packages/jieba/__init__.py:44: SyntaxWarning: invalid escape sequence '\.'
+  re_han_default = re.compile("([\u4E00-\u9FD5a-zA-Z0-9+#&\._%\-]+)", re.U)
+/usr/local/lib/python3.12/site-packages/jieba/__init__.py:46: SyntaxWarning: invalid escape sequence '\s'
+  re_skip_default = re.compile("(\r\n|\s)", re.U)
+/usr/local/lib/python3.12/site-packages/jieba/finalseg/__init__.py:78: SyntaxWarning: invalid escape sequence '\.'
+  re_skip = re.compile("([a-zA-Z0-9]+(?:\.\d+)?%?)")
+/usr/local/lib/python3.12/site-packages/rouge_chinese/rouge.py:93: SyntaxWarning: invalid escape sequence '\?'
+  para = re.sub('([。！？\?])([^”’])', r"\1\n\2", para)
+/usr/local/lib/python3.12/site-packages/rouge_chinese/rouge.py:94: SyntaxWarning: invalid escape sequence '\.'
+  para = re.sub('(\.{6})([^”’])', r"\1\n\2", para)
+/usr/local/lib/python3.12/site-packages/rouge_chinese/rouge.py:96: SyntaxWarning: invalid escape sequence '\?'
+  para = re.sub('([。！？\?][”’])([^，。！？\?])', r'\1\n\2', para)
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:06:15,650 >> loading file vocab.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:06:15,651 >> loading file merges.txt
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:06:15,651 >> loading file tokenizer.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:06:15,651 >> loading file added_tokens.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:06:15,651 >> loading file special_tokens_map.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:06:15,651 >> loading file tokenizer_config.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:06:15,651 >> loading file chat_template.jinja
+[INFO|configuration_utils.py:763] 2026-06-08 12:06:15,655 >> loading configuration file /mnt/models/qwen3-0.6b/config.json
+[INFO|configuration_utils.py:839] 2026-06-08 12:06:15,661 >> Model config Qwen2Config {
+  "architectures": [
+    "Qwen2ForCausalLM"
+  ],
+  "attention_dropout": 0.0,
+  "dtype": "float32",
+  "hidden_act": "silu",
+  "hidden_size": 64,
+  "initializer_range": 0.02,
+  "intermediate_size": 128,
+  "layer_types": [
+    "full_attention",
+    "full_attention"
+  ],
+  "max_position_embeddings": 256,
+  "max_window_layers": 28,
+  "model_type": "qwen2",
+  "num_attention_heads": 4,
+  "num_hidden_layers": 2,
+  "num_key_value_heads": 4,
+  "rms_norm_eps": 1e-06,
+  "rope_scaling": null,
+  "rope_theta": 10000.0,
+  "sliding_window": null,
+  "tie_word_embeddings": true,
+  "transformers_version": "4.57.1",
+  "use_cache": true,
+  "use_sliding_window": false,
+  "vocab_size": 309
+}
+
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:06:15,662 >> loading file vocab.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:06:15,662 >> loading file merges.txt
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:06:15,662 >> loading file tokenizer.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:06:15,662 >> loading file added_tokens.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:06:15,662 >> loading file special_tokens_map.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:06:15,662 >> loading file tokenizer_config.json
+[INFO|tokenization_utils_base.py:2093] 2026-06-08 12:06:15,662 >> loading file chat_template.jinja
+[INFO|configuration_utils.py:763] 2026-06-08 12:06:15,665 >> loading configuration file /mnt/models/qwen3-0.6b/config.json
+[INFO|configuration_utils.py:839] 2026-06-08 12:06:15,667 >> Model config Qwen2Config {
+  "architectures": [
+    "Qwen2ForCausalLM"
+  ],
+  "attention_dropout": 0.0,
+  "dtype": "float32",
+  "hidden_act": "silu",
+  "hidden_size": 64,
+  "initializer_range": 0.02,
+  "intermediate_size": 128,
+  "layer_types": [
+    "full_attention",
+    "full_attention"
+  ],
+  "max_position_embeddings": 256,
+  "max_window_layers": 28,
+  "model_type": "qwen2",
+  "num_attention_heads": 4,
+  "num_hidden_layers": 2,
+  "num_key_value_heads": 4,
+  "rms_norm_eps": 1e-06,
+  "rope_scaling": null,
+  "rope_theta": 10000.0,
+  "sliding_window": null,
+  "tie_word_embeddings": true,
+  "transformers_version": "4.57.1",
+  "use_cache": true,
+  "use_sliding_window": false,
+  "vocab_size": 309
+}
+
+[WARNING|logging.py:328] 2026-06-08 12:06:15,667 >> `torch_dtype` is deprecated! Use `dtype` instead!
+[INFO|2026-06-08 12:06:15] llamafactory.model.model_utils.kv_cache:143 >> KV cache is enabled for faster generation.
+[WARNING|logging.py:328] 2026-06-08 12:06:16,153 >> `torch_dtype` is deprecated! Use `dtype` instead!
+[INFO|modeling_utils.py:1169] 2026-06-08 12:06:16,154 >> loading weights file /mnt/models/qwen3-0.6b/model.safetensors
+[INFO|modeling_utils.py:1243] 2026-06-08 12:06:16,155 >> Will use dtype=torch.float32 as defined in model's config object
+[INFO|modeling_utils.py:2341] 2026-06-08 12:06:16,155 >> Instantiating Qwen2ForCausalLM model under default dtype torch.float32.
+[INFO|configuration_utils.py:986] 2026-06-08 12:06:16,159 >> Generate config GenerationConfig {}
+
+[INFO|configuration_utils.py:939] 2026-06-08 12:06:16,176 >> loading configuration file /mnt/models/qwen3-0.6b/generation_config.json
+[INFO|configuration_utils.py:986] 2026-06-08 12:06:16,176 >> Generate config GenerationConfig {}
+
+[INFO|dynamic_module_utils.py:423] 2026-06-08 12:06:16,177 >> Could not locate the custom_generate/generate.py inside /mnt/models/qwen3-0.6b.
+[INFO|2026-06-08 12:06:16] llamafactory.model.model_utils.attention:143 >> Using torch SDPA for faster training and inference.
+[INFO|2026-06-08 12:06:16] llamafactory.model.adapter:143 >> Merged 1 adapter(s).
+[INFO|2026-06-08 12:06:16] llamafactory.model.adapter:143 >> Loaded adapter(s): /workspace/output_models
+[INFO|2026-06-08 12:06:16] llamafactory.model.loader:143 >> all params: 102,400
+[INFO|2026-06-08 12:06:16] llamafactory.train.tuner:143 >> Convert model dtype to: torch.bfloat16.
+[INFO|configuration_utils.py:491] 2026-06-08 12:06:16,450 >> Configuration saved in /workspace/output_models_merged/config.json
+[INFO|configuration_utils.py:757] 2026-06-08 12:06:16,451 >> Configuration saved in /workspace/output_models_merged/generation_config.json
+[INFO|modeling_utils.py:4181] 2026-06-08 12:06:16,455 >> Model weights saved in /workspace/output_models_merged/model.safetensors
+[INFO|tokenization_utils_base.py:2421] 2026-06-08 12:06:16,456 >> chat template saved in /workspace/output_models_merged/chat_template.jinja
+[INFO|tokenization_utils_base.py:2590] 2026-06-08 12:06:16,456 >> tokenizer config file saved in /workspace/output_models_merged/tokenizer_config.json
+[INFO|tokenization_utils_base.py:2599] 2026-06-08 12:06:16,456 >> Special tokens file saved in /workspace/output_models_merged/special_tokens_map.json
+[INFO|2026-06-08 12:06:16] llamafactory.train.tuner:143 >> Ollama modelfile saved in /workspace/output_models_merged/Modelfile
++ ls -l /workspace/output_models_merged
+total 248
+-rw-r--r-- 1 nobody nogroup    324 Jun  8 12:06 Modelfile
+-rw-r--r-- 1 nobody nogroup    523 Jun  8 12:06 chat_template.jinja
+-rw-r--r-- 1 nobody nogroup    680 Jun  8 12:06 config.json
+-rw-r--r-- 1 nobody nogroup     69 Jun  8 12:06 generation_config.json
+-rw-r--r-- 1 nobody nogroup    256 Jun  8 12:06 merges.txt
+-rw-r--r-- 1 nobody nogroup 207472 Jun  8 12:06 model.safetensors
+-rw-r--r-- 1 nobody nogroup    548 Jun  8 12:06 special_tokens_map.json
+-rw-r--r-- 1 nobody nogroup   8469 Jun  8 12:06 tokenizer.json
+-rw-r--r-- 1 nobody nogroup   1090 Jun  8 12:06 tokenizer_config.json
+-rw-r--r-- 1 nobody nogroup   2615 Jun  8 12:06 vocab.json
+[2026-06-08T12:06:21Z] C6: pod phase=Succeeded
+job.batch.volcano.sh "c6-vcjob-sft-02d9c" deleted from mlops-demo-e2e namespace

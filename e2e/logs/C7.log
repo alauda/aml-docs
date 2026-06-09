@@ -1,0 +1,21 @@
+[2026-06-08T07:57:53Z] C7: applying torch2.6-cann8.5-arm64 TrainingRuntime to ns/mlops-demo-ai-test (non-HAMI patch + docker.io → docker.1ms.run)
+trainingruntime.trainer.kubeflow.org/torch2.6-cann8.5-arm64 configured[2026-06-08T07:57:56Z] C7: submitting TrainJob from trainjob-smoke.yaml (runtimeRef=torch2.6-cann8.5-arm64)
+[2026-06-08T07:57:57Z] C7: trainjob=smoke-kvj2m
+[2026-06-08T07:57:57Z] C7: waiting for jobset pod...
+[2026-06-08T07:57:58Z] C7: pod=smoke-kvj2m-node-0-0-mc5jm
+[2026-06-08T07:57:58Z] C7: waiting for pod terminal state...
+[2026-06-08T07:59:44Z] C7: pod phase=Succeeded
+[2026-06-08T07:59:44Z] C7: ===== container logs =====
+/opt/app-root/venv/lib/python3.11/site-packages/torch_npu/utils/collect_env.py:58: UserWarning: Warning: The /usr/local/Ascend/cann-8.5.0 owner does not match the current owner.
+  warnings.warn(f"Warning: The {path} owner does not match the current owner.")
+/opt/app-root/venv/lib/python3.11/site-packages/torch_npu/utils/collect_env.py:58: UserWarning: Warning: The /usr/local/Ascend/cann-8.5.0/aarch64-linux/ascend_toolkit_install.info owner does not match the current owner.
+  warnings.warn(f"Warning: The {path} owner does not match the current owner.")
+/opt/app-root/venv/lib/python3.11/site-packages/torch_npu/utils/collect_env.py:58: UserWarning: Warning: The /usr/local/Ascend/cann-8.5.0 owner does not match the current owner.
+  warnings.warn(f"Warning: The {path} owner does not match the current owner.")
+/opt/app-root/venv/lib/python3.11/site-packages/torch_npu/utils/collect_env.py:58: UserWarning: Warning: The /usr/local/Ascend/cann-8.5.0/aarch64-linux/ascend_toolkit_install.info owner does not match the current owner.
+  warnings.warn(f"Warning: The {path} owner does not match the current owner.")
+torch=2.6.0+cpu torch_npu=2.6.0.post5
+npu_available=True count=1
+matmul ok shape=(1024, 1024) mean=0.9309
+[2026-06-08T07:59:45Z] C7: ===== end logs =====
+trainjob.trainer.kubeflow.org "smoke-kvj2m" deleted from mlops-demo-ai-test namespace
