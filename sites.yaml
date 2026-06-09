@@ -24,3 +24,9 @@
   base: /pgpu
   version: "0.18"
   repo: https://github.com/alauda/pgpu-doc
+- name: costmanagement
+  displayName:
+    en: Alauda Cost Management
+    zh: Alauda Cost Management
+  base: /costmanagement
+  version: "4.1"

@@ -22,6 +22,20 @@ Envoy AI Gateway is a required dependency of **Alauda Build of KServe** for expo
 
 For installation on the platform, see [Install Envoy AI Gateway](./install).
 
+## Guides
+
+The following guides configure Envoy AI Gateway as a multi-tenant model serving control plane:
+
+- [Authenticating Consumers](./how_to/identity_authentication) — verify SSO tokens or API keys and propagate caller identity.
+- [Configuring Token Quotas](./how_to/token_rate_limiting) — enforce per-user, per-department, and per-tier token budgets.
+- [Metering Token Usage](./how_to/usage_metering) — report consumption per tenant and feed chargeback.
+- [Routing to LLM Providers](./how_to/external_provider_routing) — front external providers with credential injection and failover.
+- [Charging Back Token Usage](./how_to/cost_management_chargeback) — price token usage into per-namespace bills with Cost Management.
+
+:::warning Create the gateway in a dedicated namespace
+Create the `Gateway` and its `AIGatewayRoute` in a dedicated namespace, such as `maas-system`, rather than in the Envoy Gateway control-plane namespace `envoy-gateway-system`. This keeps tenant gateways separate from the control plane, and avoids an issue on some versions where a gateway placed in the control-plane namespace does not get the AI Gateway request-processing (`ext_proc`) filter or `SecurityPolicy` rules applied to its listener — which silently breaks model routing, token quotas, and authentication. The data-plane proxy pods are created in `envoy-gateway-system` either way; only the `Gateway` resource's namespace matters here.
+:::
+
 ## Documentation
 
 Envoy AI Gateway upstream documentation and related resources:
