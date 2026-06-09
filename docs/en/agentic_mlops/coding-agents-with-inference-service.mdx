@@ -123,27 +123,31 @@ Reasoning effort controls how much the model "thinks" before answering. For codi
 
 #### Server-side defaults
 
-vLLM does not expose a generic `--reasoning-effort` launch flag. Server-wide control is achieved through the model's chat template — you can supply a custom Jinja template that disables thinking by default, then pass it with `--chat-template`. Alternatively, some models and vLLM versions expose per-model template kwargs; check the vLLM release notes for the specific key. For a quick start, request-level parameters (see below) are the most portable approach.
+vLLM does not expose a generic `--reasoning-effort` launch flag. Server-wide control is achieved through the model's chat template: you can supply a custom Jinja template that disables thinking by default, then pass it with `--chat-template`. Alternatively, some models and vLLM versions expose per-model template kwargs; check the vLLM release notes for the specific key.
 
-#### Request-time override
+#### Request-time controls
 
-Models that support OpenAI-style reasoning effort accept `reasoning_effort` as a top-level request parameter:
+Do not assume every vLLM-backed `InferenceService` accepts `reasoning_effort`. Support depends on the vLLM version, OpenAI-compatible server implementation, model, and chat template. If the service rejects unknown request fields, `reasoning_effort` can fail even when the model itself supports reasoning.
+
+Prefer model-specific controls that your deployed vLLM service documents. For example, Qwen3-style templates commonly use `chat_template_kwargs` to enable or disable thinking:
 
 ```json
 {
-  "model": "google/gemma-4-26B-A4B-it",
+  "model": "Qwen/Qwen3-8B",
   "messages": [{"role": "user", "content": "..."}],
-  "reasoning_effort": "low"
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  }
 }
 ```
 
-When using the OpenAI Python client, pass it as a normal argument:
+When using the OpenAI Python client, pass vLLM-specific request fields through `extra_body`:
 
 ```python
 client.chat.completions.create(
-    model="google/gemma-4-26B-A4B-it",
+    model="Qwen/Qwen3-8B",
     messages=[{"role": "user", "content": "..."}],
-    reasoning_effort="low",
+    extra_body={"chat_template_kwargs": {"enable_thinking": False}},
 )
 ```
 
@@ -159,7 +163,7 @@ For parsers that support an explicit thinking budget, you can also cap reasoning
 
 When using a translation proxy (LiteLLM or claude-code-router), confirm the proxy version passes through these vLLM/OpenAI extension fields before relying on them.
 
-**Note:** QwQ and Qwen3-style reasoning do not use `reasoning_effort` for a simple low/medium/high knob. Control their behavior with `chat_template_kwargs`, `thinking_token_budget`, or `max_tokens`, depending on what your model and vLLM version support.
+Only use `reasoning_effort` after you verify that your exact vLLM image and model template accept it. On supported deployments, it can be sent as a top-level Chat Completions field such as `"reasoning_effort": "low"`; on unsupported deployments, use `chat_template_kwargs`, `thinking_token_budget`, or `max_tokens` instead.
 
 ## Step 3: Connect your coding agent
 
