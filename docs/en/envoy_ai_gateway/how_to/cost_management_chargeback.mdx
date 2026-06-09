@@ -47,13 +47,13 @@ Cost Management consumes the OpenTelemetry GenAI token metric collected by [Mete
       cpaas.io/slark.collection.config: "true"
   data:
     config: |
-      - kind: Project
+      - kind: AIGateway
         category: AIGatewayToken
         item: AIGatewayTokenUsage
         period: Hourly
         usage:
           query: |
-            sum by (user_namespace, "gen_ai.request.model", cluster) (
+            sum by (user_namespace, "gen_ai.request.model") (
               increase({__name__="gen_ai.client.token.usage_token_sum"}[5m])
             )
           step: 5m
@@ -66,7 +66,7 @@ Cost Management consumes the OpenTelemetry GenAI token metric collected by [Mete
 
   Field reference:
 
-  - `kind`: the Cost Management collector kind. `Pod` is reserved for OpenCost-emitted pod metrics; `Project` is the general-purpose kind for namespace- or project-scoped custom metrics, which this guide uses. Some platform builds also accept a dedicated custom kind (for example `AIGateway`, matching the vGPU/NPU/pGPU examples). The supported set is platform-version-specific, so after applying this configuration confirm rows actually appear (see the ClickHouse query in the Verification section below); if none do, switch `kind` to the value your Cost Management build collects.
+  - `kind`: the Cost Management collector kind, which also names the collector (keep it unique among collection configs). `Pod` is reserved for OpenCost-emitted pod metrics and `Project` for the platform's built-in CPU/Memory/Storage quota collectors. AI Gateway token usage uses a dedicated custom kind, `AIGateway`, matching the vGPU/NPU/pGPU custom-kind pattern — this is the value verified on the cluster to populate `cost.usage` with `AIGatewayTokenUsage` rows. After applying this configuration, confirm rows appear (see the `cost.usage` check in Troubleshooting) before moving on.
   - `category`, `item`: identifiers used to link this collection configuration to its display/storage counterpart in the next step. Both values must match the corresponding fields in the display/storage configuration.
   - `period`: the aggregation period. Use `Hourly` to bill by hour.
   - `usage.query`: the PromQL query the agent evaluates every `step`. The platform stores the metric under its OpenTelemetry UTF-8 name with dots preserved, so select it with `{__name__="gen_ai.client.token.usage_token_sum"}` and reference the dotted `gen_ai.request.model` label with the quoted UTF-8 syntax. The header-mapped `user_namespace` label is the per-namespace billing key.
