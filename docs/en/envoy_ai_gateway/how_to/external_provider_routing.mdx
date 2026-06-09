@@ -47,6 +47,8 @@ Envoy AI Gateway can front external LLM providers behind one OpenAI-compatible e
 4. The provider endpoint is reachable from the cluster egress. Verify before going further:
 
     ```bash
+    # On clusters without docker.io egress (air-gapped / mirror-only), replace
+    # curlimages/curl with any small curl/wget image from your registry mirror.
     kubectl run egress-probe --rm -i --restart=Never \
       --image=curlimages/curl -- \
       curl -s -o /dev/null -w '%{http_code}\n' https://api.openai.com/v1/models

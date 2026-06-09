@@ -52,27 +52,35 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
 
   The controller reads the mapping from the **CLI flag** `--metricsRequestHeaderAttributes=<header>:<label>[,<header>:<label>...]` on the `ai-gateway-controller` `Deployment`. If the controller was installed via Helm, the chart renders this flag from a values key (for example `controller.metricsRequestHeaderAttributes`); supply your release name and chart reference and apply `helm upgrade --reuse-values`. If you manage the `Deployment` directly, patch its container args.
 
-  The flag is a **single** comma-joined `<header>:<label>` map, **not** a repeatable list: passing it twice makes the controller keep only the last copy and silently drop the earlier mappings. So rewrite the one flag in place with the full list (any existing mappings plus the ones below). Find its index, then `replace` it:
+  The flag is a **single** comma-joined `<header>:<label>` map, **not** a repeatable list: passing it twice makes the controller keep only the last copy. The platform also ships **default** pairs (for example `x-user-name:user` and `x-access-meta:client_id`) that the data-plane sidecar already emits — so you must rewrite the one flag with the **union** of the existing pairs plus your new one. Omitting any pair removes that metric label from every proxy on its next restart.
+
+  First read the pairs the data plane actually emits today (the proxy sidecar is the source of truth — the controller flag may already have been narrowed):
 
   ```bash
-  # Inspect the current flag value, if any
-  kubectl -n envoy-gateway-system get deploy ai-gateway-controller \
-    -o jsonpath='{.spec.template.spec.containers[0].args}' \
-    | jq -r '.[] | select(test("metricsRequestHeaderAttributes"))'
+  PROXY=$(kubectl -n envoy-gateway-system get pod \
+    -l gateway.envoyproxy.io/owning-gateway-name=<gateway-name> \
+    -o jsonpath='{.items[0].metadata.name}')
+  kubectl -n envoy-gateway-system get pod "$PROXY" \
+    -o jsonpath='{.spec.initContainers[?(@.name=="ai-gateway-extproc")].args}' \
+    | jq -r 'index("-metricsRequestHeaderAttributes") as $i | .[$i+1]'
+  # e.g. x-user-name:user,x-user-namespace:user_namespace,x-access-meta:client_id  (platform defaults)
+  ```
 
-  # Locate the flag's argument index
+  Then rewrite the controller's single flag with that full set **plus** `x-user-group:department`. Substitute the left side below with whatever the command above printed — do not drop any pair:
+
+  ```bash
+  # Locate the flag's argument index on the controller Deployment
   IDX=$(kubectl -n envoy-gateway-system get deploy ai-gateway-controller \
     -o jsonpath='{.spec.template.spec.containers[0].args}' \
     | jq 'map(test("^--?metricsRequestHeaderAttributes=")) | index(true)')
 
-  # Replace that single argument with the full mapping list
+  # Replace it with the UNION of existing pairs + the new one
   kubectl -n envoy-gateway-system patch deploy ai-gateway-controller --type json -p '[
     {"op":"replace","path":"/spec/template/spec/containers/0/args/'"$IDX"'",
-     "value":"--metricsRequestHeaderAttributes=x-user-namespace:user_namespace,x-user-group:department"}
+     "value":"--metricsRequestHeaderAttributes=x-user-name:user,x-user-namespace:user_namespace,x-access-meta:client_id,x-user-group:department"}
   ]'
-  # If the flag is not present yet (IDX is null), add it instead:
-  #   --type json -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-",
-  #     "value":"--metricsRequestHeaderAttributes=x-user-namespace:user_namespace,x-user-group:department"}]'
+  # If the flag is not present anywhere (IDX is null), add it instead with the same full value:
+  #   --type json -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--metricsRequestHeaderAttributes=...,x-user-group:department"}]'
 
   kubectl -n envoy-gateway-system rollout status deploy ai-gateway-controller
 

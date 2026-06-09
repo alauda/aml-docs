@@ -34,6 +34,8 @@ A token quota combines three pieces:
 3. A Redis instance is available. Use a managed instance from <ExternalSiteLink name="acp" href="appservice/redis/redis.html" children="Cache Service for Redis" /> as the default provider, then record its access address (`host:port`) and credentials. Verify reachability from the cluster before going further:
 
     ```bash
+    # On clusters without docker.io egress (air-gapped / mirror-only), replace
+    # redis:7-alpine with a Redis image from your registry mirror (it ships redis-cli).
     kubectl run redis-probe --rm -i --restart=Never \
       --image=redis:7-alpine -- \
       redis-cli -h <redis-host> -p <redis-port> PING
@@ -219,6 +221,7 @@ A run that exhausts alice's quota will print something like `alice #1 -> 200 …
 ```bash
 # <alice-x-user-id-value>: the x-user-id value the SecurityPolicy injects for alice
 # (the JWT claim / API-key mapping value that appears in the counter key), not her token.
+# Air-gapped clusters: replace redis:7-alpine with a mirrored Redis image.
 kubectl run redis-cli --rm -i --restart=Never \
   --image=redis:7-alpine -- \
   redis-cli -h <redis-host> -p <redis-port> \
