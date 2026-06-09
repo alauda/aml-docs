@@ -15,7 +15,9 @@ CASES=(
   "C1:GPU:cases/c1_smoke_gpu.sh"
   "C2:GPU:cases/c2_kubeflow_trainer_mnist.sh"
   "C3:GPU:cases/c3_traininghub_sft.sh"
-  # C4 — OSFT pulls in mini_trainer → flash_attn (sm_75+). Dev GPU is P100 (sm_60).
+  # C4 — see TODO.md: transformers' attn-impl check still hits flash_attn metadata
+  # even with disable_flash_attn=True + a PYTHONPATH stub; sm_60 P100 can't run
+  # real flash_attn either. Expected to pass on Ampere/Hopper without changes.
   # "C4:GPU:cases/c4_traininghub_osft.sh"
   "C5:GPU:cases/c5_trainer_v2_llamafactory.sh"
   "C6:GPU:cases/c6_volcanojob_llamafactory.sh"

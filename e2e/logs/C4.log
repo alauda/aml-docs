@@ -1,24 +1,28 @@
-[2026-06-09T03:13:29Z] C4: submitting Job c4-traininghub-osft-04509 (image=build-harbor.alauda.cn/mlops/traininghub0.1-cu126-amd64:v0.1.0-build.20260609030710)
-job.batch/c4-traininghub-osft-04509 created
-[2026-06-09T03:13:29Z] C4: waiting for pod to appear...
-[2026-06-09T03:13:34Z] C4: pod=c4-traininghub-osft-04509-8gkq6
-container "trainer" in pod "c4-traininghub-osft-04509-8gkq6" is waiting to start: ContainerCreating
-container "trainer" in pod "c4-traininghub-osft-04509-8gkq6" is waiting to start: ContainerCreating
-container "trainer" in pod "c4-traininghub-osft-04509-8gkq6" is waiting to start: ContainerCreating
-container "trainer" in pod "c4-traininghub-osft-04509-8gkq6" is waiting to start: ContainerCreating
+[2026-06-09T06:12:43Z] C4: submitting Job c4-traininghub-osft-055b4 (image=build-harbor.alauda.cn/mlops/traininghub0.1-cu126-amd64:v0.1.0-build.20260609030710)
+/workspaces/yiwu-base-ubuntu-2/aml-docs/e2e/cases/c4_traininghub_osft.sh: line 20: import: command not found
+job.batch/c4-traininghub-osft-055b4 created
+[2026-06-09T06:12:43Z] C4: waiting for pod to appear...
+[2026-06-09T06:12:49Z] C4: pod=c4-traininghub-osft-055b4-wrxdl
+container "trainer" in pod "c4-traininghub-osft-055b4-wrxdl" is waiting to start: ContainerCreating
+container "trainer" in pod "c4-traininghub-osft-055b4-wrxdl" is waiting to start: ContainerCreating
+container "trainer" in pod "c4-traininghub-osft-055b4-wrxdl" is waiting to start: ContainerCreating
 + cd /workspace
++ mkdir -p /workspace/stubs/flash_attn
++ cat
++ export PYTHONPATH=/workspace/stubs:
++ PYTHONPATH=/workspace/stubs:
 + python -
 
 
 
 prepared /workspace/tiny-qwen2 and /workspace/test_osft_data.jsonl
 + python -
-Generating train split: 0 examples [00:00, ? examples/s]Generating train split: 16 examples [00:00, 3664.35 examples/s]
-Ensuring dataset is compatible with legacy format. (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Ensuring dataset is compatible with legacy format. (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  5.55 examples/s]Ensuring dataset is compatible with legacy format. (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 28.78 examples/s]
-Converting samples into input_ids and labels... (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Converting samples into input_ids and labels... (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  5.76 examples/s]Converting samples into input_ids and labels... (num_proc=8):  62%|██████▎   | 10/16 [00:00<00:00, 26.54 examples/s]Converting samples into input_ids and labels... (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 25.71 examples/s]
-Filter (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Filter (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  6.63 examples/s]Filter (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 30.82 examples/s]
-Filtering out pretraining samples (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Filtering out pretraining samples (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  6.44 examples/s]Filtering out pretraining samples (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 31.24 examples/s]
-Filtering out pretraining samples (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Filtering out pretraining samples (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  6.08 examples/s]Filtering out pretraining samples (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 29.68 examples/s]
+Generating train split: 0 examples [00:00, ? examples/s]Generating train split: 16 examples [00:00, 3057.21 examples/s]
+Ensuring dataset is compatible with legacy format. (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Ensuring dataset is compatible with legacy format. (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  5.07 examples/s]Ensuring dataset is compatible with legacy format. (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 25.10 examples/s]
+Converting samples into input_ids and labels... (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Converting samples into input_ids and labels... (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  6.18 examples/s]Converting samples into input_ids and labels... (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 29.76 examples/s]
+Filter (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Filter (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  6.89 examples/s]Filter (num_proc=8):  75%|███████▌  | 12/16 [00:00<00:00, 36.64 examples/s]Filter (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 28.46 examples/s]
+Filtering out pretraining samples (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Filtering out pretraining samples (num_proc=8):  12%|█▎        | 2/16 [00:00<00:01,  7.48 examples/s]Filtering out pretraining samples (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 33.79 examples/s]
+Filtering out pretraining samples (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Filtering out pretraining samples (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  6.07 examples/s]Filtering out pretraining samples (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 29.19 examples/s]
 [35mOriginal Input: system: You are a domain expert.
 user: Summarize Alauda AI.
 assistant: Alauda AI provides MLOps on Kubernetes.
@@ -37,10 +41,10 @@ assistant: Alauda AI provides MLOps on Kubernetes.
 
 [0m
 [33mInstruction ex sample 3: <|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|><|MASK|>Alauda AI provides MLOps on Kubernetes.<|MASK|>[0m
-Validating unmask tokens not in data (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Validating unmask tokens not in data (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  5.75 examples/s]Validating unmask tokens not in data (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 28.77 examples/s]
-Creating json from Arrow format:   0%|          | 0/1 [00:00<?, ?ba/s]Creating json from Arrow format: 100%|██████████| 1/1 [00:00<00:00, 26.46ba/s]
-2026-06-09 03:14:59,238 - mini_trainer.api_train - INFO - Starting training setup...
-2026-06-09 03:14:59,239 - mini_trainer.api_train - INFO - Running training command as subprocess: torchrun --nnodes=1 --node-rank=0 --nproc-per-node=1 --rdzv-id=2 --rdzv-endpoint=127.0.0.1:29501 /usr/local/lib/python3.12/site-packages/mini_trainer/train.py --model-name-or-path=/workspace/tiny-qwen2 --data-path=/workspace/data_cache/data.jsonl --batch-size=2 --max-tokens-per-gpu=256 --learning-rate=5e-06 --num-warmup-steps=0 --lr-scheduler=cosine --lr-scheduler-kwargs={} --seed=42 --output-dir=/workspace/ckpt --training-mode=epoch --max-epochs=1 --max-steps=0 --max-tokens=0 --train-dtype=float32 --osft --osft-unfreeze-rank-ratio=0.25 --osft-upcast-dtype=float32 --checkpoint-at-epoch --save-final-checkpoint
+Validating unmask tokens not in data (num_proc=8):   0%|          | 0/16 [00:00<?, ? examples/s]Validating unmask tokens not in data (num_proc=8):  12%|█▎        | 2/16 [00:00<00:02,  6.98 examples/s]Validating unmask tokens not in data (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 51.20 examples/s]Validating unmask tokens not in data (num_proc=8): 100%|██████████| 16/16 [00:00<00:00, 30.29 examples/s]
+Creating json from Arrow format:   0%|          | 0/1 [00:00<?, ?ba/s]Creating json from Arrow format: 100%|██████████| 1/1 [00:00<00:00, 28.83ba/s]
+2026-06-09 06:14:11,501 - mini_trainer.api_train - INFO - Starting training setup...
+2026-06-09 06:14:11,503 - mini_trainer.api_train - INFO - Running training command as subprocess: torchrun --nnodes=1 --node-rank=0 --nproc-per-node=1 --rdzv-id=2 --rdzv-endpoint=127.0.0.1:29501 /usr/local/lib/python3.12/site-packages/mini_trainer/train.py --model-name-or-path=/workspace/tiny-qwen2 --data-path=/workspace/data_cache/data.jsonl --batch-size=2 --max-tokens-per-gpu=256 --learning-rate=5e-06 --num-warmup-steps=0 --lr-scheduler=cosine --lr-scheduler-kwargs={} --seed=42 --output-dir=/workspace/ckpt --training-mode=epoch --max-epochs=1 --max-steps=0 --max-tokens=0 --train-dtype=float32 --osft --osft-unfreeze-rank-ratio=0.25 --osft-upcast-dtype=float32 --checkpoint-at-epoch --save-final-checkpoint
 Command: torchrun --nnodes=1 --node-rank=0 --nproc-per-node=1 --rdzv-id=2 --rdzv-endpoint=127.0.0.1:29501 /usr/local/lib/python3.12/site-packages/mini_trainer/train.py --model-name-or-path=/workspace/tiny-qwen2 --data-path=/workspace/data_cache/data.jsonl --batch-size=2 --max-tokens-per-gpu=256 --learning-rate=5e-06 --num-warmup-steps=0 --lr-scheduler=cosine --lr-scheduler-kwargs={} --seed=42 --output-dir=/workspace/ckpt --training-mode=epoch --max-epochs=1 --max-steps=0 --max-tokens=0 --train-dtype=float32 --osft --osft-unfreeze-rank-ratio=0.25 --osft-upcast-dtype=float32 --checkpoint-at-epoch --save-final-checkpoint
 Logs will be saved to: /workspace/ckpt/training_log_node0.log
 ✅ Torch distributed appears to be functioning correctly
@@ -86,6 +90,23 @@ Training with parameters: {
     "WORLD_SIZE":1
 }
 Training parameters saved to /workspace/ckpt/training_params.json
+loading OSFT model
+setting up OSFT model using the distributed loading strategy
+loading OSFT model
+[33m!!!! Calling from_pretrained !!!![0m
+🧠 distributed environment detected, using memory-efficient loading strategy
+🎯 Using base model class: Qwen2ForCausalLM
+🧠 Using memory-efficient loading to avoid CUDA OOM
+📥 Loading base model to CPU in torch.float32...
+`torch_dtype` is deprecated! Use `dtype` instead!
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/usr/local/lib/python3.12/importlib/metadata/__init__.py", line 397, in from_name
+[rank0]:     return next(cls.discover(name=name))
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]: StopIteration
+
+[rank0]: During handling of the above exception, another exception occurred:
+
 [rank0]: Traceback (most recent call last):
 [rank0]:   File "/usr/local/lib/python3.12/site-packages/mini_trainer/train.py", line 1564, in <module>
 [rank0]:     app()
@@ -115,13 +136,51 @@ Training parameters saved to /workspace/ckpt/training_params.json
 [rank0]:   File "/usr/local/lib/python3.12/site-packages/mini_trainer/train.py", line 1433, in main
 [rank0]:     model = setup_model(
 [rank0]:             ^^^^^^^^^^^^
-[rank0]:   File "/usr/local/lib/python3.12/site-packages/mini_trainer/setup_model_for_training.py", line 1075, in setup_model
-[rank0]:     raise e
-[rank0]:   File "/usr/local/lib/python3.12/site-packages/mini_trainer/setup_model_for_training.py", line 1053, in setup_model
-[rank0]:     import flash_attn as _
-[rank0]: ModuleNotFoundError: No module named 'flash_attn'
-[rank0]:[W609 03:15:55.231819737 ProcessGroupNCCL.cpp:1496] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
-E0609 03:15:58.350000 394 site-packages/torch/distributed/elastic/multiprocessing/api.py:869] failed (exitcode: 1) local_rank: 0 (pid: 411) of binary: /usr/local/bin/python
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/mini_trainer/setup_model_for_training.py", line 1220, in setup_model
+[rank0]:     model = load_osft_model() if osft else load_standard_model()
+[rank0]:             ^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/mini_trainer/setup_model_for_training.py", line 1180, in load_osft_model
+[rank0]:     model = setup_osft_model_distributed(
+[rank0]:             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/mini_trainer/setup_model_for_training.py", line 834, in setup_osft_model_distributed
+[rank0]:     model: OSFTModel = osft_cls.from_pretrained(
+[rank0]:                        ^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/mini_trainer/osft_utils.py", line 1331, in from_pretrained
+[rank0]:     model = _load_model_memory_efficient(
+[rank0]:             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/mini_trainer/osft_utils.py", line 997, in _load_model_memory_efficient
+[rank0]:     base_model = base_model_class.from_pretrained(
+[rank0]:                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/transformers/modeling_utils.py", line 277, in _wrapper
+[rank0]:     return func(*args, **kwargs)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/transformers/modeling_utils.py", line 4971, in from_pretrained
+[rank0]:     model = cls(config, *model_args, **model_kwargs)
+[rank0]:             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/transformers/models/qwen2/modeling_qwen2.py", line 409, in __init__
+[rank0]:     super().__init__(config)
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/transformers/modeling_utils.py", line 2076, in __init__
+[rank0]:     self.config._attn_implementation_internal = self._check_and_adjust_attn_implementation(
+[rank0]:                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/transformers/modeling_utils.py", line 2686, in _check_and_adjust_attn_implementation
+[rank0]:     applicable_attn_implementation = self.get_correct_attn_implementation(
+[rank0]:                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/transformers/modeling_utils.py", line 2714, in get_correct_attn_implementation
+[rank0]:     self._flash_attn_2_can_dispatch(is_init_check)
+[rank0]:   File "/usr/local/lib/python3.12/site-packages/transformers/modeling_utils.py", line 2425, in _flash_attn_2_can_dispatch
+[rank0]:     flash_attention_version = version.parse(importlib.metadata.version("flash_attn"))
+[rank0]:                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/importlib/metadata/__init__.py", line 889, in version
+[rank0]:     return distribution(distribution_name).version
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/importlib/metadata/__init__.py", line 862, in distribution
+[rank0]:     return Distribution.from_name(distribution_name)
+[rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/usr/local/lib/python3.12/importlib/metadata/__init__.py", line 399, in from_name
+[rank0]:     raise PackageNotFoundError(name)
+[rank0]: importlib.metadata.PackageNotFoundError: No package metadata was found for flash_attn
+[rank0]:[W609 06:15:06.154322646 ProcessGroupNCCL.cpp:1496] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+E0609 06:15:09.006000 396 site-packages/torch/distributed/elastic/multiprocessing/api.py:869] failed (exitcode: 1) local_rank: 0 (pid: 413) of binary: /usr/local/bin/python
 Traceback (most recent call last):
   File "/usr/local/bin/torchrun", line 10, in <module>
     sys.exit(main())
@@ -147,14 +206,14 @@ Failures:
 ------------------------------------------------------------
 Root Cause (first observed failure):
 [0]:
-  time      : 2026-06-09_03:15:58
-  host      : c4-traininghub-osft-04509-8gkq6
+  time      : 2026-06-09_06:15:09
+  host      : c4-traininghub-osft-055b4-wrxdl
   rank      : 0 (local_rank: 0)
-  exitcode  : 1 (pid: 411)
+  exitcode  : 1 (pid: 413)
   error_file: <N/A>
   traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
 ============================================================
-2026-06-09 03:15:59,335 - mini_trainer.api_train - ERROR - Training subprocess exited with code 1.
+2026-06-09 06:15:09,993 - mini_trainer.api_train - ERROR - Training subprocess exited with code 1.
 Traceback (most recent call last):
   File "<stdin>", line 4, in <module>
   File "/usr/local/lib/python3.12/site-packages/training_hub/algorithms/osft.py", line 623, in osft
@@ -169,14 +228,14 @@ Traceback (most recent call last):
   File "/usr/local/lib/python3.12/site-packages/mini_trainer/api_train.py", line 284, in run_training
     raise RuntimeError(f"Training failed. Please check the logs at {log_file} for details.")
 RuntimeError: Training failed. Please check the logs at /workspace/ckpt/training_log_node0.log for details.
-[2026-06-09T03:16:06Z] C4: job status=FailureTarget Failed
-[2026-06-09T03:16:06Z] C4: ==== pod final state ====
+[2026-06-09T06:15:20Z] C4: job status=FailureTarget Failed
+[2026-06-09T06:15:20Z] C4: ==== pod final state ====
 NAME                              READY   STATUS   RESTARTS   AGE     IP           NODE             NOMINATED NODE   READINESS GATES
-c4-traininghub-osft-04509-8gkq6   0/1     Error    0          2m37s   10.3.13.50   192.168.138.15   <none>           <none>
+c4-traininghub-osft-055b4-wrxdl   0/1     Error    0          2m36s   10.3.13.60   192.168.138.15   <none>           <none>
       PYTHONUNBUFFERED:      1
     Mounts:
       /dev/shm from dshm (rw)
-      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-vxnp9 (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-8q6pp (ro)
       /workspace from workspace (rw)
 Conditions:
   Type                        Status
@@ -194,7 +253,7 @@ Volumes:
     Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
     Medium:     Memory
     SizeLimit:  2Gi
-  kube-api-access-vxnp9:
+  kube-api-access-8q6pp:
     Type:                    Projected (a volume that contains injected data from multiple sources)
     TokenExpirationSeconds:  3607
     ConfigMapName:           kube-root-ca.crt
@@ -207,10 +266,10 @@ Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists fo
 Events:
   Type    Reason            Age    From            Message
   ----    ------            ----   ----            -------
-  Normal  Scheduled         2m36s  hami-scheduler  Successfully assigned mlops-demo-e2e/c4-traininghub-osft-04509-8gkq6 to 192.168.138.15
+  Normal  Scheduled         2m36s  hami-scheduler  Successfully assigned mlops-demo-e2e/c4-traininghub-osft-055b4-wrxdl to 192.168.138.15
   Normal  FilteringSucceed  2m37s  hami-scheduler  find fit node(192.168.138.15), 3 nodes not fit, 1 nodes fit(192.168.138.15:0.00)
-  Normal  BindingSucceed    2m37s  hami-scheduler  Successfully binding node [192.168.138.15] to mlops-demo-e2e/c4-traininghub-osft-04509-8gkq6
-  Normal  Pulled            2m30s  kubelet         spec.containers{trainer}: Container image "build-harbor.alauda.cn/mlops/traininghub0.1-cu126-amd64:v0.1.0-build.20260609030710" already present on machine
-  Normal  Created           2m30s  kubelet         spec.containers{trainer}: Created container: trainer
-  Normal  Started           2m29s  kubelet         spec.containers{trainer}: Started container trainer
-job.batch "c4-traininghub-osft-04509" deleted from mlops-demo-e2e namespace
+  Normal  BindingSucceed    2m37s  hami-scheduler  Successfully binding node [192.168.138.15] to mlops-demo-e2e/c4-traininghub-osft-055b4-wrxdl
+  Normal  Pulled            2m31s  kubelet         spec.containers{trainer}: Container image "build-harbor.alauda.cn/mlops/traininghub0.1-cu126-amd64:v0.1.0-build.20260609030710" already present on machine
+  Normal  Created           2m31s  kubelet         spec.containers{trainer}: Created container: trainer
+  Normal  Started           2m30s  kubelet         spec.containers{trainer}: Started container trainer
+job.batch "c4-traininghub-osft-055b4" deleted from mlops-demo-e2e namespace

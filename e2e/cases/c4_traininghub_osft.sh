@@ -78,7 +78,18 @@ spec:
             - |
               set -ex
               cd /workspace
-              # training_hub is bundled in the runtime image.
+              # training_hub is bundled in the runtime image. mini_trainer (the
+              # OSFT backend) unconditionally `import flash_attn`, which only
+              # supports sm_75+; the dev GPU node is Tesla P100 (sm_60).
+              # Stub the module so the import succeeds; transformers falls
+              # through to torch SDPA, which is what training_hub.sft uses too.
+              mkdir -p /workspace/stubs/flash_attn
+              cat >/workspace/stubs/flash_attn/__init__.py <<'STUB'
+              __version__ = "0.0.0"
+              class _Stub: ...
+              def __getattr__(_n): return _Stub
+              STUB
+              export PYTHONPATH=/workspace/stubs:${PYTHONPATH:-}
               python - <<'PY'
               import os, json, torch
               from transformers import GPT2TokenizerFast, Qwen2Config, Qwen2ForCausalLM
@@ -146,6 +157,9 @@ spec:
                   rdzv_id=2,
                   rdzv_endpoint="127.0.0.1:29501",
                   use_liger=False,
+                  # mini_trainer defaults to flash_attention_2; force-disable so
+                  # the model falls through to torch SDPA (sm_60 is fine for that).
+                  disable_flash_attn=True,
               )
               print(f"osft finished in {time.time()-t0:.1f}s, result={result!r}")
               hf_dir = "/workspace/ckpt/hf_format"
