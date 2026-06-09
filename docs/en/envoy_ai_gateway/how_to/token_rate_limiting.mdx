@@ -75,7 +75,7 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
   ```
 
   - `<redis-host>:<redis-port>`: the access address copied from the Redis instance detail page.
-  - For a password-protected Redis, also create an Opaque `Secret` with key `redis-username` and `redis-password`, then reference it via `rateLimit.backend.redis.auth.passwordRef`. See the [Envoy Gateway rate-limit docs](https://gateway.envoyproxy.io/docs/tasks/traffic/global-rate-limit/) for the full schema.
+  - For a password-protected Redis, embed the credentials in the URL using the standard Redis URI form: `url: redis://<username>:<password>@<redis-host>:<redis-port>` (omit `<username>:` for password-only auth). Envoy Gateway v1.5.x exposes only `url` and `tls.certificateRef` under `rateLimit.backend.redis` — there is no separate `Secret`-based auth field. Since the credential then lives in the `envoy-gateway-config` `ConfigMap`, restrict read access to it, or use a network-isolated / ACL-scoped Redis instead. See the [Envoy Gateway rate-limit docs](https://gateway.envoyproxy.io/docs/tasks/traffic/global-rate-limit/) for the full schema.
 
   The Envoy Gateway control plane reads this bootstrap configuration only at startup and does not hot-reload it, so restart its `Deployment` to apply the change, then confirm the dedicated `envoy-ratelimit` `Deployment` is healthy:
 

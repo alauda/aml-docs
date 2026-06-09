@@ -1,0 +1,194 @@
+---
+weight: 50
+category: howto
+---
+# Charging Back Token Usage
+
+## Introduction
+
+This guide defines a custom cost model for AI Gateway token usage by following the platform's <ExternalSiteLink name="costmanagement" href="cost_management/howto/custom_cost_model.html" children="custom cost model" /> workflow. It mirrors the structure of the official <ExternalSiteLink name="costmanagement" href="cost_management/howto/gpu/vgpu_cost_model.html" children="vGPU (Hami) cost model" /> guide: add a collection configuration on the Cost Management agent cluster, add a display/storage configuration on the Cost Management server cluster, and then add a price to the cost model from the platform console.
+
+Cost Management consumes the OpenTelemetry GenAI token metric collected by [Metering Token Usage](./usage_metering), keyed on the `user_namespace` label, and turns it into per-namespace bills. In a multi-cluster deployment, the Cost Management server and the Cost Management agent may live on different clusters; each step below states the cluster on which it must be performed.
+
+## Use Cases
+
+- Bill each namespace or tenant for the AI Gateway tokens it consumed.
+- Apply a per-model price so more expensive models cost more per token.
+- Produce auditable chargeback reports from the same metric used for dashboards.
+
+## Prerequisites
+
+1. [Metering Token Usage](./usage_metering) is configured: the `PodMonitor` is collecting the token metric, and the controller maps `x-user-namespace:user_namespace` so the series carries the `user_namespace` label. Confirm the metric is queryable from the agent cluster's platform Prometheus (or Thanos):
+
+    ```bash
+    # In Prometheus, this must return a non-empty vector:
+    #   sum by (user_namespace) (increase({__name__="gen_ai.client.token.usage_token_sum"}[1h]))
+    ```
+
+2. Cost Management is installed: `cost-server` and `cost-api` on the server cluster, `cost-agent` on every cluster whose AI Gateway traffic should be billed. See <ExternalSiteLink name="costmanagement" href="cost_management/installation.html" children="Cost Management installation" />.
+3. `kubectl` access to both clusters with permission to write `ConfigMap`s in `cpaas-system` (agent cluster) and `kube-public` (server cluster).
+
+## Steps
+
+<Steps>
+  ### Add the collection configuration
+
+  **Cluster:** the **Cost Management agent cluster** — the cluster where the AI Gateway runs and `cost-agent` is installed. The `cost-agent` component is deployed as the `slark-agent` workload, which the restart command below targets.
+
+  Create a `ConfigMap` that tells the Cost Management agent which Prometheus query to evaluate and how to map its labels onto Cost Management dimensions. The agent discovers configurations carrying the `cpaas.io/slark.collection.config: "true"` label in `cpaas-system`.
+
+  ```yaml
+  apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: slark-agent-aigateway-config
+    namespace: cpaas-system
+    labels:
+      cpaas.io/slark.collection.config: "true"
+  data:
+    config: |
+      - kind: Project
+        category: AIGatewayToken
+        item: AIGatewayTokenUsage
+        period: Hourly
+        usage:
+          query: |
+            sum by (user_namespace, "gen_ai.request.model", cluster) (
+              increase({__name__="gen_ai.client.token.usage_token_sum"}[5m])
+            )
+          step: 5m
+          mappers:
+            name: gen_ai.request.model
+            namespace: user_namespace
+            cluster: ""
+            project: user_namespace
+  ```
+
+  Field reference:
+
+  - `kind`: the Cost Management collector kind. `Pod` is reserved for OpenCost-emitted pod metrics; `Project` is the general-purpose kind for namespace- or project-scoped custom metrics, which this guide uses. Some platform builds also accept a dedicated custom kind (for example `AIGateway`, matching the vGPU/NPU/pGPU examples). The supported set is platform-version-specific, so after applying this configuration confirm rows actually appear (see the ClickHouse query in the Verification section below); if none do, switch `kind` to the value your Cost Management build collects.
+  - `category`, `item`: identifiers used to link this collection configuration to its display/storage counterpart in the next step. Both values must match the corresponding fields in the display/storage configuration.
+  - `period`: the aggregation period. Use `Hourly` to bill by hour.
+  - `usage.query`: the PromQL query the agent evaluates every `step`. The platform stores the metric under its OpenTelemetry UTF-8 name with dots preserved, so select it with `{__name__="gen_ai.client.token.usage_token_sum"}` and reference the dotted `gen_ai.request.model` label with the quoted UTF-8 syntax. The header-mapped `user_namespace` label is the per-namespace billing key.
+  - `usage.step`: the query evaluation interval.
+  - `usage.mappers`: maps PromQL labels onto Cost Management's standard dimensions (`name`, `namespace`, `cluster`, `project`). Set `cluster` to an empty string so the agent fills in its own cluster identity automatically; setting it to a label name (such as `cluster`) only works if the source metric exposes that label, otherwise every row is dropped without a log entry.
+
+  After applying the YAML, restart the `slark-agent` workload (the `cost-agent` component) to reload the configuration:
+
+  ```bash
+  kubectl -n cpaas-system delete pod \
+    -l service_name=slark-agent --grace-period=0 --force
+  kubectl -n cpaas-system rollout status deploy/slark-agent
+  # if slark-agent is installed as a DaemonSet in your environment, use instead:
+  #   kubectl -n cpaas-system rollout status daemonset/slark-agent
+  ```
+
+  ### Add the display configuration
+
+  **Cluster:** the **Cost Management server cluster** — the cluster where `cost-server` is installed (typically the global control plane). The `cost-server` component is deployed as the `slark-server` workload, which the restart command below targets.
+
+  Create a `ConfigMap` that registers the billing item and its billing methods in the platform console. The server discovers configurations carrying the `cpaas.io/slark.display.config: "true"` label in `kube-public`.
+
+  ```yaml
+  apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: slark-display-config-for-aigateway
+    namespace: kube-public
+    labels:
+      cpaas.io/slark.display.config: "true"
+  data:
+    config: |
+      - name: AIGatewayToken
+        displayname:
+          zh: "AI Token"
+          en: "AI tokens"
+        methods:
+          - name: Usage
+            displayname:
+              zh: "使用量"
+              en: "Token Usage"
+            item: AIGatewayTokenUsage
+            unit:
+              zh: "tokens"
+              en: "tokens"
+            divisor: 1
+  ```
+
+  Field reference:
+
+  - `name`: the billing item name shown in the cost model form. Must match the `category` value in the collection configuration.
+  - `methods[].name`: the billing method, listed under the billing item when adding a price.
+  - `methods[].item`: must match the `item` value in the collection configuration so the server can join the per-method price back to the usage rows.
+  - `divisor`: the unit conversion factor applied when displaying usage. Tokens are unitless, so set `1`; for byte-sized items use `1073741824` to render as `Gi-hours`.
+
+  The following table summarizes the billing methods registered by this configuration:
+
+  | Billing item | Billing method | Source item | Description |
+  |---|---|---|---|
+  | AI tokens | Token Usage | `AIGatewayTokenUsage` | Output + input tokens consumed per namespace and model per hour |
+
+  :::warning
+  Do not edit the platform-installed `slark-server-common-config` (the default display configuration containing CPU, Memory and Storage). Adding a custom entry to it causes the server to fail validation at startup. Always add custom billing items as a separate `ConfigMap` labelled `cpaas.io/slark.display.config: "true"`.
+  :::
+
+  After applying the YAML, restart the `slark-server` workload (the `cost-server` component) to reload the configuration:
+
+  ```bash
+  kubectl -n cpaas-system delete pod \
+    -l service_name=slark-server --grace-period=0 --force
+  kubectl -n cpaas-system rollout status deploy/slark-server
+  ```
+
+  ### Add a price to the cost model
+
+  **Cluster:** any cluster — operated from the platform console served by `cost-api`.
+
+  In the platform console, navigate to **Administrator → Metering and Billing → Cost Model**, then create or edit a cost model. The newly registered `AI tokens` billing item is now selectable in the price form.
+
+  1. **Cost Model Name**: any identifier, for example `aml-cost-model`.
+  2. **Linked Clusters**: select the clusters whose AI Gateway traffic this model should price. An empty selection saves successfully but matches no usage data and produces no bills.
+  3. **Pricing rows**:
+     - **Billing Item**: `AI tokens`
+     - **Billing Method**: `Token Usage`
+     - **Default Price**: the per-token rate, in the platform's currency.
+     - **Price By Label** (optional): per-model overrides, for example a higher rate for `gen_ai.request.model="gpt-4o"`.
+  4. Save.
+</Steps>
+
+## Verification
+
+The cost-server worker runs every five minutes. Drive a few authenticated requests through the AI Gateway with different `x-user-namespace` values, wait at least one worker cycle, and refresh the platform console.
+
+- **Cost Details** (**Administrator → Metering and Billing → Cost Details**) shows per-namespace AI tokens line items. Filter by namespace or by date to drill in.
+- **Cost Statistics** (**Administrator → Metering and Billing → Cost Statistics**) aggregates the same data by cluster, project, and time range.
+
+For server-side verification before opening the UI, query ClickHouse on the server cluster:
+
+```sql
+SELECT namespace, project, date, usage, cost
+  FROM cost.bills
+ WHERE item = 'AIGatewayTokenUsage'
+ ORDER BY date DESC, cost DESC
+ LIMIT 10;
+```
+
+Expect one row per (namespace, hour) combination that consumed tokens. The `cost` column stores the platform's micro-currency unit, so `usage × default_price × 1_000_000` should match the value shown.
+
+## Troubleshooting
+
+| Symptom | Likely cause and resolution |
+|---|---|
+| `cost.usage` contains no `AIGatewayTokenUsage` rows after one agent cycle | Verify the collection `ConfigMap` is in `cpaas-system` with `cpaas.io/slark.collection.config: "true"`. Verify `cost-agent` was restarted after the apply. Verify the PromQL returns a non-empty vector against the platform Prometheus — a bare underscore metric name (`gen_ai_client_token_usage_token_sum`) matches nothing; use the `{__name__="gen_ai.client.token.usage_token_sum"}` selector. Verify `mappers.cluster: ""` is an empty string. |
+| The `AI tokens` billing item does not appear in the cost model form | Verify the display/storage `ConfigMap` is in `kube-public` (not `cpaas-system`) with `cpaas.io/slark.display.config: "true"`. Verify `cost-server` was restarted after the apply. Verify `methods[].item` matches the collection `item` exactly. |
+| `cost.usage` has rows but `cost.bills` has none for `AIGatewayTokenUsage` | Open the cost model in the platform console and confirm at least one cluster is selected under **Linked Clusters**. The worker also skips groups already marked `Done` in `cost.milestones`; to recompute past windows after a model change, delete the relevant rows from `cost.milestones` and wait for the next worker cycle. |
+| Worker log shows `Try to skip as no model {"group": "<cluster>/<window>"}` on every tick | The cost model's `Linked Clusters` does not include the cluster reported by the agent. Edit the model and add the cluster. |
+
+## Learn More
+
+- [Metering Token Usage](./usage_metering)
+- [Authenticating Consumers](./identity_authentication)
+
+## Next Steps
+
+After bills are generated, set per-model price overrides under **Price By Label** to reflect the relative cost of each model, and schedule periodic export of `cost.bills` for finance reporting.

@@ -77,10 +77,10 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
   |---|---|---|
   | `APIKey` | `apiKey.secretRef` | `apiKey` |
   | `AWSCredentials` | `awsCredentials.credentialsFile.secretRef` | `credentials` (AWS shared-credentials INI; plus `region` inline) |
-  | `AzureAPIKey` | `azureApiKey.secretRef` | `apiKey` |
+  | `AzureAPIKey` | `azureAPIKey.secretRef` | `apiKey` |
   | `AzureCredentials` | `azureCredentials.clientSecretRef` | `client-secret` (plus `clientID`/`tenantID` inline) |
   | `GCPCredentials` | `gcpCredentials.credentialsFile.secretRef` | `service_account.json` (plus `projectName`/`region` inline; or use `gcpCredentials.workloadIdentityFederationConfig` for keyless WIF) |
-  | `AnthropicAPIKey` | `anthropicApiKey.secretRef` | `apiKey` |
+  | `AnthropicAPIKey` | `anthropicAPIKey.secretRef` | `apiKey` |
 
   When the upstream auth scheme is wrong, the upstream typically returns `401`/`403`. When the `Secret` is keyed wrongly (for example `key:` instead of `apiKey:`) the failure mode is harder to read: the `BackendSecurityPolicy` still reports `Accepted=True`, but the controller logs `failed to get backend auth from backend security policy. Skipping this backend. ... error: secret <name> does not contain key apiKey` and removes the backend from the route, so requests to that backend **time out** rather than returning a clean 401. Tail the controller logs when introducing a new credential:
 
