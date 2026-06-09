@@ -10,8 +10,10 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 source "${HERE}/../lib.sh"
 
 NS="${GPU_NAMESPACE}"
-JOB_NAME="c6-vcjob-sft-$(printf '%05x' $$)"
-PVC_NAME="c6-models"
+JOB_NAME="c6-vcjob-sft-$(printf '%05x' $$)-$(date -u +%s)"
+# PVC derived from the run-id so concurrent / repeat runs each get a clean
+# /mnt/models. Torn down in cleanup below.
+PVC_NAME="c6-models-${JOB_NAME#c6-vcjob-sft-}"
 IMAGE="${LF_IMAGE:-build-harbor.alauda.cn/mlops/llamafactory0.9-cu126-amd64:v0.1.0-build.20260603021903}"
 
 log "C6: ensuring shared PVC ${PVC_NAME} (RWX cephfs)"
@@ -209,6 +211,7 @@ YAML
 
 cleanup() {
   gpu_kc -n "${NS}" delete vcjob "${JOB_NAME}" --ignore-not-found --wait=false || true
+  gpu_kc -n "${NS}" delete pvc "${PVC_NAME}" --ignore-not-found --wait=false || true
 }
 trap cleanup EXIT
 
@@ -231,7 +234,7 @@ while [ "${SECONDS}" -lt "${deadline}" ]; do
   [ -n "${init_ph}" ] && break
   sleep 15
 done
-wait "${LP1}" 2>/dev/null || true
+reap_logs "${LP1}"
 log "C6: initContainer reason=${init_ph}"
 if [ "${init_ph}" != "Completed" ]; then
   log "C6: init failed — dumping pod state"
@@ -248,6 +251,6 @@ while [ "${SECONDS}" -lt "${deadline}" ]; do
   case "${ph}" in Succeeded|Failed) break ;; esac
   sleep 15
 done
-wait "${LP2}" 2>/dev/null || true
+reap_logs "${LP2}"
 log "C6: pod phase=${ph}"
 [ "${ph}" = "Succeeded" ]

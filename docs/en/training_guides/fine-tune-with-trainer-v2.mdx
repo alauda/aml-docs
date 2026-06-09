@@ -37,12 +37,13 @@ When [Kueue](https://kueue.sigs.k8s.io/) is installed, TrainJobs stay **suspende
 
 ```bash
 base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/training_guides/assets/kueue
+NS=my-namespace  # edit to the namespace where you submit jobs
 # 1. Cluster admin — one ResourceFlavor + one ClusterQueue (edit nominalQuota to taste)
 kubectl apply -f $base/cluster-queue.yaml
-# 2. Namespace admin — LocalQueue pointing at the ClusterQueue (set the namespace first)
-sed 's/<your-namespace>/<your-namespace>/' $base/local-queue.yaml | kubectl apply -f -
+# 2. Namespace admin — LocalQueue pointing at the ClusterQueue
+curl -fsSL $base/local-queue.yaml | sed "s/<your-namespace>/$NS/" | kubectl apply -f -
 # 3. Submit a TrainJob labelled with the queue name; Kueue admits it
-sed 's/<your-namespace>/<your-namespace>/' $base/trainjob-kueue-example.yaml | kubectl create -f -
+curl -fsSL $base/trainjob-kueue-example.yaml | sed "s/<your-namespace>/$NS/" | kubectl create -f -
 ```
 
 The three files in turn:
@@ -51,7 +52,7 @@ The three files in turn:
 - [`local-queue.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/assets/kueue/local-queue.yaml) — a namespaced `LocalQueue` that references `cluster-queue`. Namespace admin applies it once per namespace.
 - [`trainjob-kueue-example.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/assets/kueue/trainjob-kueue-example.yaml) — a `TrainJob` labelled `kueue.x-k8s.io/queue-name: local-queue`. The TrainJob stays Suspended until Kueue admits it; once admitted, JobSet brings the trainer pods up.
 
-See [Kueue docs](/kueue/intro.mdx) for the full setup.
+See [Kueue docs](../kueue/intro) for the full setup.
 
 :::note
 When the Kueue **PodsReady timeout** is short and the training image is large, the first attempt may be evicted on image-pull timeout. Resubmitting usually succeeds because the image is cached on the node.

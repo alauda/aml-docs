@@ -13,14 +13,17 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 source "${HERE}/../lib.sh"
 
 NS="${GPU_NAMESPACE}"
-RUNTIME="c5-llamafactory-finetune-runtime"
+# Per-run suffix so re-runs / concurrent runs don't share PVC contents or fight
+# over the same TrainingRuntime. The trap below tears down both.
+RUN_ID="$(printf '%05x' $$)-$(date -u +%s)"
+RUNTIME="c5-llamafactory-finetune-runtime-${RUN_ID}"
+PVC_NAME="c5-models-${RUN_ID}"
 # The doc notebook says "Use `alaudadockerhub/fine_tune_with_llamafactory:v0.1.11`,
 # or build your own". The Dockerhub copy is firewalled (mirror blob EOF on large
 # images), the harbor rebuild at the same tag lacks torch, and the catalog runtime
 # image `llamafactory0.9-cu126-amd64:v0.1.0` has the same blob-EOF issue. Use the
 # build-suffixed copy of the catalog image already cached on the dev cluster.
 IMAGE="${LF_IMAGE:-build-harbor.alauda.cn/mlops/llamafactory0.9-cu126-amd64:v0.1.0-build.20260603021903}"
-PVC_NAME="c5-models"
 
 log "C5: ensuring shared PVC ${PVC_NAME} exists (RWX on cephfs so any node can mount)"
 cat <<YAML | retry_apply gpu_kc
@@ -295,6 +298,8 @@ log "C5: trainjob=${TJ_NAME}"
 
 cleanup() {
   gpu_kc -n "${NS}" delete trainjob "${TJ_NAME}" --ignore-not-found --wait=false || true
+  gpu_kc -n "${NS}" delete trainingruntime "${RUNTIME}" --ignore-not-found --wait=false || true
+  gpu_kc -n "${NS}" delete pvc "${PVC_NAME}" --ignore-not-found --wait=false || true
 }
 trap cleanup EXIT
 
@@ -319,7 +324,9 @@ for RJOB in dataset-initializer model-initializer trainer; do
     case "${ph}" in Succeeded|Failed) break ;; esac
     sleep 15
   done
-  wait "${LPID}" 2>/dev/null || true
+  # Reap the log follower — `wait` alone would block if the pod never reached
+  # a terminal phase and `logs -f` is still streaming.
+  reap_logs "${LPID}"
   log "C5: ${RJOB} pod phase=${ph}"
   [ "${ph}" = "Succeeded" ] || exit 1
 done

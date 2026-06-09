@@ -10,7 +10,7 @@ mkdir -p "${LOG_DIR}"
 
 GPU_CONTEXT="${GPU_CONTEXT:-g1-c1-x86-admin@g1-c1-x86}"
 GPU_NAMESPACE="${GPU_NAMESPACE:-mlops-demo-e2e}"
-NPU_KUBECONFIG="${NPU_KUBECONFIG:-/workspaces/yiwu-base-ubuntu-2/npu-env.yaml}"
+NPU_KUBECONFIG="${NPU_KUBECONFIG:-${HOME:-/tmp}/.kube/npu-env.yaml}"
 NPU_NAMESPACE="${NPU_NAMESPACE:-mlops-demo-ai-test}"
 # Docker Hub mirror prefixes — both clusters firewall registry-1.docker.io.
 # GPU cluster: docker-mirrors.alauda.cn proxies docker.io.
@@ -29,6 +29,17 @@ gpu_kc() { kubectl --context "${GPU_CONTEXT}" "$@"; }
 npu_kc() { KUBECONFIG="${NPU_KUBECONFIG}" kubectl "$@"; }
 
 log() { printf '[%s] %s\n' "$(date -u +%FT%TZ)" "$*"; }
+
+# Reap a background log-follower without blocking. Used after a polling loop
+# that walks a pod to a terminal phase — if the pod never gets there, the
+# `kubectl logs -f` stays alive forever; without this `wait` would inherit
+# its hang.
+reap_logs() {
+  local pid="${1:-}"
+  [ -z "${pid}" ] && return 0
+  kill "${pid}" 2>/dev/null || true
+  wait "${pid}" 2>/dev/null || true
+}
 
 # Wait until kubectl JSONPath produces a value from a known set.
 # Args: kctl_fn kind name ns jsonpath success_values... timeout_seconds
