@@ -26,8 +26,25 @@ Envoy AI Gateway can front external LLM providers behind one OpenAI-compatible e
       backends.gateway.envoyproxy.io
     ```
 
-2. The upstream provider credential (created in the next section) is stored in a `Secret` in the route namespace.
-3. The provider endpoint is reachable from the cluster egress. Verify before going further:
+2. The Envoy Gateway `Backend` API is enabled. This guide declares provider upstreams with `kind: Backend` (an Envoy Gateway extension resource), which requires `extensionApis.enableBackend: true` in the EnvoyGateway config — the CRD being present is not enough. Confirm it, and enable it if missing:
+
+    ```bash
+    kubectl -n envoy-gateway-system get configmap envoy-gateway-config \
+      -o jsonpath='{.data.envoy-gateway\.yaml}' | grep -A2 extensionApis
+    # expect to see: enableBackend: true
+    ```
+
+    If it is not set, add it under `extensionApis` and restart the control plane:
+
+    ```bash
+    kubectl edit configmap envoy-gateway-config -n envoy-gateway-system
+    # extensionApis:
+    #   enableBackend: true
+    kubectl rollout restart deployment envoy-gateway -n envoy-gateway-system
+    ```
+
+3. The upstream provider credential (created in the next section) is stored in a `Secret` in the route namespace.
+4. The provider endpoint is reachable from the cluster egress. Verify before going further:
 
     ```bash
     kubectl run egress-probe --rm -i --restart=Never \
