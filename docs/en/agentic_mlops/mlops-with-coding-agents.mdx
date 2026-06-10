@@ -77,7 +77,7 @@ For the exact field shape of each CRD, defer to the upstream documentation linke
 
 ## Tune service performance to fit your hardware \{#tune-performance}
 
-The list of vLLM and KServe knobs is unchanged from [Best practices: tune inference service performance](./coding-agents-with-inference-service.mdx#best-practices) — this section focuses on how an agent can *drive* that tuning instead of you doing it by hand.
+This section focuses on how an agent can *drive* tuning instead of you doing it by hand. The server-side knobs differ by runtime — for vLLM, see [Best practices: tune inference service performance](./coding-agents-with-inference-service.mdx#best-practices); for llama.cpp (GGUF), the relevant flags include `--cache-type-k`/`--cache-type-v` (KV cache quantization), `--ctx-size` (context window), `--parallel` (concurrency), and `--reasoning`/`--reasoning-budget` (reasoning control).
 
 A productive loop:
 
@@ -91,32 +91,38 @@ Pin numbers before tuning. Tell the agent what "good enough" looks like:
 - Maximum P95 inter-token latency or total response time for a representative prompt.
 - Minimum sustainable throughput (requests/min or tokens/sec).
 - Maximum context length the agent traffic will send.
+- GPU memory headroom target (leave ≥10% free for KV cache growth).
 
 ### 2. Generate a reproducible benchmark
 
-Ask the agent to write a small benchmark script that mirrors your real traffic — typical prompt size, system prompt, concurrency. Useful starting points include the built-in `vllm bench serve` command, `genai-perf`, or a `k6`/Python script that drives `/v1/chat/completions` directly. Have the agent run it against the current `InferenceService` and record the results in a markdown table.
+Ask the agent to write a benchmark script that mirrors your real traffic — typical prompt size, system prompt, concurrency. Useful starting points include `vllm bench serve`, `genai-perf`, or a `k6`/Python script driving `/v1/chat/completions` directly.
+
+The agent should record **TTFT** (time to first token), **ITL** (inter-token latency in ms/token), and **TPS** (tokens per second) for both streaming and non-streaming requests. If the model serves with reasoning enabled, the agent must also measure the reasoning-overhead ratio: `reasoning_tokens / content_tokens`, because it can inflate total latency and TPS without contributing to the user-visible output.
+
+Ensure the server exposes metrics. For vLLM, scrape the OpenAI-compatible server's built-in `/metrics` endpoint. For llama.cpp, enable the metrics endpoint with `--metrics` before scraping `/metrics`. If the metrics endpoint is unavailable, fall back to per-request latency measurement via the API.
 
 ### 3. Have the agent propose one change at a time
 
-Give the agent the benchmark output and the current YAML. Ask for **one** change with an expected effect, for example:
+Give the agent the benchmark output and current YAML. Ask for **one** change with an expected effect, for example:
 
-- "Add `--enable-prefix-caching` and re-run; expected: lower TTFT on the repeated system-prompt prefix."
-- "Switch the model from FP16 to AWQ INT4 and raise `--gpu-memory-utilization` to 0.92; expected: more KV cache headroom, larger sustainable context length."
-- "Increase `--max-num-seqs`; expected: higher throughput at the cost of higher P95 latency."
+- "Add `--enable-prefix-caching` and re-run; expected: lower TTFT on repeated system-prompt prefixes (vLLM)."
+- "Switch KV cache to `--cache-type-k q8_0 --cache-type-v q8_0` and re-run; expected: fit more context in limited GPU memory (llama.cpp / GGUF)."
+- "Set `--reasoning-budget 2048` instead of `-1`; expected: bounded reasoning overhead, more tokens available for content output (llama.cpp)."
+- "Increase `--max-num-seqs`; expected: higher throughput at the cost of higher P95 latency (vLLM)."
 
 One change per iteration keeps cause and effect attributable.
 
 ### 4. Apply, measure, and record
 
-The agent updates the `InferenceService` YAML, applies it, waits for `READY`, re-runs the benchmark, and appends a new row to the results table with the configuration delta.
+The agent updates the `InferenceService` YAML, applies it, waits for `READY`, and re-runs the benchmark. It should also check GPU-level indicators: utilization (expect 70–90% for sustained inference), memory usage (flag if >95%), and power draw. Each run appends a row to a markdown table with the configuration delta, first-token latency, ITL, TPS, and GPU metrics.
 
 ### 5. Stop on SLO or hardware ceiling
 
-The loop ends when SLOs are met, or when the next sensible knob is "different hardware" or "different model" — at which point the agent should say so explicitly rather than churn. Common ceilings: KV cache saturated at the target context length, tensor-parallel scaling no longer linear, decode-bound at single-request latency.
+The loop ends when SLOs are met, or when the next sensible knob is "different hardware" or "different model" — at which point the agent should say so explicitly rather than churn. Common ceilings: KV cache saturated at the target context length, tensor-parallel scaling no longer linear, decode-bound at single-request latency, or GPU memory headroom below 5%.
 
 </Steps>
 
-For model-size vs. GPU-memory selection, see the table in the prior doc's [Choose a model that fits your hardware](./coding-agents-with-inference-service.mdx#best-practices) section. For autoscaling and cold-start trade-offs, see [Configure Scaling for Inference Services](../model_inference/inference_service/how_to/autoscale_settings.mdx). For interactive-latency wins, see [Speculative Decoding for vLLM Inference Services](../model_inference/inference_service/how_to/vllm_speculative_decoding.mdx).
+For model-size vs. GPU-memory selection, see the prior doc's [Choose a model that fits your hardware](./coding-agents-with-inference-service.mdx#best-practices) section. For autoscaling and cold-start trade-offs, see [Configure Scaling for Inference Services](../model_inference/inference_service/how_to/autoscale_settings.mdx). For interactive-latency wins, see [Speculative Decoding for vLLM Inference Services](../model_inference/inference_service/how_to/vllm_speculative_decoding.mdx).
 
 ## Plan fine-tuning and generate reports \{#fine-tuning-plans-and-reports}
 
@@ -241,6 +247,7 @@ Each step is a separate prompt with its own diff to review. The agent is the typ
 - **Always `--dry-run=server`.** Make it a standing rule in the agent context file; mention it in every prompt that involves `kubectl apply`.
 - **One change per iteration.** Especially for performance tuning, mixing two changes hides which one helped.
 - **Never let the agent fabricate metrics.** Require it to cite the file, log, or run ID it pulled each number from, and to mark `TODO` when data is missing.
+- **Account for reasoning overhead.** When benchmarking reasoning-enabled models, report both total tokens and reasoning-vs-content breakdown. A model emitting 8,000 reasoning tokens before 50 content tokens has 160:1 overhead — that dominates latency and TPS. For llama.cpp, use server-side `--reasoning-budget` to bound it; for other runtimes, use only documented request-time controls that your deployed service accepts.
 - **Keep the loop on-prem.** Confirm that no fallback model in any agent config points at a hosted provider (see [Connect your coding agent](./coding-agents-with-inference-service.mdx) for the per-agent settings to check).
 - **Commit everything.** Plans, reports, generated YAML, and benchmark scripts all go into Git so the next person — or the next agent — can pick up where you left off.
 
