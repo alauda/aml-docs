@@ -49,7 +49,7 @@ The script reads the platform URLs and version from `productbase.product.alauda.
 
 ### Important notes
 
-**OIDC configuration**: The OIDC client credentials must match between the `OAuth2Client` resource on the global cluster and the `AmlCluster` in the target cluster. Specifically, the `secret` (or `secretRef`) on the `OAuth2Client` must be consistent with `data.client-secret` in the Secret referenced by `AmlCluster` `spec.oidc.clientSecretName` (under the `kubeflow` namespace). If customization is needed, update both sides. Once the `OAuth2Client` exists, the script skips it—subsequent changes should be made directly to the resource.
+**OIDC configuration**: The OIDC client credentials must match between the `OAuth2Client` resource on the global cluster and the `AmlCluster` in the target cluster. The `OAuth2Client` is named `aml` under the `cpaas-system` namespace. Its `secret` (or `secretRef`) must be consistent with `data.client-secret` in the Secret referenced by `AmlCluster` `spec.oidc.clientSecretName` (under the `kubeflow` namespace). If customization is needed, update both sides. Once the `OAuth2Client` exists, the script skips it—subsequent changes should be made directly to the resource.
 
 **Multiple Alauda AI installations**: The ProductEntry resource is named `aml-<cluster-name>`. If multiple Alauda AI instances are deployed across different clusters, each will have a separate ProductEntry with the same display name "Alauda AI". To distinguish them in the platform console navigation menu, edit the `spec.displayName` field of the corresponding ProductEntry. For example:
 
