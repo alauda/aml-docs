@@ -11,16 +11,17 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "${HERE}/../lib.sh"
 
+require_env GPU_NAMESPACE "namespace for GPU e2e resources"
 NS="${GPU_NAMESPACE}"
 
 log "C2: applying ClusterTrainingRuntime torch-distributed (from kubeflow-trainer-quick-start.md)"
 # Pulled directly out of docs/en/training_guides/kubeflow-trainer-quick-start.md.
-# Image override: docker-mirrors.alauda.cn proxies docker.io but the lazy-cache
-# returns EOF on the torch-distributed blobs (only torch2.6-* are cached). The
-# alauda-local registry mirror has the image pre-pulled. Doc itself stays at
-# the public alaudadockerhub/ name; only the test overrides for network reasons.
-TORCH_DIST_IMAGE="${TORCH_DIST_IMAGE:-152-231-registry.alauda.cn:60070/mlops/torch-distributed:v2.9.1-aml2}"
-cat <<'YAML' | sed "s@alaudadockerhub/torch-distributed:v2.9.1-aml2@${TORCH_DIST_IMAGE}@g" | retry_apply gpu_kc
+# Override TORCH_DIST_IMAGE only when the public Docker Hub image is mirrored locally.
+TORCH_DIST_IMAGE="${TORCH_DIST_IMAGE:-alaudadockerhub/torch-distributed:v2.9.1-aml2}"
+cat <<'YAML' \
+  | sed "s@alaudadockerhub/torch-distributed:v2.9.1-aml2@${TORCH_DIST_IMAGE}@g" \
+  | mirror_dockerhub "${GPU_DH_MIRROR}" \
+  | retry_apply gpu_kc
 apiVersion: trainer.kubeflow.org/v1alpha1
 kind: ClusterTrainingRuntime
 metadata:

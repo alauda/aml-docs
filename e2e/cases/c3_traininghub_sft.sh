@@ -2,16 +2,17 @@
 # C3 — exercises training_hub.sft against the published
 # traininghub0.1-cu126-amd64:v0.1.0 runtime image (used by sft-comprehensive-tutorial.ipynb).
 # Tiny synthetic Qwen2-style HF checkpoint + synthetic JSONL are generated inside the
-# Pod so the case has no external dependency. nproc_per_node is forced to 1 because
-# the dev GPU node exposes only 1 whole GPU.
+# Pod so the case has no external dependency. nproc_per_node is forced to 1
+# to keep the smoke case small.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "${HERE}/../lib.sh"
 
+require_env GPU_NAMESPACE "namespace for GPU e2e resources"
 NS="${GPU_NAMESPACE}"
 JOB_NAME="c3-traininghub-sft-$(printf '%05x' $$)"
-# Bundled-training_hub image built from kubeflow-plugin/training-runtimes/traininghub0.1-cu126-amd64.
-IMAGE="${C3_IMAGE:-build-harbor.alauda.cn/mlops/traininghub0.1-cu126-amd64:v0.1.0-build.20260609030710}"
+IMAGE="${C3_IMAGE:-docker.io/alaudadockerhub/traininghub0.1-cu126-amd64:v0.1.0}"
+IMAGE_PULL_SECRET="${C3_IMAGE_PULL_SECRET:-${E2E_IMAGE_PULL_SECRET:-}}"
 
 cleanup() {
   gpu_kc -n "${NS}" delete job "${JOB_NAME}" --ignore-not-found --wait=false || true
@@ -24,7 +25,7 @@ log "C3: submitting Job ${JOB_NAME} (image=${IMAGE})"
 # single_gpu_dev preset; we do the same here. Liger is disabled because the
 # image's CUDA *runtime* lacks nvcc (see training-runtimes.mdx — same caveat
 # applies to JIT op compilation).
-cat <<YAML | gpu_kc -n "${NS}" create -f -
+cat <<YAML | mirror_dockerhub "${GPU_DH_MIRROR}" | gpu_kc -n "${NS}" create -f -
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -44,8 +45,7 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: harbor-mlops-regcred
+$(yaml_image_pull_secrets 6 "${IMAGE_PULL_SECRET}")
       volumes:
         - name: workspace
           emptyDir: {}

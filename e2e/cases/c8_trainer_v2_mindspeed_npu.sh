@@ -12,12 +12,19 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "${HERE}/../lib.sh"
 
+require_env NPU_NAMESPACE "namespace for NPU e2e resources"
+require_env NPU_RESOURCE_NAME "extended resource name for one NPU, for example huawei.com/Ascend910B4"
 NS="${NPU_NAMESPACE}"
 RUNTIME="c8-mindspeed-llm-qwen3-npu-runtime"
 IMAGE="${C8_IMAGE:-docker.io/alaudadockerhub/alauda-workbench-jupyter-pytorch-cann-py312-ubi9:v0.1.7}"
+IMAGE_PULL_SECRET="${C8_IMAGE_PULL_SECRET:-${E2E_IMAGE_PULL_SECRET:-}}"
+NPU_RESOURCE_VALUE="${NPU_RESOURCE_VALUE:-1}"
+NPU_MEMORY_RESOURCE_NAME="${NPU_MEMORY_RESOURCE_NAME:-}"
+NPU_MEMORY_RESOURCE_VALUE="${NPU_MEMORY_RESOURCE_VALUE:-8192}"
+NPU_RUNTIME_CLASS="${NPU_RUNTIME_CLASS:-}"
 
 log "C8: applying TrainingRuntime ${RUNTIME} (env-smoke variant, image=${IMAGE})"
-cat <<YAML | retry_apply npu_kc
+cat <<YAML | mirror_dockerhub "${NPU_DH_MIRROR}" | retry_apply npu_kc
 apiVersion: trainer.kubeflow.org/v1alpha1
 kind: TrainingRuntime
 metadata:
@@ -42,10 +49,8 @@ spec:
             backoffLimit: 0
             template:
               spec:
-                # Notebook publishes \`schedulerName: hami-scheduler\` +
-                # \`huawei.com/Ascend910B4\`; the dev NPU cluster uses the default
-                # scheduler and bare \`huawei.com/Ascend910\` (see my_dev_env_new.md).
-                runtimeClassName: ascend
+$(yaml_scalar_field 16 runtimeClassName "${NPU_RUNTIME_CLASS}")
+$(yaml_image_pull_secrets 16 "${IMAGE_PULL_SECRET}")
                 securityContext:
                   runAsNonRoot: true
                   runAsUser: 1001
@@ -98,7 +103,8 @@ spec:
                       limits:
                         cpu: "2"
                         memory: 8Gi
-                        huawei.com/Ascend910: "1"
+$(yaml_resource_limit 24 "${NPU_RESOURCE_NAME}" "${NPU_RESOURCE_VALUE}")
+$(yaml_resource_limit 24 "${NPU_MEMORY_RESOURCE_NAME}" "${NPU_MEMORY_RESOURCE_VALUE}")
                     securityContext:
                       allowPrivilegeEscalation: false
                       capabilities: { drop: [ALL] }

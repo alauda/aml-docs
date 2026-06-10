@@ -8,27 +8,107 @@ E2E_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_DIR="${E2E_ROOT}/logs"
 mkdir -p "${LOG_DIR}"
 
-GPU_CONTEXT="${GPU_CONTEXT:-g1-c1-x86-admin@g1-c1-x86}"
-GPU_NAMESPACE="${GPU_NAMESPACE:-mlops-demo-e2e}"
-NPU_KUBECONFIG="${NPU_KUBECONFIG:-${HOME:-/tmp}/.kube/npu-env.yaml}"
-NPU_NAMESPACE="${NPU_NAMESPACE:-mlops-demo-ai-test}"
-# Docker Hub mirror prefixes — both clusters firewall registry-1.docker.io.
-# GPU cluster: docker-mirrors.alauda.cn proxies docker.io.
-# NPU cluster: docker.1ms.run proxies docker.io (per my_dev_env_new.md).
-GPU_DH_MIRROR="${GPU_DH_MIRROR:-docker-mirrors.alauda.cn}"
-NPU_DH_MIRROR="${NPU_DH_MIRROR:-docker.1ms.run}"
+E2E_SKIP_RC="${E2E_SKIP_RC:-77}"
+
+# Required per case: GPU_NAMESPACE or NPU_NAMESPACE.
+# Optional kube target: GPU_CONTEXT/GPU_KUBECONFIG/NPU_CONTEXT/NPU_KUBECONFIG.
+# Optional Docker Hub mirrors: GPU_DH_MIRROR/NPU_DH_MIRROR.
+# Optional private registry access: E2E_IMAGE_PULL_SECRET.
+# Optional scheduling/storage: E2E_GPU_NODE_SELECTOR_KEY/VALUE, E2E_RWX_STORAGE_CLASS.
+GPU_CONTEXT="${GPU_CONTEXT:-}"
+GPU_KUBECONFIG="${GPU_KUBECONFIG:-}"
+GPU_NAMESPACE="${GPU_NAMESPACE:-}"
+NPU_CONTEXT="${NPU_CONTEXT:-}"
+NPU_KUBECONFIG="${NPU_KUBECONFIG:-}"
+NPU_NAMESPACE="${NPU_NAMESPACE:-}"
+GPU_DH_MIRROR="${GPU_DH_MIRROR:-}"
+NPU_DH_MIRROR="${NPU_DH_MIRROR:-}"
 
 # Rewrite docker.io references to a mirror that the cluster can actually reach.
 # Args: mirror_host. Reads stdin, writes patched YAML to stdout.
 mirror_dockerhub() {
   local m="$1"
+  if [ -z "${m}" ]; then
+    cat
+    return 0
+  fi
   sed -e "s@docker.io/@${m}/@g" -e "s@image: alaudadockerhub/@image: ${m}/alaudadockerhub/@g"
 }
 
-gpu_kc() { kubectl --context "${GPU_CONTEXT}" "$@"; }
-npu_kc() { KUBECONFIG="${NPU_KUBECONFIG}" kubectl "$@"; }
+set_metadata_namespace() {
+  local ns="$1"
+  awk -v ns="${ns}" '
+    /^  namespace: / && !done { print "  namespace: " ns; done=1; next }
+    { print }
+  '
+}
 
 log() { printf '[%s] %s\n' "$(date -u +%FT%TZ)" "$*"; }
+
+require_env() {
+  local name="$1" hint="${2:-}"
+  if [ -z "${!name:-}" ]; then
+    if [ -n "${hint}" ]; then
+      log "missing required env ${name}: ${hint}"
+    else
+      log "missing required env ${name}"
+    fi
+    exit "${E2E_SKIP_RC}"
+  fi
+}
+
+_kubectl_with_env() {
+  local kubeconfig="$1" context="$2"
+  shift 2
+  if [ -n "${kubeconfig}" ] && [ -n "${context}" ]; then
+    KUBECONFIG="${kubeconfig}" kubectl --context "${context}" "$@"
+  elif [ -n "${kubeconfig}" ]; then
+    KUBECONFIG="${kubeconfig}" kubectl "$@"
+  elif [ -n "${context}" ]; then
+    kubectl --context "${context}" "$@"
+  else
+    kubectl "$@"
+  fi
+}
+
+gpu_kc() { _kubectl_with_env "${GPU_KUBECONFIG}" "${GPU_CONTEXT}" "$@"; }
+npu_kc() { _kubectl_with_env "${NPU_KUBECONFIG}" "${NPU_CONTEXT}" "$@"; }
+
+yaml_scalar_field() {
+  local indent="$1" name="$2" value="${3:-}"
+  [ -z "${value}" ] && return 0
+  printf '%*s%s: %s\n' "${indent}" '' "${name}" "${value}"
+}
+
+yaml_image_pull_secrets() {
+  local indent="$1" secret="${2:-${E2E_IMAGE_PULL_SECRET:-}}"
+  [ -z "${secret}" ] && return 0
+  printf '%*simagePullSecrets:\n' "${indent}" ''
+  printf '%*s- name: %s\n' "$((indent + 2))" '' "${secret}"
+}
+
+yaml_node_selector() {
+  local indent="$1" key="${2:-}" value="${3:-}"
+  [ -z "${key}" ] && return 0
+  if [ -z "${value}" ]; then
+    log "node selector key ${key} requires a value"
+    exit "${E2E_SKIP_RC}"
+  fi
+  printf '%*snodeSelector:\n' "${indent}" ''
+  printf '%*s%s: %s\n' "$((indent + 2))" '' "${key}" "${value}"
+}
+
+yaml_storage_class() {
+  local indent="$1" storage_class="${2:-}"
+  [ -z "${storage_class}" ] && return 0
+  printf '%*sstorageClassName: %s\n' "${indent}" '' "${storage_class}"
+}
+
+yaml_resource_limit() {
+  local indent="$1" name="${2:-}" value="${3:-1}"
+  [ -z "${name}" ] && return 0
+  printf '%*s%s: "%s"\n' "${indent}" '' "${name}" "${value}"
+}
 
 # Reap a background log-follower without blocking. Used after a polling loop
 # that walks a pod to a terminal phase — if the pod never gets there, the

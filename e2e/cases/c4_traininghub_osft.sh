@@ -6,9 +6,11 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "${HERE}/../lib.sh"
 
+require_env GPU_NAMESPACE "namespace for GPU e2e resources"
 NS="${GPU_NAMESPACE}"
 JOB_NAME="c4-traininghub-osft-$(printf '%05x' $$)"
-IMAGE="${C4_IMAGE:-build-harbor.alauda.cn/mlops/traininghub0.1-cu126-amd64:v0.1.0-build.20260609030710}"
+IMAGE="${C4_IMAGE:-docker.io/alaudadockerhub/traininghub0.1-cu126-amd64:v0.1.0}"
+IMAGE_PULL_SECRET="${C4_IMAGE_PULL_SECRET:-${E2E_IMAGE_PULL_SECRET:-}}"
 
 cleanup() {
   gpu_kc -n "${NS}" delete job "${JOB_NAME}" --ignore-not-found --wait=false || true
@@ -17,7 +19,7 @@ trap cleanup EXIT
 
 log "C4: submitting Job ${JOB_NAME} (image=${IMAGE})"
 
-cat <<YAML | gpu_kc -n "${NS}" create -f -
+cat <<YAML | mirror_dockerhub "${GPU_DH_MIRROR}" | gpu_kc -n "${NS}" create -f -
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -37,8 +39,7 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
-      imagePullSecrets:
-        - name: harbor-mlops-regcred
+$(yaml_image_pull_secrets 6 "${IMAGE_PULL_SECRET}")
       volumes:
         - name: workspace
           emptyDir: {}
@@ -80,7 +81,7 @@ spec:
               cd /workspace
               # training_hub is bundled in the runtime image. mini_trainer (the
               # OSFT backend) unconditionally `import flash_attn`, which only
-              # supports sm_75+; the dev GPU node is Tesla P100 (sm_60).
+              # supports sm_75+; older GPU architectures need this stub.
               # Stub the module so the import succeeds; transformers falls
               # through to torch SDPA, which is what training_hub.sft uses too.
               mkdir -p /workspace/stubs/flash_attn

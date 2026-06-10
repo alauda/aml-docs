@@ -24,6 +24,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "${HERE}/../lib.sh"
 
+require_env GPU_NAMESPACE "namespace for GPU e2e resources"
 NS="${GPU_NAMESPACE}"
 RUN_ID="$(printf '%05x' $$)-$(date -u +%s)"
 
@@ -40,13 +41,16 @@ RUNTIME="c12-checkpoint-runtime-${RUN_ID}"
 PVC_NAME="c12-ckpt-${RUN_ID}"
 TRAIN_LABEL="e2e.alauda.io/c12-run=${RUN_ID}"
 
-# Same harbor image C5/C6 already use — guaranteed cached on the GPU node.
-IMAGE="${LF_IMAGE:-build-harbor.alauda.cn/mlops/llamafactory0.9-cu126-amd64:v0.1.0-build.20260603021903}"
+IMAGE="${LF_IMAGE:-docker.io/alaudadockerhub/llamafactory0.9-cu126-amd64:v0.1.0}"
+IMAGE_PULL_SECRET="${LF_IMAGE_PULL_SECRET:-${E2E_IMAGE_PULL_SECRET:-}}"
+RWX_STORAGE_CLASS="${C12_RWX_STORAGE_CLASS:-${E2E_RWX_STORAGE_CLASS:-}}"
+NODE_SELECTOR_KEY="${C12_NODE_SELECTOR_KEY:-${E2E_GPU_NODE_SELECTOR_KEY:-}}"
+NODE_SELECTOR_VALUE="${C12_NODE_SELECTOR_VALUE:-${E2E_GPU_NODE_SELECTOR_VALUE:-}}"
 
 # --- Preflight: Kueue must be installed; skip otherwise. -----------------
 if ! gpu_kc api-resources --api-group=kueue.x-k8s.io 2>/dev/null | grep -q clusterqueues; then
   log "C12: kueue.x-k8s.io API group not present — install Kueue (see preemptible-trainjobs-with-kueue.mdx) and re-run"
-  exit 77
+  exit "${E2E_SKIP_RC}"
 fi
 
 cleanup() {
@@ -63,7 +67,7 @@ cleanup() {
 trap cleanup EXIT
 
 # --- Step 1: cohort + queues + priorities. -------------------------------
-# Quotas are sized for one Tesla P100 + HAMI (gpucores 50%, 4 GiB GPU mem):
+# Quotas are sized for one fractional HAMI GPU slice:
 # both inference and training Workloads each ask for that slice, so the
 # inference reclaim path empties exactly one borrowed training slot.
 log "C12: applying cohort (CQ ${CQ_INF}, ${CQ_TRAIN}; flavor ${FLAVOR})"
@@ -142,7 +146,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata: { name: ${PVC_NAME}, namespace: ${NS} }
 spec:
-  storageClassName: cephfs
+$(yaml_storage_class 2 "${RWX_STORAGE_CLASS}")
   accessModes: ["ReadWriteMany"]
   resources: { requests: { storage: 1Gi } }
 YAML
@@ -153,7 +157,7 @@ YAML
 # elsewhere. HuggingFace Trainer auto-resumes from the newest
 # checkpoint-N/ in CKPT_DIR if we pass it to .train(resume_from_checkpoint=).
 log "C12: applying TrainingRuntime ${RUNTIME}"
-cat <<YAML | retry_apply gpu_kc
+cat <<YAML | mirror_dockerhub "${GPU_DH_MIRROR}" | retry_apply gpu_kc
 apiVersion: trainer.kubeflow.org/v1alpha1
 kind: TrainingRuntime
 metadata:
@@ -176,8 +180,8 @@ spec:
               template:
                 spec:
                   terminationGracePeriodSeconds: 60
-                  nodeSelector: { kubernetes.io/hostname: 192.168.138.15 }
-                  imagePullSecrets: [{ name: harbor-mlops-regcred }]
+$(yaml_node_selector 18 "${NODE_SELECTOR_KEY}" "${NODE_SELECTOR_VALUE}")
+$(yaml_image_pull_secrets 18 "${IMAGE_PULL_SECRET}")
                   securityContext: { runAsNonRoot: true, runAsUser: 65534, runAsGroup: 65534, fsGroup: 65534 }
                   volumes:
                     - { name: workspace, emptyDir: {} }
@@ -330,7 +334,7 @@ log "C12: checkpoint visible on PVC"
 
 # --- Step 5: high-priority preemptor. -----------------------------------
 log "C12: submitting high-priority preemptor Job"
-INF_JOB=$(cat <<YAML | retry_create gpu_kc -o jsonpath='{.metadata.name}'
+INF_JOB=$(cat <<YAML | mirror_dockerhub "${GPU_DH_MIRROR}" | retry_create gpu_kc -o jsonpath='{.metadata.name}'
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -350,8 +354,8 @@ spec:
         e2e.alauda.io/c12-run: "${RUN_ID}"
     spec:
       restartPolicy: Never
-      nodeSelector: { kubernetes.io/hostname: 192.168.138.15 }
-      imagePullSecrets: [{ name: harbor-mlops-regcred }]
+$(yaml_node_selector 6 "${NODE_SELECTOR_KEY}" "${NODE_SELECTOR_VALUE}")
+$(yaml_image_pull_secrets 6 "${IMAGE_PULL_SECRET}")
       securityContext: { runAsNonRoot: true, runAsUser: 65534, runAsGroup: 65534, fsGroup: 65534 }
       containers:
         - name: serve

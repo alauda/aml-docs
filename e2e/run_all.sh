@@ -54,7 +54,7 @@ for entry in "${CASES[@]}"; do
     pass=$((pass+1))
   else
     rc=$?
-    if [ "${rc}" -eq 77 ]; then
+    if [ "${rc}" -eq "${E2E_SKIP_RC}" ]; then
       log "    SKIP ${id} ($((SECONDS-start))s) — tail:"
       tail -n 20 "${log_file}" | sed 's/^/        /'
       skip=$((skip+1))
