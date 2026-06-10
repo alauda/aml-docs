@@ -38,6 +38,10 @@ spec:
                         - -c
                         - |
                           set -ex
+                          # See torch2.6-cann8.5-arm64 runtime — CANN entrypoints must source set_env.sh
+                          # to pick up libhccl.so / libascendcl.so from the host-bind-mounted /usr/local/Ascend.
+                          source /usr/local/Ascend/ascend-toolkit/set_env.sh
+                          source /usr/local/Ascend/nnal/atb/set_env.sh 2>/dev/null || true
                           python -c "import torch, torch_npu, megatron, mindspeed, mindspeed_llm; print('torch', torch.__version__, 'torch_npu', torch_npu.__version__, 'megatron', megatron.__version__, 'mindspeed_llm', mindspeed_llm.__version__)"
                       resources:
                         requests:

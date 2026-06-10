@@ -1,0 +1,22 @@
+# Minimal ClusterQueue example for the LocalQueue in local-queue.yaml.
+# A cluster admin applies this once per shared quota pool. Adjust nominalQuota
+# to match the GPUs / NPUs you want to lend to TrainJobs admitted through it.
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: default-flavor
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata:
+  name: cluster-queue
+spec:
+  namespaceSelector: {}
+  resourceGroups:
+    - coveredResources: ["cpu", "memory", "nvidia.com/gpu"]
+      flavors:
+        - name: default-flavor
+          resources:
+            - { name: cpu,             nominalQuota: "32" }
+            - { name: memory,          nominalQuota: 128Gi }
+            - { name: "nvidia.com/gpu", nominalQuota: "4" }
