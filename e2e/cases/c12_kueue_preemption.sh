@@ -46,7 +46,7 @@ IMAGE="${LF_IMAGE:-build-harbor.alauda.cn/mlops/llamafactory0.9-cu126-amd64:v0.1
 # --- Preflight: Kueue must be installed; skip otherwise. -----------------
 if ! gpu_kc api-resources --api-group=kueue.x-k8s.io 2>/dev/null | grep -q clusterqueues; then
   log "C12: kueue.x-k8s.io API group not present — install Kueue (see preemptible-trainjobs-with-kueue.mdx) and re-run"
-  exit 1
+  exit 77
 fi
 
 cleanup() {

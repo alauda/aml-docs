@@ -1,20 +1,20 @@
 # Preemptible cohort for "inference-first, training fills the gap".
 #
 # Two ClusterQueues share one cohort:
-#   c12-inference-cq — holds the full GPU nominal quota; will NOT lend any
-#                      of it out (borrowingLimit: 0 on the GPU resources).
-#                      Inference workloads borrow nothing, so admission is
-#                      a constant-time guarantee against its own quota.
+#   c12-inference-cq — holds the full GPU nominal quota. Its
+#                      borrowingLimit: 0 means inference workloads do not
+#                      borrow from the cohort; its idle nominal quota is still
+#                      available for training to borrow.
 #   c12-training-cq  — owns zero GPU nominal quota; can borrow up to one
 #                      GPU (and a vGPU slice) from the cohort when idle.
 #                      When inference reclaims its nominal quota, the
 #                      training Workload is preempted (reclaimWithinCohort:
 #                      Any).
 #
-# Edit nominalQuota / borrowingLimit to match the GPUs you want to reserve
-# for inference vs lend to training; the policy is independent of the
-# numbers. Switch the gpualloc / gpucores / gpumem keys to nvidia.com/gpu
-# if you don't use HAMI vGPU.
+# Edit nominalQuota / borrowingLimit to match the GPUs you want inference to
+# reserve and training to borrow. If you need to cap how much nominal quota a
+# ClusterQueue lends to the cohort, use Kueue lendingLimit. Switch the gpualloc
+# / gpucores / gpumem keys to nvidia.com/gpu if you don't use HAMI vGPU.
 apiVersion: kueue.x-k8s.io/v1beta2
 kind: ResourceFlavor
 metadata:
