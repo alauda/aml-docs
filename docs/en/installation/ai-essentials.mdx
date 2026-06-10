@@ -2,78 +2,73 @@
 weight: 20
 ---
 
-# Install Alauda AI Essentials
+# Configure Alauda AI Global Resources
 
-Alauda AI Essentials provides UI and RBAC resources for Alauda AI.
+Starting from Alauda AI 2.6, Alauda AI is deployed as a single-cluster application. The global resources (OIDC client and product entry) are no longer delivered as a cluster plugin. Instead, they are configured using the `global-install.sh` script.
 
-## Downloading
-
-:::info
-You can download the app named 'Alauda AI Essentials' from the Marketplace on the Customer Portal website.
-
-_Download package: aml-global-xxx.tgz_
+:::warning
+If the **Alauda AI Essentials** cluster plugin was installed in a previous version, it must be uninstalled after upgrading to Alauda AI 2.6 or later. In the **Administrator** view, navigate to **Marketplace / Cluster Plugin**, select the **global** cluster, locate **Alauda AI Essentials**, and click **Uninstall**.
 :::
 
-## Uploading
+The script creates the following resources on the global cluster:
 
-We need to upload the Alauda AI Essentials cluster plugin to **global** cluster.
+- **OAuth2Client**: Enables SSO authentication for Alauda AI via the platform Dex identity provider.
+- **Secret**: Stores the OIDC client credentials.
+- **ProductEntry**: Registers Alauda AI as a product entry in the platform console, so it appears in the left navigation menu.
 
-### Procedure
+## Prerequisites
+
+- `kubectl` is installed and configured to access the **global** cluster.
+- The `productbase.product.alauda.io/base` resource exists on the global cluster (the script reads the platform URL and version from it).
+
+## Procedure
 
 <Steps>
 
-### Downloading the violet tool
+### Downloading the script
 
-First, we need to download the `violet` tool if not present on the machine.
+Download the [global-install.sh](/global-install.sh) script.
 
-Log into the Web Console and switch to the **Administrator** view:
+### Running the script
 
-1. Click **Marketplace / Upload Packages**.
-2. Click **Download Packaging and Listing Tool**.
-3. Locate the right OS / CPU architecture under **Execution Environment**.
-4. Click **Download** to download the `violet` tool.
-5. Run `chmod +x ${PATH_TO_THE_VIOLET_TOOL}` to make the tool executable.
-
-### Uploading package
-
-Then, run the following command to upload the **Alauda AI Essentials** cluster plugin to global cluster:
+Run the script with the target cluster name as the argument:
 
 ```bash
-# [!code callout:5]
-violet push \
-    ${PKG_NAME} \
-    --platform-address=${PLATFORM_ADDRESS} \
-    --platform-username=${PLATFORM_ADMIN_USER} \
-    --platform-password=${PLATFORM_ADMIN_PASSWORD} \
-    --clusters=global
+# [!code callout:2]
+bash global-install.sh \
+    <cluster-name>
 ```
 
 <Callouts>
 
-1. Execute `violet push` to upload cluster plugin.
-2. `${PKG_NAME}` is the name of the **Alauda AI Essentials** cluster plugin tarball.
-3. `${PLATFORM_ADDRESS}` is your ACP platform address.
-4. `${PLATFORM_ADMIN_USER}` is the username of the ACP platform admin.
-5. `${PLATFORM_ADMIN_PASSWORD}` is the password of the ACP platform admin.
+1. `<cluster-name>` is the name of the cluster where Alauda AI is (or will be) installed.
 
 </Callouts>
 
-</Steps>
+The script reads the platform URLs and version from `productbase.product.alauda.io/base` on the global cluster, then creates the required OIDC and product entry resources. If an `OAuth2Client` with the same name already exists, it is safely skipped.
 
-## Installing
+### Important notes
 
-### Procedure
+**OIDC configuration**: The OIDC client credentials must match between the `OAuth2Client` resource on the global cluster and the `AmlCluster` in the target cluster. The `OAuth2Client` is named `aml` under the `cpaas-system` namespace. Its `secret` (or `secretRef`) must be consistent with `data.client-secret` in the Secret referenced by `AmlCluster` `spec.oidc.clientSecretName` (under the `kubeflow` namespace). If customization is needed, update both sides. Once the `OAuth2Client` exists, the script skips it—subsequent changes should be made directly to the resource.
 
-In **Administrator** view:
+**Multiple Alauda AI installations**: The ProductEntry resource is named `aml-<cluster-name>`. If multiple Alauda AI instances are deployed across different clusters, each will have a separate ProductEntry with the same display name "Alauda AI". To distinguish them in the platform console navigation menu, edit the `spec.displayName` field of the corresponding ProductEntry. For example:
 
-1. Click **Marketplace / Cluster Plugin**.
-2. Select **global** cluster from the **Cluster** dropdown list at the top of the console.
-3. Locate **Alauda AI Essentials**.
-4. Click **Install**.
+```bash
+kubectl patch productentry aml-<cluster-name> --type=merge -p '{"spec":{"displayName":{"en":"Alauda AI (Prod)","zh":"Alauda AI (Prod)"}}}'
+```
 
 ### Verification
 
-Confirm that the **Alauda AI Essentials** tile shows one of the following states:
+After running the script, confirm the resources are created:
 
-- `Installing`: installation is in progress; wait for this to change to `Installed`.
-- `Installed`: installation is complete.
+```bash
+# Check the OAuth2Client
+kubectl get oauth2client -n cpaas-system
+
+# Check the ProductEntry
+kubectl get productentry
+```
+
+The **Alauda AI** entry should appear in the platform console left navigation menu after a short delay.
+
+</Steps>
