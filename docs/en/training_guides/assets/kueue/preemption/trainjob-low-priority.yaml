@@ -1,0 +1,22 @@
+# Low-priority TrainJob that targets the training queue and gets evicted
+# when an inference workload reclaims the cohort's GPU quota.
+#
+# The `kueue.x-k8s.io/priority-class` label is what gives Kueue the
+# preemption signal; without it the Workload sits at priority 0 and only
+# the cohort reclamation rule applies.
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  generateName: c12-training-
+  namespace: <your-namespace>
+  labels:
+    kueue.x-k8s.io/queue-name: c12-training-lq
+    kueue.x-k8s.io/priority-class: c12-training-prio
+spec:
+  runtimeRef:
+    apiGroup: trainer.kubeflow.org
+    kind: TrainingRuntime
+    name: c12-checkpoint-runtime
+  suspend: false
+  trainer:
+    numNodes: 1

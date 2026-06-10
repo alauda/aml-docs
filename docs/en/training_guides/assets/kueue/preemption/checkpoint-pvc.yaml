@@ -1,0 +1,17 @@
+# Shared checkpoint PVC for the preemptible TrainJob.
+#
+# Must be ReadWriteMany so the trainer can land on a different node after a
+# preemption-driven re-admission. If your cluster only has RWO storage, pin
+# the TrainJob to the same node via `nodeSelector` so the resumed pod can
+# remount the same PVC.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: c12-ckpt
+  namespace: <your-namespace>
+spec:
+  storageClassName: cephfs   # edit to your RWX storage class
+  accessModes: ["ReadWriteMany"]
+  resources:
+    requests:
+      storage: 5Gi
