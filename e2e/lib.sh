@@ -9,6 +9,14 @@ LOG_DIR="${E2E_ROOT}/logs"
 mkdir -p "${LOG_DIR}"
 
 E2E_SKIP_RC="${E2E_SKIP_RC:-77}"
+# Must be a valid process exit status (0–255), otherwise `exit "${E2E_SKIP_RC}"`
+# gets truncated mod 256 while run_all.sh still compares against the raw value —
+# skips would then be misreported as FAIL. Reject non-numeric / out-of-range
+# overrides back to the default.
+case "${E2E_SKIP_RC}" in
+  *[!0-9]*) E2E_SKIP_RC=77 ;;
+  *) [ "${E2E_SKIP_RC}" -ge 0 ] && [ "${E2E_SKIP_RC}" -le 255 ] || E2E_SKIP_RC=77 ;;
+esac
 
 # Required per case: GPU_NAMESPACE or NPU_NAMESPACE.
 # Optional kube target: GPU_CONTEXT/GPU_KUBECONFIG/NPU_CONTEXT/NPU_KUBECONFIG.
