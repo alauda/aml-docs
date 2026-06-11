@@ -12,20 +12,20 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "${HERE}/../lib.sh"
 
+require_env GPU_NAMESPACE "namespace for GPU e2e resources"
 NS="${GPU_NAMESPACE}"
 # Per-run suffix so re-runs / concurrent runs don't share PVC contents or fight
 # over the same TrainingRuntime. The trap below tears down both.
 RUN_ID="$(printf '%05x' $$)-$(date -u +%s)"
 RUNTIME="c5-llamafactory-finetune-runtime-${RUN_ID}"
 PVC_NAME="c5-models-${RUN_ID}"
-# The doc notebook says "Use `alaudadockerhub/fine_tune_with_llamafactory:v0.1.11`,
-# or build your own". The Dockerhub copy is firewalled (mirror blob EOF on large
-# images), the harbor rebuild at the same tag lacks torch, and the catalog runtime
-# image `llamafactory0.9-cu126-amd64:v0.1.0` has the same blob-EOF issue. Use the
-# build-suffixed copy of the catalog image already cached on the dev cluster.
-IMAGE="${LF_IMAGE:-build-harbor.alauda.cn/mlops/llamafactory0.9-cu126-amd64:v0.1.0-build.20260603021903}"
+IMAGE="${LF_IMAGE:-docker.io/alaudadockerhub/llamafactory0.9-cu126-amd64:v0.1.0}"
+IMAGE_PULL_SECRET="${LF_IMAGE_PULL_SECRET:-${E2E_IMAGE_PULL_SECRET:-}}"
+RWX_STORAGE_CLASS="${C5_RWX_STORAGE_CLASS:-${E2E_RWX_STORAGE_CLASS:-}}"
+NODE_SELECTOR_KEY="${C5_NODE_SELECTOR_KEY:-${E2E_GPU_NODE_SELECTOR_KEY:-}}"
+NODE_SELECTOR_VALUE="${C5_NODE_SELECTOR_VALUE:-${E2E_GPU_NODE_SELECTOR_VALUE:-}}"
 
-log "C5: ensuring shared PVC ${PVC_NAME} exists (RWX on cephfs so any node can mount)"
+log "C5: ensuring shared RWX PVC ${PVC_NAME} exists"
 cat <<YAML | retry_apply gpu_kc
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -33,13 +33,13 @@ metadata:
   name: ${PVC_NAME}
   namespace: ${NS}
 spec:
-  storageClassName: cephfs
+$(yaml_storage_class 2 "${RWX_STORAGE_CLASS}")
   accessModes: ["ReadWriteMany"]
   resources: { requests: { storage: 4Gi } }
 YAML
 
 log "C5: applying TrainingRuntime ${RUNTIME} to ns/${NS} (image=${IMAGE})"
-cat <<YAML | retry_apply gpu_kc
+cat <<YAML | mirror_dockerhub "${GPU_DH_MIRROR}" | retry_apply gpu_kc
 apiVersion: trainer.kubeflow.org/v1alpha1
 kind: TrainingRuntime
 metadata:
@@ -64,10 +64,8 @@ spec:
               template:
                 spec:
                   securityContext: { runAsNonRoot: true, runAsUser: 65534, runAsGroup: 65534, fsGroup: 65534 }
-                  nodeSelector:
-                    kubernetes.io/hostname: 192.168.138.15
-                  imagePullSecrets:
-                    - name: harbor-mlops-regcred
+$(yaml_node_selector 18 "${NODE_SELECTOR_KEY}" "${NODE_SELECTOR_VALUE}")
+$(yaml_image_pull_secrets 18 "${IMAGE_PULL_SECRET}")
                   volumes:
                     - name: models
                       persistentVolumeClaim: { claimName: ${PVC_NAME} }
@@ -123,10 +121,8 @@ spec:
               template:
                 spec:
                   securityContext: { runAsNonRoot: true, runAsUser: 65534, runAsGroup: 65534, fsGroup: 65534 }
-                  nodeSelector:
-                    kubernetes.io/hostname: 192.168.138.15
-                  imagePullSecrets:
-                    - name: harbor-mlops-regcred
+$(yaml_node_selector 18 "${NODE_SELECTOR_KEY}" "${NODE_SELECTOR_VALUE}")
+$(yaml_image_pull_secrets 18 "${IMAGE_PULL_SECRET}")
                   volumes:
                     - name: models
                       persistentVolumeClaim: { claimName: ${PVC_NAME} }
@@ -192,10 +188,8 @@ spec:
               template:
                 spec:
                   securityContext: { runAsNonRoot: true, runAsUser: 65534, runAsGroup: 65534, fsGroup: 65534 }
-                  nodeSelector:
-                    kubernetes.io/hostname: 192.168.138.15
-                  imagePullSecrets:
-                    - name: harbor-mlops-regcred
+$(yaml_node_selector 18 "${NODE_SELECTOR_KEY}" "${NODE_SELECTOR_VALUE}")
+$(yaml_image_pull_secrets 18 "${IMAGE_PULL_SECRET}")
                   volumes:
                     - { name: workspace, emptyDir: {} }
                     - name: models
