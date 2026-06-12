@@ -1,0 +1,110 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  generateName: trainjob-sft-qwen3-
+  namespace: kubeflow-admin-cpaas-io
+  # labels:
+  #   kueue.x-k8s.io/queue-name: local-queue
+spec:
+  runtimeRef:
+    apiGroup: trainer.kubeflow.org
+    name: llamafactory-finetune-runtime
+    kind: TrainingRuntime
+  podTemplateOverrides:
+    - targetJobs:
+        - name: node
+      spec:
+        # Step 1: Configure models-cache volume override to mount the shared PVC for caching models
+        # In distributed training tasks (with >= 2 replicas), ensure that you use the appropriate storage type for caching large models:
+        # - Network storage, such as NFS or Ceph: Simply mount the network storage. Note that multiple containers may access this network storage simultaneously, resulting in high concurrent traffic. Furthermore, reading large model files may be slower than reading them locally (depending on the network storage's performance).
+        # - Local storage, such as topolvm or local-storage: Use `kserve local model cache` to pre-cache the model file on each node before mounting this PVC. Training tasks cannot cache each local PVC.
+        volumes:
+          - name: models-cache
+            persistentVolumeClaim:
+              claimName: glm5
+        containers:
+          - name: node
+            volumeMounts:
+              - name: models-cache
+                mountPath: /mnt/models
+        # Step 2: Configure node selector to ensure the job runs on GPU nodes if needed.
+        # nodeSelector:
+        #   nvidia.com/gpu.product: Tesla-T4
+    - targetJobs:
+        - name: dataset-initializer
+      spec:
+        # Step 3: Do the same as step 1.
+        volumes:
+          - name: models-cache
+            persistentVolumeClaim:
+              claimName: glm5
+        containers:
+          - name: dataset-initializer
+            volumeMounts:
+              - name: models-cache
+                mountPath: /mnt/models
+        # nodeSelector:
+        #   nvidia.com/gpu.product: Tesla-T4
+    - targetJobs:
+        - name: model-initializer
+      spec:
+        # Step 4: Do the same as step 1.
+        volumes:
+          - name: models-cache
+            persistentVolumeClaim:
+              claimName: glm5
+        containers:
+          - name: model-initializer
+            volumeMounts:
+              - name: models-cache
+                mountPath: /mnt/models
+        # nodeSelector:
+        #   nvidia.com/gpu.product: Tesla-T4
+  initializer:
+    # Step 5: set dataset and model URL in initializer step. The initializer will download dataset and model to the shared PVC, so that the trainer can access them from the same path.
+    dataset:
+      env:
+        - name: DATASET_URL
+          value: "http://gitlab-fuyao.test.com:30080/kubeflow-admin-cpaas-io/amlmodels/identity-alauda"
+    model:
+      env:
+        - name: BASE_MODEL_URL
+          value: "http://gitlab-fuyao.test.com:30080/kubeflow-admin-cpaas-io/amlmodels/Qwen3-0.6B"
+  trainer:
+    # Step 6: Keep one trainer pod for a single-host 2-NPU Ascend job. Use
+    # numNodes: 2+ only for true multi-node training across different hosts.
+    numNodes: 1
+    env:
+    # Step 7: Set model, dataset, and output locations for this run.
+    # Single-node multi-NPU jobs do not need loopback HCCL/GLOO NIC overrides.
+    # For true multi-node jobs, add only the HCCL networking variables required
+    # by your tested cluster topology.
+    - name: BASE_MODEL_URL
+      value: "http://gitlab-fuyao.test.com:30080/kubeflow-admin-cpaas-io/amlmodels/Qwen3-0.6B"
+    - name: DATASET_URL
+      value: "http://gitlab-fuyao.test.com:30080/kubeflow-admin-cpaas-io/amlmodels/identity-alauda"
+    - name: HF_HOME
+      value: /mnt/workspace/hf_cache
+    - name: DO_MERGE
+      value: "true"
+      #- name: MLFLOW_TRACKING_URI
+      #  value: "http://mlflow-tracking-server.kubeflow:5000"
+      #- name: MLFLOW_EXPERIMENT_NAME
+      #value: mlops-demo-ai-test
+    - name: MODEL_OUTPUT_DIR
+      value: /mnt/workspace/output_models_merged
+    - name: OUTPUT_MODEL_URL
+      value: "http://gitlab-fuyao.test.com:30080/kubeflow-admin-cpaas-io/amlmodels/qwen3-sft-output"
+    resourcesPerNode:
+      # Step 8: Request the exact Ascend resource keys exposed by your device
+      # plugin. This sample uses Ascend 910B4 and allocates two NPUs to one pod.
+      limits:
+        cpu: "4"
+        memory: "32Gi"
+        huawei.com/Ascend910B4: "2"
+        huawei.com/Ascend910B4-memory: "32G"
+      requests:
+        cpu: "1"
+        memory: "2Gi"
+        huawei.com/Ascend910B4: "2"
+        huawei.com/Ascend910B4-memory: "32G"

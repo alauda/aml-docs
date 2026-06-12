@@ -1,0 +1,266 @@
+---
+weight: 55
+---
+
+# Kubeflow Pipeline + MLflow Integration
+
+This guide shows how to build Kubeflow Pipelines (KFP) components that log parameters, metrics, and model artifacts to [MLflow on Kubeflow](../kubeflow/how_to/mlflow.mdx) — giving you a single source of truth for experiment tracking across your pipeline runs.
+
+## Scope
+
+- Alauda AI 2.5 and later.
+- Kubeflow Pipelines and the MLflow cluster plugin are installed.
+- Target namespaces have the MLflow workspace label (`mlflow-enabled=true`).
+- The pipeline components run in the same Kubernetes cluster where the MLflow Tracking Server is deployed.
+
+## Prerequisites
+
+- `kfp` Python SDK installed (`pip install kfp mlflow`).
+- Access to a KFP endpoint (see [Use Kubeflow Pipelines](../kubeflow/how_to/pipelines.mdx) for setup).
+- An MLflow workspace name matching a namespace with `mlflow-enabled=true`.
+
+## How pipeline components reach MLflow
+
+The MLflow Tracking Server is exposed as an in-cluster Service:
+
+| Namespace | Service | Port |
+|-----------|---------|------|
+| `kubeflow` | `mlflow-tracking-server.kubeflow.svc.cluster.local` | 5000 |
+| `aml-system` | `mlflow-tracking-server.aml-system.svc.cluster.local` | 5000 |
+
+Pipeline components use the short form:
+
+```python
+MLFLOW_TRACKING_URI = "http://mlflow-tracking-server.kubeflow:5000"
+```
+
+## Complete example: training pipeline with MLflow
+
+Here is a minimal but complete KFP pipeline. It accepts model name, learning rate,
+and epochs as parameters, simulates training with MLflow parameter and metric logging,
+and packages the trained model as an MLflow artifact.
+
+```python
+from kfp import dsl, compiler
+import mlflow
+import mlflow.tracking
+
+# ===== MLflow configuration =====
+MLFLOW_TRACKING_URI = "http://mlflow-tracking-server.kubeflow:5000"
+MLFLOW_EXPERIMENT_NAME = "kfp-training-experiment"
+
+
+@dsl.component(base_image="python:3.11-slim", packages_to_install=["mlflow", "kfp"])
+def train_model(
+    model_name: str,
+    learning_rate: float,
+    epochs: int,
+    output_model_path: str,
+) -> dict:
+    """Simulated training component with MLflow tracking."""
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
+
+    with mlflow.start_run(run_name=f"run-{dsl.RUN_ID_PLACEHOLDER}") as run:
+        # Log parameters
+        mlflow.log_param("model_name", model_name)
+        mlflow.log_param("learning_rate", learning_rate)
+        mlflow.log_param("epochs", epochs)
+
+        # Simulated training loop
+        metrics = dict()
+        for epoch in range(1, epochs + 1):
+            # Replace this with your real training logic
+            loss = 2.0 * (0.95 ** epoch)  # placeholder loss curve
+            accuracy = 1.0 - loss         # placeholder accuracy
+
+            mlflow.log_metric("loss", loss, step=epoch)
+            mlflow.log_metric("accuracy", accuracy, step=epoch)
+            metrics["final_loss"] = loss
+            metrics["final_accuracy"] = accuracy
+
+        # Log the trained model as an artifact
+        import json, pathlib
+        model_dir = pathlib.Path(output_model_path)
+        model_dir.mkdir(parents=True, exist_ok=True)
+        (model_dir / "model.json").write_text(
+            json.dumps(dict(model_name=model_name, epochs=epochs, metrics=metrics))
+        )
+        mlflow.log_artifacts(str(model_dir), artifact_path="model")
+
+        run_id = run.info.run_id
+        print(f"MLflow run: {run_id}")
+
+    return metrics
+
+
+@dsl.component(base_image="python:3.11-slim", packages_to_install=["mlflow", "kfp"])
+def evaluate_model(
+    model_name: str,
+    test_data_path: str,
+) -> dict:
+    """Evaluate the trained model and log results to MLflow."""
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
+
+    with mlflow.start_run(run_name=f"eval-{dsl.RUN_ID_PLACEHOLDER}"):
+        # In a real pipeline, load the model artifact from MLflow or S3
+        # For now, log placeholder metrics
+        mlflow.log_param("model_name", model_name)
+        mlflow.log_param("test_data_path", test_data_path)
+        mlflow.log_metric("eval_accuracy", 0.92)
+        mlflow.log_metric("eval_f1", 0.89)
+        mlflow.log_metric("eval_precision", 0.91)
+        mlflow.log_metric("eval_recall", 0.88)
+
+    return dict(eval_accuracy=0.92)
+
+
+@dsl.pipeline(name="mlflow-training-pipeline", description="Train and evaluate with MLflow tracking")
+def training_pipeline(
+    model_name: str = "qwen3-0.6b",
+    learning_rate: float = 2e-4,
+    epochs: int = 10,
+    test_data_path: str = "s3://datasets/test-data",
+):
+    train_task = train_model(
+        model_name=model_name,
+        learning_rate=learning_rate,
+        epochs=epochs,
+        output_model_path="/tmp/model",
+    )
+
+    evaluate_model(
+        model_name=model_name,
+        test_data_path=test_data_path,
+    )
+
+
+# ===== Compile and submit =====
+compiler.Compiler().compile(training_pipeline, "pipeline.yaml")
+```
+
+## Upload and run
+
+### Via the KFP UI
+
+1. Go to **Kubeflow Dashboard → Pipelines → Upload Pipeline** and select `pipeline.yaml`.
+2. Click **Create Run** and fill in the parameters (model name, learning rate, epochs).
+3. After the run starts, check the MLflow UI under **Alauda AI → Advanced → MLFlow** for logged metrics.
+
+### Via the KFP SDK
+
+```python
+from kfp.client import Client
+
+client = Client(host="<MY-KFP-ENDPOINT>")
+
+run = client.create_run_from_pipeline_package(
+    "pipeline.yaml",
+    arguments=dict(
+        model_name="qwen3-0.6b",
+        learning_rate=2e-4,
+        epochs=10,
+        test_data_path="s3://datasets/test-data",
+    ),
+)
+
+print(f"Run URL: {client.get_run_id(run.name)}")
+```
+
+## Using MLflow in Trainer v2 pipelines
+
+If you are using [Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx) instead of KFP SDK pipelines, you can inject MLflow environment variables directly into the `TrainingJob` pod spec:
+
+```yaml
+apiVersion: trainer.kubeflow.org/v1
+kind: TrainingJob
+metadata:
+  name: mlflow-finetune
+spec:
+  trainingSpecs:
+    - replicas: 1
+      template:
+        spec:
+          containers:
+            - name: trainer
+              image: alaudadockerhub/fine_tune_with_llamafactory:v0.1.1
+              env:
+                - name: MLFLOW_TRACKING_URI
+                  value: "http://mlflow-tracking-server.kubeflow:5000"
+                - name: MLFLOW_EXPERIMENT_NAME
+                  value: "trainer-v2-finetune"
+```
+
+See [Fine-tuning LLMs using Workbench](./fine-tuning-using-notebooks.mdx) for a full Trainer v2 + MLflow example with LLaMA-Factory.
+
+## Accessing MLflow run artifacts from other pipeline components
+
+Pipeline components can read MLflow artifacts from within a subsequent step. Use the MLflow Python client with the tracking URI to download artifacts:
+
+```python
+from kfp import dsl, compiler
+import mlflow
+
+@dsl.component(base_image="python:3.11-slim", packages_to_install=["mlflow", "kfp"])
+def download_and_compare(
+    source_model_uri: str,
+    reference_model_uri: str,
+) -> str:
+    """Download two models from MLflow and compare them."""
+    mlflow.set_tracking_uri("http://mlflow-tracking-server.kubeflow:5000")
+    client = mlflow.tracking.MlflowClient()
+
+    source_path = client.download_artifacts(source_model_uri, path="/tmp/source")
+    reference_path = client.download_artifacts(reference_model_uri, path="/tmp/reference")
+
+    return f"Compared models: {source_path} vs {reference_path}"
+```
+
+This pattern is useful for:
+
+- A/B comparing fine-tuned models before deployment.
+- Pulling the best model (by accuracy metric) from an MLflow experiment into an inference pipeline.
+- Validating that a model passed acceptance tests before pushing it to the model registry.
+
+## Best practices
+
+### Use the pipeline run ID in MLflow
+
+KFP provides `dsl.RUN_ID_PLACEHOLDER` as an environment variable inside each component. Use it to create distinct MLflow runs per pipeline execution:
+
+```python
+with mlflow.start_run(run_name=f"run-{dsl.RUN_ID_PLACEHOLDER}"):
+    ...
+```
+
+This avoids conflating pipeline runs that happen to use the same parameters.
+
+### Log metrics at the component level, not the pipeline level
+
+MLflow `log_metric` calls must happen inside a `mlflow.start_run()` block. If a component has multiple logical training stages, open separate MLflow runs within the same component — do not try to log metrics from outside a run context.
+
+### Use MLflow models for model registry integration
+
+Instead of logging arbitrary files as `mlflow.log_artifacts`, use `mlflow.log_model()` to register the model with its signature and dependencies:
+
+```python
+mlflow.sklearn.log_model(sk_model, "model")
+# or for HuggingFace:
+mlflow.transformers.log_model(hf_model, "model")
+```
+
+Registered models can then be promoted to the **Staging** or **Production** stage in the MLflow UI.
+
+### Artifact storage for production
+
+The default MLflow artifact store is local disk. For production pipelines, configure S3-compatible object storage in the MLflow plugin settings (see [MLflow Tracking Server](../kubeflow/how_to/mlflow.mdx) → High Availability And Storage). Pipeline components can then log large model artifacts without running into pod disk limits.
+
+## Troubleshooting
+
+| Symptom | Check |
+|---------|-------|
+| `ConnectionError` from `mlflow.set_tracking_uri` | Verify the MLflow service is reachable: `curl http://mlflow-tracking-server.kubeflow:5000/api/2.0/mlflow/ping`. If the pod is in `aml-system`, use that namespace instead. |
+| Run not showing in MLflow UI | Check the component logs for MLflow errors. The MLflow experiment must exist (created automatically on first `set_experiment`) and the workspace label must match the namespace. |
+| Artifact upload fails with `ResourceExhausted` | The artifact may exceed the pod's disk quota. Log artifacts directly to S3 by setting `MLFLOW_S3_ENDPOINT_URL` and providing AWS credentials as env vars. |
+| MLflow metrics not appearing in KFP UI | KFP and MLflow are separate systems. Metrics logged to MLflow appear in the MLflow UI (**Alauda AI → Advanced → MLFlow**), not in the KFP run output. |
