@@ -369,7 +369,7 @@ In **Administrator** view:
 
     - **Model OCI Registry Address**: Registry address hosting model OCI artifacts for Model Catalog. The default value is `build-harbor.alauda.cn`.
 
-      This registry stores the model OCI images used by Model Catalog. Use Harbor or another production-mode OCI registry with HTTPS access enabled. The Harbor project or repository used for Model Catalog must allow anonymous pull access from inference cluster nodes.
+      This registry stores the model OCI images used by Model Catalog. Use Harbor or another production-mode OCI registry with HTTPS access enabled. Model Catalog does not support configuring `imagePullSecret` for pulling model OCI images, so the Harbor project or repository used for Model Catalog must allow anonymous pull access from inference cluster nodes. In Harbor, set the project that stores Model Catalog images to **Public**.
 
       If you cannot deploy a registry with HTTPS in the target environment, you can use an HTTP registry as a fallback. Configure the container runtime on every node in the inference cluster before deploying models. For containerd, add an insecure registry mirror for the registry address, for example by creating `/etc/containerd/certs.d/<registry-host:port>/hosts.toml`:
 
@@ -469,11 +469,11 @@ PROJECT="${REPO%%/*}"
 
 curl -s -u "$AUTH" -X POST "http://$REG/api/v2.0/projects" \
   -H 'Content-Type: application/json' \
-  -d "{\"project_name\":\"$PROJECT\",\"public\":false}" \
+  -d "{\"project_name\":\"$PROJECT\",\"public\":true}" \
   -w '\nHTTP %{http_code}\n'
 ```
 
-If the project already exists, Harbor returns a non-2xx status code. After confirming the project exists, continue with the import and push.
+If the project already exists, Harbor returns a non-2xx status code. After confirming the project exists, make sure it is configured as a public project, then continue with the import and push. Model Catalog does not support configuring `imagePullSecret` when deploying model OCI images, so inference cluster nodes must be able to pull these images anonymously.
 
 Then run the import and push procedure:
 
