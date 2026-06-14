@@ -4,9 +4,9 @@ weight: 5
 
 # Pre-installation Configuration
 
-## **Preparing the GitLab Service**
+## **Preparing the GitLab Service (Optional)**
 
-In Alauda AI, GitLab is the core component for **Model Management**. Before deploying Alauda AI, you **must prepare** a GitLab service.
+GitLab-backed model storage is deprecated. You do not need to prepare GitLab for a new Alauda AI installation unless you still plan to use the legacy GitLab-backed **Model Management** workflow.
 
 :::warning
 GitLab-backed model storage is deprecated. It remains available for compatibility only and is planned for removal in a future Alauda AI release. For built-in models and new model delivery workflows, use **Model Catalog** with OCI model artifacts instead.
@@ -35,7 +35,7 @@ Alternatively, you can use a **self-managed GitLab instance**, but it **must mee
 
 ### **GitLab Configuration**
 
-Before deploying Alauda AI, perform these GitLab configuration steps after service acquisition.
+If you still use the legacy GitLab-backed workflow, perform these GitLab configuration steps after service acquisition.
 
 #### **1. Disable expiration dates for access tokens**
 
