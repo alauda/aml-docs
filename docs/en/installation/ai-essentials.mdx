@@ -2,7 +2,7 @@
 weight: 20
 ---
 
-# Configure Alauda AI Global Resources
+# Configure Alauda AI Entry and Branding
 
 Starting from Alauda AI 2.6, Alauda AI is deployed as a single-cluster application. The global resources (OIDC client and product entry) are no longer delivered as a cluster plugin. Instead, they are configured using the `global-install.sh` script.
 
@@ -55,6 +55,19 @@ The script reads the platform URLs and version from `productbase.product.alauda.
 
 ```bash
 kubectl patch productentry aml-<cluster-name> --type=merge -p '{"spec":{"displayName":{"en":"Alauda AI (Prod)","zh":"Alauda AI (Prod)"}}}'
+```
+
+**In-product branding**: This setting is applied on the cluster where Alauda AI is installed, not on the global cluster used by the resources above. Before running the command, switch your `kubectl` context to the Alauda AI installation cluster. To customize the product name, logo, and browser favicon displayed inside Alauda AI, update the `ui-config` `ConfigMap` in the `kubeflow` namespace. Set `data.override` to `"true"`, and then configure `data.productName`, `data.logo`, and `data.favicon`. The `logo` and `favicon` values must be complete data URI values, such as `data:image/svg+xml;base64,<base64-encoded-svg>` or `data:image/png;base64,<base64-encoded-png>`.
+
+```bash
+kubectl patch configmap ui-config -n kubeflow --type=merge -p '{
+  "data": {
+    "override": "true",
+    "productName": "My AI Platform",
+    "logo": "data:image/svg+xml;base64,<base64-encoded-logo>",
+    "favicon": "data:image/svg+xml;base64,<base64-encoded-favicon>"
+  }
+}'
 ```
 
 ### Verification
