@@ -10,9 +10,16 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "${HERE}/../lib.sh"
 
+require_env NPU_NAMESPACE "namespace for NPU e2e resources"
+require_env NPU_RESOURCE_NAME "extended resource name for one NPU, for example huawei.com/Ascend910B4"
 NS="${NPU_NAMESPACE}"
 JOB_NAME="c11-mindspore-cann-smoke-$(printf '%05x' $$)"
 IMAGE="${C11_IMAGE:-docker.io/alaudadockerhub/alauda-workbench-jupyter-mindspore-cann-py312-ubi9:v0.1.7}"
+IMAGE_PULL_SECRET="${C11_IMAGE_PULL_SECRET:-${E2E_IMAGE_PULL_SECRET:-}}"
+NPU_RESOURCE_VALUE="${NPU_RESOURCE_VALUE:-1}"
+NPU_MEMORY_RESOURCE_NAME="${NPU_MEMORY_RESOURCE_NAME:-}"
+NPU_MEMORY_RESOURCE_VALUE="${NPU_MEMORY_RESOURCE_VALUE:-8192}"
+NPU_RUNTIME_CLASS="${NPU_RUNTIME_CLASS:-}"
 
 cleanup() {
   npu_kc -n "${NS}" delete job "${JOB_NAME}" --ignore-not-found --wait=false || true
@@ -20,7 +27,7 @@ cleanup() {
 trap cleanup EXIT
 
 log "C11: submitting Job ${JOB_NAME} (image=${IMAGE})"
-cat <<YAML | retry_create npu_kc >/dev/null
+cat <<YAML | mirror_dockerhub "${NPU_DH_MIRROR}" | retry_create npu_kc >/dev/null
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -35,7 +42,8 @@ spec:
       labels: { e2e.alauda.io/case: c11 }
     spec:
       restartPolicy: Never
-      runtimeClassName: ascend
+$(yaml_scalar_field 6 runtimeClassName "${NPU_RUNTIME_CLASS}")
+$(yaml_image_pull_secrets 6 "${IMAGE_PULL_SECRET}")
       securityContext: { runAsNonRoot: true, runAsUser: 1001, runAsGroup: 0, fsGroup: 1000 }
       containers:
         - name: probe
@@ -51,7 +59,8 @@ spec:
             limits:
               cpu: "2"
               memory: 8Gi
-              huawei.com/Ascend910: "1"
+$(yaml_resource_limit 14 "${NPU_RESOURCE_NAME}" "${NPU_RESOURCE_VALUE}")
+$(yaml_resource_limit 14 "${NPU_MEMORY_RESOURCE_NAME}" "${NPU_MEMORY_RESOURCE_VALUE}")
           command: [bash, -lc]
           args:
             - |

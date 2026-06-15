@@ -1,32 +1,26 @@
 #!/usr/bin/env bash
 # C7 — same smoke but on the NPU cluster against torch2.6-cann8.5-arm64:v0.1.0.
-# The published runtime YAML requests HAMI vNPU (huawei.com/Ascend910B4 +
-# Ascend910B4-memory + schedulerName: hami-scheduler). The dev NPU cluster from
-# my_dev_env_new.md exposes the standard Huawei k8s-device-plugin
-# (huawei.com/Ascend910, no HAMI), so we patch the runtime in-place before apply.
+# The published runtime YAML requests the documented HAMI vNPU resources.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "${HERE}/../lib.sh"
 
+require_env NPU_NAMESPACE "namespace for NPU e2e resources"
 NS="${NPU_NAMESPACE}"
 ASSETS="${E2E_ROOT}/../docs/en/training_guides/assets/training-runtimes"
 
-log "C7: applying torch2.6-cann8.5-arm64 TrainingRuntime to ns/${NS} (non-HAMI patch + docker.io → ${NPU_DH_MIRROR})"
-sed -e "s/namespace: kubeflow-admin-cpaas-io/namespace: ${NS}/" \
-    -e '/schedulerName: hami-scheduler/d' \
-    -e 's@huawei.com/Ascend910B4: "1"@huawei.com/Ascend910: "1"@' \
-    -e '/huawei.com\/Ascend910B4-memory:/d' \
-    "${ASSETS}/torch2.6-cann8.5-arm64-trainingruntime.yaml" \
+if [ -n "${NPU_DH_MIRROR}" ]; then
+  log "C7: applying torch2.6-cann8.5-arm64 TrainingRuntime to ns/${NS} (Docker Hub mirror=${NPU_DH_MIRROR})"
+else
+  log "C7: applying torch2.6-cann8.5-arm64 TrainingRuntime to ns/${NS}"
+fi
+set_metadata_namespace "${NS}" < "${ASSETS}/torch2.6-cann8.5-arm64-trainingruntime.yaml" \
   | mirror_dockerhub "${NPU_DH_MIRROR}" \
   | retry_apply npu_kc
 
 log "C7: submitting TrainJob from trainjob-smoke.yaml (runtimeRef=torch2.6-cann8.5-arm64)"
-# Override CPU request to 200m — kubeos2 runs at ~99% CPU when shared with the dev workloads
-# in this cluster, but has 4 free NPUs. The smoke probe just runs a matmul, 200m is plenty.
-TJ_NAME=$(sed -e "s/namespace: kubeflow-admin-cpaas-io/namespace: ${NS}/" \
-              -e 's/name: torch2.6-cu126-amd64/name: torch2.6-cann8.5-arm64/' \
-              "${ASSETS}/trainjob-smoke.yaml" \
-          | yq '.spec.trainer.resourcesPerNode = {"requests":{"cpu":"50m","memory":"512Mi"},"limits":{"cpu":"500m","memory":"4Gi","huawei.com/Ascend910":"1"}}' \
+TJ_NAME=$(set_metadata_namespace "${NS}" < "${ASSETS}/trainjob-smoke.yaml" \
+          | sed -e 's/name: torch2.6-cu126-amd64/name: torch2.6-cann8.5-arm64/' \
           | retry_create npu_kc -o jsonpath='{.metadata.name}')
 log "C7: trainjob=${TJ_NAME}"
 

@@ -1,0 +1,160 @@
+# A TrainingRuntime that fits the preemption + checkpoint-resume pattern:
+#
+#   1. Mounts an RWX PVC at $CKPT_DIR; HuggingFace `TrainingArguments.output_dir`
+#      lives there so checkpoints survive pod death.
+#   2. Sets `save_strategy: steps` + `save_steps` low enough that the
+#      preempt-to-resume gap is small.
+#   3. Auto-detects an existing checkpoint and passes the latest one to
+#      `Trainer.train(resume_from_checkpoint=...)`. Without a prior
+#      checkpoint we omit the argument so the first run starts clean.
+#   4. `terminationGracePeriodSeconds: 60` so the trainer receives SIGTERM
+#      and has time to flush before SIGKILL.
+#
+# This TrainingRuntime is purposely small (Qwen2-toy, 32-sample identity
+# dataset) so it fits any single GPU and reproduces the preemption flow in
+# under a minute. For a real run, override `model_name_or_path`, dataset,
+# and resource limits via a TrainJob `trainer.resourcesPerNode`. The script
+# below works with any HuggingFace `Trainer`-based recipe — LlamaFactory,
+# training_hub, mini_trainer all use the same checkpoint interface.
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainingRuntime
+metadata:
+  name: c12-checkpoint-runtime
+  namespace: <your-namespace>
+  labels:
+    trainer.kubeflow.org/framework: torch
+spec:
+  mlPolicy:
+    numNodes: 1
+    torch:
+      numProcPerNode: auto
+  template:
+    spec:
+      replicatedJobs:
+        - name: node
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              backoffLimit: 0
+              template:
+                spec:
+                  terminationGracePeriodSeconds: 60
+                  imagePullSecrets:
+                    - name: harbor-mlops-regcred
+                  securityContext:
+                    runAsNonRoot: true
+                    runAsUser: 65534
+                    runAsGroup: 65534
+                    fsGroup: 65534
+                  volumes:
+                    - { name: workspace, emptyDir: {} }
+                    - name: ckpt
+                      persistentVolumeClaim:
+                        claimName: c12-ckpt
+                    - { name: dshm, emptyDir: { medium: Memory, sizeLimit: 512Mi } }
+                  containers:
+                    - name: node
+                      # Replace with your training image; see training-runtimes.mdx.
+                      image: build-harbor.alauda.cn/mlops/llamafactory0.9-cu126-amd64:v0.1.0
+                      env:
+                        - { name: PYTHONUNBUFFERED, value: "1" }
+                        - { name: HF_HOME, value: /workspace/hf_cache }
+                        - { name: TRITON_CACHE_DIR, value: /workspace/triton_cache }
+                        - { name: MPLCONFIGDIR, value: /workspace/matplotlib }
+                        - { name: XDG_CACHE_HOME, value: /workspace/cache }
+                        - { name: CKPT_DIR, value: /mnt/ckpt/run }
+                        - { name: NUM_TRAIN_EPOCHS, value: "60" }
+                      volumeMounts:
+                        - { mountPath: /workspace, name: workspace }
+                        - { mountPath: /mnt/ckpt, name: ckpt }
+                        - { mountPath: /dev/shm, name: dshm }
+                      command: [bash, -ec]
+                      args:
+                        - |
+                          set -ex
+                          mkdir -p /workspace/matplotlib /workspace/cache /workspace/stubs/deepspeed
+                          # Catalog runtime image ships CUDA runtime but no nvcc;
+                          # `accelerate` eagerly imports DeepSpeedEngine on save
+                          # and the real deepspeed needs CUDA_HOME. Stub the
+                          # module via PYTHONPATH so the import succeeds.
+                          cat >/workspace/stubs/deepspeed/__init__.py <<'PY'
+                          class DeepSpeedEngine: ...
+                          PY
+                          export PYTHONPATH=/workspace/stubs:${PYTHONPATH:-}
+                          mkdir -p "${CKPT_DIR}"
+                          python - <<'PY'
+                          import os, time, torch, glob
+                          from datasets import Dataset
+                          from transformers import (
+                              GPT2TokenizerFast, Qwen2Config, Qwen2ForCausalLM,
+                              Trainer, TrainingArguments)
+                          from tokenizers import ByteLevelBPETokenizer
+                          torch.manual_seed(0)
+                          base = "/workspace/base"
+                          os.makedirs(base, exist_ok=True)
+                          # Synthesise tiny Qwen2 base model in-place.
+                          bpe = ByteLevelBPETokenizer()
+                          bpe.train_from_iterator(
+                              ["hello", "world", "alauda ai", "trainer", "kueue preempt"],
+                              vocab_size=512, min_frequency=1,
+                              special_tokens=["<pad>", "<s>", "</s>", "<unk>"])
+                          bpe.save_model(base)
+                          tok = GPT2TokenizerFast(
+                              vocab_file=f"{base}/vocab.json",
+                              merges_file=f"{base}/merges.txt",
+                              unk_token="<unk>", bos_token="<s>",
+                              eos_token="</s>", pad_token="<pad>")
+                          tok.save_pretrained(base)
+                          cfg = Qwen2Config(
+                              vocab_size=tok.vocab_size + 4,
+                              hidden_size=32, num_hidden_layers=2,
+                              num_attention_heads=2, num_key_value_heads=2,
+                              intermediate_size=64, max_position_embeddings=64,
+                              rope_theta=10000.0, tie_word_embeddings=True)
+                          Qwen2ForCausalLM(cfg).save_pretrained(base)
+                          # Tiny identity dataset.
+                          texts = ["who are you? i am alauda ai"] * 32
+                          ds = Dataset.from_dict({"input_ids": [
+                              tok.encode(t, padding="max_length",
+                                         max_length=16, truncation=True)
+                              for t in texts]})
+                          ds = ds.map(lambda x: {"labels": x["input_ids"]},
+                                       batched=False)
+                          # Find the latest checkpoint on the PVC, if any.
+                          ckpt_dir = os.environ["CKPT_DIR"]
+                          ckpts = sorted(glob.glob(f"{ckpt_dir}/checkpoint-*"),
+                                          key=lambda p: int(p.rsplit("-", 1)[1]))
+                          resume = ckpts[-1] if ckpts else None
+                          if resume:
+                              print(f"[checkpoint] resuming from {resume}", flush=True)
+                          else:
+                              print("[checkpoint] no prior checkpoint, starting fresh", flush=True)
+                          model = Qwen2ForCausalLM.from_pretrained(base).to("cuda")
+                          args = TrainingArguments(
+                              output_dir=ckpt_dir,
+                              per_device_train_batch_size=2,
+                              num_train_epochs=int(os.environ.get("NUM_TRAIN_EPOCHS", "60")),
+                              logging_steps=5,
+                              save_strategy="steps", save_steps=4, save_total_limit=2,
+                              report_to=[], bf16=False, fp16=False,
+                              dataloader_num_workers=0, remove_unused_columns=False)
+                          trainer = Trainer(model=model, args=args,
+                                            train_dataset=ds, tokenizer=tok)
+                          trainer.train(resume_from_checkpoint=resume)
+                          print(f"[checkpoint] done. ckpts={sorted(os.listdir(ckpt_dir))}", flush=True)
+                          PY
+                      resources:
+                        requests: { cpu: "1", memory: 2Gi }
+                        limits:
+                          cpu: "2"
+                          memory: 4Gi
+                          nvidia.com/gpualloc: 1
+                          nvidia.com/gpucores: 50
+                          nvidia.com/gpumem: "4096"
+                      securityContext:
+                        allowPrivilegeEscalation: false
+                        capabilities: { drop: [ALL] }
+                        runAsNonRoot: true
+                        seccompProfile: { type: RuntimeDefault }

@@ -1,0 +1,267 @@
+---
+weight: 35
+---
+
+# Preemptible TrainJobs with Kueue, Checkpointing, and Inference Coexistence
+
+When training jobs share a cluster with online `InferenceService` workloads, you want two things at once:
+
+- **Inference is protected.** It always has the GPU it needs; queue admission is constant-time and never blocked behind a training job.
+- **Training fills the gap.** Whenever inference is below peak, training borrows the idle GPU and makes progress — but yields the moment inference reclaims its quota.
+
+This guide wires up Kubeflow Trainer v2 + Kueue + HuggingFace Trainer checkpointing to get that behaviour with a small set of asset YAMLs. Everything here was verified end-to-end with the [`c12_kueue_preemption.sh`](https://github.com/alauda/aml-docs/tree/master/e2e/cases/c12_kueue_preemption.sh) case in the repo's e2e harness.
+
+## Prerequisites
+
+| Requirement | Details |
+|---|---|
+| Kubeflow Trainer v2 | `trainer.kubeflow.org` API group; see [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2) |
+| Kueue (v0.13+ for `v1beta2` API) | See [Install Kueue](../kueue/install) |
+| Shared RWX storage | The checkpoint PVC must be reachable from any node the trainer might land on after a re-admission |
+| GPU device plugin | Examples use [Alauda Build of HAMI](https://kueue.sigs.k8s.io/) vGPU resources (`nvidia.com/gpualloc`, `gpucores`, `gpumem`); swap for `nvidia.com/gpu` if you use the upstream NVIDIA device plugin |
+| Training runtime image | Any image from the [Trainer v2 runtime catalog](./training-runtimes) that includes the framework you train with |
+
+## The cohort: one CQ reserves quota, the other borrows it
+
+The core idea is a **two-ClusterQueue cohort**. Inference owns the GPU nominal quota; training owns zero but is allowed to borrow up to the same amount when inference is idle. When inference workloads reclaim their quota, Kueue evicts the borrowing training Workload — and Trainer v2 re-creates the JobSet from scratch as soon as quota frees up.
+
+```text
+                     ┌──────────────────────────────┐
+                     │  Cohort: c12-shared          │
+                     │                              │
+   inference label ──┤  c12-inference-cq            │
+                     │    nominalQuota: 1 GPU       │
+                     │    borrowingLimit: 0         │ ← inference never borrows
+                     │    reclaimWithinCohort: Any  │
+                     │                              │
+   training label  ──┤  c12-training-cq             │
+                     │    nominalQuota: 0 GPU       │ ← owns nothing
+                     │    borrowingLimit: 1 GPU     │ ← borrows when idle
+                     │                              │
+                     └──────────────────────────────┘
+```
+
+Apply the cohort and per-namespace LocalQueues:
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/training_guides/assets/kueue/preemption
+NS=my-namespace  # edit to the namespace where you submit jobs
+
+# 1. Cluster admin — one ResourceFlavor + two cohort ClusterQueues.
+kubectl apply -f $base/cluster-queues.yaml
+
+# 2. Cluster admin — Kueue WorkloadPriorityClasses for inference / training.
+kubectl apply -f $base/workload-priorities.yaml
+
+# 3. Namespace admin — LocalQueues pointing at the cohort.
+curl -fsSL $base/local-queues.yaml | sed "s/<your-namespace>/$NS/" | kubectl apply -f -
+```
+
+The asset files in turn:
+
+- [`cluster-queues.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/assets/kueue/preemption/cluster-queues.yaml) — the cohort, both ClusterQueues, and the `ResourceFlavor`. Edit `nominalQuota` and `borrowingLimit` to match the GPUs you want to lend out.
+- [`workload-priorities.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/assets/kueue/preemption/workload-priorities.yaml) — two `WorkloadPriorityClass` values: `c12-inference-prio=1000`, `c12-training-prio=10`. Without these, the cohort reclamation rule still fires, but you have no in-queue priority order.
+- [`local-queues.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/assets/kueue/preemption/local-queues.yaml) — `c12-inference-lq` and `c12-training-lq`, one per ClusterQueue.
+
+## Make the TrainJob preemption-safe \{#make-the-trainjob-preemption-safe}
+
+A preempted TrainJob's pods are killed (SIGTERM, then SIGKILL after the grace period). To survive that and not start over, you need:
+
+1. **A checkpoint directory on an RWX PVC.** The post-preemption pod may land on a different node — local storage is not enough.
+2. **Frequent checkpoints.** `save_strategy: steps` + a small `save_steps`. The maximum work you lose to a preemption is bounded by the interval.
+3. **Resume on next start.** HuggingFace Trainer's `.train(resume_from_checkpoint=<path>)` makes it pick up `checkpoint-N/` from `output_dir` automatically. LlamaFactory, training_hub, mini_trainer, and any other Trainer-based recipe inherit this for free — they all expose the same `output_dir` / `save_strategy` / `resume_from_checkpoint` knobs.
+4. **A graceful exit.** Set `terminationGracePeriodSeconds` high enough that the trainer's signal handler can flush a final checkpoint before SIGKILL.
+
+The [`training-runtime.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/assets/kueue/preemption/training-runtime.yaml) asset bundles all four into a runnable `TrainingRuntime`. The trainer-script core looks like this:
+
+```yaml
+spec:
+  template:
+    spec:
+      replicatedJobs:
+        - name: node
+          template:
+            spec:
+              template:
+                spec:
+                  terminationGracePeriodSeconds: 60   # let final checkpoint flush
+                  volumes:
+                    - name: ckpt
+                      persistentVolumeClaim: { claimName: c12-ckpt }
+                  containers:
+                    - name: node
+                      env:
+                        - { name: CKPT_DIR, value: /mnt/ckpt/run }
+                      volumeMounts:
+                        - { mountPath: /mnt/ckpt, name: ckpt }
+                      command: [bash, -ec]
+                      args:
+                        - |
+                          python - <<'PY'
+                          import os, glob
+                          from transformers import Trainer, TrainingArguments
+                          ckpt_dir = os.environ["CKPT_DIR"]
+                          # Auto-detect latest checkpoint so the first run starts clean
+                          # and every subsequent (re-admitted) run resumes from it.
+                          ckpts = sorted(glob.glob(f"{ckpt_dir}/checkpoint-*"),
+                                         key=lambda p: int(p.rsplit("-",1)[1]))
+                          resume = ckpts[-1] if ckpts else None
+                          args = TrainingArguments(
+                              output_dir=ckpt_dir,
+                              save_strategy="steps", save_steps=4, save_total_limit=2,
+                              # ... rest of your training args
+                          )
+                          trainer = Trainer(model=..., args=args, train_dataset=...)
+                          trainer.train(resume_from_checkpoint=resume)
+                          PY
+```
+
+The same shape works for LlamaFactory (`resume_from_checkpoint: true` in `lf-sft.yaml`) and any other Trainer-based recipe — they all reduce to "point `output_dir` at the PVC, set `save_steps`, pass the latest checkpoint to `.train()`".
+
+Pick `save_steps` from the worst-case preemption you can tolerate: at five seconds per step, `save_steps: 100` caps lost work at ~10 minutes. Pair it with `save_total_limit` so the PVC doesn't grow without bound.
+
+Provision the PVC and runtime:
+
+```bash
+curl -fsSL $base/checkpoint-pvc.yaml    | sed "s/<your-namespace>/$NS/" | kubectl apply -f -
+curl -fsSL $base/training-runtime.yaml  | sed "s/<your-namespace>/$NS/" | kubectl apply -f -
+```
+
+## Submit the workloads
+
+A training TrainJob, labelled to land in the training queue at training priority:
+
+```bash
+curl -fsSL $base/trainjob-low-priority.yaml | sed "s/<your-namespace>/$NS/" | kubectl create -f -
+```
+
+An InferenceService that participates in the same cohort at inference priority:
+
+```bash
+curl -fsSL $base/inference-service.yaml | sed "s/<your-namespace>/$NS/" | kubectl create -f -
+```
+
+What you should observe:
+
+1. **Training starts first** — the training Workload reaches `Admitted=True` against `c12-training-cq` (borrowing GPU quota from the inference CQ in the cohort).
+2. **Inference arrives.** Its Workload needs a GPU that is currently lent to training. Kueue's classic preemption picks the training Workload as a target and evicts it:
+   ```yaml
+   status:
+     conditions:
+       - type: Preempted
+         status: "True"
+         reason: InCohortReclamation
+         message: "Preempted to accommodate a workload ... due to reclamation within the cohort"
+       - type: Requeued
+         status: "True"
+   ```
+3. **Training pod terminates.** JobSet sends SIGTERM; the trainer flushes a final checkpoint and exits.
+4. **Inference starts** and runs unblocked.
+5. **Inference finishes** (or scales down). Kueue re-admits training; Trainer v2 recreates the JobSet; the trainer container sees `checkpoint-N/` on the PVC and resumes from there.
+
+Watch the round-trip in real time:
+
+```bash
+kubectl -n "$NS" get workload -w
+kubectl -n "$NS" get trainjob,pods
+kubectl -n "$NS" get workload -o jsonpath='{range .items[*]}{.metadata.name}: {range .status.conditions[*]}{.type}={.status} {end}{"\n"}{end}'
+```
+
+## Coexisting with online InferenceServices safely
+
+The two-CQ cohort is the load-bearing piece. A few more knobs make day-to-day operation calm:
+
+- **Size the inference CQ for peak, not average.** If you size for average, the first traffic spike will eat into capacity that training has already started consuming — every preemption causes a stall in the trainer. Pad `nominalQuota` so steady-state inference admits without touching borrowed quota.
+- **Keep `borrowingLimit: 0` on inference resources.** `borrowingLimit` is borrower-side: this prevents inference workloads from consuming another CQ's nominal quota. It does not stop training from borrowing inference's idle nominal quota; use Kueue `lendingLimit` if you need to cap how much a CQ lends to the cohort.
+- **Use `reclaimWithinCohort: Any`, not `LowerPriority`, on the inference CQ.** With `LowerPriority`, only workloads strictly below the inference priority class can be preempted; `Any` lets inference preempt regardless of how priorities are configured on the training side.
+- **Set a [`PodsReady` timeout](https://kueue.sigs.k8s.io/docs/concepts/all_or_nothing) on the Kueue config** for training. If a preempted-then-re-admitted training pod hits a slow image pull, you don't want it to hold the borrowed quota forever; a timeout returns it to the queue and lets other workloads through.
+- **Set `WorkloadPriorityClass` on every InferenceService you ship**, not just the ones in the cohort. A missing label leaves the Workload at priority 0 and the preemption rule cannot promote it.
+- **Don't put `manageJobsWithoutQueueName: true` in the Kueue config.** With that on, every pod/deployment in the gated namespaces would need a queue label, which is a sharp foot-gun for cluster components.
+- **Keep the inference predictor's resource request a single workload.** If a single InferenceService asks for more than the cohort's nominal inference quota, no amount of preemption will satisfy it. Split across replicas instead.
+
+## Reserve and share: symmetric cohort for namespace-level reservations
+
+The two-CQ layout above is **asymmetric** on purpose — inference owns everything, training borrows. A different shape of the same primitive lets each tenant **reserve a floor** while still **borrowing the rest of the cohort when neighbours are idle**:
+
+```text
+                     ┌──────────────────────────────┐
+                     │  Cohort: shared-pool         │
+                     │                              │
+   ns-a label      ──┤  ns-a-cq                     │
+                     │    nominalQuota: 2 GPU       │ ← reserved for ns-a
+                     │    borrowingLimit: 4 GPU     │ ← may use 6 if cohort is idle
+                     │    reclaimWithinCohort: Any  │
+                     │                              │
+   ns-b label      ──┤  ns-b-cq                     │
+                     │    nominalQuota: 4 GPU       │ ← reserved for ns-b
+                     │    borrowingLimit: 2 GPU     │ ← may use 6 if cohort is idle
+                     │    reclaimWithinCohort: Any  │
+                     │                              │
+                     └──────────────────────────────┘
+                       total nominal across cohort = 6 GPU
+```
+
+Each ClusterQueue then looks like this — note `nominalQuota > 0` **and** `borrowingLimit > 0`, with `reclaimWithinCohort: Any` so the owner can take its reservation back even after a neighbour borrowed it:
+
+```yaml
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata: { name: ns-a-cq }
+spec:
+  cohortName: shared-pool
+  namespaceSelector:
+    matchLabels: { kueue.x-k8s.io/queue: ns-a }
+  resourceGroups:
+    - coveredResources: ["nvidia.com/gpualloc"]
+      flavors:
+        - name: c12-default
+          resources:
+            - name: nvidia.com/gpualloc
+              nominalQuota: 2
+              borrowingLimit: 4
+  preemption:
+    reclaimWithinCohort: Any
+    withinClusterQueue: LowerPriority
+```
+
+How it behaves:
+
+- **Both namespaces idle.** Cohort holds 6 GPU of nominal capacity, none used.
+- **Only ns-a queues work.** ns-a admits up to 6 GPU (its 2 nominal + 4 borrowed from ns-b's idle nominal).
+- **ns-b then queues work.** Up to 4 GPU of its reservation is currently lent to ns-a. The ns-b Workload triggers `InCohortReclamation`; Kueue evicts ns-a Workloads until ns-b can admit at its reserved level. ns-a's first 2 GPU (its own nominal) are never touched.
+- **Both fully loaded.** Each admits exactly up to its `nominalQuota`. No borrowing happens because there is no idle quota to lend.
+
+### Practical knobs
+
+- **Sum of `nominalQuota` ≤ physical capacity.** Reservations are guarantees. If the cohort's nominal total exceeds physical GPUs, two namespaces can hit their reservations simultaneously and one will queue waiting for the device plugin, not for Kueue.
+- **Pick `borrowingLimit` from the upside you want.** `borrowingLimit + nominalQuota` is the cap on a single CQ's admitted footprint. Set it to the full cohort minus your reservation if you want maximum bursting, or smaller if you want to leave headroom for late-arriving neighbours.
+- **Borrowed work is preemptible — checkpoint it.** Anything admitted *above* `nominalQuota` lives on borrowed quota and can be evicted the moment the owner reclaims. The TrainJob shape from the [Make the TrainJob preemption-safe](#make-the-trainjob-preemption-safe) section applies unchanged: shared PVC, frequent `save_steps`, `terminationGracePeriodSeconds: 60`. Without it, every reclamation throws away wall-clock work.
+- **Use `borrowWithinCohort` to control admission-time preemption.** With `borrowWithinCohort.policy: LowerPriority`, a borrowing admission can preempt strictly-lower-priority workloads on the lender side. Without it, borrowing only happens against genuinely idle quota — quieter behaviour, but a high-priority job in a busy neighbour CQ has to wait for organic capacity.
+- **Don't mix asymmetric and symmetric in the same cohort lightly.** A CQ with `borrowingLimit: 0` (the inference pattern above) can still lend idle nominal quota, but it will not borrow quota back from the cohort. In the symmetric pattern, every CQ both borrows and lends from its own nominal. Combining the two shapes in one cohort works but the mental model is harder; if you need both, prefer two cohorts.
+
+### When to pick which layout
+
+| Goal | Layout |
+|---|---|
+| Protect online inference; train opportunistically | Asymmetric — inference reserves, training borrows (the original section above) |
+| Give each tenant a floor; let them burst into shared capacity | Symmetric — every CQ has `nominalQuota` > 0 and `borrowingLimit` > 0 |
+| One namespace, mix of jobs with different SLOs | One CQ + multiple `WorkloadPriorityClass` values + `withinClusterQueue: LowerPriority` — no cohort needed |
+
+## Verifying the setup
+
+The condition payload on a preempted Workload is your ground truth:
+
+```bash
+kubectl -n "$NS" get workload \
+  -o jsonpath='{range .items[?(@.status.conditions[?(@.type=="Preempted")].status=="True")]}{.metadata.name}{"\n"}{end}'
+```
+
+A training Workload that has been preempted at least once will show `reason: InCohortReclamation`. Its replacement (after inference finishes) will be a fresh Workload with the same JobSet ancestry but a new UID — Trainer v2 names them deterministically from the TrainJob, so the TrainJob name stays stable across restarts.
+
+For repeatable end-to-end coverage of this whole flow against a HAMI cluster, the [`c12_kueue_preemption.sh`](https://github.com/alauda/aml-docs/tree/master/e2e/cases/c12_kueue_preemption.sh) case in the repo's `e2e/` harness wires up the cohort, submits the TrainJob, fires a high-priority preemptor, and asserts on the `InCohortReclamation` condition + checkpoint resume.
+
+:::note
+Preemption is **stateful** — it interacts with whatever the trainer was doing when SIGTERM hit. Always run the preemption-resume loop at least once against a representative TrainingRuntime + dataset before relying on it in production. The mechanism is bullet-proof; the worst case is a small amount of repeated work between the last checkpoint and SIGTERM.
+:::
+
+See [Kueue docs](../kueue/intro) for the full Kueue setup and the [Preemption concepts page](https://kueue.sigs.k8s.io/docs/concepts/preemption/) for the underlying algorithm.

@@ -9,14 +9,20 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "${HERE}/../lib.sh"
 
+require_env GPU_NAMESPACE "namespace for GPU e2e resources"
 NS="${GPU_NAMESPACE}"
 JOB_NAME="c6-vcjob-sft-$(printf '%05x' $$)-$(date -u +%s)"
 # PVC derived from the run-id so concurrent / repeat runs each get a clean
 # /mnt/models. Torn down in cleanup below.
 PVC_NAME="c6-models-${JOB_NAME#c6-vcjob-sft-}"
-IMAGE="${LF_IMAGE:-build-harbor.alauda.cn/mlops/llamafactory0.9-cu126-amd64:v0.1.0-build.20260603021903}"
+IMAGE="${LF_IMAGE:-docker.io/alaudadockerhub/llamafactory0.9-cu126-amd64:v0.1.0}"
+IMAGE_PULL_SECRET="${LF_IMAGE_PULL_SECRET:-${E2E_IMAGE_PULL_SECRET:-}}"
+RWX_STORAGE_CLASS="${C6_RWX_STORAGE_CLASS:-${E2E_RWX_STORAGE_CLASS:-}}"
+NODE_SELECTOR_KEY="${C6_NODE_SELECTOR_KEY:-${E2E_GPU_NODE_SELECTOR_KEY:-}}"
+NODE_SELECTOR_VALUE="${C6_NODE_SELECTOR_VALUE:-${E2E_GPU_NODE_SELECTOR_VALUE:-}}"
+VOLCANO_QUEUE="${C6_VOLCANO_QUEUE:-${E2E_VOLCANO_QUEUE:-}}"
 
-log "C6: ensuring shared PVC ${PVC_NAME} (RWX cephfs)"
+log "C6: ensuring shared RWX PVC ${PVC_NAME}"
 cat <<YAML | retry_apply gpu_kc
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -24,13 +30,13 @@ metadata:
   name: ${PVC_NAME}
   namespace: ${NS}
 spec:
-  storageClassName: cephfs
+$(yaml_storage_class 2 "${RWX_STORAGE_CLASS}")
   accessModes: ["ReadWriteMany"]
   resources: { requests: { storage: 4Gi } }
 YAML
 
 log "C6: submitting VolcanoJob ${JOB_NAME} (image=${IMAGE})"
-cat <<YAML | retry_create gpu_kc -o jsonpath='{.metadata.name}' >/dev/null
+cat <<YAML | mirror_dockerhub "${GPU_DH_MIRROR}" | retry_create gpu_kc -o jsonpath='{.metadata.name}' >/dev/null
 apiVersion: batch.volcano.sh/v1alpha1
 kind: Job
 metadata:
@@ -41,7 +47,7 @@ spec:
   minAvailable: 1
   schedulerName: volcano
   maxRetry: 0
-  queue: default
+$(yaml_scalar_field 2 queue "${VOLCANO_QUEUE}")
   tasks:
     - name: train
       replicas: 1
@@ -50,11 +56,9 @@ spec:
           labels: { e2e.alauda.io/case: c6 }
         spec:
           restartPolicy: Never
-          # Whole NVIDIA GPU is on 192.168.128.143; that's where the trainer must land.
-          nodeSelector:
-            kubernetes.io/hostname: 192.168.128.143
+$(yaml_node_selector 10 "${NODE_SELECTOR_KEY}" "${NODE_SELECTOR_VALUE}")
           securityContext: { runAsNonRoot: true, runAsUser: 65534, runAsGroup: 65534, fsGroup: 65534 }
-          imagePullSecrets: [{ name: harbor-mlops-regcred }]
+$(yaml_image_pull_secrets 10 "${IMAGE_PULL_SECRET}")
           volumes:
             - name: workspace
               emptyDir: {}

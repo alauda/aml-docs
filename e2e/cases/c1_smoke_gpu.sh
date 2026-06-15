@@ -7,18 +7,21 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "${HERE}/../lib.sh"
 
+require_env GPU_NAMESPACE "namespace for GPU e2e resources"
 NS="${GPU_NAMESPACE}"
 ASSETS="${E2E_ROOT}/../docs/en/training_guides/assets/training-runtimes"
 
-log "C1: applying torch2.6-cu126-amd64 TrainingRuntime to ns/${NS} (rewriting docker.io → ${GPU_DH_MIRROR})"
-sed "s/namespace: kubeflow-admin-cpaas-io/namespace: ${NS}/" \
-  "${ASSETS}/torch2.6-cu126-amd64-trainingruntime.yaml" \
+if [ -n "${GPU_DH_MIRROR}" ]; then
+  log "C1: applying torch2.6-cu126-amd64 TrainingRuntime to ns/${NS} (Docker Hub mirror=${GPU_DH_MIRROR})"
+else
+  log "C1: applying torch2.6-cu126-amd64 TrainingRuntime to ns/${NS}"
+fi
+set_metadata_namespace "${NS}" < "${ASSETS}/torch2.6-cu126-amd64-trainingruntime.yaml" \
   | mirror_dockerhub "${GPU_DH_MIRROR}" \
   | retry_apply gpu_kc
 
 log "C1: submitting TrainJob from trainjob-smoke.yaml"
-TJ_NAME=$(sed -e "s/namespace: kubeflow-admin-cpaas-io/namespace: ${NS}/" \
-              "${ASSETS}/trainjob-smoke.yaml" \
+TJ_NAME=$(set_metadata_namespace "${NS}" < "${ASSETS}/trainjob-smoke.yaml" \
           | retry_create gpu_kc -o jsonpath='{.metadata.name}')
 log "C1: trainjob=${TJ_NAME}"
 

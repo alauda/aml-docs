@@ -1,0 +1,41 @@
+# Sample InferenceService configured to be admitted via the inference
+# ClusterQueue and to preempt any cohort member borrowing its quota.
+#
+# Two labels do all the work:
+#   kueue.x-k8s.io/queue-name      → routes admission through the LocalQueue
+#   kueue.x-k8s.io/priority-class  → marks this Workload as inference-priority
+#
+# Without Kueue installed the labels are inert and the InferenceService
+# behaves as if you never added them — making this safe to copy into a
+# template that ships to clusters that may or may not have Kueue.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: c12-inference-demo
+  namespace: <your-namespace>
+  labels:
+    kueue.x-k8s.io/queue-name: c12-inference-lq
+    kueue.x-k8s.io/priority-class: c12-inference-prio
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 1
+    model:
+      modelFormat:
+        name: huggingface
+      # Edit to your served model. The resources block is what Kueue gates
+      # against; pick numbers that fit your inference ClusterQueue's
+      # nominal quota so steady state is always admissible.
+      resources:
+        requests:
+          cpu: "1"
+          memory: 2Gi
+          nvidia.com/gpualloc: "1"
+          nvidia.com/gpucores: "20"
+          nvidia.com/gpumem: "2048"
+        limits:
+          cpu: "2"
+          memory: 4Gi
+          nvidia.com/gpualloc: "1"
+          nvidia.com/gpucores: "20"
+          nvidia.com/gpumem: "2048"
