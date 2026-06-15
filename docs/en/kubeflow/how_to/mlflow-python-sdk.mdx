@@ -103,16 +103,29 @@ auth:
       - --skip-jwt-bearer-tokens=true
 ```
 
-With that enabled, a client authenticates with a platform-issued **OIDC token** (not a Kubernetes ServiceAccount token — the proxy validates it against the platform identity provider) and no cookie:
+With that enabled, a client authenticates with a Dex-issued **OIDC id token** (not a Kubernetes ServiceAccount token — the proxy validates it against Dex). Mint id tokens non-interactively from a long-lived **refresh token**, which avoids both the browser cookie and a short-lived static token:
 
-```python
-import os, mlflow
-os.environ["MLFLOW_TRACKING_TOKEN"] = os.environ["OIDC_TOKEN"].strip()   # → Authorization: Bearer
-mlflow.set_tracking_uri("https://<platform>/clusters/<cluster>/mlflow")
-mlflow.set_workspace("team-a")
-```
+1. **Get a refresh token once.** Run an interactive OIDC login that requests the `offline_access` scope against the platform Dex client — for example `kubelogin` / `kubectl oidc-login`, or any OIDC CLI. Store the returned refresh token in a Kubernetes `Secret`. Refresh tokens are long-lived; id tokens expire in 24 h.
 
-Set `MLFLOW_TRACKING_TOKEN` to the `.strip()`-ed token (a trailing newline produces `Invalid … character(s) in header value: 'Bearer …\n'`), and store it in a Kubernetes `Secret` rather than in code.
+2. **Exchange it for a fresh id token** whenever you need one (the Dex client id/secret are the platform OAuth client, e.g. `alauda-auth` — ask your administrator):
+
+   ```bash
+   ID_TOKEN=$(curl -sk "https://<platform>/dex/token" \
+     -d grant_type=refresh_token --data-urlencode "refresh_token=$REFRESH_TOKEN" \
+     -d client_id="$DEX_CLIENT_ID" --data-urlencode "client_secret=$DEX_CLIENT_SECRET" \
+     | jq -r .id_token)
+   ```
+
+3. **Use it as the MLflow bearer token** (`.strip()` it — a trailing newline produces `Invalid … character(s) in header value: 'Bearer …\n'`):
+
+   ```python
+   import os, mlflow
+   os.environ["MLFLOW_TRACKING_TOKEN"] = ID_TOKEN.strip()   # → Authorization: Bearer
+   mlflow.set_tracking_uri("https://<platform>/clusters/<cluster>/mlflow")
+   mlflow.set_workspace("team-a")
+   ```
+
+For long-running jobs (including pipeline components), refresh the id token before it expires rather than carrying a static one. Keep the refresh token and client secret in a `Secret`, never in code.
 
 ## Troubleshooting
 

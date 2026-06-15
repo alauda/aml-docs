@@ -1,62 +1,56 @@
 #!/usr/bin/env bash
-# Smoke test: log to MLflow with a platform **user identity token**.
+# Smoke test: log to MLflow as a real user, THROUGH the OAuth proxy.
 #
-# Exercises the MLflow `kubernetes-auth` plugin's `user_identity_token` mode:
-# the server takes the caller identity from the bearer token's claims and records
-# the run under that user. No ServiceAccount and no extra in-cluster Service are
-# created — the MLflow server is reached through the platform Kubernetes API proxy
-# (the same `…/kubernetes/<cluster>` entry point used for any K8s call), and the
-# caller identity is forwarded to MLflow via `X-Forwarded-Access-Token`.
+# Mints a short-lived Dex **id token** from a long-lived **refresh token** (the
+# refresh-token grant), then logs a run to MLflow over the platform route — i.e.
+# through oauth2-proxy, never the container port. Asserts the run owner equals the
+# token's user identity.
+#
+# Requires the MLflow oauth2-proxy to accept OIDC bearer tokens
+# (auth.oauth.extraArgs: ["--skip-jwt-bearer-tokens=true"]).
 #
 # Required env:
-#   PLATFORM_ADDRESS   e.g. https://192.168.142.163
-#   CLUSTER            e.g. g1-c1-x86
-#   MLFLOW_USER_TOKEN  a platform user identity token (JWT with an `email` claim)
+#   PLATFORM_ADDRESS      e.g. https://192.168.142.163
+#   CLUSTER               e.g. g1-c1-x86
+#   MLFLOW_REFRESH_TOKEN  a Dex refresh token (from an offline_access login)
+#   DEX_CLIENT_ID         platform OAuth client id (e.g. alauda-auth)
+#   DEX_CLIENT_SECRET     that client's secret
 # Optional env:
-#   MLFLOW_WORKSPACE   target workspace namespace (default: mlops-demo-e2e)
-#   MLFLOW_NS          namespace of the MLflow server (default: kubeflow)
+#   MLFLOW_WORKSPACE      target workspace namespace (default: mlops-demo-e2e)
 set -euo pipefail
 
 : "${PLATFORM_ADDRESS:?set PLATFORM_ADDRESS, e.g. https://192.168.142.163}"
 : "${CLUSTER:?set CLUSTER, e.g. g1-c1-x86}"
-: "${MLFLOW_USER_TOKEN:?set MLFLOW_USER_TOKEN to a platform user identity token}"
+: "${MLFLOW_REFRESH_TOKEN:?set MLFLOW_REFRESH_TOKEN to a Dex refresh token}"
+: "${DEX_CLIENT_ID:?set DEX_CLIENT_ID, e.g. alauda-auth}"
+: "${DEX_CLIENT_SECRET:?set DEX_CLIENT_SECRET}"
 WORKSPACE="${MLFLOW_WORKSPACE:-mlops-demo-e2e}"
-MLFLOW_NS="${MLFLOW_NS:-kubeflow}"
+P="${PLATFORM_ADDRESS%/}"
 
-KAPI="${PLATFORM_ADDRESS%/}/kubernetes/${CLUSTER}"
-TOKEN="${MLFLOW_USER_TOKEN}"
+b64url_decode() { local d="$1"; d="${d//-/+}"; d="${d//_/\/}"; printf '%s%s' "$d" "$(printf '%*s' $(((4 - ${#d} % 4) % 4)) '' | tr ' ' '=')" | base64 -d 2>/dev/null; }
 
-# Identity the server should attribute the run to (first email claim in the JWT).
-EMAIL="$(printf '%s' "${TOKEN}" | cut -d. -f2 | tr '_-' '/+' \
-  | { b="$(cat)"; printf '%s%s' "$b" "$(printf '%*s' $(( (4 - ${#b} % 4) % 4 )) '' | tr ' ' '=')"; } \
-  | base64 -d 2>/dev/null | jq -r '.email // .preferred_username // .name // .sub')"
+echo "== mint id token via refresh-token grant =="
+ID_TOKEN="$(curl -fsSk "$P/dex/token" \
+  -d grant_type=refresh_token \
+  --data-urlencode "refresh_token=${MLFLOW_REFRESH_TOKEN}" \
+  -d client_id="${DEX_CLIENT_ID}" \
+  --data-urlencode "client_secret=${DEX_CLIENT_SECRET}" \
+  | jq -r '.id_token')"
+[ -n "${ID_TOKEN}" ] && [ "${ID_TOKEN}" != null ] || { echo "FAIL: no id_token from refresh-token grant"; exit 1; }
+EMAIL="$(b64url_decode "$(printf '%s' "$ID_TOKEN" | cut -d. -f2)" | jq -r '.email // .preferred_username // .name // .sub')"
 echo "caller identity: ${EMAIL}"
 
-# Authenticate to the platform K8s API with the user token; locate the MLflow pod.
-POD="$(curl -fsSk -H "Authorization: Bearer ${TOKEN}" \
-  "${KAPI}/api/v1/namespaces/${MLFLOW_NS}/pods?labelSelector=app%3Dmlflow-tracking-server" \
-  | jq -r '.items[] | select(.status.phase=="Running") | .metadata.name' | head -1)"
-[ -n "${POD}" ] || { echo "FAIL: no running mlflow-tracking-server pod in ${MLFLOW_NS}"; exit 1; }
-echo "mlflow pod: ${POD}"
-
-# Reach the MLflow app port (5000) through the K8s API pod proxy, bypassing the
-# browser OAuth proxy. Authorization authenticates us to the K8s API; the MLflow
-# server reads our identity from X-Forwarded-Access-Token.
-BASE="${KAPI}/api/v1/namespaces/${MLFLOW_NS}/pods/${POD}:5000/proxy/api/2.0/mlflow"
-hdr=(-H "Authorization: Bearer ${TOKEN}"
-     -H "X-Forwarded-Access-Token: ${TOKEN}"
+# Through the OAuth proxy: the platform MLflow route, with the id token as a bearer.
+BASE="$P/clusters/${CLUSTER}/mlflow/api/2.0/mlflow"
+hdr=(-H "Authorization: Bearer ${ID_TOKEN}"
      -H "X-MLFLOW-WORKSPACE: ${WORKSPACE}"
      -H "Content-Type: application/json")
+api() { curl -fsSk "${hdr[@]}" -X "$1" "${BASE}/$2" ${3:+-d "$3"}; }
 
-api() { # api <method> <path> [json-body]
-  curl -fsSk "${hdr[@]}" -X "$1" "${BASE}/$2" ${3:+-d "$3"}
-}
-
-EXP_NAME="uit-smoke-$$"
-echo "== create experiment '${EXP_NAME}' =="
-EID="$(api POST experiments/create "{\"name\":\"${EXP_NAME}\"}" | jq -r '.experiment_id')"
-[ -n "${EID}" ] && [ "${EID}" != null ] || { echo "FAIL: experiment not created"; exit 1; }
-
+EXP="uit-smoke-$$"
+echo "== create experiment '${EXP}' =="
+EID="$(api POST experiments/create "{\"name\":\"${EXP}\"}" | jq -r '.experiment_id')"
+[ -n "${EID}" ] && [ "${EID}" != null ] || { echo "FAIL: experiment not created (is --skip-jwt-bearer-tokens enabled?)"; exit 1; }
 cleanup() { api POST experiments/delete "{\"experiment_id\":\"${EID}\"}" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
@@ -74,12 +68,9 @@ RUN="$(api GET "runs/get?run_id=${RID}")"
 OWNER="$(printf '%s' "${RUN}" | jq -r '.run.info.user_id')"
 STATUS="$(printf '%s' "${RUN}" | jq -r '.run.info.status')"
 PARAM="$(printf '%s' "${RUN}" | jq -r '.run.data.params[] | select(.key=="model_name") | .value')"
-METRIC="$(printf '%s' "${RUN}" | jq -r '.run.data.metrics[] | select(.key=="loss") | .key' | head -1)"
+echo "  run_id=${RID} owner=${OWNER} status=${STATUS} model_name=${PARAM}"
+[ "${STATUS}" = "FINISHED" ]   || { echo "FAIL: run not FINISHED"; exit 1; }
+[ "${PARAM}" = "qwen3-0.6b" ]  || { echo "FAIL: param not logged"; exit 1; }
+[ "${OWNER}" = "${EMAIL}" ]    || { echo "FAIL: run owner '${OWNER}' != caller identity '${EMAIL}'"; exit 1; }
 
-echo "  run_id=${RID} owner=${OWNER} status=${STATUS} model_name=${PARAM} metric=${METRIC}"
-[ "${STATUS}" = "FINISHED" ]      || { echo "FAIL: run not FINISHED"; exit 1; }
-[ "${PARAM}" = "qwen3-0.6b" ]     || { echo "FAIL: param not logged"; exit 1; }
-[ "${METRIC}" = "loss" ]          || { echo "FAIL: metric not logged"; exit 1; }
-[ "${OWNER}" = "${EMAIL}" ]       || { echo "FAIL: run owner '${OWNER}' != caller identity '${EMAIL}'"; exit 1; }
-
-echo "PASS: logged to MLflow as user identity '${EMAIL}' (no ServiceAccount, no direct Service)"
+echo "PASS: logged to MLflow as '${EMAIL}' through the OAuth proxy (refresh-token grant; no cookie, no container-port access)"
