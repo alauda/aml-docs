@@ -1,0 +1,120 @@
+---
+weight: 20
+---
+
+# Install InferNex Bridge
+
+## Prerequisites
+
+Before installing **Alauda Build of InferNex Bridge**, ensure the target cluster has the required platform and inference dependencies.
+
+### Required Dependencies
+
+| Dependency                      | Type            | Description                                                                                                                                                                                |
+| ------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Kubernetes cluster              | Platform        | A running cluster with administrator access.                                                                                                                                               |
+| KServe                          | Operator        | Required when using the KServe `LLMInferenceService` entry point. InferNex Bridge declares support for upstream KServe v0.17.0. Alauda Build of KServe v0.16 and later are also supported. |
+| Envoy Gateway and Gateway API   | Operator / CRDs | Required when exposing inference services through Gateway API resources.                                                                                                                   |
+| Gateway API Inference Extension | CRDs            | Required for `InferencePool` based intelligent routing.                                                                                                                                    |
+| Alauda Build of LeaderWorkerSet | Operator        | Required by inference workloads that use LeaderWorkerSet. Install it separately before deploying those workloads.                                                                          |
+| Inference runtime prerequisites | Runtime         | Prepare NPU nodes, model storage, runtime templates, runtime images, and network access required by the selected inference engine.                                                         |
+
+:::info
+`InferNexService` mode does not require users to install the InferNex main chart first. The operator installs the InferNex Bridge control plane; service templates, inference runtime images, model files, and feature-specific prerequisite CRDs must be prepared separately before deploying inference services.
+:::
+
+### CRDs Installed by This Operator
+
+The Alauda Build of InferNex Bridge OLM bundle installs only the InferNex Bridge CRDs:
+
+| CRD                                           | Installed by this operator |
+| --------------------------------------------- | -------------------------- |
+| `infernexservices.infernex.infernex.io`       | Yes                        |
+| `infernexserviceconfigs.infernex.infernex.io` | Yes                        |
+
+The following CRDs are not installed by this OLM bundle. Install them separately before enabling the corresponding features:
+
+| CRD                                               | When Required                                          | How to Install                                                                                         |
+| ------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `leaderworkersets.leaderworkerset.x-k8s.io`       | Workloads that use LeaderWorkerSet                     | Install [Alauda Build of LeaderWorkerSet](../../lws/install.mdx) separately.                           |
+| `resourcescalinggroups.autoscaling.openfuyao.com` | PD-Orchestrator ResourceScalingGroup                   | Install the CRD from the matching openFuyao InferNex Bridge release or an equivalent platform package. |
+| `elasticscalers.elasticscaler.io`                 | PD-Orchestrator Elastic-Scaler                         | Install the CRD from the matching openFuyao InferNex Bridge release or an equivalent platform package. |
+| `tidals.tidal.io`                                 | PD-Orchestrator Tidal                                  | Install the CRD from the matching openFuyao InferNex Bridge release or an equivalent platform package. |
+| `rolebasedgroups.workloads.x-k8s.io`              | Workload grouping features that require RoleBasedGroup | Install the corresponding workload controller or platform package before enabling this feature.        |
+
+### Runtime Templates and Images
+
+:::warning
+The operator package does not install model-serving runtime images into the cluster registry. In the tested release, the InferNex Bridge runtime templates reference `hub.oepkgs.net/openfuyao/ascend/vllm-ascend:v0.18.0`, but this image is not bundled with the operator package and is not installed automatically.
+
+Before deploying inference services, upload, import, or mirror the required runtime images, including `vllm-ascend:v0.18.0`, to the cluster registry or another registry accessible from the target cluster. If the registry address changes, update the runtime templates to use the image address accessible from the cluster.
+:::
+
+:::info
+The Alauda OLM bundle registers the InferNex Bridge admission webhook for the KServe `LLMInferenceService` API versions used by the release examples, including `serving.kserve.io/v1alpha2`. The webhook is used for admission-time compatibility patches when `infernex.io/runtime: "true"` is set on a KServe `LLMInferenceService`; it does not create or reconcile the `LLMInferenceService` resource itself.
+:::
+
+### Optional Dependencies
+
+| Dependency            | Required For | Description                                                        |
+| --------------------- | ------------ | ------------------------------------------------------------------ |
+| NATS                  | Eagle-Eye    | Required when enabling Eagle-Eye hardware monitoring or diagnosis. |
+| kube-prometheus-stack | Eagle-Eye    | Required when enabling Eagle-Eye hardware monitoring or diagnosis. |
+
+## Upload Operator \{#upload-operator}
+
+Download the Alauda Build of InferNex Bridge Operator installation file, for example `infernex-bridge.alpha.ALL.xxxx.tgz`.
+
+Use the `violet` command to publish it to the platform repository:
+
+```bash
+violet push --platform-address=<platform-access-address> --platform-username=<platform-admin> --platform-password=<platform-admin-password> infernex-bridge.alpha.ALL.xxxx.tgz
+```
+
+## Install Operator
+
+In **Administrator** view:
+
+1. Click **Marketplace / OperatorHub**.
+2. At the top of the console, from the **Cluster** dropdown list, select the destination cluster where you want to install the InferNex Bridge Operator.
+3. Search for and select **Alauda Build of InferNex Bridge**, then click **Install**.
+4. Leave **Channel** unchanged.
+5. Check whether the **Version** matches the InferNex Bridge version you want to install.
+6. Leave **Installation Location** unchanged, it should be `infernex-system` by default.
+7. Select **Manual** for **Upgrade Strategy**.
+8. Click **Install**.
+
+### Verification
+
+Confirm that the **Alauda Build of InferNex Bridge** tile shows one of the following states:
+
+- `Installing`: installation is in progress; wait for this to change to `Installed`.
+- `Installed`: installation is complete.
+
+Verify that the operator controller and webhooks are running:
+
+```bash
+kubectl get pods -n infernex-system
+kubectl get mutatingwebhookconfiguration,validatingwebhookconfiguration | grep infernex
+kubectl get crd infernexservices.infernex.infernex.io infernexserviceconfigs.infernex.infernex.io
+```
+
+The controller pod should be `Running`, and both `InferNexService` and `InferNexServiceConfig` CRDs should exist.
+
+## Community Examples
+
+For community-maintained examples, see [InferNex Bridge examples](https://gitcode.com/openFuyao/InferNex/tree/release-26.6.0-rc.2/component/InferNex-Bridge/config/examples).
+
+## Upgrading Alauda Build of InferNex Bridge
+
+1. Upload the new version of the **Alauda Build of InferNex Bridge** operator package using the `violet` tool.
+2. Go to the `Administrator` -> `Marketplace` -> `OperatorHub` page, find **Alauda Build of InferNex Bridge**, and click **Confirm** to apply the new version.
+
+### Verification
+
+After upgrading, confirm that the **Alauda Build of InferNex Bridge** tile shows `Installed` and verify the controller and CRD status:
+
+```bash
+kubectl get pods -n infernex-system
+kubectl get crd infernexservices.infernex.infernex.io infernexserviceconfigs.infernex.infernex.io
+```
