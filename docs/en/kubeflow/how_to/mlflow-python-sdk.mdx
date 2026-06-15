@@ -4,53 +4,59 @@ weight: 46
 
 # Using the MLflow Python SDK with Authentication and RBAC
 
-On Alauda AI the [MLflow Tracking Server](./mlflow.mdx) runs with single sign-on and multi-tenancy enabled: every request is authenticated and authorized against Kubernetes RBAC, and each run is recorded under the calling user. This guide shows how to drive the stock **MLflow Python SDK** against that server with your own **user identity token** — no ServiceAccount, no per-workspace RBAC to create, and no extra in-cluster Service.
+On Alauda AI the [MLflow Tracking Server](./mlflow.mdx) runs behind single sign-on and multi-tenancy: an OAuth proxy authenticates every caller, and the server records each run under the calling user and authorizes it against Kubernetes RBAC. This guide shows how to drive the stock **MLflow Python SDK** through that OAuth proxy with your own identity — there is nothing to create on the cluster.
 
 ## Prerequisites
 
 - `mlflow` **3.10 or later** (`pip install "mlflow>=3.10"`). Workspace selection (`mlflow.set_workspace`) is a 3.10+ feature.
-- A **platform user identity token** — a JWT with an `email` claim, issued for your platform user. Create one from the platform console for non-interactive use. The same token authenticates you to the cluster API and identifies you to MLflow.
-- Access to an MLflow **workspace** — a namespace labelled `mlflow-enabled=true` — that your platform user is allowed to use (see [Workspace Access](./mlflow.mdx)).
-- `kubectl`.
+- Browser access to MLflow — you can sign in at **Alauda AI → Tools → MLFlow** through the platform SSO.
+- Access to an MLflow **workspace** (a namespace labelled `mlflow-enabled=true`) that your platform user is allowed to use (see [Workspace Access](./mlflow.mdx)).
 
 ## How authentication works
 
-The MLflow server runs the `kubernetes-auth` plugin in `user_identity_token` mode. It reads the caller identity from the bearer token's claims (`email` → `preferred_username` → `name` → `sub`, groups from `groups` / `roles`), authorizes that identity against the workspace with Kubernetes RBAC, and stores it as the MLflow **run owner**. The MLflow SDK sends your token as `Authorization: Bearer …` when you set `MLFLOW_TRACKING_TOKEN`, and the workspace as `X-MLFLOW-WORKSPACE` when you call `mlflow.set_workspace()`.
+Two layers sit in front of your runs:
 
-There is nothing to create on the cluster: your existing platform permissions on the workspace namespace are what authorize you.
+1. The **OAuth proxy** (`oauth2-proxy`) on the MLflow endpoint authenticates the request — through the interactive SSO login it issues a session cookie.
+2. The MLflow server's `kubernetes-auth` plugin then reads your identity (from the forwarded token), records it as the run **owner**, and authorizes it against your Kubernetes permissions in the workspace.
 
-## Connect the SDK
+A programmatic client must satisfy layer 1. The clean, no-configuration way is to **present your browser SSO session** to the SDK; for automation, an administrator can additionally allow bearer tokens (see [Headless / automation](#headless-automation) below). Either way the client always goes through the OAuth proxy — never connect to the MLflow container port directly.
 
-The MLflow Service shipped by the plugin sits behind a browser-oriented OAuth proxy, which rejects non-interactive bearer tokens. Reach the MLflow application port directly with a `kubectl port-forward` tunnel — authenticated to the platform Kubernetes API with your user token. A port-forward is a raw TCP tunnel, so the SDK's `Authorization` header reaches the server unchanged.
+## Connect the SDK through the OAuth proxy
+
+### 1. Get your session cookie from the browser
+
+Open **Alauda AI → Tools → MLFlow** in your browser and sign in. Then, in the browser developer tools (**Application/Storage → Cookies** for the platform host), copy the value of the `_oauth2_proxy` cookie — if it is split into `_oauth2_proxy_0`, `_oauth2_proxy_1`, … copy each chunk and join them with `; `. Set it as an environment variable:
 
 ```bash
-export PLATFORM=https://<platform>            # platform global address
-export CLUSTER=<cluster>                       # e.g. g1-c1-x86
-export MLFLOW_USER_TOKEN=<your-user-token>     # platform user identity token
-
-# Authenticate to the cluster API through the platform and tunnel to the app port (5000).
-POD=$(kubectl --server "$PLATFORM/kubernetes/$CLUSTER" --token "$MLFLOW_USER_TOKEN" \
-        --insecure-skip-tls-verify -n kubeflow \
-        get pod -l app=mlflow-tracking-server -o jsonpath='{.items[0].metadata.name}')
-
-kubectl --server "$PLATFORM/kubernetes/$CLUSTER" --token "$MLFLOW_USER_TOKEN" \
-        --insecure-skip-tls-verify -n kubeflow \
-        port-forward "pod/$POD" 5000:5000
+export MLFLOW_PROXY_COOKIE='_oauth2_proxy=<value>'
 ```
 
-:::tip
-If your `kubectl` context is already configured for the cluster, the flags collapse to `kubectl -n kubeflow port-forward "pod/$POD" 5000:5000`. Drop `--insecure-skip-tls-verify` when the platform certificate is trusted by your machine.
-:::
+### 2. Point the SDK at the MLflow route and attach the cookie
 
-With the tunnel open, point the SDK at it:
+The MLflow SDK does not send cookies on its own, so register a tiny request-header provider that adds yours to every call. Then use the normal MLflow API:
 
 ```python
 import os
 import mlflow
+from mlflow.tracking.request_header.abstract_request_header_provider import RequestHeaderProvider
+from mlflow.tracking.request_header.registry import _request_header_provider_registry
 
-os.environ["MLFLOW_TRACKING_TOKEN"] = os.environ["MLFLOW_USER_TOKEN"].strip()  # → Authorization: Bearer
-mlflow.set_tracking_uri("http://127.0.0.1:5000")
-mlflow.set_workspace("team-a")                 # the workspace namespace; → X-MLFLOW-WORKSPACE
+
+class ProxySessionHeader(RequestHeaderProvider):
+    """Send the browser OAuth-proxy session cookie with every MLflow request."""
+
+    def in_context(self):
+        return bool(os.environ.get("MLFLOW_PROXY_COOKIE"))
+
+    def request_headers(self):
+        return {"Cookie": os.environ["MLFLOW_PROXY_COOKIE"]}
+
+
+_request_header_provider_registry.register(ProxySessionHeader)
+
+# The platform MLflow route — i.e. through the OAuth proxy, not the container port.
+mlflow.set_tracking_uri("https://<platform>/clusters/<cluster>/mlflow")
+mlflow.set_workspace("team-a")                 # workspace namespace → X-MLFLOW-WORKSPACE
 mlflow.set_experiment("my-experiment")
 
 with mlflow.start_run(run_name="sdk-quickstart") as run:
@@ -59,10 +65,10 @@ with mlflow.start_run(run_name="sdk-quickstart") as run:
     print("run:", run.info.run_id)
 ```
 
-The run appears in the MLflow UI under **Alauda AI → Tools → MLFlow**, owned by your platform user.
+The run appears under **Alauda AI → Tools → MLFlow**, owned by your platform user.
 
-:::warning
-`MLFLOW_TRACKING_TOKEN` becomes an HTTP header value, so it must contain no trailing newline or whitespace — always `.strip()` it (a stray newline produces `Invalid … character(s) in header value: 'Bearer …\n'`). Never commit the token to source control; read it from an environment variable or secret and rotate it when it expires.
+:::tip
+If the platform certificate is not trusted by your machine, set `MLFLOW_TRACKING_INSECURE_TLS=true`. The session cookie expires — when calls start returning a login redirect, copy a fresh `_oauth2_proxy` value from the browser.
 :::
 
 ## Selecting a workspace
@@ -70,8 +76,7 @@ The run appears in the MLflow UI under **Alauda AI → Tools → MLFlow**, owned
 Runs are recorded in the workspace you select; if you select none, the server's default workspace is used. Any of these set it (the SDK turns them into the `X-MLFLOW-WORKSPACE` header):
 
 - `mlflow.set_workspace("team-a")` in code,
-- the `MLFLOW_WORKSPACE=team-a` environment variable,
-- the `X-MLFLOW-WORKSPACE: team-a` header for raw HTTP clients.
+- the `MLFLOW_WORKSPACE=team-a` environment variable.
 
 You can only use a workspace your platform user has access to; see [Workspace Access](./mlflow.mdx).
 
@@ -87,25 +92,34 @@ with mlflow.start_run():
 
 Promote the registered version to **Staging** or **Production** from the MLflow UI.
 
-## Verify the setup
+## Headless / automation \{#headless-automation}
 
-The pipelines guide ships a self-contained smoke test that logs a run with a user token and asserts the run owner matches the token identity — a quick way to confirm auth, workspace, and RBAC end-to-end:
+The cookie flow needs an interactive browser login, which does not suit CI jobs or pipeline components. For those, an administrator can configure the MLflow OAuth proxy to accept OIDC **bearer tokens** in addition to browser sessions, by adding to the MLflow plugin values:
 
-```bash
-PLATFORM_ADDRESS=$PLATFORM CLUSTER=$CLUSTER \
-  MLFLOW_USER_TOKEN=$MLFLOW_USER_TOKEN MLFLOW_WORKSPACE=team-a \
-  e2e/mlflow-user-identity-smoke.sh
+```yaml
+auth:
+  oauth:
+    extraArgs:
+      - --skip-jwt-bearer-tokens=true
 ```
 
-For logging from inside Kubeflow Pipelines components, see [Kubeflow Pipeline + MLflow Integration](../../training_guides/pipelines-mlflow-integration.mdx).
+With that enabled, a client authenticates with a platform-issued **OIDC token** (not a Kubernetes ServiceAccount token — the proxy validates it against the platform identity provider) and no cookie:
+
+```python
+import os, mlflow
+os.environ["MLFLOW_TRACKING_TOKEN"] = os.environ["OIDC_TOKEN"].strip()   # → Authorization: Bearer
+mlflow.set_tracking_uri("https://<platform>/clusters/<cluster>/mlflow")
+mlflow.set_workspace("team-a")
+```
+
+Set `MLFLOW_TRACKING_TOKEN` to the `.strip()`-ed token (a trailing newline produces `Invalid … character(s) in header value: 'Bearer …\n'`), and store it in a Kubernetes `Secret` rather than in code.
 
 ## Troubleshooting
 
 | Symptom | Check |
 |---------|-------|
-| SDK call returns HTML / a redirect (`302`) | You connected to the browser OAuth proxy (the `mlflow-tracking-server` Service / platform route). Tunnel to the application port with `kubectl port-forward … 5000:5000` and use `http://127.0.0.1:5000`. |
+| Call returns HTML or a redirect (`302` to the login page) | The OAuth proxy did not accept the request. For the cookie flow, your `_oauth2_proxy` value is missing or expired — copy a fresh one (and all `_oauth2_proxy_N` chunks). For the bearer flow, confirm the proxy has `--skip-jwt-bearer-tokens` and the token is a valid platform OIDC token. |
 | `Invalid … character(s) in header value: 'Bearer …\n'` | The token has trailing whitespace. Set `MLFLOW_TRACKING_TOKEN` to the `.strip()`-ed value. |
-| `401 UNAUTHENTICATED` / "Missing Authorization … header" | `MLFLOW_TRACKING_TOKEN` is unset or empty, or the token expired. (The Kubernetes API *pod proxy* strips `Authorization`; use `port-forward`, which does not.) |
+| `Failed to query /api/3.0/mlflow/server-info` | The SDK could not reach the server through the proxy — verify the tracking URI is the platform MLflow route and your cookie/token is valid. |
 | `403 PERMISSION_DENIED` | Your platform user lacks access to the workspace namespace. Request access to the workspace (see [Workspace Access](./mlflow.mdx)); no ServiceAccount is involved. |
-| `Failed to query /api/3.0/mlflow/server-info` | Same transport/auth cause as above — confirm the tunnel is up, the URI is `http://127.0.0.1:5000`, and the token is set and stripped. |
-| Run shows the wrong owner or workspace | The owner is the token's `email` claim; the workspace is `set_workspace()` / `MLFLOW_WORKSPACE` (else the server default). Check both. |
+| Run shows the wrong owner or workspace | The owner is your authenticated identity; the workspace is `set_workspace()` / `MLFLOW_WORKSPACE` (else the server default). Check both. |
