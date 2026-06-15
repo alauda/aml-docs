@@ -310,7 +310,106 @@ In **Administrator** view:
     stored in the `knative-serving-cert` secret that is specified in the **Domain Certificate Secret** field.
     :::
 
-9. **(Optional)** If you want to enable Knative functionality, update the `AmlCluster` YAML to reference the `KnativeServing` instance:
+9. **(Optional)** Configure a custom OIDC provider.
+
+    By default, Alauda AI uses ACP Dex as the OIDC provider. In this default
+    setup, no additional `spec.oidc` configuration is required in the
+    `AmlCluster` instance.
+
+    If you want Alauda AI to use another OIDC provider, register an OAuth2/OIDC
+    client in that provider, allow the Alauda AI callback URL, and then update
+    `spec.oidc` in the `AmlCluster` YAML. The callback URL is:
+
+    ```text
+    https://<platform-address>/clusters/<cluster-name>/aml/oauth2/callback
+    ```
+
+    Alauda AI reads the OIDC client secret from a Kubernetes Secret in the
+    `kubeflow` namespace of the Alauda AI installation cluster. The default
+    Secret name is `aml-oidc-secret`, and the Secret key must be
+    `client-secret`. Update this Secret with the client secret from your OIDC
+    provider:
+
+    ```bash
+    kubectl create secret generic aml-oidc-secret \
+      -n kubeflow \
+      --from-literal=client-secret='<oidc-client-secret>' \
+      --dry-run=client -o yaml | kubectl apply -f -
+    ```
+
+    Then configure `spec.oidc`:
+
+    ```yaml
+    spec:
+      oidc:
+        # OIDC issuer URL. This must match the issuer value advertised by the
+        # provider, for example a Keycloak realm URL.
+        issuerURL: https://<oidc-provider-issuer>
+        # OAuth2/OIDC client ID registered in the external provider.
+        clientID: <oidc-client-id>
+        # Kubernetes Secret name in the kubeflow namespace. The Secret must
+        # contain a client-secret key. Default: aml-oidc-secret.
+        clientSecretName: aml-oidc-secret
+        # OAuth2 scopes requested during login. Keep this minimal to avoid
+        # oversized ID/access tokens and oversized login cookies.
+        # Default: openid profile email.
+        scope: openid profile email
+        # Whether to use the preferred_username claim as the email value.
+        # Default: true.
+        preferredUsernameAsEmail: true
+        main:
+          # OIDC authorization endpoint. If you use discovery, this maps from
+          # authorization_endpoint.
+          loginURL: https://<oidc-provider-authorization-endpoint>
+          # OAuth2 callback URL registered in the external provider.
+          redirectURL: https://<platform-address>/clusters/<cluster-name>/aml/oauth2/callback
+    ```
+
+    If the provider exposes a standard OIDC discovery document at
+    `<issuerURL>/.well-known/openid-configuration`, Alauda AI automatically
+    fills `redeemURL`, `jwksURL`, and `profileURL` from discovery when these
+    fields are not set. If discovery is unavailable, configure these fields
+    explicitly:
+
+    | Discovery field | `spec.oidc` field |
+    | --- | --- |
+    | `authorization_endpoint` | `loginURL` |
+    | `token_endpoint` | `redeemURL` |
+    | `userinfo_endpoint` | `profileURL` |
+    | `jwks_uri` | `jwksURL` |
+
+    Use the mapped `loginURL` value for `main.loginURL`, or for
+    `secondary.loginURL` if you configure a secondary endpoint.
+
+    ```yaml
+    spec:
+      oidc:
+        redeemURL: https://<oidc-provider-token-endpoint>
+        jwksURL: https://<oidc-provider-jwks-endpoint>
+        profileURL: https://<oidc-provider-userinfo-endpoint>
+    ```
+
+    Example Keycloak configuration:
+
+    - In the target realm, create an **OpenID Connect** client.
+    - Set **Client ID** to the value used in `spec.oidc.clientID`, for example
+      `aml`.
+    - Turn on **Client authentication**.
+    - Under **Authentication flow**, select **Standard flow**.
+    - Turn on **Require PKCE** and set **PKCE Method** to `S256`.
+    - Set **Valid redirect URIs** to
+      `https://<platform-address>/clusters/<cluster-name>/aml/*`.
+    - Copy the client secret from the Keycloak client **Credentials** tab and
+      update the `aml-oidc-secret` Secret shown above.
+    - In the client **Client scopes** settings, set `basic`, `email`, and
+      `profile` to **Default**, and set other scopes to **Optional** unless your
+      environment explicitly needs them. Avoid adding large claim mappers such
+      as groups, realm roles, client roles, address, phone, offline access, and
+      other application-specific claims unless required. Large tokens can make
+      the oauth2-proxy cookie exceed browser or ingress header size limits and
+      cause login loops or HTTP 431/400 errors.
+
+10. **(Optional)** If you want to enable Knative functionality, update the `AmlCluster` YAML to reference the `KnativeServing` instance:
 
     :::info
     Configure this only if you installed the Knative Operator and created the
@@ -330,7 +429,7 @@ In **Administrator** view:
           managementState: Unmanaged
     ```
 
-10. Under **Model Catalog** section, configure the following parameters:
+11. Under **Model Catalog** section, configure the following parameters:
 
     - **Model OCI Registry Address**: Registry address hosting model OCI artifacts for Model Catalog. This field has no default value and must be configured for your environment.
 
@@ -350,7 +449,7 @@ In **Administrator** view:
     - **Source of PVC**: Choose whether to reuse an existing PVC or create a new one. Use `CreateNew` to let the installation create the PVC.
     - **StorageClass Name**: StorageClass used when creating a new PVC.
 
-11. If you plan to use `llm-d` or `vLLM-ascend`, set KServe Modelcar UID to `0`. The default value is `1000`.
+12. If you plan to use `llm-d` or `vLLM-ascend`, set KServe Modelcar UID to `0`. The default value is `1000`.
 
     ```yaml
     spec:
@@ -364,7 +463,7 @@ In **Administrator** view:
 
     This setting is cluster-level and affects all Modelcar workloads in the Alauda AI installation cluster.
 
-12. Review the configuration and save the `default` `AmlCluster` instance.
+13. Review the configuration and save the `default` `AmlCluster` instance.
 
 ### Verification
 
