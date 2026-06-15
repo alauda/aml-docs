@@ -23,7 +23,9 @@ This guide shows how to build Kubeflow Pipelines (KFP) components that log param
 
 This is the part most KFP + MLflow examples get wrong, so read it before copying the code below.
 
-On Alauda AI the MLflow server runs the `kubernetes-auth` plugin, which authorizes every request against Kubernetes RBAC in the `mlflow.kubeflow.org` API group. The canonical way for a workload to authenticate is a **Kubernetes ServiceAccount bearer token** sent as `Authorization: Bearer <token>` (or `X-Forwarded-Access-Token`), together with a workspace selector (`X-MLFLOW-WORKSPACE`). With single sign-on and multi-tenancy enabled (the default), the shipped `mlflow-tracking-server` Service does **not** point at MLflow directly — it points at an `oauth2-proxy` sidecar built for interactive browser login:
+On Alauda AI the MLflow server runs the [`kubernetes-auth` plugin](https://github.com/AlaudaDevops/mlflow-plugin), which authenticates the caller from a **bearer identity token** and authorizes every request against Kubernetes RBAC in the `mlflow.kubeflow.org` API group. In its `user_identity_token` mode the server reads the caller identity from the token's claims (`email` / `preferred_username` / `name` / `sub`, and groups from `groups` / `roles`), authorizes *that identity*, and records it as the MLflow run owner.
+
+So a client must **authenticate with an identity token before it calls any MLflow API**: send `Authorization: Bearer <token>` (or `X-Forwarded-Access-Token`) plus a workspace selector (`X-MLFLOW-WORKSPACE`). The identity token is a Kubernetes ServiceAccount token — the same platform-wide pattern used by Feast, TrustyAI, and others (`kubectl create token <sa>`, or the pod's projected token in-cluster). With single sign-on and multi-tenancy enabled (the default), the shipped `mlflow-tracking-server` Service does **not** point at MLflow directly — it points at an `oauth2-proxy` sidecar built for interactive browser login, which is why a headless token presented there is bounced:
 
 | What a pipeline component does | What happens on a secured install |
 |--------------------------------|-----------------------------------|
@@ -32,7 +34,7 @@ On Alauda AI the MLflow server runs the `kubernetes-auth` plugin, which authoriz
 | Reach it directly with a token but **no** workspace permissions | reads succeed, writes return **HTTP 403** `PERMISSION_DENIED` |
 | Reach it directly **with** a token **and** workspace RBAC | logging works |
 
-So a headless component needs three things: a direct in-cluster endpoint that skips the OAuth proxy, a bearer token, and write permission in the workspace.
+So a headless component needs three things: an identity token to authenticate with, RBAC for that identity in the workspace, and a direct in-cluster endpoint that skips the browser-only OAuth proxy.
 
 :::tip
 If your MLflow plugin is installed **without** SSO/multi-tenancy (no `oauth2-proxy` sidecar on the `mlflow-tracking-server` pod, and `MLFLOW_MULTITENANCY_ENABLED` unset), the `mlflow-tracking-server` Service already targets MLflow directly and accepts unauthenticated in-cluster traffic. In that case skip steps 1–2 below and use `http://mlflow-tracking-server.kubeflow:5000` with no token.
@@ -58,6 +60,10 @@ spec:
 ```
 
 Pipeline components then use `http://mlflow-tracking-direct.kubeflow:5000`.
+
+:::warning
+In `user_identity_token` mode the server trusts the identity claims of whatever token reaches it — the `oauth2-proxy` it normally sits behind is what verifies those tokens. A direct endpoint bypasses that verification, so restrict it to trusted in-cluster callers with a `NetworkPolicy` (or have the platform run the server in `self_subject_access_review` mode, where the token is verified by the Kubernetes API server). Do not expose this Service through ingress.
+:::
 
 ### 2. Grant MLflow permissions to the component's ServiceAccount
 
@@ -93,9 +99,9 @@ subjects:
 
 This is the caller-side RBAC defined by the MLflow plugin; for the full resource list (including AI gateway resources) and fine-grained `resourceNames` access, see [MLflow Tracking Server → Workspace Access](../kubeflow/how_to/mlflow.mdx).
 
-### 3. Authenticate from the component
+### 3. Present the identity token from the component
 
-The MLflow client reads `MLFLOW_TRACKING_TOKEN` and sends it as `Authorization: Bearer …`. Inside a pod, use the projected ServiceAccount token mounted at the standard path:
+The identity token authenticates the caller (and becomes the run owner), so set it before the first MLflow call. The MLflow client reads `MLFLOW_TRACKING_TOKEN` and sends it as `Authorization: Bearer …`. Inside a pod, use the projected ServiceAccount token mounted at the standard path — its `sub` claim (`system:serviceaccount:<ns>:<name>`) is the identity the server authorizes:
 
 ```python
 with open("/var/run/secrets/kubernetes.io/serviceaccount/token") as f:
