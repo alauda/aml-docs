@@ -52,7 +52,7 @@ setup_oauth2client() {
   prdb_version="$("${kubectl_bin}" get productbase.product.alauda.io base -o 'jsonpath={.spec.version}')"
 
   urls="$(printf '%s\n' "${platform_urls}" | awk 'NF { sub(/\/+$/, ""); if (!seen[$0]++) print }')"
-  redirect_uris="$(printf '%s\n' "${urls}" | awk -v cluster="${cluster_name}" '{ printf "  - \"%s/clusters/%s/aml/*\"\n", $0, cluster }')"
+  redirect_uris="$(printf '%s\n' "${urls}" | awk -v cluster="${cluster_name}" '{ printf "  - \"%s/*\"\n", $0, cluster }')"
   version="${prdb_version#v}"
   major="${version%%.*}"
   minor="${version#*.}"
