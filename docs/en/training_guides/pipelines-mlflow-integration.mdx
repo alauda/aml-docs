@@ -23,7 +23,7 @@ This guide shows how to build Kubeflow Pipelines (KFP) components that log param
 
 This is the part most KFP + MLflow examples get wrong, so read it before copying the code below.
 
-When the MLflow plugin is installed with single sign-on and multi-tenancy enabled (the default on Alauda AI), the `mlflow-tracking-server` Service does **not** point straight at MLflow. It points at an `oauth2-proxy` sidecar, and the MLflow server itself requires a per-request identity token:
+On Alauda AI the MLflow server runs the `kubernetes-auth` plugin, which authorizes every request against Kubernetes RBAC in the `mlflow.kubeflow.org` API group. The canonical way for a workload to authenticate is a **Kubernetes ServiceAccount bearer token** sent as `Authorization: Bearer <token>` (or `X-Forwarded-Access-Token`), together with a workspace selector (`X-MLFLOW-WORKSPACE`). With single sign-on and multi-tenancy enabled (the default), the shipped `mlflow-tracking-server` Service does **not** point at MLflow directly — it points at an `oauth2-proxy` sidecar built for interactive browser login:
 
 | What a pipeline component does | What happens on a secured install |
 |--------------------------------|-----------------------------------|
@@ -59,9 +59,9 @@ spec:
 
 Pipeline components then use `http://mlflow-tracking-direct.kubeflow:5000`.
 
-### 2. Grant the component's ServiceAccount MLflow permissions
+### 2. Grant MLflow permissions to the component's ServiceAccount
 
-The MLflow server authorizes writes against Kubernetes RBAC in the workspace namespace. Bind the ServiceAccount that your pipeline pods run as (for KFP multi-user this is usually `default-editor` in the profile namespace) to a Role that allows writing MLflow resources:
+The `kubernetes-auth` plugin authorizes writes against Kubernetes RBAC in the workspace namespace, using the verbs from the `mlflow.kubeflow.org` API group. Apply a Role/RoleBinding bound to the ServiceAccount your pipeline pods run as (for KFP multi-user this is usually `default-editor` in the profile namespace):
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -71,7 +71,9 @@ metadata:
   namespace: team-a            # the MLflow workspace namespace
 rules:
   - apiGroups: ["mlflow.kubeflow.org"]
-    resources: ["experiments", "runs", "registeredmodels"]
+    # 'experiments' covers runs, metrics, params, and tags; add 'datasets'
+    # and 'registeredmodels' for dataset logging and the model registry.
+    resources: ["experiments", "datasets", "registeredmodels"]
     verbs: ["get", "list", "create", "update", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -85,22 +87,28 @@ roleRef:
   name: mlflow-writer
 subjects:
   - kind: ServiceAccount
-    name: default-editor       # the SA your KFP component pods use
+    name: default-editor       # the SA your KFP component pods run as
     namespace: team-a
 ```
 
-See [MLflow Tracking Server → Workspace Access](../kubeflow/how_to/mlflow.mdx) for the workspace/RBAC model.
+This is the caller-side RBAC defined by the MLflow plugin; for the full resource list (including AI gateway resources) and fine-grained `resourceNames` access, see [MLflow Tracking Server → Workspace Access](../kubeflow/how_to/mlflow.mdx).
 
 ### 3. Authenticate from the component
 
-In a KFP v2 lightweight component, send the pod's ServiceAccount token as the MLflow bearer token by setting `MLFLOW_TRACKING_TOKEN`. The token is mounted at the standard projected-token path:
+The MLflow client reads `MLFLOW_TRACKING_TOKEN` and sends it as `Authorization: Bearer …`. Inside a pod, use the projected ServiceAccount token mounted at the standard path:
 
 ```python
 with open("/var/run/secrets/kubernetes.io/serviceaccount/token") as f:
     os.environ["MLFLOW_TRACKING_TOKEN"] = f.read().strip()
 ```
 
-Runs land in the server's **default workspace** (`MLFLOW_K8S_DEFAULT_WORKSPACE`). The stock `mlflow` client cannot send the per-request workspace header, so to target a *different* workspace use the Alauda MLflow client's `mlflow.set_workspace("team-a")` (see [Client Configuration](../kubeflow/how_to/mlflow.mdx)).
+For a client running outside the cluster (for example, submitting from a laptop) mint a token for the workspace ServiceAccount instead:
+
+```bash
+export MLFLOW_TRACKING_TOKEN=$(kubectl -n team-a create token default-editor)
+```
+
+**Workspace selection.** Runs land in the server's **default workspace** (`MLFLOW_K8S_DEFAULT_WORKSPACE`) unless the request carries the `X-MLFLOW-WORKSPACE` header. The stock `mlflow` client does not send that header, so to target a *different* workspace use the Alauda MLflow client — `mlflow.set_workspace("team-a")` or the `MLFLOW_WORKSPACE` environment variable (see [Client Configuration](../kubeflow/how_to/mlflow.mdx)).
 
 ## Complete example: training pipeline with MLflow
 
