@@ -20,48 +20,45 @@ This document only demonstrates the basic process. For detailed parameter config
 ## Step Overview
 | Step | Operation | Description | Notes |
 | --- | --- | --- | --- |
-| 1 | Create Namespace | Create a namespace in the container platform and configure relevant roles for Alauda AI for the user | Skip this step if you already have a namespace and have assigned user permissions |
-| 2 | Manage Namespace | Include the namespace in Alauda AI management | Skip this step if the namespace is already managed |
+| 1 | Create Namespace | Create a namespace in Alauda AI or the container platform | Skip this step if you already have a namespace |
+| 2 | Manage Namespace and Add User | Include the namespace in Alauda AI management and add users to the namespace | Skip this step if the namespace is already managed and user permissions are configured |
 | 3 | Upload Model | Upload the model file to the model repository | Skip this step if you have already uploaded the model or are using a platform-shared model |
 | 4 | Publish Inference Service | Publish the model as an online inference service |
 | 5 | Invoke Inference Service | Invoke the inference service via API or the "Experience" feature |
 
 ## Operation Steps
-### Step 1: Create Namespace and Assign Permissions to User
-**Note：Skip this step if you already have a namespace and have assigned user permissions**
+### Step 1: Create Namespace
+**Note：Skip this step if you already have a namespace**
 
-Namespaces are the foundation for multi-tenant isolation in Alauda AI, and each project should use an independent namespace.
+Namespaces are the foundation for multi-tenant isolation in Alauda AI, and each project should use an independent namespace. You can create a namespace directly in Alauda AI or import an existing namespace from the container platform.
 
-1. Log in to the container platform as an administrator.
-2. Go to **Project Management**, select or create a project.
-3. On the project details page, click **Namespace**.
-4. Click **Create Namespace** and enter a name (e.g., "text-classification-demo").
-5. Click **Create** to complete the namespace creation.
-6. Assign namespace permissions to the user:
-   - Go to **Administrator** > **Users** > **Users**.
-   - Create a user or select an existing user who needs to use this namespace.
-   - Click **Configure Roles** > **Add Role**.
-   - Add **Alauda AI Roles** and associate them with the created namespace and the project to which the namespace belongs.
-     - aml-namespace-editor: Used by namespace developers, with permissions to create, delete, modify, and query models and inference services.
-     - aml-namespace-owner: Used by namespace managers.
-     - aml-namespace-viewer: Can only view models, inference services, and other resources.
+1. Enter Alauda AI and switch to **Admin View** from the top navigation.
+2. Click **Namespaces** in the left navigation bar.
+3. Click **Create Namespace** and enter a name, such as "text-classification-demo".
+4. Click **Create** to complete the namespace creation.
 
-### Step 2: Manage Namespace
-**Note：Skip this step if the namespace is already managed**
+If the namespace already exists in the container platform, click **Import Namespace** on the **Namespaces** page and select the namespace to import it into Alauda AI.
 
-Include the created namespace in Alauda AI management:
+### Step 2: Manage Namespace and Add User
+**Note：Skip this step if the namespace is already managed and user permissions are configured**
 
-1. Enter Alauda AI, select **Admin** in the top navigation, and select the cluster where the newly created namespace is located in "Clusters" on the right side of **Admin**.
-2. Click **Namespace Manage** in the left navigation bar and click the **Management Namespace** button.
-3. Select the newly created "text-classification-demo" namespace in the pop-up dialog box.
-4. Click **Management** to complete the management operation.
+Include the created namespace in Alauda AI management and add users to the namespace:
+
+1. Enter Alauda AI and switch to **Admin View** from the top navigation.
+2. Click **Namespaces** in the left navigation bar.
+3. If the namespace is not managed by Alauda AI, click **Import Namespace**, select the newly created "text-classification-demo" namespace, and complete the import.
+4. Open the namespace edit page and click **Member Management**.
+5. Import the user who needs to use this namespace and assign the user one of the following roles:
+   - Owner: Can manage the namespace and import other members as editors or viewers. An owner cannot import another owner.
+   - Editor: Can use the namespace to create and manage AI resources.
+   - Viewer: Can view resources in the namespace.
 
 ### Step 3: Upload Model
 **Note：Skip this step if you have already uploaded the model or are using a platform-shared model**
 
 Upload the text classification model to the model repository:
 
-1. Enter Alauda AI, select **Business view** in the top navigation, and select the managed namespace from the previous step.
+1. Enter Alauda AI, select **User View** in the top navigation, and select the managed namespace from the previous step.
 2. Click **Model Repository** in the left navigation bar, click **Create Model Repository**, and enter the prepared model name, such as "Meta-Llama-3-8B-Instruct".
 3. To complete model uploading, refer to the [Create Model Repository](../model_inference/model_management/functions/model_repository.mdx#create-model-repository).
 4. In the **File Management** tab, click **Update metadata** and select the correct "Task Type" and "Framework" according to the attributes of the large model.

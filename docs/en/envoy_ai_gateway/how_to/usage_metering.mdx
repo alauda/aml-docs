@@ -175,7 +175,7 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
 
   ### Build a unified usage dashboard
 
-  Create a `MonitorDashboard` to present token usage. Use variables for namespace, model, and department so consumers can filter, and rely on the Business View so each project sees only its own data. For the platform workflow, see <ExternalSiteLink name="acp" href="observability/monitor/functions/manage_dashboard.html" children="monitoring dashboards" />.
+  Create a `MonitorDashboard` to present token usage. Use variables for namespace, model, and department so consumers can filter, and rely on **User View** so each project sees only its own data. For the platform workflow, see <ExternalSiteLink name="acp" href="observability/monitor/functions/manage_dashboard.html" children="monitoring dashboards" />.
 
   At the ExtProc `/metrics` endpoint the metric is exposed in Prometheus text format with the OpenTelemetry name normalized to underscores (`gen_ai_client_token_usage_token_sum`, as shown in the prerequisite check above). The platform scrape pipeline, however, **stores the series under its original OpenTelemetry UTF-8 name with the dots preserved**. In Prometheus the series is therefore `gen_ai.client.token.usage_token_sum` (with the histogram `_sum`/`_count`/`_bucket` variants), and it must be selected with the quoted `{__name__="..."}` form — a bare underscore identifier matches nothing and returns an empty vector. The intrinsic GenAI labels are likewise dotted (`gen_ai.request.model`, `gen_ai.token.type`) and need the quoted UTF-8 label syntax; header-mapped labels such as `department` and `user_namespace` stay plain identifiers:
 
