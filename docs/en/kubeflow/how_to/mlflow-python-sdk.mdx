@@ -103,15 +103,18 @@ auth:
       - --skip-jwt-bearer-tokens=true
 ```
 
-With that enabled, a client authenticates with a Dex-issued **OIDC id token** (not a Kubernetes ServiceAccount token — the proxy validates it against Dex). Mint id tokens non-interactively from a long-lived **refresh token**, which avoids both the browser cookie and a short-lived static token:
+With that enabled, a client authenticates with a Dex-issued **OIDC id token** (not a Kubernetes ServiceAccount token — the proxy validates it against Dex). Mint id tokens non-interactively with the **OAuth2 password grant (ROPC)** — a single token-endpoint call, no browser and no cookie:
 
-1. **Get a refresh token once.** Run an interactive OIDC login that requests the `offline_access` scope against the platform Dex client — for example `kubelogin` / `kubectl oidc-login`, or any OIDC CLI. Store the returned refresh token in a Kubernetes `Secret`. Refresh tokens are long-lived; id tokens expire in 24 h.
+1. **Allow the password grant.** Dex must have the password connector enabled (`enablePasswordDB: true`), and the OAuth client you use must list `password` in its `grantTypes`. Register a dedicated client for this (ask your administrator) rather than the platform's interactive-login client.
 
-2. **Exchange it for a fresh id token** whenever you need one (the Dex client id/secret are the platform OAuth client, e.g. `alauda-auth` — ask your administrator):
+2. **Exchange username/password for an id token:**
 
    ```bash
    ID_TOKEN=$(curl -sk "https://<platform>/dex/token" \
-     -d grant_type=refresh_token --data-urlencode "refresh_token=$REFRESH_TOKEN" \
+     -d grant_type=password \
+     --data-urlencode "username=$MLFLOW_USERNAME" \
+     --data-urlencode "password=$MLFLOW_PASSWORD" \
+     -d scope="openid email groups" \
      -d client_id="$DEX_CLIENT_ID" --data-urlencode "client_secret=$DEX_CLIENT_SECRET" \
      | jq -r .id_token)
    ```
@@ -125,7 +128,9 @@ With that enabled, a client authenticates with a Dex-issued **OIDC id token** (n
    mlflow.set_workspace("team-a")
    ```
 
-For long-running jobs (including pipeline components), refresh the id token before it expires rather than carrying a static one. Keep the refresh token and client secret in a `Secret`, never in code.
+:::warning
+The password grant sends the user's password to the token endpoint, so use a **dedicated service account** (not a person's login), keep the credentials and client secret in a Kubernetes `Secret`, and scope that account to only the workspaces it needs. id tokens expire in 24 h, so long-running jobs re-run step 2 to refresh.
+:::
 
 ## Troubleshooting
 
