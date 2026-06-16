@@ -62,7 +62,7 @@ import os
 import mlflow
 
 os.environ["MLFLOW_TRACKING_TOKEN"] = os.environ["ID_TOKEN"].strip()  # → Authorization: Bearer
-mlflow.set_tracking_uri("https://<platform>/clusters/<cluster>/mlflow")  # through the OAuth proxy
+mlflow.set_tracking_uri("http://mlflow-tracking-server.kubeflow:5000")  # in-cluster Service (fronted by the OAuth proxy)
 mlflow.set_workspace("team-a")                 # workspace namespace → X-MLFLOW-WORKSPACE
 mlflow.set_experiment("my-experiment")
 
@@ -74,8 +74,10 @@ with mlflow.start_run(run_name="sdk-quickstart") as run:
 
 The run appears under **Alauda AI → Tools → MLFlow**, owned by the username you authenticated as. (Verified end-to-end on a secured install: the run owner is the token's user identity.)
 
+Use the in-cluster Service URL `http://mlflow-tracking-server.kubeflow:5000` when the client runs **inside** the cluster (pipeline components, Workbench notebooks). From **outside** the cluster, point at the platform route `https://<platform>/clusters/<cluster>/mlflow` instead — both reach the same OAuth proxy.
+
 :::warning
-The password grant sends the password to the token endpoint, so use a **dedicated service account** and keep the credentials and client secret in a Kubernetes `Secret`, never in code. Always `.strip()` the token (a trailing newline produces `Invalid … character(s) in header value: 'Bearer …\n'`). id tokens expire (24 h by default), so re-run step 1 to refresh for long-running jobs. If the platform certificate is not trusted by your machine, set `MLFLOW_TRACKING_INSECURE_TLS=true`.
+The password grant sends the password to the token endpoint, so use a **dedicated service account** and keep the credentials and client secret in a Kubernetes `Secret`, never in code. Always `.strip()` the token (a trailing newline produces `Invalid … character(s) in header value: 'Bearer …\n'`). id tokens expire (24 h by default), so re-run step 1 to refresh for long-running jobs. If you use the external HTTPS route and the platform certificate is not trusted by your machine, set `MLFLOW_TRACKING_INSECURE_TLS=true`.
 :::
 
 ## Selecting a workspace
