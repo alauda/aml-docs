@@ -4,58 +4,65 @@ weight: 46
 
 # Using the MLflow Python SDK with Authentication and RBAC
 
-On Alauda AI the [MLflow Tracking Server](./mlflow.mdx) runs behind single sign-on and multi-tenancy: an OAuth proxy authenticates every caller, and the server records each run under the calling user and authorizes it against Kubernetes RBAC. This guide shows how to drive the stock **MLflow Python SDK** through that OAuth proxy with your own identity — there is nothing to create on the cluster.
+On Alauda AI the [MLflow Tracking Server](./mlflow.mdx) runs behind single sign-on and multi-tenancy: an OAuth proxy authenticates every caller, and the server records each run under the calling user and authorizes it against Kubernetes RBAC. This guide shows how to drive the stock **MLflow Python SDK** through that OAuth proxy with your own identity, using the OAuth2 **password grant** to obtain a token from a username and password — no browser, and never the MLflow container port.
+
+## Platform setup (administrator, one-time) \{#platform-setup-administrator-one-time}
+
+The password grant needs two settings, which an administrator enables once:
+
+- **Accept bearer tokens at the proxy.** Add `--skip-jwt-bearer-tokens=true` to the MLflow OAuth proxy so it accepts a Dex OIDC token alongside browser sessions:
+
+  ```yaml
+  # MLflow plugin values
+  auth:
+    oauth:
+      extraArgs:
+        - --skip-jwt-bearer-tokens=true
+  ```
+
+- **Allow the password grant.** Dex must have the password connector enabled (`enablePasswordDB: true`), and the OAuth client you authenticate with must list `password` in its `grantTypes`. Register a **dedicated** client for this rather than the platform's interactive-login client.
 
 ## Prerequisites
 
 - `mlflow` **3.10 or later** (`pip install "mlflow>=3.10"`). Workspace selection (`mlflow.set_workspace`) is a 3.10+ feature.
-- Browser access to MLflow — you can sign in at **Alauda AI → Tools → MLFlow** through the platform SSO.
-- Access to an MLflow **workspace** (a namespace labelled `mlflow-enabled=true`) that your platform user is allowed to use (see [Workspace Access](./mlflow.mdx)).
+- A platform **username and password** — ideally a dedicated service account, not a person's login — that can access the target workspace (see [Workspace Access](./mlflow.mdx)).
+- The Dex **client id and secret** allowed to use the password grant (from your administrator).
 
 ## How authentication works
 
 Two layers sit in front of your runs:
 
-1. The **OAuth proxy** (`oauth2-proxy`) on the MLflow endpoint authenticates the request — through the interactive SSO login it issues a session cookie.
-2. The MLflow server's `kubernetes-auth` plugin then reads your identity (from the forwarded token), records it as the run **owner**, and authorizes it against your Kubernetes permissions in the workspace.
+1. The **OAuth proxy** (`oauth2-proxy`) authenticates the request. With `--skip-jwt-bearer-tokens`, it accepts a Dex-issued OIDC **id token** sent as `Authorization: Bearer …`.
+2. The MLflow server's `kubernetes-auth` plugin reads your identity from that token, records it as the run **owner**, and authorizes it against your Kubernetes permissions in the workspace.
 
-A programmatic client must satisfy layer 1. The clean, no-configuration way is to **present your browser SSO session** to the SDK; for automation, an administrator can additionally allow bearer tokens (see [Headless / automation](#headless-automation) below). Either way the client always goes through the OAuth proxy — never connect to the MLflow container port directly.
+The client always goes through the OAuth proxy — never connect to the MLflow container port directly.
 
-## Connect the SDK through the OAuth proxy
+## Connect the SDK
 
-### 1. Get your session cookie from the browser
+### 1. Mint an id token with the password grant
 
-Open **Alauda AI → Tools → MLFlow** in your browser and sign in. Then, in the browser developer tools (**Application/Storage → Cookies** for the platform host), copy the value of the `_oauth2_proxy` cookie — if it is split into `_oauth2_proxy_0`, `_oauth2_proxy_1`, … copy each chunk and join them with `; `. Set it as an environment variable:
+Exchange the username and password for a Dex **id token** in a single call (no browser, no cookie):
 
 ```bash
-export MLFLOW_PROXY_COOKIE='_oauth2_proxy=<value>'
+export ID_TOKEN=$(curl -sk "https://<platform>/dex/token" \
+  -d grant_type=password \
+  --data-urlencode "username=$MLFLOW_USERNAME" \
+  --data-urlencode "password=$MLFLOW_PASSWORD" \
+  -d scope="openid email groups" \
+  -d client_id="$DEX_CLIENT_ID" --data-urlencode "client_secret=$DEX_CLIENT_SECRET" \
+  | jq -r .id_token)
 ```
 
-### 2. Point the SDK at the MLflow route and attach the cookie
+### 2. Point the SDK at the MLflow route with the token
 
-The MLflow SDK does not send cookies on its own, so register a tiny request-header provider that adds yours to every call. Then use the normal MLflow API:
+The SDK reads `MLFLOW_TRACKING_TOKEN` and sends it as `Authorization: Bearer …`:
 
 ```python
 import os
 import mlflow
-from mlflow.tracking.request_header.abstract_request_header_provider import RequestHeaderProvider
-from mlflow.tracking.request_header.registry import _request_header_provider_registry
 
-
-class ProxySessionHeader(RequestHeaderProvider):
-    """Send the browser OAuth-proxy session cookie with every MLflow request."""
-
-    def in_context(self):
-        return bool(os.environ.get("MLFLOW_PROXY_COOKIE"))
-
-    def request_headers(self):
-        return {"Cookie": os.environ["MLFLOW_PROXY_COOKIE"]}
-
-
-_request_header_provider_registry.register(ProxySessionHeader)
-
-# The platform MLflow route — i.e. through the OAuth proxy, not the container port.
-mlflow.set_tracking_uri("https://<platform>/clusters/<cluster>/mlflow")
+os.environ["MLFLOW_TRACKING_TOKEN"] = os.environ["ID_TOKEN"].strip()  # → Authorization: Bearer
+mlflow.set_tracking_uri("https://<platform>/clusters/<cluster>/mlflow")  # through the OAuth proxy
 mlflow.set_workspace("team-a")                 # workspace namespace → X-MLFLOW-WORKSPACE
 mlflow.set_experiment("my-experiment")
 
@@ -65,10 +72,10 @@ with mlflow.start_run(run_name="sdk-quickstart") as run:
     print("run:", run.info.run_id)
 ```
 
-The run appears under **Alauda AI → Tools → MLFlow**, owned by your platform user.
+The run appears under **Alauda AI → Tools → MLFlow**, owned by the username you authenticated as. (Verified end-to-end on a secured install: the run owner is the token's user identity.)
 
-:::tip
-If the platform certificate is not trusted by your machine, set `MLFLOW_TRACKING_INSECURE_TLS=true`. The session cookie expires — when calls start returning a login redirect, copy a fresh `_oauth2_proxy` value from the browser.
+:::warning
+The password grant sends the password to the token endpoint, so use a **dedicated service account** and keep the credentials and client secret in a Kubernetes `Secret`, never in code. Always `.strip()` the token (a trailing newline produces `Invalid … character(s) in header value: 'Bearer …\n'`). id tokens expire (24 h by default), so re-run step 1 to refresh for long-running jobs. If the platform certificate is not trusted by your machine, set `MLFLOW_TRACKING_INSECURE_TLS=true`.
 :::
 
 ## Selecting a workspace
@@ -78,7 +85,7 @@ Runs are recorded in the workspace you select; if you select none, the server's 
 - `mlflow.set_workspace("team-a")` in code,
 - the `MLFLOW_WORKSPACE=team-a` environment variable.
 
-You can only use a workspace your platform user has access to; see [Workspace Access](./mlflow.mdx).
+You can only use a workspace your account has access to; see [Workspace Access](./mlflow.mdx).
 
 ## Registering models
 
@@ -92,52 +99,35 @@ with mlflow.start_run():
 
 Promote the registered version to **Staging** or **Production** from the MLflow UI.
 
-## Headless / automation \{#headless-automation}
+## Interactive alternative: browser session
 
-The cookie flow needs an interactive browser login, which does not suit CI jobs or pipeline components. For those, an administrator can configure the MLflow OAuth proxy to accept OIDC **bearer tokens** in addition to browser sessions, by adding to the MLflow plugin values:
+If you cannot use the password grant (for example you only have an interactive SSO login), present your browser session instead — this works without the `--skip-jwt-bearer-tokens` setting. Sign in at **Alauda AI → Tools → MLFlow**, copy the `_oauth2_proxy` cookie from the browser developer tools (**Application/Storage → Cookies**; include any `_oauth2_proxy_N` chunks, joined with `; `), and attach it to every request with a header provider:
 
-```yaml
-auth:
-  oauth:
-    extraArgs:
-      - --skip-jwt-bearer-tokens=true
+```python
+import os, mlflow
+from mlflow.tracking.request_header.abstract_request_header_provider import RequestHeaderProvider
+from mlflow.tracking.request_header.registry import _request_header_provider_registry
+
+class ProxySessionHeader(RequestHeaderProvider):
+    def in_context(self):
+        return bool(os.environ.get("MLFLOW_PROXY_COOKIE"))      # export MLFLOW_PROXY_COOKIE='_oauth2_proxy=<value>'
+    def request_headers(self):
+        return {"Cookie": os.environ["MLFLOW_PROXY_COOKIE"]}
+
+_request_header_provider_registry.register(ProxySessionHeader)
+mlflow.set_tracking_uri("https://<platform>/clusters/<cluster>/mlflow")
+mlflow.set_workspace("team-a")
 ```
 
-With that enabled, a client authenticates with a Dex-issued **OIDC id token** (not a Kubernetes ServiceAccount token — the proxy validates it against Dex). Mint id tokens non-interactively with the **OAuth2 password grant (ROPC)** — a single token-endpoint call, no browser and no cookie:
-
-1. **Allow the password grant.** Dex must have the password connector enabled (`enablePasswordDB: true`), and the OAuth client you use must list `password` in its `grantTypes`. Register a dedicated client for this (ask your administrator) rather than the platform's interactive-login client.
-
-2. **Exchange username/password for an id token:**
-
-   ```bash
-   ID_TOKEN=$(curl -sk "https://<platform>/dex/token" \
-     -d grant_type=password \
-     --data-urlencode "username=$MLFLOW_USERNAME" \
-     --data-urlencode "password=$MLFLOW_PASSWORD" \
-     -d scope="openid email groups" \
-     -d client_id="$DEX_CLIENT_ID" --data-urlencode "client_secret=$DEX_CLIENT_SECRET" \
-     | jq -r .id_token)
-   ```
-
-3. **Use it as the MLflow bearer token** (`.strip()` it — a trailing newline produces `Invalid … character(s) in header value: 'Bearer …\n'`):
-
-   ```python
-   import os, mlflow
-   os.environ["MLFLOW_TRACKING_TOKEN"] = ID_TOKEN.strip()   # → Authorization: Bearer
-   mlflow.set_tracking_uri("https://<platform>/clusters/<cluster>/mlflow")
-   mlflow.set_workspace("team-a")
-   ```
-
-:::warning
-The password grant sends the user's password to the token endpoint, so use a **dedicated service account** (not a person's login), keep the credentials and client secret in a Kubernetes `Secret`, and scope that account to only the workspaces it needs. id tokens expire in 24 h, so long-running jobs re-run step 2 to refresh.
-:::
+The session cookie expires — copy a fresh one when calls start returning a login redirect.
 
 ## Troubleshooting
 
 | Symptom | Check |
 |---------|-------|
-| Call returns HTML or a redirect (`302` to the login page) | The OAuth proxy did not accept the request. For the cookie flow, your `_oauth2_proxy` value is missing or expired — copy a fresh one (and all `_oauth2_proxy_N` chunks). For the bearer flow, confirm the proxy has `--skip-jwt-bearer-tokens` and the token is a valid platform OIDC token. |
+| `/dex/token` returns `unsupported_grant_type` / "password grant … not allowed" | The Dex client does not permit the password grant. Use a client whose `grantTypes` include `password` (see [Platform setup](#platform-setup-administrator-one-time)). |
+| Call returns HTML or a redirect (`302` to the login page) | The OAuth proxy rejected the bearer token. Confirm `--skip-jwt-bearer-tokens` is enabled and the token is a valid Dex id token (`aud` = the proxy's client). For the cookie alternative, your `_oauth2_proxy` value is missing or expired. |
 | `Invalid … character(s) in header value: 'Bearer …\n'` | The token has trailing whitespace. Set `MLFLOW_TRACKING_TOKEN` to the `.strip()`-ed value. |
-| `Failed to query /api/3.0/mlflow/server-info` | The SDK could not reach the server through the proxy — verify the tracking URI is the platform MLflow route and your cookie/token is valid. |
-| `403 PERMISSION_DENIED` | Your platform user lacks access to the workspace namespace. Request access to the workspace (see [Workspace Access](./mlflow.mdx)); no ServiceAccount is involved. |
+| `Failed to query /api/3.0/mlflow/server-info` | The SDK could not reach the server through the proxy — verify the tracking URI is the platform MLflow route and the token is valid. |
+| `403 PERMISSION_DENIED` | Your account lacks access to the workspace namespace. Request access to the workspace (see [Workspace Access](./mlflow.mdx)); no ServiceAccount is involved. |
 | Run shows the wrong owner or workspace | The owner is your authenticated identity; the workspace is `set_workspace()` / `MLFLOW_WORKSPACE` (else the server default). Check both. |
