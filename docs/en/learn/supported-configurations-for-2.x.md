@@ -8,13 +8,14 @@ This page lists the currently maintained Alauda AI versions in the component mat
 
 ## x86_64 Architecture
 
-| Components                                   | Type           | Alauda AI v2.3 Stable              | Alauda AI v2.5 Fast              |
+| Components                                   | Type           | Alauda AI v2.3 Stable              | Alauda AI v2.6 Fast              |
 | -------------------------------------------- | -------------- | ---------------------------------- | -------------------------------- |
 | Alauda Container Platform Supported Versions |                | v4.0.x, v4.1.x, v4.2.x, v4.3.x     | v4.0.x, v4.1.x, v4.2.x, v4.3.x   |
-| Alauda AI Essentials                         | Cluster Plugin | v2.3.0                             | v2.5.0                           |
-| Alauda AI                                    | Operator       | v2.3.0                             | v2.5.0                           |
+| Alauda AI Essentials (5)                     | Cluster Plugin | v2.3.0                             | Removed                          |
+| Alauda AI                                    | Operator       | v2.3.0                             | v2.6.0                           |
 | Alauda AI Workbench                          | Cluster Plugin | v0.1.7                             | v0.1.8                           |
 | Alauda Build of KServe                       | Operator       | v0.16.0                            | v0.16.1                          |
+| Alauda Build of Serving Runtime (6)          | Operator       | -                                  | v1.0.0                           |
 | Alauda Build of KubeRay Operator             | Cluster Plugin | v1.6.0                             | v1.6.0                           |
 | Alauda Build of NVIDIA GPU Device Plugin     | Cluster Plugin | v0.18.4                            | v0.18.4                          |
 | Alauda Build of NVIDIA DRA Driver for GPUs   | Cluster Plugin | v25.8.1                            | v25.8.1                          |
@@ -48,18 +49,18 @@ This page lists the currently maintained Alauda AI versions in the component mat
 
 ## ARM Architecture
 
-| Components                                   | Type           | Alauda AI v2.3 Stable              | Alauda AI v2.5 Fast              |
+| Components                                   | Type           | Alauda AI v2.3 Stable              | Alauda AI v2.6 Fast              |
 | -------------------------------------------- | -------------- | ---------------------------------- | -------------------------------- |
 | Alauda Container Platform Supported Versions |                | v4.0.x, v4.1.x, v4.2.x, v4.3.x     | v4.0.x, v4.1.x, v4.2.x, v4.3.x   |
-| Alauda AI Essentials                         | Cluster Plugin | v2.3.0                             | v2.5.0                           |
-| Alauda AI                                    | Operator       | v2.3.0                             | v2.5.0                           |
+| Alauda AI Essentials (5)                     | Cluster Plugin | v2.3.0                             | Removed                          |
+| Alauda AI                                    | Operator       | v2.3.0                             | v2.6.0                           |
 | Alauda AI Workbench                          | Cluster Plugin | v0.1.7                             | v0.1.8                           |
 | Alauda Build of KServe                       | Operator       | v0.16.0                            | v0.16.1                          |
 | Alauda Build of KubeRay Operator             | Cluster Plugin | v1.6.0                             | v1.6.0                           |
 | Alauda Build of NVIDIA GPU Device Plugin     | Cluster Plugin | v0.18.4                            | v0.18.4                          |
 | Alauda Build of NVIDIA DRA Driver for GPUs   | Cluster Plugin | v25.8.1                            | v25.8.1                          |
 | Alauda Build of DCGM-Exporter                | Cluster Plugin | v4.2.3-413-1                       | v4.2.3-413-1                     |
-| Alauda Build of NPU Operator (3)             | Cluster Plugin | v1.1.3                             | v1.1.3                           |
+| Alauda Build of NPU Operator (3)             | Cluster Plugin | v1.1.3                             | v1.2.4                           |
 | Alauda Build of HAMi                         | Cluster Plugin | v2.8.1                             | v2.8.3                           |
 | Alauda Build of HAMi-WebUI                   | Cluster Plugin | v1.10.0                            | v1.10.0                          |
 | Alauda Build of Node Feature Discovery       | Cluster Plugin | v0.17.4                            | v0.17.4                          |
@@ -94,3 +95,7 @@ This page lists the currently maintained Alauda AI versions in the component mat
 (3) 'Alauda Build of NPU Operator' is only supported on ARM architecture
 
 (4) 'Alauda build of Envoy AI Gateway' has been refactored from a Cluster Plugin to an Operator in Alauda AI v2.5
+
+(5) 'Alauda AI Essentials' is removed in Alauda AI v2.6
+
+(6) 'Alauda Build of Serving Runtime' is split out from 'Alauda AI' in Alauda AI v2.6 and is only supported on x86_64 architecture

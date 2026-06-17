@@ -1,45 +1,71 @@
 # Release Notes
 
-## AI 2.5.0
+## AI 2.6.0
 
 ### **New and Optimized Features**
 
-#### **Alauda AI Platform Control Plane**
+#### **Single-Cluster Application Architecture**
 
-**Alauda AI Platform Control Plane** adds unified component management for Alauda AI. Administrators can use the Alauda AI Operator to manage deployment and upgrade workflows for supported components, reducing component maintenance effort. This capability is currently an alpha feature and supports only operator-based components; cluster plugin and Helm chart components are not managed by this capability.
+**Alauda AI** is changed to a single-cluster application deployment model. The former `aml-global` component is no longer delivered, and the Alauda AI product entry is configured from **Administrator** > **Platform Settings** > **Platform Parameters** > **Integrated Product Configuration**.
 
-#### **JobSet Operator**
+This release is a Fast release and supports only fresh installation. Upgrade from earlier Alauda AI versions is not supported in this release.
 
-**JobSet Operator** enables users to run coordinated distributed workloads for AI, machine learning, and HPC scenarios. Users can define a group of related Kubernetes jobs as one JobSet, helping distributed training and batch workloads manage multiple workers, stable networking, and failure recovery as a single workload.
+#### **Header and Navigation Simplification**
 
-#### **Llama Stack Milvus Vector Store Integration**
+**Header and navigation** are simplified for the new single-cluster experience. The logo and product name are provided by the platform solution configuration. Project and cluster switching are removed, and users switch only the active namespace in the Alauda AI console.
 
-**Llama Stack** supports Milvus-backed vector stores for agent and retrieval workflows. Administrators can configure a reachable Milvus endpoint and optional authentication for the Llama Stack server, and users can create vector stores with `provider_id="milvus-remote"` from the client API.
+Maintenance status, license status, and the help entry are no longer displayed in the header. Language package configuration is moved to backend solution configuration.
 
-#### **vLLM Expert Parallel Inference**
+#### **Authentication Integration**
 
-**vLLM Expert Parallel** support provides a configuration path for serving Mixture-of-Experts models with expert parallelism. Users can enable expert parallel settings in an inference service YAML when using a compatible vLLM runtime and a model that supports this serving pattern.
+**Authentication** is integrated with `oauth2-proxy` for login and logout flows. Alauda AI also supports configuring an independent OIDC provider and an independent access entry.
 
-#### **vLLM Speculative Decoding**
+#### **Namespace Management**
 
-**vLLM Speculative Decoding** provides guidance for enabling speculative decoding on vLLM inference services. Users can configure supported methods such as N-gram or EAGLE-3 in the vLLM startup arguments and validate the effect with representative workloads before using the configuration in production.
+**Namespace management** is enhanced in the administration view. Administrators can create namespaces from Alauda AI, import existing namespaces, and add members to a namespace as owners, editors, or viewers.
 
-#### **Kubeflow and MLflow Storage Configuration**
+Namespace owners can manage namespace settings from **User View**, except for resource quota settings.
 
-**Kubeflow Pipelines** and **MLflow** support external storage configuration. Administrators can configure external object storage for pipeline artifacts and external PostgreSQL storage for MLflow metadata.
+#### **Namespace Permission Model**
 
-#### **Alauda Build of Envoy AI Gateway**
+**Namespace-scoped user permissions** replace the former platform roles `aml-namespace-editor`, `owner`, and `viewer`. Configure namespace members and their owner, editor, or viewer permissions from namespace member management instead of relying on the old platform roles.
 
-**Alauda Build of Envoy AI Gateway** is refactored from a cluster plugin to an operator-managed component so it can be managed by the Alauda AI Operator. The delivered component is updated to v0.4.2, a newer version aligned with the community release, including component bug fixes.
+#### **Monitoring**
+
+**Monitoring** data on the overview page is provided by backend integration with Prometheus. Alauda AI also introduces Perses-based monitoring dashboards.
+
+#### **NPU Operator Integration**
+
+**Alauda Build of NPU Operator** is upgraded to v1.2.4 and can be deployed and managed by the AML Operator. This release adds adaptation for Ascend 910B and immutable OS environments.
 
 ### **Deprecated Features**
 
-None.
+The former platform roles `aml-namespace-editor`, `owner`, and `viewer` are deprecated and are no longer used by the Alauda AI permission model.
 
-### **Fixed Issues**
+### **Breaking Changes**
 
+#### **Fresh Installation Only**
+
+**AI 2.6.0** does not support upgrade from AI 2.5.x or earlier versions. Existing environment migration is outside the scope of this Fast release and requires a later LTS release with a dedicated upgrade guide.
+
+#### **Product Entry Configuration**
+
+**`aml-global` is removed**. Register the Alauda AI product entry through **Administrator** > **Platform Settings** > **Platform Parameters** > **Integrated Product Configuration**.
+
+#### **Navigation Changes**
+
+**Project and cluster switching** are removed from the header. Use namespace switching to change the working context.
+
+#### **Permission Model Changes**
+
+**The old platform roles** `aml-namespace-editor`, `owner`, and `viewer` no longer apply. Configure user permissions from namespace user permission management.
+
+#### **Logout Flow Changes**
+
+**Login and logout** are handled through `oauth2-proxy`. The login page appearance may differ from earlier versions.
+
+Fixed Issues
 {/* release-notes-for-bugs?template=fixed&project=AI */}
 
-### **Known Issues**
-
+Known Issues
 {/* release-notes-for-bugs?template=unfixed&project=AI */}
