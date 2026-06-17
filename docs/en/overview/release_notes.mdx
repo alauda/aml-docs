@@ -64,26 +64,8 @@ The former platform roles `aml-namespace-editor`, `owner`, and `viewer` are depr
 
 **Login and logout** are handled through `oauth2-proxy`. The login page appearance may differ from earlier versions.
 
-### **Fixed Issues**
+Fixed Issues
+{/* release-notes-for-bugs?template=fixed&project=AI */}
 
-None. AI 2.6.0 is a Fast feature release and does not include fixes for defects inherited from earlier versions.
-
-### **Known Issues**
-
-- [AI-24758](https://jira.alauda.cn/browse/AI-24758): In Ascend 310P and `vllm-ascend` scenarios, inference services cannot run properly.
-- [AI-24759](https://jira.alauda.cn/browse/AI-24759): In Knative Serving scenarios, `queue-proxy` may fail to start because `runAsNonRoot` does not match the image user.
-- [AI-24753](https://jira.alauda.cn/browse/AI-24753): In some managed cluster environments, the HAMi scheduler image may fail to pull.
-- [AI-24754](https://jira.alauda.cn/browse/AI-24754): The Workbench list may show duplicate `WorkspaceKind` entries.
-- [AI-24757](https://jira.alauda.cn/browse/AI-24757): Model Catalog UI user identity parsing is inconsistent with other interfaces.
-- [AI-24755](https://jira.alauda.cn/browse/AI-24755): Some frontend interactions and display behavior need optimization across Playground, inference services, Catalog, Model Registry, Workspace, and ServingRuntime pages.
-- [IDP-1533](https://jira.alauda.cn/browse/IDP-1533): After copying the KnativeServing example from the online documentation, the copied content may fail to create a resource correctly.
-- [AI-24760](https://jira.alauda.cn/browse/AI-24760): The default resource request for `model-catalog-ui` is high: CPU 500m and memory 2Gi.
-- [AI-24733](https://jira.alauda.cn/browse/AI-24733): The device management page does not include a documentation link for NPU Operator.
-
-### **Compatibility**
-
-AI 2.6.0 supports ACP 4.0, 4.1, 4.2, and 4.3. Kubernetes support follows the supported ACP versions, and release testing covered Kubernetes 1.32.11 to 1.34.5.
-
-AI 2.6.0 supports multi-arch deployment on x86 and Arm. Release testing covered MicroOS, KubeOS, KylinOS V10, Ubuntu 22.04, RHEL 9.6, and other operating systems listed in the release test plan.
-
-AI 2.6.0 supports IPv4 single stack, IPv6 single stack, and IPv4/IPv6 dual stack networks. Accelerator support includes NVIDIA GPU with HAMi or Device Plugin, and Ascend chips with NPU Operator.
+Known Issues
+{/* release-notes-for-bugs?template=unfixed&project=AI */}
