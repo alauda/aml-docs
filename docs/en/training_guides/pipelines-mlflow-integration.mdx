@@ -11,7 +11,7 @@ This guide shows how Kubeflow Pipelines (KFP) components log parameters, metrics
 - Alauda AI 2.5 and later.
 - Kubeflow Pipelines and the MLflow cluster plugin are installed.
 - The MLflow workspace is a namespace labelled `mlflow-enabled=true`.
-- The MLflow OAuth proxy accepts bearer tokens and a Dex client permits the password grant — see [Platform setup](../kubeflow/how_to/mlflow-python-sdk.mdx#platform-setup-administrator-one-time) in the SDK guide.
+- For the bearer-token method, the MLflow OAuth proxy must accept Dex id tokens (`--skip-jwt-bearer-tokens`) — see [Platform setup](../kubeflow/how_to/mlflow-python-sdk.mdx#platform-setup) in the SDK guide. No global-auth change is needed, and the cookie method needs no setup at all.
 
 ## Prerequisites
 
@@ -94,20 +94,15 @@ def training_pipeline(
 compiler.Compiler().compile(training_pipeline, "pipeline.yaml")
 ```
 
-Create the `mlflow-token` Secret with an id token from the password grant (see the [SDK guide](../kubeflow/how_to/mlflow-python-sdk.mdx)):
+Create the `mlflow-token` Secret with a Dex id token. Mint `ID_TOKEN` browser-free with the authorization-code flow from the SDK guide — see [Get a token from the command line](../kubeflow/how_to/mlflow-python-sdk.mdx#get-a-token):
 
 ```bash
-ID_TOKEN=$(curl -sk "https://<platform>/dex/token" \
-  -d grant_type=password \
-  --data-urlencode "username=$MLFLOW_USERNAME" --data-urlencode "password=$MLFLOW_PASSWORD" \
-  -d scope="openid email groups" \
-  -d client_id="$DEX_CLIENT_ID" --data-urlencode "client_secret=$DEX_CLIENT_SECRET" | jq -r .id_token)
-
+# ID_TOKEN: mint it with the curl/Python flow in the SDK guide (browser-free, current grants)
 kubectl -n <pipeline-namespace> create secret generic mlflow-token --from-literal=token="$ID_TOKEN"
 ```
 
 :::warning
-id tokens expire (24 h by default), so refresh the `mlflow-token` Secret before submitting long pipelines — or mint the token **inside** the component from service-account credentials kept in a Secret (the password-grant call shown in the SDK guide), so each run gets a fresh token.
+id tokens expire (24 h by default), so refresh the `mlflow-token` Secret before submitting long pipelines — or mint the token **inside** the component from service-account credentials kept in a Secret (the [token flow](../kubeflow/how_to/mlflow-python-sdk.mdx#get-a-token) in the SDK guide) and renew it with the refresh token, so each run gets a fresh token.
 :::
 
 ## Upload and run
