@@ -20,7 +20,19 @@ The password grant needs two settings, which an administrator enables once:
         - --skip-jwt-bearer-tokens=true
   ```
 
-- **Allow the password grant.** Dex must have the password connector enabled (`enablePasswordDB: true`), and the OAuth client you authenticate with must list `password` in its `grantTypes`. Register a **dedicated** client for this rather than the platform's interactive-login client.
+- **Allow the password grant on the proxy's own client.** ROPC is enabled per Dex client through its `grantTypes`, and the OAuth proxy only accepts tokens whose audience (`aud`) equals its configured `client_id`. The password grant must therefore be enabled on **the same Dex client the proxy uses** — a separate client mints tokens with the wrong `aud`, which the proxy rejects. Confirm Dex has the password connector enabled (`enablePasswordDB: true`), then add `password` to that client's `grantTypes`. With Dex's Kubernetes storage the client is an `OAuth2Client` resource:
+
+  ```bash
+  # <client-resource> is the OAuth2Client whose `id` equals the proxy's --client-id
+  kubectl -n <dex-namespace> patch oauth2client <client-resource> --type=json \
+    -p='[{"op":"add","path":"/grantTypes/-","value":"password"}]'
+  ```
+
+  Use this client's id and secret as `DEX_CLIENT_ID` / `DEX_CLIENT_SECRET` below.
+
+:::warning
+Enabling the password grant on the interactive-login client lets any valid username and password mint a token directly. Use a **dedicated service-account user** scoped only to the target workspace, and store its credentials and the client secret in a Kubernetes `Secret` — never in code.
+:::
 
 ## Prerequisites
 
@@ -127,7 +139,7 @@ The session cookie expires — copy a fresh one when calls start returning a log
 
 | Symptom | Check |
 |---------|-------|
-| `/dex/token` returns `unsupported_grant_type` / "password grant … not allowed" | The Dex client does not permit the password grant. Use a client whose `grantTypes` include `password` (see [Platform setup](#platform-setup-administrator-one-time)). |
+| `/dex/token` returns `unsupported_grant_type` / "password grant … not allowed" | The Dex client does not permit the password grant. Add `password` to the `grantTypes` of the **OAuth proxy's own client** — a separate client's token would later fail the proxy's `aud` check (see [Platform setup](#platform-setup-administrator-one-time)). |
 | Call returns HTML or a redirect (`302` to the login page) | The OAuth proxy rejected the bearer token. Confirm `--skip-jwt-bearer-tokens` is enabled and the token is a valid Dex id token (`aud` = the proxy's client). For the cookie alternative, your `_oauth2_proxy` value is missing or expired. |
 | `Invalid … character(s) in header value: 'Bearer …\n'` | The token has trailing whitespace. Set `MLFLOW_TRACKING_TOKEN` to the `.strip()`-ed value. |
 | `Failed to query /api/3.0/mlflow/server-info` | The SDK could not reach the server through the proxy — verify the tracking URI is the platform MLflow route and the token is valid. |
