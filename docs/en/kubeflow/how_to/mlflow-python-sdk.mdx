@@ -200,6 +200,8 @@ mlflow.set_tracking_uri("https://<platform>/clusters/<cluster>/mlflow")
 mlflow.set_workspace("team-a")
 ```
 
+From **inside** the cluster, point at the in-cluster Service URL `http://mlflow-tracking-server.kubeflow:5000` instead (no TLS issues). On the external `https://<platform>/…` route the platform certificate is self-signed, so set `MLFLOW_TRACKING_INSECURE_TLS=true` (or point `REQUESTS_CA_BUNDLE` at the platform CA).
+
 You can also copy the `_oauth2_proxy` cookie from a browser session (DevTools → **Application/Storage → Cookies**). The session cookie expires — re-mint it when calls start returning a login redirect.
 
 ## Troubleshooting
@@ -211,6 +213,6 @@ You can also copy the `_oauth2_proxy` cookie from a browser session (DevTools �
 | `/dex/token` returns `invalid_grant` | The auth code or PKCE verifier is stale or reused. Re-run the flow from the start (`authorize` → login → token); codes are single-use. |
 | Call returns HTML or a redirect (`302` to the login page) | **Token method:** the proxy rejected the bearer token — confirm `--skip-jwt-bearer-tokens` is enabled and the token is a valid Dex id token (`aud` = the proxy's client). **Cookie method:** the `_oauth2_proxy` cookie is missing or expired. |
 | `Invalid … character(s) in header value: 'Bearer …\n'` | The token has trailing whitespace. Set `MLFLOW_TRACKING_TOKEN` to the `.strip()`-ed value. |
-| `Failed to query /api/3.0/mlflow/server-info` | The SDK could not reach the server through the proxy — verify the tracking URI and that the token/cookie is valid. |
+| `Failed to query /api/3.0/mlflow/server-info`, often with `SSLCertVerificationError: self-signed certificate` | The proxy **rejected** your credential and returned a `302` to the login page; the SDK then follows that redirect to the platform's self-signed HTTPS endpoint and fails TLS. Fix the credential, not the TLS: for the **token method** confirm `--skip-jwt-bearer-tokens` is enabled and the token is valid; for the **cookie method** re-mint the cookie. Only if you *intentionally* use the external `https://<platform>/…` route, also set `MLFLOW_TRACKING_INSECURE_TLS=true` (or point `REQUESTS_CA_BUNDLE` at the platform CA). |
 | `403 PERMISSION_DENIED` | Your account lacks access to the workspace namespace. Request access to the workspace (see [Workspace Access](./mlflow.mdx)); no ServiceAccount is involved. |
 | Run shows the wrong owner or workspace | The owner is your authenticated identity; the workspace is `set_workspace()` / `MLFLOW_WORKSPACE` (else the server default). Check both. |
