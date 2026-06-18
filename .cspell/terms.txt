@@ -1,3 +1,15 @@
 hami
 kubeflow
 CUDA
+ttft
+itl
+tpot
+tps
+vllm
+qwen
+mindie
+openeuler
+modelslim
+zhipuai
+npugraph
+deepseek

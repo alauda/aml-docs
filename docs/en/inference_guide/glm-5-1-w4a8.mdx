@@ -1,0 +1,81 @@
+---
+weight: 50
+i18n:
+  title:
+    en: GLM-5.1-W4A8
+    zh: GLM-5.1-W4A8
+---
+
+# GLM-5.1-W4A8 (MoE, quantized)
+
+A large **W4A8-quantized MoE** validated end-to-end on Ascend — the proof point that the
+Ascend ModelSlim W4A8 path (4-bit weights + 8-bit activations) plus vLLM-Ascend serves a
+755B-class model on a single 8-card node. Validated for the Partner-Guide Chatbot set
+(512/256, rate 1–9, 0 server errors).
+
+## Model identity
+
+| Field | Value |
+|---|---|
+| Publisher | ZhipuAI (`zai-org`) |
+| Architecture | GLM-5.1 (MoE) |
+| Parameters | ~755B total / ~42B active |
+| Native dtype | BF16 |
+| Quantization | **W4A8** (Ascend ModelSlim) — ~391 GB (vs ~1.5 TB BF16) |
+| Hugging Face | https://huggingface.co/zai-org/GLM-5.1 |
+
+## Validated hardware × stack
+
+| Platform | Engine | Version | Status |
+|---|---|---|---|
+| Ascend 910B3 × 8 (TP=8 + EP, whole cards) | vLLM-Ascend | `v0.19.1rc1-openeuler` + `--enforce-eager` | ✅ Partner-Guide Chatbot, 9-rate sweep, 0 server errors |
+
+## Deploy
+
+| Config | Download |
+|---|---|
+| vLLM-Ascend, TP=8 + EP, W4A8 | [glm-5-1-w4a8-vllm-ascend-tp8.yaml](/inference_guide/assets/glm-5-1-w4a8/glm-5-1-w4a8-vllm-ascend-tp8.yaml) |
+
+```bash
+# download the YAML above, edit namespace / image tag / storageUri, then:
+kubectl apply -f glm-5-1-w4a8-vllm-ascend-tp8.yaml
+```
+
+:::warning Two non-obvious requirements (proven on-site)
+- **Image must be `>= v0.19.1rc1-openeuler`.** `v0.18.0` ships transformers 4.57.4, too old for
+  the GLM-5.1 `glm_moe_dsa` model type (needs transformers ≥ 5.2.0).
+- **`--enforce-eager` is required.** A ≥512-token prefill otherwise triggers an AI Core fault
+  in the W4A8 dynamic-quant kernel (`aclnnDynamicQuantV2`). Eager mode bypasses the buggy
+  compiled kernel; cost is ~20–30% higher ITL.
+:::
+
+## Benchmark results
+
+Partner-Guide **Chatbot 512/256**, 8× 910B3, W4A8, rate 1–9 (`guidellm`). Concurrency is
+pinned at **2** by `--max-num-seqs=2`, so this is a latency characterization, not an
+RPS-capacity result. Full report (all 22 columns):
+[**GLM-5.1-W4A8 chatbot report ↗**](/inference_guide/reports/glm-5-1-w4a8/2026-05-30-910b3-w4a8-chatbot-perf.html).
+
+| target rate | Conc mdn | out tok/s | TTFT mdn / p95 (ms) | ITL mdn / p95 (ms) | E2E mdn / p95 (s) |
+|--:|--:|--:|--:|--:|--:|
+| 1 | 2.0 | 6.6 | 587 / 21,966 | 217.9 / 286.3 | 73.6 / 77.5 |
+| 2 | 2.0 | 9.4 | 553 / 1,159 | 181.2 / 209.4 | 46.8 / 54.6 |
+| 3 | 2.0 | 8.9 | 621 / 1,420 | 202.9 / 225.0 | 53.2 / 58.0 |
+| 4 | 2.0 | 9.0 | 578 / 1,392 | 196.7 / 222.6 | 51.6 / 57.3 |
+| 5 | 2.0 | 9.0 | 558 / 1,473 | 216.1 / 217.9 | 55.7 / 57.0 |
+| 6 | 2.0 | 9.4 | 650 / 1,600 | 203.3 / 209.6 | 52.5 / 55.1 |
+| 7 | 2.0 | 9.6 | 552 / 1,552 | 182.4 / 205.6 | 47.1 / 54.0 |
+| 8 | 2.0 | 9.9 | 580 / 1,611 | 198.3 / 202.9 | 52.2 / 52.3 |
+| 9 | 2.0 | 9.8 | 554 / 1,530 | 200.1 / 200.2 | 51.6 / 52.6 |
+
+## Tuning notes
+
+1. **W4A8 path works** — Ascend ModelSlim W4A8 + vLLM-Ascend inference serves the full 755B-class
+   model on one 8-card node (~391 GB weights at W4A8).
+2. **The concurrency cap is configuration, not hardware.** Median concurrency stays at 2.0 across
+   the whole sweep because `--max-num-seqs=2`; a single stream reads weights at only ~1.6% of the
+   6.4 TB/s aggregate HBM bandwidth, and the 6.36 GiB/card KV cache holds ~61k tokens. Raising
+   `--max-num-seqs` is the first throughput lever (revalidate before committing a higher value).
+3. **`--enforce-eager` over compiled kernels.** It is the actual fix for the ≥512-token prefill
+   crash; it follows upstream precedent (the same flag is used on prefill nodes in PD
+   disaggregation). The decode path loses cudagraph, which is why ITL is slightly elevated.

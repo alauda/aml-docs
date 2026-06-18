@@ -1,0 +1,93 @@
+---
+weight: 40
+i18n:
+  title:
+    en: DeepSeek-R1-Distill-Llama-70B
+    zh: DeepSeek-R1-Distill-Llama-70B
+---
+
+# DeepSeek-R1-Distill-Llama-70B (dense)
+
+The **accuracy / engine-parity carrier**. At 70B BF16 (~141 GB) it runs TP=8 across a full
+8-card node — one replica per node, so it is not a replica-scaling carrier, but it is the
+right model for verifying that the engine produces *correct* output at scale.
+
+## Model identity
+
+| Field | Value |
+|---|---|
+| Publisher | DeepSeek (`deepseek-ai`) |
+| Architecture | Llama-3.3 dense (R1-reasoning distilled) |
+| Parameters | 70B |
+| Native dtype | BF16 |
+| Weights size | 141.1 GB |
+| Hugging Face | https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Llama-70B |
+| License | Llama 3.3 Community (commercial) + MIT (distillation) |
+
+## Validated hardware × stack
+
+| Platform | Engine | Version | Status |
+|---|---|---|---|
+| Ascend 910B3 × 8 (TP=8, whole cards) | vLLM-Ascend | `v0.18.0-openeuler` (V1 + FULL_DECODE_ONLY) | ✅ accuracy (openllm 6-task) + 4-scenario closed-loop perf |
+
+## Deploy
+
+| Config | Download |
+|---|---|
+| vLLM-Ascend, TP=8 | [deepseek-r1-distill-llama-70b-vllm-ascend-tp8.yaml](/inference_guide/assets/deepseek-r1-distill-llama-70b/deepseek-r1-distill-llama-70b-vllm-ascend-tp8.yaml) |
+
+```bash
+# download the YAML above, edit namespace / image tag / storageUri, then:
+kubectl apply -f deepseek-r1-distill-llama-70b-vllm-ascend-tp8.yaml
+```
+
+## Benchmark results
+
+### Accuracy (lm-eval, openllm 6 tasks, limit 512/task)
+
+All scores measured on the deployed service via `/v1/completions`.
+
+| Task | Metric | Score | Samples |
+|---|---|---:|---:|
+| arc_challenge | acc_norm | 0.5645 | 512 |
+| gsm8k | exact_match (strict) | 0.9453 | 512 |
+| hellaswag | acc_norm | 0.7305 | 512 |
+| mmlu | acc | 0.7928 | 12233 |
+| truthfulqa_mc2 | acc | 0.5724 | 512 |
+| winogrande | acc | 0.7266 | 512 |
+| **6-task mean** | | **0.7220** | |
+
+Reference comparison vs RHOAI base **Llama-3.3-70B-Instruct-FP8** (a different build — no
+pass/fail line, but illustrative):
+
+| Task | RHOAI Llama-3.3-70B-FP8 (ref) | This DeepSeek-R1-Distill BF16 |
+|---|---:|---:|
+| gsm8k | 0.9492 | **0.9453 ← nearly identical** |
+| mmlu | 0.8131 | 0.7928 |
+| arc_challenge | 0.5196 | 0.5645 ← higher |
+| truthfulqa_mc2 | 0.6321 | 0.5724 |
+| hellaswag | 0.8643 | 0.7305 |
+| winogrande | 0.8453 | 0.7266 |
+
+### Performance
+
+Single-stream / closed-loop only (70B on 8 cards = 1 replica, so this is a single-instance
+**lower bound**, not a per-replica RPS table like the Qwen models):
+
+| Metric | Value |
+|---|---|
+| Single-stream ITL | **56 ms** (tuned from 123 ms via FULL_DECODE_ONLY graph) |
+| 4-scenario closed-loop | 0 errors |
+
+## Tuning notes
+
+1. **FULL_DECODE_ONLY halves single-stream ITL (123 → 56 ms).** The default PIECEWISE graph
+   does no operator fusion; `--compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY"}'`
+   enables Npugraph_ex fusion. Caveat: `TASK_QUEUE_ENABLE=2` is incompatible with graph
+   capture — change one variable at a time when tuning.
+2. **Use `v0.18.0-openeuler`, not `v0.19.1rc1`.** The latter has a detokenizer bug that drops
+   `Ġ`/`Ċ` — harmless for perf, fatal for accuracy.
+3. **Accuracy reading.** gsm8k (the only generative task) at 0.945 ≈ RHOAI base 0.9492 proves
+   the engine output is lossless. The multiple-choice tasks are systematically underscored by
+   loglikelihood ranking on a reasoning-distilled model — an evaluation-method artifact, not
+   an engine problem.

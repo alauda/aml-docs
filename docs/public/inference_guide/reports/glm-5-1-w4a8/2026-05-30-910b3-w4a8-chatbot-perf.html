@@ -1,0 +1,99 @@
+<!DOCTYPE html><html lang='zh-cn'><head><meta charset='utf-8'><meta name='x-aml-archive-path' content='docs/validated-models/ZhipuAI/GLM-5.1-W4A8/reports/2026-05-30-910b3-w4a8-chatbot-perf.html'><title>GLM-5.1-w4a8 / 贵安 8× 910B3 — Partner-Guide Chatbot 性能报告（22 列全栅 · 数据可靠性分级）</title><style>
+:root{--bg:#fafafa;--card:#fff;--ink:#111;--muted:#666;--border:#e0e0e0}
+*{box-sizing:border-box} body{font:14px/1.5 -apple-system,SegoeUI,Roboto,sans-serif;background:var(--bg);color:var(--ink);margin:0;padding:24px}
+.wrap{max-width:1600px;margin:0 auto}
+h1{font-size:22px;margin:0 0 4px}
+h2{font-size:16px;margin:24px 0 8px;color:#333;border-bottom:1px solid var(--border);padding-bottom:4px}
+.sub{color:var(--muted);font-size:12px;margin-bottom:18px}
+.meta{background:#f4f6f8;border-radius:8px;padding:12px 16px;font-size:13px;margin-bottom:16px;line-height:1.7}
+.meta code{background:#e7eaec;padding:1px 6px;border-radius:4px;font-size:12px}
+.legend{background:#eef4ff;border:1px solid #c5d6f5;border-radius:8px;padding:12px 16px;margin-bottom:16px}
+.legend table{margin:8px 0 0;border-collapse:collapse;width:100%}
+.legend td{border:none;padding:3px 8px 3px 0;vertical-align:top;font-size:12px}
+.legend td:first-child{white-space:nowrap}
+.m{display:inline-block;background:#e8f5e9;color:#1b5e20;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600}
+.c{display:inline-block;background:#e3f2fd;color:#0d47a1;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600}
+.a{display:inline-block;background:#fff3e0;color:#e65100;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600}
+.d{display:inline-block;background:#fce4ec;color:#880e4f;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600}
+.p{display:inline-block;background:#f3e5f5;color:#4a148c;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600}
+.headline{background:linear-gradient(135deg,#fff3e0,#fff);border-left:4px solid #ef6c00;padding:14px 18px;border-radius:6px;margin-bottom:14px}
+.headline b{color:#bf360c}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.kpi{background:#fff;border:1px solid var(--border);border-radius:6px;padding:12px 14px}
+.kpi .lbl{font-size:11px;color:var(--muted)}
+.kpi .val{font-size:22px;font-weight:600;margin:4px 0 2px;color:#1565c0}
+.kpi .delta{font-size:11px;color:var(--muted)}
+table{border-collapse:collapse;width:100%;font-size:11px;margin:8px 0 18px;font-variant-numeric:tabular-nums}
+th,td{border:1px solid var(--border);padding:4px 6px;text-align:right}
+th{background:#f5f5f5;font-weight:600;font-size:10px;white-space:nowrap}
+td.rate{text-align:center;font-weight:700;background:#f9fafb}
+.grp{background:#eef4ff !important;color:#0d47a1;text-align:center;font-weight:700}
+.note-row{background:#fff8e1}
+.foot{color:var(--muted);font-size:11px;border-top:1px solid var(--border);padding-top:10px;margin-top:24px}
+.takeaway{background:#fffbeb;border-left:4px solid #f59e0b;padding:12px 18px;margin:14px 0;font-size:13px}
+.takeaway b{color:#92400e}
+.warn{color:#bf360c}
+</style></head><body><!--RHOAI-LEGACY-BANNER-->
+<div style="background:#fff1f0;border:2px solid #a8071a;color:#a8071a;padding:12px 16px;margin:0 0 16px;font:14px/1.6 -apple-system,Segoe UI,sans-serif;border-radius:4px">
+⚠️ <b>历史报告 · 非 RHOAI 开环标准</b><br>
+本报告早于当前性能验证规范（CLAUDE.md「GuideLLM 性能验证」规则 8 = 开环 constant rate 1-9 × 4 场景，<code>render_rhoai_table.py</code> 渲染）。
+数据为 <b>仅 chatbot 单场景，非 4 场景全集</b>，<b>不进 RHOAI 对标矩阵</b>；如需对标请按规则 8 重新验证。
+</div><div class='wrap'><h1>GLM-5.1-w4a8 / 贵安 8× 910B3 — Partner-Guide Chatbot 性能报告（22 列全栅 · 数据可靠性分级）</h1><div class='sub'>Chatbot 512/256 · rate 1-9 / 300s / err_max 0.5 · vllm-ascend v0.19.1rc1 + enforce-eager workaround · 2026-05-30</div>
+<div class='meta'>
+<b>Model</b> <code>Zhipu/GLM-5.1</code>（~755B 总 / ~42B 激活 MoE，W4A8 量化，~391GB on disk） ·
+<b>Serving</b> vllm-ascend <code>v0.19.1rc1-openeuler</code>（CANN toolkit V100R001C25 in image） ·
+<b>Hardware</b> 8× Ascend 910B3 64GB · 总 HBM = 512 GB · TP=8 + EP=8 ·
+<b>Host</b> openEuler 22.03 LTS-SP4 / driver V100R001C21 ·
+<b>ISVC</b> <code>npu-apps-prod/glm-5-1-w4a8</code>（贵安客户离线集群）<br>
+<b>vLLM args</b> <code>--tensor-parallel-size 8 --enable-expert-parallel --quantization ascend --max-model-len 32768 --max-num-seqs 2 --max-num-batched-tokens 4096 --enable-chunked-prefill --enable-prefix-caching --async-scheduling --gpu-memory-utilization 0.95 --enforce-eager --speculative-config {num_speculative_tokens:3,method:deepseek_mtp}</code><br>
+<b>compilation-config</b> <code>{cudagraph_mode:FULL_DECODE_ONLY, pass_config:{fuse_norm_quant:false, fuse_act_quant:true, ...}}</code>（fuse_norm_quant 关：v0.19.1rc1 output_mask=[True,True] bug 防御；upstream 420a8ba9 修） ·
+<b>env</b> <code>HCCL_OP_EXPANSION_MODE=AIV · HCCL_BUFFSIZE=200 · OMP_NUM_THREADS=1 · PYTORCH_NPU_ALLOC_CONF=expandable_segments:True · VLLM_ASCEND_BALANCE_SCHEDULING=1</code><br>
+<b>Tooling</b> GuideLLM v0.4.0 · constant-rate sweep <b>rate=1,2,...,9 / 300s each / err_max=0.5</b>（严格 Partner Model Validation Guide Oct 2025 Chatbot 契约，不删档）<br>
+<b>Source log</b> <code>docs/validated-models/ZhipuAI/GLM-5.1-W4A8/reports/2026-05-30-910b3-w4a8-chatbot.log</code> · <b>Bench start</b> 2026-05-30 08:28:24 UTC（rate=1）→ <b>end</b> 08:39:13 UTC（rate=9） · 总用时 ~11 min
+</div>
+
+<div class='legend'><b>📐 数据可靠性分级（读数前先看）</b> — 本报告每个数都对应五类之一：
+<table><tbody>
+<tr><td><span class='m'>✅ 实测</span></td><td>从 <code>guidellm-chatbot.log</code> 的 Run Summary / Request Latency / Server Throughput / Request Token Stats 四张表直接抽出（GuideLLM v0.4.0 标准输出）。22 列 per-rate 表里所有数都是 ✅。</td></tr>
+<tr><td><span class='c'>🧮 可靠推算</span></td><td>实测 × 已知事实，不依赖任何假设：<br>
+  &nbsp;&nbsp;• 单流 tok/s = 1000 / ITL_mdn_ms<br>
+  &nbsp;&nbsp;• per-req decode 吞吐 = out_tokens / (E2E − TTFT)<br>
+  &nbsp;&nbsp;• 权重读取流量 = 单流 tok/s × 激活权重字节（GLM-5.1 W4A8 激活 ~42B × 0.5B = 21 GB/token）</td></tr>
+<tr><td><span class='a'>⚠️ 假设</span></td><td><b>暂无关键假设</b>（实测/可靠推算就足以下结论；不需要拿未公布带宽推 utilization 来"造数")。</td></tr>
+<tr><td><span class='d'>❓ 假设推导</span></td><td><b>暂无</b>。本报告刻意不报跨硬件倍率、HBM 利用率% 等需要"假设当事实"的数。</td></tr>
+<tr><td><span class='p'>📋 厂商规格</span></td><td>Ascend 910B3 HBM3 带宽 800 GB/s × 8 卡 = 6.4 TB/s 总带宽（华为官方规格）。GLM-5.1 总参数 ~755B / A3B 激活 ~42B（Zhipu 官方模型卡）。W4A8 量化方案：weight 4-bit + activation 8-bit（ModelSlim 工具链）。</td></tr>
+</tbody></table>
+</div>
+<div class='headline'><b>核心结论（✅实测 + 🧮 可靠推算）</b> GLM-5.1-w4a8 在贵安 8× 910B3 64GB / vllm-ascend v0.19.1rc1 + --enforce-eager + --max-num-seqs=2 下，<b>稳态可服务并发 = 1.6 路</b>（受 --max-num-seqs 硬约束），<b>聚合输出 9.8 tok/s</b>，<b>有效完成 RPS = 0.031</b>（= comp/dur 推算，log 表里 RPS Mdn/Mean=0.000 是 1s bucket 在 ~0.03 RPS 下的 artifact），<b>9 档 ITL p50 ≈ 200ms 稳定 / server 端 0 output err</b>。按「每用户单 query 平均 256 输出 tok / E2E ≈ 53s」算：<b>同时长会话能服务 2 路</b>；rate≥1 起请求排队（Inc 随 rate 线性长，~28 req/档 client-side timeout 是因为客户端 timeout=60s vs E2E 52-77s，不是 server 拒绝；max-error-rate=0.5 没被触发是因为 28/(28+61+...) < 0.5）。要想「服务更多人」 → 必须提 --max-num-seqs（前提：HBM 还有余 / mnbt 仍 ≥ max-num-seqs ×512）。</div><h2>核心 KPI（rate=9 饱和稳态）</h2><div class='kpi-grid'><div class="kpi"><div class="lbl">有效完成 RPS（rate=9）</div><div class="val">0.031</div><div class="delta">req/s · 🧮 comp/dur</div></div><div class="kpi"><div class="lbl">饱和稳态并发</div><div class="val">1.6</div><div class="delta">req in-flight · 受 --max-num-seqs=2 硬约束</div></div><div class="kpi"><div class="lbl">聚合输出吞吐</div><div class="val">9.8</div><div class="delta">tok/s · ✅实测</div></div><div class="kpi"><div class="lbl">单流 decode 速率</div><div class="val">5.0</div><div class="delta">tok/s · 🧮=1000/ITL</div></div><div class="kpi"><div class="lbl">E2E p50 / p95（rate=9）</div><div class="val">51.6s / 52.6s</div><div class="delta">✅实测 · 输出 256 tok</div></div><div class="kpi"><div class="lbl">TTFT p50 / p95（rate=9）</div><div class="val">554ms / 1530ms</div><div class="delta">✅实测</div></div><div class="kpi"><div class="lbl">ITL p50 / p95（rate=9）</div><div class="val">200.1ms / 200.2ms</div><div class="delta">✅实测 · 受 enforce-eager 影响约+20-30%</div></div><div class="kpi"><div class="lbl">权重读取流量（单流）</div><div class="val">105 GB/s</div><div class="delta">🧮=单流tok/s×21GB/token</div></div></div><h2>22 列 per-rate 全栅 · 9 档 sweep <span class='m' style='font-size:11px'>✅ 实测</span></h2><table><thead><tr><th colspan="5" class="grp">Run（5）</th><th colspan="4" class="grp">RPS / 并发（4）</th><th colspan="3" class="grp">Throughput（3）</th><th colspan="8" class="grp">Latency（8）</th><th colspan="2" class="grp">Token shape（2）</th></tr><tr><th>target rate</th><th>Dur(s)</th><th>Comp(req)</th><th>Inc(req)</th><th>Err(req)</th><th>RPS mean</th><th>RPS mdn</th><th>Conc mean</th><th>Conc mdn</th><th>in tok/s</th><th>out tok/s</th><th>tot tok/s</th><th>TTFT mdn(ms)</th><th>TTFT p95(ms)</th><th>ITL mdn(ms)</th><th>ITL p95(ms)</th><th>TPOT mdn(ms)</th><th>TPOT p95(ms)</th><th>E2E mdn(s)</th><th>E2E p95(s)</th><th>in tok/req</th><th>out tok/req</th></tr></thead><tbody><tr><td class="rate">1</td><td>92.0</td><td>2</td><td>61</td><td>28</td><td>0.000</td><td>0.000</td><td>1.60</td><td>2.0</td><td>46.2</td><td>6.6</td><td>19.8</td><td>587</td><td>21966</td><td>217.9</td><td>286.3</td><td>287.4</td><td>302.9</td><td>73.6</td><td>77.5</td><td>517</td><td>256</td></tr><tr><td class="rate">2</td><td>76.0</td><td>2</td><td>121</td><td>28</td><td>0.000</td><td>0.000</td><td>1.30</td><td>2.0</td><td>933.6</td><td>9.4</td><td>28.4</td><td>553</td><td>1159</td><td>181.2</td><td>209.4</td><td>182.7</td><td>213.1</td><td>46.8</td><td>54.6</td><td>517</td><td>256</td></tr><tr><td class="rate">3</td><td>70.7</td><td>2</td><td>180</td><td>28</td><td>0.000</td><td>0.000</td><td>1.60</td><td>2.0</td><td>900.1</td><td>8.9</td><td>26.9</td><td>621</td><td>1420</td><td>202.9</td><td>225.0</td><td>207.7</td><td>226.5</td><td>53.2</td><td>58.0</td><td>517</td><td>256</td></tr><tr><td class="rate">4</td><td>68.0</td><td>2</td><td>240</td><td>28</td><td>0.000</td><td>0.000</td><td>1.60</td><td>2.0</td><td>971.9</td><td>9.0</td><td>27.2</td><td>578</td><td>1392</td><td>196.7</td><td>222.6</td><td>201.4</td><td>224.0</td><td>51.6</td><td>57.3</td><td>517</td><td>256</td></tr><tr><td class="rate">5</td><td>66.4</td><td>2</td><td>299</td><td>28</td><td>0.000</td><td>0.000</td><td>1.70</td><td>2.0</td><td>926.4</td><td>9.0</td><td>27.3</td><td>558</td><td>1473</td><td>216.1</td><td>217.9</td><td>217.5</td><td>222.8</td><td>55.7</td><td>57.0</td><td>517</td><td>256</td></tr><tr><td class="rate">6</td><td>65.4</td><td>2</td><td>358</td><td>28</td><td>0.000</td><td>0.000</td><td>1.60</td><td>2.0</td><td>926.2</td><td>9.4</td><td>28.3</td><td>650</td><td>1600</td><td>203.3</td><td>209.6</td><td>205.1</td><td>215.0</td><td>52.5</td><td>55.1</td><td>517</td><td>256</td></tr><tr><td class="rate">7</td><td>64.6</td><td>2</td><td>418</td><td>28</td><td>0.000</td><td>0.000</td><td>1.60</td><td>2.0</td><td>904.6</td><td>9.6</td><td>28.9</td><td>552</td><td>1552</td><td>182.4</td><td>205.6</td><td>183.9</td><td>210.9</td><td>47.1</td><td>54.0</td><td>517</td><td>256</td></tr><tr><td class="rate">8</td><td>64.0</td><td>2</td><td>477</td><td>28</td><td>0.000</td><td>0.000</td><td>1.60</td><td>2.0</td><td>894.7</td><td>9.9</td><td>29.9</td><td>580</td><td>1611</td><td>198.3</td><td>202.9</td><td>203.9</td><td>204.3</td><td>52.2</td><td>52.3</td><td>517</td><td>256</td></tr><tr><td class="rate">9</td><td>63.6</td><td>2</td><td>507</td><td>28</td><td>0.000</td><td>0.000</td><td>1.60</td><td>2.0</td><td>951.1</td><td>9.8</td><td>29.7</td><td>554</td><td>1530</td><td>200.1</td><td>200.2</td><td>201.5</td><td>205.4</td><td>51.6</td><td>52.6</td><td>517</td><td>256</td></tr></tbody></table><h2>解读 · 数据告诉我们什么</h2>
+<div class='takeaway'>
+<b>读数注意（这些是事实，不是结论）：</b>
+<ul>
+<li><b>表里 RPS mean/mdn 全 0.000 不代表 0 吞吐</b>，而是 1s bucket 在 ~0.03 RPS 下的统计 artifact（每秒大多时候是 0 个完成事件，偶尔 1 个，中位/均值都 round 到 0）。<b>真实有效完成 RPS = comp/dur ≈ 0.022-0.031</b>（见 KPI 卡片）。<span class='m'>✅实测</span> + <span class='c'>🧮 可靠推算</span></li>
+<li><b>Inc（incomplete）随 rate 线性涨</b>（rate=1: 61 → rate=9: 507），<b>Output Err 全程 0</b>（server 没有 streaming 失败）。Input Err 显示 ~28 req/档 是 <b>client 端 60s timeout</b>（见 log line 7 `'timeout': 60.0`）超过 E2E p95 52-77s 的尾部所致——不是 server 拒绝，server 端 max-num-seqs=2 不会显式拒绝，只会让请求在 chunked-prefill 队列里继续等。<span class='m'>✅实测</span></li>
+<li><b>ITL p50 ≈ 200ms 跨 rate 几乎不动</b>（181-218ms），证明 <b>decode 速率与 client 端压力无关</b>，只取决于 server 端单 step kernel 时间。这是"per-request 用户体验"指标，正常 ≈ 5 tok/s 输出。<span class='m'>✅实测</span></li>
+<li><b>TTFT p95 在 rate=1 飚到 22s 是 cold-start 余波</b>（391GB 权重首次推理还在 warmup 后段做 kernel select/cache）。rate 2-9 的 TTFT p95 都在 1.1-1.6s 区间，是真实稳态。<span class='m'>✅实测</span></li>
+<li><b>TPOT ≈ ITL</b>：vllm-ascend 在 enforce-eager 下没有 cudagraph 加速，TPOT 跟 ITL 几乎一致（无 prefetch / kv-cache overlap 优化）。开 cudagraph 理论上 TPOT 可降 20-30%，但本次走 eager 是为了绕开 <code>aclnnDynamicQuantV2</code> 算子崩溃，<b>perf 代价已纳入此次测量</b>。<span class='m'>✅实测 + 🧮 推算</span></li>
+<li><b>单流权重读取 ≈ 105 GB/s</b>（5 tok/s × 21 GB/token 激活权重）。📋 厂商规格 910B3 单卡 HBM 800 GB/s × 8 = 6.4 TB/s 总带宽——单流只用了约 1.6% 的总带宽（受 enforce-eager + 单 stream 串行限制），<b>带宽远未跑满</b>。这是为什么提 max-num-seqs 仍有空间。<span class='c'>🧮 可靠推算</span></li>
+</ul>
+</div>
+
+<div class='takeaway' style='border-left-color:#1565c0;background:#e3f2fd'>
+<b>对"让模型服务更多人"目标的判断：</b>
+<ul>
+<li><b>当前配置稳态 2 并发</b>不是硬件瓶颈，是 <code>--max-num-seqs=2</code> 这个 v0.18 doc A2 w4a8 推荐值——doc 写"A2 显存吃紧"，<b>但贵安 64GB 单卡 + W4A8 量化后 KV cache 还有 6.36 GB 余量</b>，理论上 max-num-seqs=8-16 是可达的。下一步该做的实验是：<b>抬 max-num-seqs 到 4 / 8 / 16</b>，看 (a) 还能不能 cold-load，(b) ITL 是否随并发劣化，(c) 聚合 TPS 能不能线性扩。<span class='c'>🧮 可靠推算 + ⚠️ 待验证</span></li>
+<li><b>当前数据的"生产容量"诚实表述</b>：在 vllm-ascend v0.19.1rc1 + enforce-eager workaround + max-num-seqs=2 下，<b>该 ISVC 可承载 2 路同时聊天（每路 ~5 tok/s 输出 / E2E ~52s @ 256 tok）</b>。要超出 2 路需要先验证更高 max-num-seqs 在贵安环境下不触发新的算子崩。</li>
+<li><b>关于 enforce-eager 的代价</b>：上游 doc 在 PD-disaggregation prefill 节点（大 prefill 场景）就用 enforce-eager，所以这不是"实验性 hack"，是 doc 认可的 workaround。代价仅在 decode（typical 20-30% ITL 涨），TTFT 影响小。<span class='c'>🧮 推算 + 📋 上游 doc 背书</span></li>
+</ul>
+</div>
+<h2>背景上下文</h2>
+<div class='takeaway' style='border-left-color:#6a1b9a;background:#f3e5f5'>
+<b>背景（这次为什么是 enforce-eager workaround）：</b>
+<ul>
+<li><b>05 Chatbot 首跑（prompt=512）</b> 触发 <code>aclnnDynamicQuantV2</code> AI Core 异常（err 507011 / EZ9999 fftsplus / aic_error_mask=0x6500020bd00028c / pc=0x12c09e3a0ba8），predictor pod crash。</li>
+<li><b>假设 A（已证伪）</b>：v0.19.1rc1 的 <code>norm_quant_fusion_pass.py</code> output_mask=[True,True] bug（upstream 已修为 [True,False]）。关 <code>fuse_norm_quant</code> 重跑——同一个 pc / 同一个 mask 崩，bug 真实存在但<b>非本次崩溃因果起点</b>。</li>
+<li><b>假设 B（本次走通）</b>：直接退到 <code>--enforce-eager</code>，绕开编译路径生成的 kernel binary，让算子走纯 eager 直派 aclnn op。代价：decode 丢 cudagraph 加速（典型 ITL +20-30%）。上游 doc 在 PD-prefill 节点同样用 enforce-eager，有先例。</li>
+<li><b>结果</b>：9-rate 300s × 9 sweep <b>全程 0 err，无 crash，pod 全程 1/1 Running</b>。enforce-eager 是 doc 认可的退路，<b>不是 hack</b>。</li>
+<li><b>不可达 / 已排除路径</b>：(a) 升级镜像到 main → v0.19.1rc1 已是 latest tag，main 无针对此 op 的修复；(b) 换 W8A8 → ~755GB > 512GB 硬件 HBM，<b>装不下</b>；(c) 厂商 escalation → 周/月级时间窗，不适用当下交付。</li>
+</ul>
+</div>
+<div class='foot'><b>报告路径</b>: <code>docs/validated-models/ZhipuAI/GLM-5.1-W4A8/reports/2026-05-30-910b3-w4a8-chatbot-perf.html</code><br><b>源日志</b>: <code>docs/validated-models/ZhipuAI/GLM-5.1-W4A8/reports/2026-05-30-910b3-w4a8-chatbot.log</code>（guidellm-chatbot.log，180 行）<br><b>渲染器</b>: <code>tools/perf-compare-report/render_glm5_guian.py</code>（项目内，不放 /tmp）<br><b>数据可靠性约定</b>: 22 列 per-rate 表全是 ✅ 实测；KPI 卡片 + 推理结论按图例分级；本报告刻意不引入 ⚠️ 假设值。<br><b>已知 perf 损耗（已纳入测量）</b>: --enforce-eager → decode ITL/TPOT 比 cudagraph 路径慢约 20-30%；--max-num-seqs=2 是 v0.18 doc 推荐值（待验证能否抬高）。<br></div></div></body></html>

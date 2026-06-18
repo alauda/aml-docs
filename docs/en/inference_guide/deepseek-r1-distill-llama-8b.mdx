@@ -1,0 +1,69 @@
+---
+weight: 30
+i18n:
+  title:
+    en: DeepSeek-R1-Distill-Llama-8B
+    zh: DeepSeek-R1-Distill-Llama-8B
+---
+
+# DeepSeek-R1-Distill-Llama-8B (dense)
+
+The **"mature Llama path" anchor**. `LlamaForCausalLM` has been fully native on AscendC
+since early vLLM-Ascend, so this 8B reaches high hardware efficiency on a single card —
+the reference point for how a well-supported architecture should behave on Ascend.
+
+## Model identity
+
+| Field | Value |
+|---|---|
+| Publisher | DeepSeek (`deepseek-ai`) |
+| Architecture | `LlamaForCausalLM` — 32 layers / 4096 hidden / 14336 intermediate / SwiGLU / GQA 32-8 |
+| Parameters | 8B (Llama 3.1 8B base, R1-reasoning distilled) |
+| Native dtype | BF16 |
+| Hugging Face | https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Llama-8B |
+
+> Why the distilled build instead of base Llama 3.1 8B: `R1-Distill` is published directly by
+> `deepseek-ai` (no gate) and is architecturally identical to Llama 3.1 8B, so it is a clean
+> "mature path" baseline.
+
+## Validated hardware × stack
+
+| Platform | Engine | Version | Status |
+|---|---|---|---|
+| Ascend 910B4 × 1 (TP=1, whole card) | vLLM-Ascend | nightly-main-openeuler (vllm v0.20.2 + CANN 9.0.0) | ✅ chatbot 524/256, clean single-stream data |
+
+## Deploy
+
+| Config | Download |
+|---|---|
+| vLLM-Ascend, TP=1 | [deepseek-r1-distill-llama-8b-vllm-ascend-tp1.yaml](/inference_guide/assets/deepseek-r1-distill-llama-8b/deepseek-r1-distill-llama-8b-vllm-ascend-tp1.yaml) |
+
+```bash
+# download the YAML above, edit namespace / image tag / storageUri, then:
+kubectl apply -f deepseek-r1-distill-llama-8b-vllm-ascend-tp1.yaml
+```
+
+Single-card memory budget (validated): 16 GB BF16 weights on a 32 GB card → ~11 GB KV
+headroom at `--gpu-memory-utilization 0.85` → ~20 concurrent sequences at
+`--max-model-len 4096`, enough for chat.
+
+## Benchmark results
+
+This model is a **hardware-efficiency anchor** rather than a capacity-table carrier; its
+measured numbers live in a cross-run comparison spec, not a standalone open-loop RPS sweep.
+Validated single-stream (chatbot 524/256, TP=1, 910B4):
+
+| Metric | Observation |
+|---|---|
+| Path maturity | `LlamaForCausalLM` runs fully native on AscendC — high bandwidth utilization |
+| Weight-read traffic | ~16 GB/token (mature dense path), ~10× the GDN/new-architecture path |
+| Role | Reference baseline for porting other ~8B dense models to a single 910B4 card |
+
+## Tuning notes
+
+1. **Mature path = high efficiency.** Unlike newer architectures (GDN/MTP) that need
+   nightly builds + graph mode to reach normal speed, the Llama path is fast from stock
+   builds — this model is the control that proves that point.
+2. **Graph mode + `enable_npugraph_ex` + `fuse_qknorm_rope`** is the validated fast config.
+   `--max-split-size-mb:256` and `--gpu-memory-utilization 0.85` were stable; do not chase
+   0.90 (it OOMs on this card).
