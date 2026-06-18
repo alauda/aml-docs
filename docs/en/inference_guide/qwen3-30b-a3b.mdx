@@ -1,0 +1,93 @@
+---
+weight: 20
+i18n:
+  title:
+    en: Qwen3-30B-A3B
+    zh: Qwen3-30B-A3B
+---
+
+# Qwen3-30B-A3B (MoE)
+
+The **Mixture-of-Experts** reference model — 30B total parameters, 3B active. It picks
+the **opposite engine** to the dense Qwen3-14B: on Ascend, **MindIE** is the recommended
+engine because the vLLM-Ascend v0.18 MoE kernels are still immature.
+
+## Model identity
+
+| Field | Value |
+|---|---|
+| Publisher | Qwen (Alibaba) |
+| Architecture | Qwen3 MoE-A3B — 30B total / 3B active (128 experts) |
+| Parameters | 30B (3B activated) |
+| Native dtype | BF16 |
+| Hugging Face | https://huggingface.co/Qwen/Qwen3-30B-A3B |
+| ModelScope | https://www.modelscope.cn/models/Qwen/Qwen3-30B-A3B |
+
+## Validated hardware × stack
+
+| Platform | Engine | Version | Status |
+|---|---|---|---|
+| Ascend 910B3 × 2 / × 4 (TP=2/TP=4 + EP) | MindIE | `2.2.RC1` (ATB, auto BF16) | ✅ 4-scenario open-loop perf — **recommended** |
+| Ascend 910B3 × 2 / × 4 (TP=2/TP=4 + EP) | vLLM-Ascend | `v0.18.0-openeuler` (EP + `--enforce-eager`) | ✅ 4-scenario open-loop perf (baseline) |
+
+:::tip Advanced
+This model has also been validated as **W8A8 with multi-node Prefill/Decode (PD)
+disaggregation** on 910B4 (cross-node KV transfer). That is a separate, more complex
+topology; the recipes on this page are the single-node aggregated deployments, which are
+the right starting point for most users.
+:::
+
+## Deploy
+
+Self-contained `ServingRuntime` + `InferenceService` YAMLs:
+
+| Config | File |
+|---|---|
+| MindIE, TP=4 (**recommended**) | [`qwen3-30b-a3b-mindie-tp4.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-30b-a3b/qwen3-30b-a3b-mindie-tp4.yaml) |
+| vLLM-Ascend, TP=4 (baseline) | [`qwen3-30b-a3b-vllm-ascend-tp4.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-30b-a3b/qwen3-30b-a3b-vllm-ascend-tp4.yaml) |
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets/qwen3-30b-a3b
+# edit namespace / image tag / storageUri first, then:
+kubectl apply -f $base/qwen3-30b-a3b-mindie-tp4.yaml
+```
+
+:::warning
+MindIE requires **root** and a **writable** model volume. Keep
+`serving.kserve.io/readonly: "false"` on the `InferenceService` and the root
+`securityContext` in the asset. See the Modelcar permission modes in
+[Extend Inference Runtimes](../model_inference/inference_service/how_to/custom_inference_runtime.mdx#modelcar-permission-modes-for-ascend-910).
+:::
+
+## Benchmark results
+
+Open-loop per-replica, `replica=1`. **Saturation capacity (RPS/replica)** by workload —
+higher is better; `< 1` means the workload cannot sustain one request/second/replica.
+
+| Workload (prompt/output) | MindIE TP=2 | MindIE TP=4 | vLLM TP=2 | vLLM TP=4 |
+|---|---:|---:|---:|---:|
+| Chat `512/256` | **5.90** | **6.48** | 2.68 | 2.69 |
+| Code `1024/1024` | 1.16 | **1.71** | 0.13 | 0.12 |
+| RAG `4096/512` | 1.07 | **1.69** | 0.66 | 1.24 |
+| Long RAG `10240/1536` | 0.02 | 0.14 | 0 | 0 |
+
+Rate-1 latency snapshot, **Chat** workload (TP=2):
+
+| Engine | Achieved RPS | TTFT p90 / mean (ms) | ITL p90 / mean (ms) | TPS mean (tok/s) |
+|---|---:|---:|---:|---:|
+| MindIE | 0.97 | 115 / 104 | 30.8 / 29.0 | 250 |
+| vLLM-Ascend | 0.83 | 587 / 510 | 195.2 / 193.2 | 215 |
+
+## Tuning notes
+
+1. **MoE → MindIE.** MindIE beats vLLM-Ascend v0.18 across every workload: chat capacity
+   5.90 vs 2.68 (2.2×), code 1.16 vs 0.13 (**9×**), rate-1 ITL 29.0 vs 193.2 ms (6.7×).
+   Combined with the dense result (where vLLM wins), this pins the cause on immature
+   vLLM-Ascend v0.18 **MoE** kernels — not the hardware.
+2. **MindIE TP=4 helps high load, not low load.** Going 2→4 cards raised chat saturation
+   5.90→6.48 and unlocked code, but rate-1 ITL rose 29.0→35.6 ms (the per-step
+   communication tax of 4 cards outweighs the benefit at low concurrency).
+3. **vLLM-Ascend TP=2 ≈ TP=4.** With eager-mode MoE, adding two cards gave essentially no
+   gain — the MoE-kernel bottleneck dominates the communication cost.
+4. **Long RAG (16k window) is not deliverable on one node.** MindIE TP=4 peaked at 0.14
+   RPS/replica — still `< 1`. Use larger TP, multi-node, or truncate the input.

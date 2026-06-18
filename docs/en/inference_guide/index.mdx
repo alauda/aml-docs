@@ -1,0 +1,106 @@
+---
+weight: 76
+i18n:
+  title:
+    en: Inference Guide
+    zh: 推理指南
+---
+
+# Inference Guide
+
+Ready-to-deploy recipes for **validated open-weight LLMs** on Alauda AI. Each model
+in this guide has been deployed end-to-end on a real cluster and benchmarked, so you
+get a known-good `ServingRuntime` + `InferenceService` pair plus the throughput you
+can expect per replica.
+
+The models here were validated on **Huawei Ascend 910B NPU** with the community
+`vLLM-Ascend` and Huawei `MindIE` engines. For the runtime model (KServe
+`ServingRuntime` / `InferenceService`, ModelCar storage, scheduling) see
+[Model Deployment & Inference](../model_inference/index.mdx); for adding your own
+engine see [Extend Inference Runtimes](../model_inference/inference_service/how_to/custom_inference_runtime.mdx).
+
+## Validated models
+
+| Model | Type | Params | dtype | Device | Engines | Per-page |
+|---|---|---|---|---|---|---|
+| Qwen3-14B | dense | 14B | BF16 | Ascend 910B3 | vLLM-Ascend / MindIE | [Qwen3-14B](./qwen3-14b.mdx) |
+| Qwen3-30B-A3B | MoE (3B active) | 30B | BF16 | Ascend 910B3 | vLLM-Ascend / MindIE | [Qwen3-30B-A3B](./qwen3-30b-a3b.mdx) |
+
+Both models are above the 7B/8B class. Qwen3-14B is the **dense** reference; Qwen3-30B-A3B
+is the **MoE** reference — the two behave very differently under load and pick opposite engines.
+
+## Runtime images
+
+| Engine | Device | Image (validated tag) | Notes |
+|---|---|---|---|
+| vLLM-Ascend | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:v0.18.0-openeuler` | Community vLLM for Ascend, V1 engine. Pick the tag whose CANN version matches your host driver. Best engine for **dense** models. |
+| MindIE | Huawei Ascend NPU | `swr.cn-south-1.myhuaweicloud.com/ascendhub/mindie:2.2.RC1-800I-A2-py311-openeuler24.03-lts` | Huawei engine (ATB backend). Picks BF16 automatically from the weights. Best engine for **MoE** models. Requires root + writable model volume. |
+| vLLM (NVIDIA) | NVIDIA GPU (CUDA) | Alauda AI built-in vLLM runtime | The platform's default GPU runtime. The 7B+ models in this guide were validated on Ascend NPU; GPU validation at this size is tracked separately. |
+
+:::tip
+CUDA / NVIDIA images are x86-64; the Ascend CANN images are arm64. Always match the
+runtime image's CANN version to the **host NPU driver** on your nodes.
+:::
+
+## Picking an engine
+
+The single most important finding from validation: **the best engine depends on the
+model architecture**, on this hardware and these engine versions.
+
+- **Dense model (Qwen3-14B) → vLLM-Ascend.** vLLM reached ~1.5× the chat capacity of
+  MindIE (5.36 vs 3.50 RPS/replica); MindIE's inter-token latency degraded faster under
+  concurrency.
+- **MoE model (Qwen3-30B-A3B) → MindIE.** MindIE beat vLLM-Ascend v0.18 across the board
+  (chat 5.90 vs 2.68 RPS, code 9×, rate-1 ITL 6.7×) — the vLLM-Ascend v0.18 MoE kernels
+  are still immature.
+- **Tensor parallelism is scenario-dependent.** Adding cards gives **no decode throughput**
+  for short chat (prefer TP=1 + more replicas), but is essential for **long-context
+  prefill** — TP=2 cut Qwen3-14B RAG TTFT p90 from ~47s to ~1.3s.
+
+## Benchmark methodology
+
+All numbers in this guide come from real `guidellm` runs, not estimates:
+
+- **Open-loop, per-replica.** `guidellm benchmark --rate-type constant --rate 1..9
+  --max-seconds 300 --max-error-rate 0.5`, measured at `replica=1`.
+- **Four fixed workloads** (prompt/output tokens): Chat `512/256`, Code `1024/1024`,
+  RAG `4096/512`, Long RAG `10240/1536`.
+- **Saturation capacity** = the peak achieved RPS across the rate 1→9 sweep.
+- A workload whose capacity is **< 1 RPS/replica** is reported honestly as such (it cannot
+  sustain even one request per second per replica on this hardware/stack).
+
+## Deploy a validated model
+
+Each model page links self-contained YAMLs under
+[`assets/`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets)
+that bundle a namespace-scoped `ServingRuntime` **and** the matching `InferenceService`.
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets
+
+# 1. Edit the file first: set metadata.namespace, the image tag (match your CANN /
+#    host driver), and storageUri (a PVC of the weights, or an oci:// ModelCar).
+# 2. Apply the ServingRuntime + InferenceService.
+kubectl apply -f $base/qwen3-14b/qwen3-14b-vllm-ascend-tp1.yaml
+
+# 3. Watch it come up (first start loads weights + compiles graphs — can take minutes).
+kubectl -n <your-namespace> get inferenceservice -w
+
+# 4. Call the OpenAI-compatible endpoint.
+curl -s http://<isvc-url>/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"qwen3-14b","messages":[{"role":"user","content":"hello"}]}'
+```
+
+## Caveats
+
+- These are **namespace-scoped `ServingRuntime`** examples (not `ClusterServingRuntime`),
+  one per model/engine/TP combination — apply them in the same namespace as the
+  `InferenceService` that references them.
+- Resource keys are for **Ascend 910B3** (`huawei.com/Ascend910B3`). Adjust the resource
+  key, image, and version fields for your actual NPU model.
+- For Ascend single-node **multi-card** (TP>1) the runtime image must support HCCL init
+  under the configured Modelcar UID — see the Modelcar permission modes in
+  [Extend Inference Runtimes](../model_inference/inference_service/how_to/custom_inference_runtime.mdx#modelcar-permission-modes-for-ascend-910).
+- **Long RAG (10k+ context)** did not reach 1 RPS/replica for either model on a single
+  910B3 node — it needs larger TP, multi-node, or input truncation.

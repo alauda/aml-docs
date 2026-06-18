@@ -1,0 +1,85 @@
+# Qwen3-14B (dense, BF16) — vLLM-Ascend, TP=1, single Ascend 910B3 whole card.
+# Validated open-loop per-replica capacity: Chat (512/256) ~5.36 RPS/replica.
+# Namespace-scoped ServingRuntime (NOT ClusterServingRuntime) + InferenceService.
+# Change `metadata.namespace`, the image tag (match your CANN / host driver),
+# and `storageUri` to your environment before applying.
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: qwen3-14b-vllm-ascend-tp1
+  namespace: demo
+  labels:
+    aml.cpaas.io/runtime-type: vllm
+spec:
+  supportedModelFormats:
+    - name: transformers
+      autoSelect: false
+  containers:
+    - name: kserve-container
+      # Community vLLM-Ascend image. Validated tag: v0.18.0-openeuler (V1 engine).
+      # Pick the tag whose CANN version matches your host driver (here: 910B3 / C21).
+      image: quay.io/ascend/vllm-ascend:v0.18.0-openeuler
+      command: [python3, -m, vllm.entrypoints.openai.api_server]
+      args:
+        - --model=/mnt/models
+        - --served-model-name=qwen3-14b
+        - --host=0.0.0.0
+        - --port=8080
+      ports:
+        - { containerPort: 8080, protocol: TCP }
+      resources:
+        requests: { cpu: "8", memory: 32Gi }
+        limits: { cpu: "16", memory: 96Gi }
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: qwen3-14b-vllm-tp1
+  namespace: demo
+  annotations:
+    serving.kserve.io/deploymentMode: RawDeployment
+    serving.knative.dev/progress-deadline: "1800s"   # 14B ~29GB load + first graph compile
+  labels:
+    aml.cpaas.io/runtime-type: vllm
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 1
+    deploymentStrategy: { type: Recreate }
+    model:
+      modelFormat: { name: transformers }
+      runtime: qwen3-14b-vllm-ascend-tp1
+      # Verified with a PVC holding the BF16 weights. ModelCar OCI also works:
+      #   storageUri: oci://<registry>/<repository>:<tag>
+      storageUri: pvc://qwen3-14b-bf16/
+      args:
+        - --tensor-parallel-size
+        - "1"
+        - --max-model-len
+        - "16384"
+        - --max-num-seqs
+        - "256"
+        - --gpu-memory-utilization
+        - "0.90"
+        - --enable-chunked-prefill
+        - --enable-prefix-caching
+        - --trust-remote-code
+        - --seed
+        - "1024"
+        # FULL_DECODE_ONLY enables Npugraph_ex operator fusion (best perf for BF16 dense).
+        # If the first request crashes EngineCore (check `logs --previous`), drop this
+        # block and add `--enforce-eager` as a fallback.
+        - --compilation-config
+        - '{"cudagraph_mode":"FULL_DECODE_ONLY"}'
+      env:
+        - { name: HOME, value: /tmp }
+        - { name: PYTORCH_NPU_ALLOC_CONF, value: "expandable_segments:True" }
+      resources:
+        requests: { cpu: "8", memory: 32Gi }
+        limits:
+          cpu: "16"
+          memory: 96Gi
+          huawei.com/Ascend910B3: "1"              # one whole card
+          huawei.com/Ascend910B3-memory: "65536"   # 64 GiB
+      securityContext: { runAsNonRoot: false, runAsUser: 0 }
+    securityContext: { runAsNonRoot: false, runAsUser: 0, runAsGroup: 0, fsGroup: 1000 }

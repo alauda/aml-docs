@@ -1,0 +1,86 @@
+---
+weight: 10
+i18n:
+  title:
+    en: Qwen3-14B
+    zh: Qwen3-14B
+---
+
+# Qwen3-14B (dense)
+
+The **dense** reference model. At ~29.5 GB in BF16 it fits on a single Ascend 910B3
+card, so you can compare TP=1 vs TP=2 directly. Recommended engine: **vLLM-Ascend**.
+
+## Model identity
+
+| Field | Value |
+|---|---|
+| Publisher | Qwen (Alibaba) |
+| Architecture | `Qwen3ForCausalLM` (dense) — 40 layers / 40 heads / hidden 5120 |
+| Parameters | 14B |
+| Native dtype | BF16 (non-quantized) |
+| Weights size | 29.5 GB (8 safetensors) |
+| Hugging Face | https://huggingface.co/Qwen/Qwen3-14B |
+
+## Validated hardware × stack
+
+| Platform | Engine | Version | Status |
+|---|---|---|---|
+| Ascend 910B3 × 1 (TP=1, whole card) | vLLM-Ascend | `v0.18.0-openeuler` (V1 + FULL_DECODE_ONLY graph) | ✅ 4-scenario open-loop perf |
+| Ascend 910B3 × 2 (TP=2) | vLLM-Ascend | same + hostIPC/HCCL | ✅ 4-scenario open-loop perf |
+| Ascend 910B3 × 1 (TP=1, whole card) | MindIE | `2.2.RC1` (ATB, auto BF16) | ✅ 4-scenario open-loop perf |
+| Ascend 910B3 × 2 (TP=2) | MindIE | same + hostIPC/HCCL | ✅ 4-scenario open-loop perf |
+
+## Deploy
+
+Self-contained `ServingRuntime` + `InferenceService` YAMLs:
+
+| Config | File |
+|---|---|
+| vLLM-Ascend, TP=1 (recommended for chat) | [`qwen3-14b-vllm-ascend-tp1.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-14b/qwen3-14b-vllm-ascend-tp1.yaml) |
+| vLLM-Ascend, TP=2 (for long-context / RAG) | [`qwen3-14b-vllm-ascend-tp2.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-14b/qwen3-14b-vllm-ascend-tp2.yaml) |
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets/qwen3-14b
+# edit namespace / image tag / storageUri first, then:
+kubectl apply -f $base/qwen3-14b-vllm-ascend-tp1.yaml
+```
+
+For MindIE on this model, define the MindIE runtime as shown in
+[Extend Inference Runtimes → MindIE](../model_inference/inference_service/how_to/custom_inference_runtime.mdx)
+(MindIE was the *slower* engine here — see below).
+
+## Benchmark results
+
+Open-loop per-replica, `replica=1`. **Saturation capacity (RPS/replica)** by workload —
+higher is better; `< 1` means the workload cannot sustain one request/second/replica.
+
+| Workload (prompt/output) | vLLM TP=1 | vLLM TP=2 | MindIE TP=1 | MindIE TP=2 |
+|---|---:|---:|---:|---:|
+| Chat `512/256` | **5.36** | **5.46** | 3.50 | 3.62 |
+| Code `1024/1024` | 0.70 | 0.73 | 0.47 | 0.58 |
+| RAG `4096/512` | 0.47 | 0.52 | 0.20 | 0.54 |
+| Long RAG `10240/1536` | 0 | 0 | 0 | 0 |
+
+Rate-1 latency snapshot, **Chat** workload (TP=1):
+
+| Engine | Achieved RPS | TTFT p90 / mean (ms) | ITL p90 / mean (ms) | TPS mean (tok/s) |
+|---|---:|---:|---:|---:|
+| vLLM-Ascend | 0.96 | 195 / 178 | 44.6 / 44.5 | 247 |
+| MindIE | 0.95 | 159 / 141 | 52.9 / 52.5 | 245 |
+
+## Tuning notes
+
+1. **Dense → vLLM-Ascend.** vLLM sustains ~1.5× MindIE's chat capacity (5.36 vs 3.50
+   RPS/replica). MindIE's ITL degrades faster under concurrency; it only wins slightly on
+   low-load TTFT.
+2. **TP scaling is scenario-dependent.** For short chat (decode-bound), TP=2 adds almost
+   nothing over TP=1 — scale out with replicas instead (8× TP=1 replicas ≈ 42.9 RPS far
+   exceeds 4× TP=2 ≈ 21.8 RPS). For prefill-heavy RAG, TP=2 cut TTFT p90 from **46.8 s to
+   1.27 s**. Size cards by workload, not by a single rule.
+3. **Long RAG (10240/1536) is capacity 0 on one node** for both engines and both TP
+   settings — prefill of 10k+ tokens overruns the 60 s TTFT timeout. It needs TP≥4,
+   multi-node, or input truncation.
+4. **BF16 graph mode is stable.** `FULL_DECODE_ONLY` does not crash on this dense model;
+   if a future build's EngineCore crashes on the first request, fall back to
+   `--enforce-eager`.
