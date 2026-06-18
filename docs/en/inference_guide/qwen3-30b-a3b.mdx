@@ -8,9 +8,8 @@ i18n:
 
 # Qwen3-30B-A3B (MoE)
 
-The **Mixture-of-Experts** reference model — 30B total parameters, 3B active. It picks
-the **opposite engine** to the dense Qwen3-14B: on Ascend, **MindIE** is the recommended
-engine because the vLLM-Ascend v0.18 MoE kernels are still immature.
+Mixture-of-Experts model — 30B total parameters, 3B active (128 experts), BF16. Validated on
+Ascend 910B3 at TP=2 and TP=4 (with expert parallel) using both vLLM-Ascend and MindIE.
 
 ## Model identity
 
@@ -27,14 +26,13 @@ engine because the vLLM-Ascend v0.18 MoE kernels are still immature.
 
 | Platform | Engine | Version | Status |
 |---|---|---|---|
-| Ascend 910B3 × 2 / × 4 (TP=2/TP=4 + EP) | MindIE | `2.2.RC1` (ATB, auto BF16) | ✅ 4-scenario open-loop perf — **recommended** |
-| Ascend 910B3 × 2 / × 4 (TP=2/TP=4 + EP) | vLLM-Ascend | `v0.18.0-openeuler` (EP + `--enforce-eager`) | ✅ 4-scenario open-loop perf (baseline) |
+| Ascend 910B3 × 2 / × 4 (TP=2/TP=4 + EP) | MindIE | `2.2.RC1` (ATB, auto BF16) | ✅ 4-scenario open-loop perf |
+| Ascend 910B3 × 2 / × 4 (TP=2/TP=4 + EP) | vLLM-Ascend | `v0.18.0-openeuler` (EP + `--enforce-eager`) | ✅ 4-scenario open-loop perf |
 
-:::tip Advanced
+:::note
 This model has also been validated as **W8A8 with multi-node Prefill/Decode (PD)
-disaggregation** on 910B4 (cross-node KV transfer). That is a separate, more complex
-topology; the recipes on this page are the single-node aggregated deployments, which are
-the right starting point for most users.
+disaggregation** on 910B4 (cross-node KV transfer) — a separate, more complex topology. The
+recipes on this page are the single-node aggregated deployments.
 :::
 
 ## Deploy
@@ -43,8 +41,8 @@ Self-contained `ServingRuntime` + `InferenceService` YAMLs:
 
 | Config | File |
 |---|---|
-| MindIE, TP=4 (**recommended**) | [`qwen3-30b-a3b-mindie-tp4.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-30b-a3b/qwen3-30b-a3b-mindie-tp4.yaml) |
-| vLLM-Ascend, TP=4 (baseline) | [`qwen3-30b-a3b-vllm-ascend-tp4.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-30b-a3b/qwen3-30b-a3b-vllm-ascend-tp4.yaml) |
+| MindIE, TP=4 | [`qwen3-30b-a3b-mindie-tp4.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-30b-a3b/qwen3-30b-a3b-mindie-tp4.yaml) |
+| vLLM-Ascend, TP=4 | [`qwen3-30b-a3b-vllm-ascend-tp4.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-30b-a3b/qwen3-30b-a3b-vllm-ascend-tp4.yaml) |
 
 ```bash
 base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets/qwen3-30b-a3b
@@ -61,8 +59,8 @@ MindIE requires **root** and a **writable** model volume. Keep
 
 ## Benchmark results
 
-Open-loop per-replica, `replica=1`. **Saturation capacity (RPS/replica)** by workload —
-higher is better; `< 1` means the workload cannot sustain one request/second/replica.
+Open-loop per-replica, `replica=1`. **Saturation capacity (RPS/replica)** by workload
+(`< 1` = the workload does not sustain one request/second/replica on this hardware/stack).
 
 | Workload (prompt/output) | MindIE TP=2 | MindIE TP=4 | vLLM TP=2 | vLLM TP=4 |
 |---|---:|---:|---:|---:|
@@ -80,9 +78,8 @@ Rate-1 latency snapshot, **Chat** workload (TP=2):
 
 ### Full open-loop data (all 22 columns)
 
-The complete report — every rate level (1–9) × all four workloads × both engines × TP=2/TP=4,
-with TTFT / E2E / ITL / TPS at p90 / p95 / p99 / mean — is below (expand each section) and as a
-the source HTML report in the repo: [**Qwen3-30B-A3B open-loop report**](https://github.com/alauda/aml-docs/blob/master/docs/en/inference_guide/reports/qwen3-30b-a3b/2026-06-10-910b3-tp2tp4-vllm-mindie-openloop.html).
+Every rate level (1–9) × all four workloads × both engines × TP=2/TP=4, with
+TTFT / E2E / ITL / TPS at p90 / p95 / p99 / mean. Expand each section:
 
 <details>
 <summary>Full 22-column open-loop sweep — 910B3 × 2 · Qwen3-30B-A3B (MoE) · vllm-ascend v0.18.0-openeuler (EP+eager)</summary>
@@ -303,17 +300,3 @@ the source HTML report in the repo: [**Qwen3-30B-A3B open-loop report**](https:/
 | 9* | 1 | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
 
 </details>
-
-## Tuning notes
-
-1. **MoE → MindIE.** MindIE beats vLLM-Ascend v0.18 across every workload: chat capacity
-   5.90 vs 2.68 (2.2×), code 1.16 vs 0.13 (**9×**), rate-1 ITL 29.0 vs 193.2 ms (6.7×).
-   Combined with the dense result (where vLLM wins), this pins the cause on immature
-   vLLM-Ascend v0.18 **MoE** kernels — not the hardware.
-2. **MindIE TP=4 helps high load, not low load.** Going 2→4 cards raised chat saturation
-   5.90→6.48 and unlocked code, but rate-1 ITL rose 29.0→35.6 ms (the per-step
-   communication tax of 4 cards outweighs the benefit at low concurrency).
-3. **vLLM-Ascend TP=2 ≈ TP=4.** With eager-mode MoE, adding two cards gave essentially no
-   gain — the MoE-kernel bottleneck dominates the communication cost.
-4. **Long RAG (16k window) is not deliverable on one node.** MindIE TP=4 peaked at 0.14
-   RPS/replica — still `< 1`. Use larger TP, multi-node, or truncate the input.

@@ -8,8 +8,8 @@ i18n:
 
 # Qwen3-14B (dense)
 
-The **dense** reference model. At ~29.5 GB in BF16 it fits on a single Ascend 910B3
-card, so you can compare TP=1 vs TP=2 directly. Recommended engine: **vLLM-Ascend**.
+Dense 14B model (BF16, ~29.5 GB — fits a single Ascend 910B3 card). Validated on Ascend
+910B3 at TP=1 and TP=2 with both vLLM-Ascend and MindIE.
 
 ## Model identity
 
@@ -37,8 +37,8 @@ Self-contained `ServingRuntime` + `InferenceService` YAMLs:
 
 | Config | File |
 |---|---|
-| vLLM-Ascend, TP=1 (recommended for chat) | [`qwen3-14b-vllm-ascend-tp1.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-14b/qwen3-14b-vllm-ascend-tp1.yaml) |
-| vLLM-Ascend, TP=2 (for long-context / RAG) | [`qwen3-14b-vllm-ascend-tp2.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-14b/qwen3-14b-vllm-ascend-tp2.yaml) |
+| vLLM-Ascend, TP=1 | [`qwen3-14b-vllm-ascend-tp1.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-14b/qwen3-14b-vllm-ascend-tp1.yaml) |
+| vLLM-Ascend, TP=2 | [`qwen3-14b-vllm-ascend-tp2.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-14b/qwen3-14b-vllm-ascend-tp2.yaml) |
 
 ```bash
 base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets/qwen3-14b
@@ -47,13 +47,12 @@ kubectl apply -f $base/qwen3-14b-vllm-ascend-tp1.yaml
 ```
 
 For MindIE on this model, define the MindIE runtime as shown in
-[Extend Inference Runtimes → MindIE](../model_inference/inference_service/how_to/custom_inference_runtime.mdx)
-(MindIE was the *slower* engine here — see below).
+[Extend Inference Runtimes → MindIE](../model_inference/inference_service/how_to/custom_inference_runtime.mdx).
 
 ## Benchmark results
 
-Open-loop per-replica, `replica=1`. **Saturation capacity (RPS/replica)** by workload —
-higher is better; `< 1` means the workload cannot sustain one request/second/replica.
+Open-loop per-replica, `replica=1`. **Saturation capacity (RPS/replica)** by workload
+(`< 1` = the workload does not sustain one request/second/replica on this hardware/stack).
 
 | Workload (prompt/output) | vLLM TP=1 | vLLM TP=2 | MindIE TP=1 | MindIE TP=2 |
 |---|---:|---:|---:|---:|
@@ -71,9 +70,8 @@ Rate-1 latency snapshot, **Chat** workload (TP=1):
 
 ### Full open-loop data (all 22 columns)
 
-The complete report — every rate level (1–9) × all four workloads × both engines × TP=1/TP=2,
-with TTFT / E2E / ITL / TPS at p90 / p95 / p99 / mean — is below (expand each section) and as a
-the source HTML report in the repo: [**Qwen3-14B open-loop report**](https://github.com/alauda/aml-docs/blob/master/docs/en/inference_guide/reports/qwen3-14b/2026-06-10-910b3-tp1tp2-vllm-mindie-openloop.html).
+Every rate level (1–9) × all four workloads × both engines × TP=1/TP=2, with
+TTFT / E2E / ITL / TPS at p90 / p95 / p99 / mean. Expand each section:
 
 <details>
 <summary>Full 22-column open-loop sweep — 910B3 × 1 · Qwen3-14B · vllm-ascend v0.18.0-openeuler</summary>
@@ -282,19 +280,3 @@ the source HTML report in the repo: [**Qwen3-14B open-loop report**](https://git
 **Long RAG 10240/1536 (capacity < 1 RPS/replica)** — capacity 0: all 9 rate levels errored (requests queue past the TTFT timeout). No sustained throughput.
 
 </details>
-
-## Tuning notes
-
-1. **Dense → vLLM-Ascend.** vLLM sustains ~1.5× MindIE's chat capacity (5.36 vs 3.50
-   RPS/replica). MindIE's ITL degrades faster under concurrency; it only wins slightly on
-   low-load TTFT.
-2. **TP scaling is scenario-dependent.** For short chat (decode-bound), TP=2 adds almost
-   nothing over TP=1 — scale out with replicas instead (8× TP=1 replicas ≈ 42.9 RPS far
-   exceeds 4× TP=2 ≈ 21.8 RPS). For prefill-heavy RAG, TP=2 cut TTFT p90 from **46.8 s to
-   1.27 s**. Size cards by workload, not by a single rule.
-3. **Long RAG (10240/1536) is capacity 0 on one node** for both engines and both TP
-   settings — prefill of 10k+ tokens overruns the 60 s TTFT timeout. It needs TP≥4,
-   multi-node, or input truncation.
-4. **BF16 graph mode is stable.** `FULL_DECODE_ONLY` does not crash on this dense model;
-   if a future build's EngineCore crashes on the first request, fall back to
-   `--enforce-eager`.

@@ -8,9 +8,9 @@ i18n:
 
 # DeepSeek-R1-Distill-Llama-70B (dense)
 
-The **accuracy / engine-parity carrier**. At 70B BF16 (~141 GB) it runs TP=8 across a full
-8-card node — one replica per node, so it is not a replica-scaling carrier, but it is the
-right model for verifying that the engine produces *correct* output at scale.
+Dense 70B model (Llama 3.3 base, R1-reasoning distilled, BF16, ~141 GB). Validated on Ascend
+910B3 at TP=8 (a full 8-card node, one replica) with vLLM-Ascend, with accuracy and
+single-stream perf measured.
 
 ## Model identity
 
@@ -58,37 +58,12 @@ All scores measured on the deployed service via `/v1/completions`.
 | winogrande | acc | 0.7266 | 512 |
 | **6-task mean** | | **0.7220** | |
 
-Reference comparison vs RHOAI base **Llama-3.3-70B-Instruct-FP8** (a different build — no
-pass/fail line, but illustrative):
-
-| Task | RHOAI Llama-3.3-70B-FP8 (ref) | This DeepSeek-R1-Distill BF16 |
-|---|---:|---:|
-| gsm8k | 0.9492 | **0.9453 ← nearly identical** |
-| mmlu | 0.8131 | 0.7928 |
-| arc_challenge | 0.5196 | 0.5645 ← higher |
-| truthfulqa_mc2 | 0.6321 | 0.5724 |
-| hellaswag | 0.8643 | 0.7305 |
-| winogrande | 0.8453 | 0.7266 |
-
 ### Performance
 
-Single-stream / closed-loop only (70B on 8 cards = 1 replica, so this is a single-instance
-**lower bound**, not a per-replica RPS table like the Qwen models):
+Single-stream / closed-loop only (70B on 8 cards = 1 replica, so a per-replica RPS sweep
+like the Qwen models does not apply):
 
 | Metric | Value |
 |---|---|
-| Single-stream ITL | **56 ms** (tuned from 123 ms via FULL_DECODE_ONLY graph) |
+| Single-stream ITL | 56 ms (FULL_DECODE_ONLY graph) |
 | 4-scenario closed-loop | 0 errors |
-
-## Tuning notes
-
-1. **FULL_DECODE_ONLY halves single-stream ITL (123 → 56 ms).** The default PIECEWISE graph
-   does no operator fusion; `--compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY"}'`
-   enables Npugraph_ex fusion. Caveat: `TASK_QUEUE_ENABLE=2` is incompatible with graph
-   capture — change one variable at a time when tuning.
-2. **Use `v0.18.0-openeuler`, not `v0.19.1rc1`.** The latter has a detokenizer bug that drops
-   `Ġ`/`Ċ` — harmless for perf, fatal for accuracy.
-3. **Accuracy reading.** gsm8k (the only generative task) at 0.945 ≈ RHOAI base 0.9492 proves
-   the engine output is lossless. The multiple-choice tasks are systematically underscored by
-   loglikelihood ranking on a reasoning-distilled model — an evaluation-method artifact, not
-   an engine problem.
