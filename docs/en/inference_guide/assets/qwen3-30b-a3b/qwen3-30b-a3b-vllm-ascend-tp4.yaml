@@ -1,11 +1,6 @@
 # Qwen3-30B-A3B (MoE, 30B total / 3B active, BF16) — vLLM-Ascend, TP=4 + expert
-# parallel, four Ascend 910B3 whole cards.
-#
-# NOTE on engine choice: on vLLM-Ascend v0.18 the MoE kernels are immature, so this
-# config is the *baseline* for the cross-engine comparison — MindIE reached far higher
-# capacity on the same model/hardware (Chat 5.90 vs 2.68 RPS, Code 9x). For production
-# MoE serving, prefer the MindIE example. Keep this one for an apples-to-apples
-# vLLM baseline or if you standardize on a single engine.
+# parallel, four Ascend 910B3 whole cards. Uses `--enforce-eager` (the stable MoE path
+# on vLLM-Ascend v0.18).
 #
 # Change `metadata.namespace`, the image tag, and `storageUri` before applying.
 apiVersion: serving.kserve.io/v1alpha1

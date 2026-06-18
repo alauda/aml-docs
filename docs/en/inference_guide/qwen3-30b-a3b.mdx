@@ -41,13 +41,14 @@ Self-contained `ServingRuntime` + `InferenceService` YAMLs:
 
 | Config | File |
 |---|---|
+| MindIE, TP=2 (rate-1 chat ITL P90 30.8 ms) | [`qwen3-30b-a3b-mindie-tp2.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-30b-a3b/qwen3-30b-a3b-mindie-tp2.yaml) |
 | MindIE, TP=4 | [`qwen3-30b-a3b-mindie-tp4.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-30b-a3b/qwen3-30b-a3b-mindie-tp4.yaml) |
 | vLLM-Ascend, TP=4 | [`qwen3-30b-a3b-vllm-ascend-tp4.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-30b-a3b/qwen3-30b-a3b-vllm-ascend-tp4.yaml) |
 
 ```bash
 base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets/qwen3-30b-a3b
 # edit namespace / image tag / storageUri first, then:
-kubectl apply -f $base/qwen3-30b-a3b-mindie-tp4.yaml
+kubectl apply -f $base/qwen3-30b-a3b-mindie-tp2.yaml
 ```
 
 :::warning

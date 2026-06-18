@@ -23,29 +23,19 @@ engine see [Extend Inference Runtimes](../model_inference/inference_service/how_
 
 | Model | Type | Params | dtype | Device | Engines | Per-page |
 |---|---|---|---|---|---|---|
-| Qwen3-14B | dense | 14B | BF16 | Ascend 910B3 ×1–2 | vLLM-Ascend / MindIE | [Qwen3-14B](./qwen3-14b.mdx) |
 | Qwen3-30B-A3B | MoE (3B active) | 30B | BF16 | Ascend 910B3 ×2–4 | vLLM-Ascend / MindIE | [Qwen3-30B-A3B](./qwen3-30b-a3b.mdx) |
-| DeepSeek-R1-Distill-Llama-8B | dense | 8B | BF16 | Ascend 910B4 ×1 | vLLM-Ascend | [DeepSeek-R1-Distill-Llama-8B](./deepseek-r1-distill-llama-8b.mdx) |
-| DeepSeek-R1-Distill-Llama-70B | dense | 70B | BF16 | Ascend 910B3 ×8 | vLLM-Ascend | [DeepSeek-R1-Distill-Llama-70B](./deepseek-r1-distill-llama-70b.mdx) |
-| GLM-5.1-W4A8 | MoE (42B active) | ~755B | W4A8 | Ascend 910B3 ×8 | vLLM-Ascend | [GLM-5.1-W4A8](./glm-5-1-w4a8.mdx) |
 
-All models are at or above the 7B/8B class, and cover **dense** (Qwen3-14B, DeepSeek-8B/70B)
-and **MoE** (Qwen3-30B-A3B, GLM-5.1) architectures, **BF16** and **W4A8** weights, and
-single-card to full 8-card (TP=8) deployments.
+Models listed here meet the target serving SLO: at rate=1, chatbot workload, **inter-token
+latency (ITL) P90 ≈ 30 ms**. Qwen3-30B-A3B (MoE, 30B total / 3B active, BF16) was validated on
+Ascend 910B3 at TP=2 and TP=4 with both vLLM-Ascend and MindIE.
 
 ## Runtime images
 
 | Engine | Device | Image (validated tag) | Notes |
 |---|---|---|---|
-| vLLM-Ascend | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:v0.18.0-openeuler` (BF16 dense) · `:v0.19.1rc1-openeuler` (GLM W4A8) · `:nightly-main-openeuler` (newer archs) | Community vLLM for Ascend, V1 engine. Pick the tag whose CANN version matches your host driver and whose transformers is new enough for your model. |
+| vLLM-Ascend | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:v0.18.0-openeuler` | Community vLLM for Ascend, V1 engine. Pick the tag whose CANN version matches your host driver. |
 | MindIE | Huawei Ascend NPU | `swr.cn-south-1.myhuaweicloud.com/ascendhub/mindie:2.2.RC1-800I-A2-py311-openeuler24.03-lts` | Huawei engine (ATB backend). Picks BF16 automatically from the weights. Requires root + writable model volume. |
 | vLLM (NVIDIA) | NVIDIA GPU (CUDA) | Alauda AI built-in vLLM runtime | The platform's default GPU runtime. The models in this guide were validated on Ascend NPU; GPU validation at this size is tracked separately. |
-
-:::note
-Match the vLLM-Ascend tag to the model, not just the hardware. `v0.18.0-openeuler` is the
-BF16-accurate default; GLM-5.1 needs `v0.19.1rc1-openeuler` (newer transformers); the newest
-architectures need `nightly-main-openeuler`. Each model page states the validated tag.
-:::
 
 :::tip
 CUDA / NVIDIA images are x86-64; the Ascend CANN images are arm64. Always match the
@@ -76,7 +66,7 @@ base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_
 # 1. Edit the file first: set metadata.namespace, the image tag (match your CANN /
 #    host driver), and storageUri (a PVC of the weights, or an oci:// ModelCar).
 # 2. Apply the ServingRuntime + InferenceService.
-kubectl apply -f $base/qwen3-14b/qwen3-14b-vllm-ascend-tp1.yaml
+kubectl apply -f $base/qwen3-30b-a3b/qwen3-30b-a3b-mindie-tp2.yaml
 
 # 3. Watch it come up (first start loads weights + compiles graphs — can take minutes).
 kubectl -n <your-namespace> get inferenceservice -w
@@ -84,7 +74,7 @@ kubectl -n <your-namespace> get inferenceservice -w
 # 4. Call the OpenAI-compatible endpoint.
 curl -s http://<isvc-url>/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d '{"model":"qwen3-14b","messages":[{"role":"user","content":"hello"}]}'
+  -d '{"model":"qwen3-30b-a3b","messages":[{"role":"user","content":"hello"}]}'
 ```
 
 ## Caveats

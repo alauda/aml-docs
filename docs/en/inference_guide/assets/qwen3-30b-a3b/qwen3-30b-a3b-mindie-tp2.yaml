@@ -1,17 +1,18 @@
-# Qwen3-30B-A3B (MoE, BF16) — MindIE 2.2.RC1, TP=4, four Ascend 910B3 whole cards.
-# MindIE picks BF16 automatically from the weights (no dtype flag).
+# Qwen3-30B-A3B (MoE, BF16) — MindIE 2.2.RC1, TP=2, two Ascend 910B3 whole cards.
+# This config measured rate-1 chat ITL P90 = 30.8 ms (mean 29.0). MindIE picks BF16
+# automatically from the weights (no dtype flag).
 #
 # This is a namespace-scoped ServingRuntime (NOT ClusterServingRuntime). The startup
 # script is the platform's standard run_mindie.sh: it auto-detects the number of
 # allocated NPUs (npu-smi) and sets worldSize, so TP follows the device count you
-# request in the InferenceService (4 here). MindIE needs root and a writable model
+# request in the InferenceService (2 here). MindIE needs root and a writable model
 # volume — keep `serving.kserve.io/readonly: "false"` and the root securityContext.
 #
 # Change `metadata.namespace`, the image tag, and `storageUri` before applying.
 apiVersion: serving.kserve.io/v1alpha1
 kind: ServingRuntime
 metadata:
-  name: qwen3-30b-a3b-mindie-tp4
+  name: qwen3-30b-a3b-mindie-tp2
   namespace: demo
   annotations:
     cpaas.io/display-name: mindie-2.2RC1-800I-A2
@@ -170,7 +171,7 @@ spec:
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
-  name: qwen3-30b-a3b-mindie-tp4
+  name: qwen3-30b-a3b-mindie-tp2
   namespace: demo
   annotations:
     aml-model-repo: qwen3-30b-a3b
@@ -181,20 +182,20 @@ metadata:
     aml.cpaas.io/runtime-type: mindie
 spec:
   predictor:
-    hostIPC: true                                     # TP=4 worker HCCL goes through host IPC
+    hostIPC: true                                     # TP=2 worker HCCL goes through host IPC
     minReplicas: 1
     maxReplicas: 1
     deploymentStrategy: { type: Recreate }
     model:
       modelFormat: { name: transformers }
-      runtime: qwen3-30b-a3b-mindie-tp4
+      runtime: qwen3-30b-a3b-mindie-tp2
       storageUri: pvc://qwen3-30b-a3b-bf16/
       resources:
         requests: { cpu: "8", memory: 32Gi }
         limits:
           cpu: "16"
           memory: 96Gi
-          huawei.com/Ascend910B3: "4"                 # four whole cards -> worldSize=4
+          huawei.com/Ascend910B3: "2"                 # two whole cards -> worldSize=2
           huawei.com/Ascend910B3-memory: "65536"
       securityContext: { runAsNonRoot: false, runAsUser: 0 }   # MindIE requires root for NPU access
     securityContext: { runAsNonRoot: false, runAsUser: 0, runAsGroup: 0, fsGroup: 1000 }
