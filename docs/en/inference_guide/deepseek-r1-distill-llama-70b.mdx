@@ -32,13 +32,14 @@ right model for verifying that the engine produces *correct* output at scale.
 
 ## Deploy
 
-| Config | Download |
+| Config | File |
 |---|---|
-| vLLM-Ascend, TP=8 | [deepseek-r1-distill-llama-70b-vllm-ascend-tp8.yaml](/inference_guide/assets/deepseek-r1-distill-llama-70b/deepseek-r1-distill-llama-70b-vllm-ascend-tp8.yaml) |
+| vLLM-Ascend, TP=8 | [`deepseek-r1-distill-llama-70b-vllm-ascend-tp8.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/deepseek-r1-distill-llama-70b/deepseek-r1-distill-llama-70b-vllm-ascend-tp8.yaml) |
 
 ```bash
-# download the YAML above, edit namespace / image tag / storageUri, then:
-kubectl apply -f deepseek-r1-distill-llama-70b-vllm-ascend-tp8.yaml
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets/deepseek-r1-distill-llama-70b
+# edit namespace / image tag / storageUri first, then:
+kubectl apply -f $base/deepseek-r1-distill-llama-70b-vllm-ascend-tp8.yaml
 ```
 
 ## Benchmark results

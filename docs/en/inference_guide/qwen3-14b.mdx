@@ -35,14 +35,15 @@ card, so you can compare TP=1 vs TP=2 directly. Recommended engine: **vLLM-Ascen
 
 Self-contained `ServingRuntime` + `InferenceService` YAMLs:
 
-| Config | Download |
+| Config | File |
 |---|---|
-| vLLM-Ascend, TP=1 (recommended for chat) | [qwen3-14b-vllm-ascend-tp1.yaml](/inference_guide/assets/qwen3-14b/qwen3-14b-vllm-ascend-tp1.yaml) |
-| vLLM-Ascend, TP=2 (for long-context / RAG) | [qwen3-14b-vllm-ascend-tp2.yaml](/inference_guide/assets/qwen3-14b/qwen3-14b-vllm-ascend-tp2.yaml) |
+| vLLM-Ascend, TP=1 (recommended for chat) | [`qwen3-14b-vllm-ascend-tp1.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-14b/qwen3-14b-vllm-ascend-tp1.yaml) |
+| vLLM-Ascend, TP=2 (for long-context / RAG) | [`qwen3-14b-vllm-ascend-tp2.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-14b/qwen3-14b-vllm-ascend-tp2.yaml) |
 
 ```bash
-# download the YAML above, edit namespace / image tag / storageUri, then:
-kubectl apply -f qwen3-14b-vllm-ascend-tp1.yaml
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets/qwen3-14b
+# edit namespace / image tag / storageUri first, then:
+kubectl apply -f $base/qwen3-14b-vllm-ascend-tp1.yaml
 ```
 
 For MindIE on this model, define the MindIE runtime as shown in
@@ -72,7 +73,7 @@ Rate-1 latency snapshot, **Chat** workload (TP=1):
 
 The complete report — every rate level (1–9) × all four workloads × both engines × TP=1/TP=2,
 with TTFT / E2E / ITL / TPS at p90 / p95 / p99 / mean — is below (expand each section) and as a
-rendered download: [**Qwen3-14B open-loop report ↗**](/inference_guide/reports/qwen3-14b/2026-06-10-910b3-tp1tp2-vllm-mindie-openloop.html).
+the source HTML report in the repo: [**Qwen3-14B open-loop report**](https://github.com/alauda/aml-docs/blob/master/docs/en/inference_guide/reports/qwen3-14b/2026-06-10-910b3-tp1tp2-vllm-mindie-openloop.html).
 
 <details>
 <summary>Full 22-column open-loop sweep — 910B3 × 1 · Qwen3-14B · vllm-ascend v0.18.0-openeuler</summary>

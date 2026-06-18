@@ -32,13 +32,14 @@ Ascend ModelSlim W4A8 path (4-bit weights + 8-bit activations) plus vLLM-Ascend 
 
 ## Deploy
 
-| Config | Download |
+| Config | File |
 |---|---|
-| vLLM-Ascend, TP=8 + EP, W4A8 | [glm-5-1-w4a8-vllm-ascend-tp8.yaml](/inference_guide/assets/glm-5-1-w4a8/glm-5-1-w4a8-vllm-ascend-tp8.yaml) |
+| vLLM-Ascend, TP=8 + EP, W4A8 | [`glm-5-1-w4a8-vllm-ascend-tp8.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/glm-5-1-w4a8/glm-5-1-w4a8-vllm-ascend-tp8.yaml) |
 
 ```bash
-# download the YAML above, edit namespace / image tag / storageUri, then:
-kubectl apply -f glm-5-1-w4a8-vllm-ascend-tp8.yaml
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets/glm-5-1-w4a8
+# edit namespace / image tag / storageUri first, then:
+kubectl apply -f $base/glm-5-1-w4a8-vllm-ascend-tp8.yaml
 ```
 
 :::warning Two non-obvious requirements (proven on-site)
@@ -54,7 +55,7 @@ kubectl apply -f glm-5-1-w4a8-vllm-ascend-tp8.yaml
 Partner-Guide **Chatbot 512/256**, 8× 910B3, W4A8, rate 1–9 (`guidellm`). Concurrency is
 pinned at **2** by `--max-num-seqs=2`, so this is a latency characterization, not an
 RPS-capacity result. Full report (all 22 columns):
-[**GLM-5.1-W4A8 chatbot report ↗**](/inference_guide/reports/glm-5-1-w4a8/2026-05-30-910b3-w4a8-chatbot-perf.html).
+[**GLM-5.1-W4A8 chatbot report**](https://github.com/alauda/aml-docs/blob/master/docs/en/inference_guide/reports/glm-5-1-w4a8/2026-05-30-910b3-w4a8-chatbot-perf.html).
 
 | target rate | Conc mdn | out tok/s | TTFT mdn / p95 (ms) | ITL mdn / p95 (ms) | E2E mdn / p95 (s) |
 |--:|--:|--:|--:|--:|--:|

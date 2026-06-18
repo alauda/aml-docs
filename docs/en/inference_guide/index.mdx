@@ -85,15 +85,17 @@ All numbers in this guide come from real `guidellm` runs, not estimates:
 
 ## Deploy a validated model
 
-Each model page links downloadable YAMLs that bundle a namespace-scoped
-`ServingRuntime` **and** the matching `InferenceService`. Download the file for your
-model/engine from the model page, then:
+Each model page links self-contained YAMLs under
+[`assets/`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets)
+that bundle a namespace-scoped `ServingRuntime` **and** the matching `InferenceService`.
 
 ```bash
-# 1. Edit the downloaded file: set metadata.namespace, the image tag (match your CANN /
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets
+
+# 1. Edit the file first: set metadata.namespace, the image tag (match your CANN /
 #    host driver), and storageUri (a PVC of the weights, or an oci:// ModelCar).
 # 2. Apply the ServingRuntime + InferenceService.
-kubectl apply -f qwen3-14b-vllm-ascend-tp1.yaml
+kubectl apply -f $base/qwen3-14b/qwen3-14b-vllm-ascend-tp1.yaml
 
 # 3. Watch it come up (first start loads weights + compiles graphs — can take minutes).
 kubectl -n <your-namespace> get inferenceservice -w

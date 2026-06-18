@@ -41,14 +41,15 @@ the right starting point for most users.
 
 Self-contained `ServingRuntime` + `InferenceService` YAMLs:
 
-| Config | Download |
+| Config | File |
 |---|---|
-| MindIE, TP=4 (**recommended**) | [qwen3-30b-a3b-mindie-tp4.yaml](/inference_guide/assets/qwen3-30b-a3b/qwen3-30b-a3b-mindie-tp4.yaml) |
-| vLLM-Ascend, TP=4 (baseline) | [qwen3-30b-a3b-vllm-ascend-tp4.yaml](/inference_guide/assets/qwen3-30b-a3b/qwen3-30b-a3b-vllm-ascend-tp4.yaml) |
+| MindIE, TP=4 (**recommended**) | [`qwen3-30b-a3b-mindie-tp4.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-30b-a3b/qwen3-30b-a3b-mindie-tp4.yaml) |
+| vLLM-Ascend, TP=4 (baseline) | [`qwen3-30b-a3b-vllm-ascend-tp4.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-30b-a3b/qwen3-30b-a3b-vllm-ascend-tp4.yaml) |
 
 ```bash
-# download the YAML above, edit namespace / image tag / storageUri, then:
-kubectl apply -f qwen3-30b-a3b-mindie-tp4.yaml
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets/qwen3-30b-a3b
+# edit namespace / image tag / storageUri first, then:
+kubectl apply -f $base/qwen3-30b-a3b-mindie-tp4.yaml
 ```
 
 :::warning
@@ -81,7 +82,7 @@ Rate-1 latency snapshot, **Chat** workload (TP=2):
 
 The complete report — every rate level (1–9) × all four workloads × both engines × TP=2/TP=4,
 with TTFT / E2E / ITL / TPS at p90 / p95 / p99 / mean — is below (expand each section) and as a
-rendered download: [**Qwen3-30B-A3B open-loop report ↗**](/inference_guide/reports/qwen3-30b-a3b/2026-06-10-910b3-tp2tp4-vllm-mindie-openloop.html).
+the source HTML report in the repo: [**Qwen3-30B-A3B open-loop report**](https://github.com/alauda/aml-docs/blob/master/docs/en/inference_guide/reports/qwen3-30b-a3b/2026-06-10-910b3-tp2tp4-vllm-mindie-openloop.html).
 
 <details>
 <summary>Full 22-column open-loop sweep — 910B3 × 2 · Qwen3-30B-A3B (MoE) · vllm-ascend v0.18.0-openeuler (EP+eager)</summary>
