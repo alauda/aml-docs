@@ -325,9 +325,7 @@ After success the merged model is pushed to a date-stamped branch (`sft-YYYYMMDD
 
 ## 8. Experiment tracking
 
-Setting `report_to: mlflow` in the LLaMA-Factory config plus the `MLFLOW_TRACKING_URI` / `MLFLOW_EXPERIMENT_NAME` env vars routes metrics to MLflow. Find runs in **Alauda AI → Tools → MLFlow**, compare loss curves, and pin the winning run.
-
-On a secured (SSO + multi-tenant) MLflow install the job must also authenticate — supply an `MLFLOW_TRACKING_TOKEN` and select a workspace. See [Using the MLflow Python SDK with Authentication and RBAC](../kubeflow/how_to/mlflow-python-sdk.mdx) for how to obtain the token and configure the client.
+Setting `report_to: mlflow` in the LLaMA-Factory config plus the `MLFLOW_TRACKING_URI` / `MLFLOW_EXPERIMENT_NAME` env vars routes metrics to MLflow. Find runs in **Alauda AI → Advanced → MLFlow**, compare loss curves, and pin the winning run.
 
 ## 9. Publish the fine-tuned model
 
@@ -414,4 +412,4 @@ spec:
 
 ### Experiment tracking on other devices
 
-LLaMA-Factory and Transformers integrate with MLflow / wandb directly. Set the destination in the framework config (e.g. `report_to: mlflow` for LLaMA-Factory) and supply `MLFLOW_TRACKING_URI` and `MLFLOW_EXPERIMENT_NAME` env vars (plus `MLFLOW_TRACKING_TOKEN` on a secured install — see [Using the MLflow Python SDK with Authentication and RBAC](../kubeflow/how_to/mlflow-python-sdk.mdx)). View results under **Alauda AI → Tools → MLFlow**.
+LLaMA-Factory and Transformers integrate with MLflow / wandb directly. Set the destination in the framework config (e.g. `report_to: mlflow` for LLaMA-Factory) and supply `MLFLOW_TRACKING_URI` and `MLFLOW_EXPERIMENT_NAME` env vars. View results under **Alauda AI → Advanced → MLFlow**.
