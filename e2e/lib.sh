@@ -161,14 +161,14 @@ _retry_kubectl_stdin() {
   local kfn="$1" verb="$2"; shift 2
   local data
   data="$(cat)"
-  local attempts=0 max=20 delay=30 rc out
+  local attempts=0 max=20 delay=120 rc out
   while [ "${attempts}" -lt "${max}" ]; do
     if out="$(printf '%s' "${data}" | $kfn "${verb}" -f - "$@" 2>&1)"; then
       printf '%s' "${out}"
       return 0
     fi
     rc=$?
-    if ! echo "${out}" | grep -qE 'failed calling webhook|x509|connection refused|EOF|context deadline exceeded|webhook.* connect: connection refused'; then
+    if ! echo "${out}" | grep -qE 'failed calling webhook|x509|connection refused|EOF|context deadline exceeded|webhook.* connect: connection refused|failed to download openapi|openapi'; then
       printf '%s\n' "${out}" >&2
       return "${rc}"
     fi
@@ -181,7 +181,7 @@ _retry_kubectl_stdin() {
 }
 
 retry_create() { _retry_kubectl_stdin "$1" create "${@:2}"; }
-retry_apply()  { _retry_kubectl_stdin "$1" apply  "${@:2}"; }
+retry_apply()  { _retry_kubectl_stdin "$1" apply "${@:2}"; }
 
 # Locate a TrainJob's pod. Trainer v2 builds a JobSet named after the TrainJob,
 # with one Job per `replicatedJobs[*]` named `${trainjob}-<rjob>-0`. The first

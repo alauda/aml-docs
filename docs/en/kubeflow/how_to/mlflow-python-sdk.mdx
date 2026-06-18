@@ -1,0 +1,218 @@
+---
+weight: 46
+---
+
+# Using the MLflow Python SDK with Authentication and RBAC
+
+On Alauda AI the [MLflow Tracking Server](./mlflow.mdx) runs behind single sign-on and multi-tenancy: an OAuth proxy authenticates every caller, and the server records each run under the calling user and authorizes it against Kubernetes RBAC. This guide drives the stock **MLflow Python SDK** through that OAuth proxy with your own identity, **browser-free**, using the OAuth2 **authorization code** flow (with PKCE) scripted against the platform login — no password grant, and never the MLflow container port.
+
+There are two browser-free ways to present your identity; pick one:
+
+- **Bearer token (recommended).** Obtain a Dex **id token** from the CLI or Python and pass it as `MLFLOW_TRACKING_TOKEN`; renew it with the refresh token. Needs one platform setting ([below](#platform-setup)).
+- **Session cookie (no platform changes).** Drive the proxy's own login to obtain its `_oauth2_proxy` cookie and attach it to requests. Works on any install as-is ([below](#cookie-method)).
+
+## How authentication works
+
+Two layers sit in front of your runs:
+
+1. The **OAuth proxy** (`oauth2-proxy`) authenticates the request — either a Dex **id token** sent as `Authorization: Bearer …` (token method) or its `_oauth2_proxy` **session cookie** (cookie method).
+2. The MLflow server's `kubernetes-auth` plugin reads your identity from that credential, records it as the run **owner**, and authorizes it against your Kubernetes permissions in the workspace.
+
+The client always goes through the OAuth proxy — never connect to the MLflow container port directly.
+
+## Prerequisites
+
+- `mlflow` **3.10 or later** (`pip install "mlflow>=3.10"`). Workspace selection (`mlflow.set_workspace`) is a 3.10+ feature. The Python token helper also uses `requests` and `cryptography`.
+- A platform **username and password** — ideally a dedicated service account, not a person's login — that can access the target workspace (see [Workspace Access](./mlflow.mdx)).
+- The platform's **OAuth client id and secret** — the client the MLflow proxy uses (from your administrator). On Alauda this is the platform auth client, e.g. `alauda-auth`; its secret lives in a Kubernetes `Secret` (e.g. `cpaas-oidc-secret`).
+
+## Platform setup for the token method (administrator, one-time) \{#platform-setup}
+
+The bearer-token method needs the MLflow OAuth proxy to accept Dex id tokens. Add `--skip-jwt-bearer-tokens=true` to the **MLflow plugin** — this is the MLflow proxy on the workload cluster, **not** the platform's global auth server:
+
+```yaml
+# MLflow plugin values
+auth:
+  oauth:
+    extraArgs:
+      - --skip-jwt-bearer-tokens=true
+```
+
+No Dex or global-auth change is required: the login below uses the `authorization_code` grant the platform client already allows. The **cookie method** needs no setting at all — skip this section if you use it.
+
+## Get a token from the command line (browser-free) \{#get-a-token}
+
+The platform login is an SSO page, but its API supports the standard OAuth **authorization code** flow with PKCE, so you can complete it from a script — no browser redirect. The password is RSA-encrypted with the login service's public key (`/dex/pubkey`), exactly as the login page does it, then exchanged for an **id token** (and a **refresh token** for headless renewal).
+
+### Python helper
+
+```python
+import base64, hashlib, json, os, secrets
+from urllib.parse import urlparse, parse_qs
+import requests
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.serialization import load_pem_public_key
+
+PLATFORM      = os.environ["PLATFORM_ADDRESS"].rstrip("/")    # https://<platform>
+CLIENT_ID     = os.environ["DEX_CLIENT_ID"]                   # the MLflow proxy's client, e.g. alauda-auth
+CLIENT_SECRET = os.environ["DEX_CLIENT_SECRET"]
+USERNAME      = os.environ["MLFLOW_USERNAME"]
+PASSWORD      = os.environ["MLFLOW_PASSWORD"]
+REDIRECT_URI  = f"{PLATFORM}/oauth2/callback"                 # any URI the client has registered
+VERIFY_TLS    = os.environ.get("PLATFORM_CA", False)         # CA bundle path, or False to skip (lab only)
+
+s = requests.Session(); s.verify = VERIFY_TLS
+_b64url = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+def get_tokens() -> dict:
+    """Run the authorization-code + PKCE flow headlessly. Returns the Dex token response."""
+    verifier  = _b64url(secrets.token_bytes(48))
+    challenge = _b64url(hashlib.sha256(verifier.encode()).digest())
+    # 1) start the flow -> auth-request id
+    req = s.get(f"{PLATFORM}/dex/api/v1/authorize", params={
+        "client_id": CLIENT_ID, "redirect_uri": REDIRECT_URI, "response_type": "code",
+        "scope": "openid email groups offline_access", "state": "cli",
+        "code_challenge": challenge, "code_challenge_method": "S256"}).json()["req"]
+    # 2) RSA-encrypt the password, then log in via the local connector -> auth code
+    pk  = s.get(f"{PLATFORM}/dex/pubkey").json()              # {"ts": ..., "pubkey": "<PEM>"}
+    payload = json.dumps({"ts": pk["ts"], "password": PASSWORD}, separators=(",", ":")).encode()
+    enc = base64.b64encode(load_pem_public_key(pk["pubkey"].encode()).encrypt(payload, padding.PKCS1v15())).decode()
+    redirect = s.post(f"{PLATFORM}/dex/api/v1/authorize/local", params={"req": req},
+        json={"account": USERNAME, "password": enc}).json()["redirect_url"]
+    code = parse_qs(urlparse(redirect).query)["code"][0]
+    # 3) exchange the code (with the PKCE verifier) -> id_token + refresh_token
+    return s.post(f"{PLATFORM}/dex/token", data={
+        "grant_type": "authorization_code", "code": code, "redirect_uri": REDIRECT_URI,
+        "code_verifier": verifier, "client_id": CLIENT_ID, "client_secret": CLIENT_SECRET}).json()
+
+def refresh(refresh_token: str) -> str:
+    """Mint a fresh id token from a refresh token — no login, no browser."""
+    return s.post(f"{PLATFORM}/dex/token", data={
+        "grant_type": "refresh_token", "refresh_token": refresh_token,
+        "client_id": CLIENT_ID, "client_secret": CLIENT_SECRET,
+        "scope": "openid email groups"}).json()["id_token"]
+```
+
+### Shell equivalent (curl + openssl, no Python dependencies)
+
+```bash
+PLATFORM=https://<platform>; CLIENT_ID=<client>; CLIENT_SECRET=<secret>
+USERNAME='<user>'; PASSWORD='<password>'; REDIRECT_URI="$PLATFORM/oauth2/callback"
+
+V=$(openssl rand -base64 48 | tr '+/' '-_' | tr -d '=' | cut -c1-64)                       # PKCE verifier
+C=$(printf %s "$V" | openssl dgst -sha256 -binary | openssl base64 -A | tr '+/' '-_' | tr -d '=')
+RU=$(jq -rn --arg u "$REDIRECT_URI" '$u|@uri'); SC=$(jq -rn '"openid email groups offline_access"|@uri')
+REQ=$(curl -sk "$PLATFORM/dex/api/v1/authorize?client_id=$CLIENT_ID&redirect_uri=$RU&response_type=code&scope=$SC&state=cli&code_challenge=$C&code_challenge_method=S256" | jq -r .req)
+PK=$(curl -sk "$PLATFORM/dex/pubkey"); TS=$(echo "$PK"|jq -r .ts); echo "$PK"|jq -r .pubkey >/tmp/dex_pub.pem
+ENC=$(printf '{"ts":"%s","password":"%s"}' "$TS" "$PASSWORD" | openssl pkeyutl -encrypt -pubin -inkey /tmp/dex_pub.pem -pkeyopt rsa_padding_mode:pkcs1 | openssl base64 -A)
+CODE=$(curl -sk -X POST "$PLATFORM/dex/api/v1/authorize/local?req=$REQ" -H 'Content-Type: application/json' \
+  --data "$(jq -nc --arg a "$USERNAME" --arg p "$ENC" '{account:$a,password:$p}')" | jq -r .redirect_url | sed -E 's/.*code=([^&]+).*/\1/')
+curl -sk "$PLATFORM/dex/token" -d grant_type=authorization_code -d code="$CODE" \
+  --data-urlencode redirect_uri="$REDIRECT_URI" -d code_verifier="$V" \
+  -d client_id="$CLIENT_ID" --data-urlencode client_secret="$CLIENT_SECRET" | jq -r .id_token
+```
+
+## Connect the SDK
+
+```python
+import os, mlflow
+
+tok = get_tokens()
+os.environ["MLFLOW_TRACKING_TOKEN"] = tok["id_token"].strip()           # → Authorization: Bearer
+mlflow.set_tracking_uri("http://mlflow-tracking-server.kubeflow:5000")  # in-cluster Service (fronted by the OAuth proxy)
+mlflow.set_workspace("team-a")                                          # workspace namespace → X-MLFLOW-WORKSPACE
+mlflow.set_experiment("my-experiment")
+
+with mlflow.start_run(run_name="sdk-quickstart") as run:
+    mlflow.log_param("learning_rate", 2e-4)
+    mlflow.log_metric("loss", 0.123)
+    print("run:", run.info.run_id)
+```
+
+The run appears under **Alauda AI → Tools → MLFlow**, owned by the user you authenticated as. (Verified end-to-end on a secured install: the run owner is the token's user identity.)
+
+Use the in-cluster Service URL `http://mlflow-tracking-server.kubeflow:5000` when the client runs **inside** the cluster (pipeline components, Workbench notebooks). From **outside** the cluster, point at the platform route `https://<platform>/clusters/<cluster>/mlflow` instead — both reach the same OAuth proxy (set `MLFLOW_TRACKING_INSECURE_TLS=true` if the platform certificate is not trusted by your machine).
+
+:::warning
+Use a **dedicated service-account user** and keep its credentials and the client secret in a Kubernetes `Secret`, never in code. Always `.strip()` the token (a trailing newline produces `Invalid … character(s) in header value: 'Bearer …\n'`). id tokens expire (24 h by default); for long-running jobs renew with `refresh(tok["refresh_token"])` instead of logging in again.
+:::
+
+## Selecting a workspace
+
+Runs are recorded in the workspace you select; if you select none, the server's default workspace is used. Any of these set it (the SDK turns them into the `X-MLFLOW-WORKSPACE` header):
+
+- `mlflow.set_workspace("team-a")` in code,
+- the `MLFLOW_WORKSPACE=team-a` environment variable.
+
+You can only use a workspace your account has access to; see [Workspace Access](./mlflow.mdx).
+
+## Registering models
+
+The model registry is workspace-scoped and authorized the same way, so the usual SDK calls work once connected:
+
+```python
+mlflow.set_workspace("team-a")
+with mlflow.start_run():
+    mlflow.sklearn.log_model(sk_model, name="model", registered_model_name="fraud-detector")
+```
+
+Promote the registered version to **Staging** or **Production** from the MLflow UI.
+
+## Alternative: session cookie (no platform changes) \{#cookie-method}
+
+If you cannot enable `--skip-jwt-bearer-tokens`, drive the proxy's own login flow to obtain its `_oauth2_proxy` cookie and attach it to requests — this works on any install unchanged. The proxy starts the OAuth flow for you (its own PKCE and `redirect_uri`); you just replay that through the same scripted login and hand the code back to the proxy callback:
+
+```bash
+PLATFORM=https://<platform>; CLUSTER=<cluster>
+USERNAME='<user>'; PASSWORD='<password>'
+JAR=$(mktemp)
+# 1) start the MLflow proxy login -> the Dex auth query it wants
+LOC=$(curl -sk -c "$JAR" -D - -o /dev/null "$PLATFORM/clusters/$CLUSTER/mlflow/" \
+  | awk 'BEGIN{IGNORECASE=1}/^location:/{print $2}' | tr -d '\r')
+QS=${LOC#*\?}
+# 2) authorize -> req, then 3) scripted local login -> the proxy callback URL
+REQ=$(curl -sk -b "$JAR" -c "$JAR" "$PLATFORM/dex/api/v1/authorize?$QS" | jq -r .req)
+PK=$(curl -sk "$PLATFORM/dex/pubkey"); TS=$(echo "$PK"|jq -r .ts); echo "$PK"|jq -r .pubkey >/tmp/dex_pub.pem
+ENC=$(printf '{"ts":"%s","password":"%s"}' "$TS" "$PASSWORD" | openssl pkeyutl -encrypt -pubin -inkey /tmp/dex_pub.pem -pkeyopt rsa_padding_mode:pkcs1 | openssl base64 -A)
+CB=$(curl -sk -b "$JAR" -c "$JAR" -X POST "$PLATFORM/dex/api/v1/authorize/local?req=$REQ" -H 'Content-Type: application/json' \
+  --data "$(jq -nc --arg a "$USERNAME" --arg p "$ENC" '{account:$a,password:$p}')" | jq -r .redirect_url)
+# 4) the proxy callback exchanges the code and sets the _oauth2_proxy cookie
+curl -sk -b "$JAR" -c "$JAR" -o /dev/null "$CB"
+COOKIE=$(awk -F'\t' '$6 ~ /^_oauth2_proxy/{printf "%s=%s; ",$6,$7}' "$JAR" | sed 's/; $//')   # includes any _oauth2_proxy_N chunks
+echo "$COOKIE"
+```
+
+Then attach the cookie with a header provider (the cookie carries your identity — no token, no platform setting):
+
+```python
+import os, mlflow
+from mlflow.tracking.request_header.abstract_request_header_provider import RequestHeaderProvider
+from mlflow.tracking.request_header.registry import _request_header_provider_registry
+
+class ProxySessionHeader(RequestHeaderProvider):
+    def in_context(self):
+        return bool(os.environ.get("MLFLOW_PROXY_COOKIE"))     # export MLFLOW_PROXY_COOKIE='_oauth2_proxy=<value>'
+    def request_headers(self):
+        return {"Cookie": os.environ["MLFLOW_PROXY_COOKIE"]}
+
+_request_header_provider_registry.register(ProxySessionHeader)
+mlflow.set_tracking_uri("https://<platform>/clusters/<cluster>/mlflow")
+mlflow.set_workspace("team-a")
+```
+
+From **inside** the cluster, point at the in-cluster Service URL `http://mlflow-tracking-server.kubeflow:5000` instead (no TLS issues). On the external `https://<platform>/…` route the platform certificate is self-signed, so set `MLFLOW_TRACKING_INSECURE_TLS=true` (or point `REQUESTS_CA_BUNDLE` at the platform CA).
+
+You can also copy the `_oauth2_proxy` cookie from a browser session (DevTools → **Application/Storage → Cookies**). The session cookie expires — re-mint it when calls start returning a login redirect.
+
+## Troubleshooting
+
+| Symptom | Check |
+|---------|-------|
+| `/dex/api/v1/authorize` returns `PKCE code_challenge is required` | The client enforces PKCE. Send `code_challenge` and `code_challenge_method=S256` (the helper does this). |
+| Local login returns a captcha challenge / `CaptchaError` | Too many recent failed logins triggered the retry-captcha. Wait, fix the credentials, then retry — a clean first login needs no captcha. |
+| `/dex/token` returns `invalid_grant` | The auth code or PKCE verifier is stale or reused. Re-run the flow from the start (`authorize` → login → token); codes are single-use. |
+| Call returns HTML or a redirect (`302` to the login page) | **Token method:** the proxy rejected the bearer token — confirm `--skip-jwt-bearer-tokens` is enabled and the token is a valid Dex id token (`aud` = the proxy's client). **Cookie method:** the `_oauth2_proxy` cookie is missing or expired. |
+| `Invalid … character(s) in header value: 'Bearer …\n'` | The token has trailing whitespace. Set `MLFLOW_TRACKING_TOKEN` to the `.strip()`-ed value. |
+| `Failed to query /api/3.0/mlflow/server-info`, often with `SSLCertVerificationError: self-signed certificate` | The proxy **rejected** your credential and returned a `302` to the login page; the SDK then follows that redirect to the platform's self-signed HTTPS endpoint and fails TLS. Fix the credential, not the TLS: for the **token method** confirm `--skip-jwt-bearer-tokens` is enabled and the token is valid; for the **cookie method** re-mint the cookie. Only if you *intentionally* use the external `https://<platform>/…` route, also set `MLFLOW_TRACKING_INSECURE_TLS=true` (or point `REQUESTS_CA_BUNDLE` at the platform CA). |
+| `403 PERMISSION_DENIED` | Your account lacks access to the workspace namespace. Request access to the workspace (see [Workspace Access](./mlflow.mdx)); no ServiceAccount is involved. |
+| Run shows the wrong owner or workspace | The owner is your authenticated identity; the workspace is `set_workspace()` / `MLFLOW_WORKSPACE` (else the server default). Check both. |

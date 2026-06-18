@@ -1,0 +1,183 @@
+---
+weight: 55
+---
+
+# Kubeflow Pipeline + MLflow Integration
+
+This guide shows how Kubeflow Pipelines (KFP) components log parameters, metrics, and models to [MLflow on Kubeflow](../kubeflow/how_to/mlflow.mdx) with the **MLflow Python client**. Authentication and workspace/RBAC follow [Using the MLflow Python SDK with Authentication and RBAC](../kubeflow/how_to/mlflow-python-sdk.mdx) — each component authenticates with a user identity token and the server records the run under that user.
+
+## Scope
+
+- Alauda AI 2.5 and later.
+- Kubeflow Pipelines and the MLflow cluster plugin are installed.
+- The MLflow workspace is a namespace labelled `mlflow-enabled=true`.
+- For the bearer-token method, the MLflow OAuth proxy must accept Dex id tokens (`--skip-jwt-bearer-tokens`) — see [Platform setup](../kubeflow/how_to/mlflow-python-sdk.mdx#platform-setup) in the SDK guide. No global-auth change is needed, and the cookie method needs no setup at all.
+
+## Prerequisites
+
+- `kfp` and `kfp-kubernetes` Python SDKs (`pip install kfp kfp-kubernetes`).
+- Access to a KFP endpoint (see [Use Kubeflow Pipelines](../kubeflow/how_to/pipelines.mdx)).
+- A **Dex id token** for a dedicated service account, minted with the OAuth2 password grant (see the [SDK guide](../kubeflow/how_to/mlflow-python-sdk.mdx)). Store it in a Kubernetes `Secret` and inject it into the component.
+- An MLflow workspace (a namespace with `mlflow-enabled=true`) the account can access.
+
+## How components reach MLflow
+
+A pipeline component runs **inside** the cluster, so it talks to MLflow through the in-cluster Service `http://mlflow-tracking-server.kubeflow:5000` (which is fronted by the OAuth proxy — components never use the MLflow container port directly). It authenticates exactly like any other MLflow client:
+
+- `MLFLOW_TRACKING_TOKEN` — a Dex id token; the MLflow client sends it as `Authorization: Bearer …`.
+- `mlflow.set_workspace(...)` — selects the workspace (`X-MLFLOW-WORKSPACE`).
+
+The server reads the identity from the token and records the run under that user. See the [SDK guide](../kubeflow/how_to/mlflow-python-sdk.mdx) for how the token is obtained and how authorization works.
+
+## Complete example: training pipeline with MLflow
+
+The component uses the MLflow client and reads `MLFLOW_TRACKING_TOKEN` from a `Secret` injected with [`kfp-kubernetes`](https://kubeflow-pipelines.readthedocs.io/en/stable/source/kubernetes.html). KFP v2 packages each component from its own source, so `import mlflow` lives **inside** the function.
+
+```python
+from kfp import dsl, compiler
+from kfp import kubernetes
+
+
+@dsl.component(base_image="python:3.11-slim", packages_to_install=["mlflow>=3.10"])
+def train_model(
+    workspace: str,
+    model_name: str,
+    learning_rate: float,
+    epochs: int,
+    run_id: str,
+) -> dict:
+    """Simulated training component that logs to MLflow as the calling user."""
+    import mlflow   # MLFLOW_TRACKING_TOKEN is injected from a Secret (see the pipeline below)
+
+    mlflow.set_tracking_uri("http://mlflow-tracking-server.kubeflow:5000")  # in-cluster Service, via the OAuth proxy
+    mlflow.set_workspace(workspace)
+    mlflow.set_experiment("kfp-training-experiment")
+
+    metrics = {}
+    with mlflow.start_run(run_name=f"run-{run_id}"):
+        mlflow.log_param("model_name", model_name)
+        mlflow.log_param("learning_rate", learning_rate)
+        mlflow.log_param("epochs", epochs)
+        for epoch in range(1, epochs + 1):
+            loss = 2.0 * (0.95 ** epoch)
+            accuracy = 1.0 - loss
+            mlflow.log_metric("loss", loss, step=epoch)
+            mlflow.log_metric("accuracy", accuracy, step=epoch)
+            metrics = {"final_loss": loss, "final_accuracy": accuracy}
+
+    print("logged run:", mlflow.last_active_run().info.run_id)
+    return metrics
+
+
+@dsl.pipeline(name="mlflow-training-pipeline", description="Train with MLflow tracking")
+def training_pipeline(
+    workspace: str = "team-a",
+    model_name: str = "qwen3-0.6b",
+    learning_rate: float = 2e-4,
+    epochs: int = 10,
+):
+    task = train_model(
+        workspace=workspace,
+        model_name=model_name,
+        learning_rate=learning_rate,
+        epochs=epochs,
+        # PIPELINE_JOB_ID_PLACEHOLDER resolves to the run's job id at runtime;
+        # pass it in as an argument (a component cannot reference dsl.* itself).
+        run_id=dsl.PIPELINE_JOB_ID_PLACEHOLDER,
+    )
+    # Inject the Dex id token from a Secret as MLFLOW_TRACKING_TOKEN.
+    kubernetes.use_secret_as_env(
+        task, secret_name="mlflow-token", secret_key_to_env={"token": "MLFLOW_TRACKING_TOKEN"}
+    )
+
+
+compiler.Compiler().compile(training_pipeline, "pipeline.yaml")
+```
+
+Create the `mlflow-token` Secret with a Dex id token. Mint `ID_TOKEN` browser-free with the authorization-code flow from the SDK guide — see [Get a token from the command line](../kubeflow/how_to/mlflow-python-sdk.mdx#get-a-token):
+
+```bash
+# ID_TOKEN: mint it with the curl/Python flow in the SDK guide (browser-free, current grants)
+kubectl -n <pipeline-namespace> create secret generic mlflow-token --from-literal=token="$ID_TOKEN"
+```
+
+:::warning
+id tokens expire (24 h by default), so refresh the `mlflow-token` Secret before submitting long pipelines — or mint the token **inside** the component from service-account credentials kept in a Secret (the [token flow](../kubeflow/how_to/mlflow-python-sdk.mdx#get-a-token) in the SDK guide) and renew it with the refresh token, so each run gets a fresh token.
+:::
+
+## Upload and run
+
+### Via the KFP UI
+
+1. Go to **Kubeflow Dashboard → Pipelines → Upload Pipeline** and select `pipeline.yaml`.
+2. Click **Create Run** and fill in the parameters (workspace, model name, epochs).
+3. After the run starts, check the MLflow UI under **Alauda AI → Tools → MLFlow** — the run owner is the token's user.
+
+### Via the KFP SDK
+
+```python
+from kfp.client import Client
+
+client = Client(host="<MY-KFP-ENDPOINT>")
+run = client.create_run_from_pipeline_package(
+    "pipeline.yaml",
+    arguments=dict(workspace="team-a", model_name="qwen3-0.6b", epochs=10),
+)
+print(f"Run ID: {run.run_id}")
+```
+
+## Using MLflow in Trainer v2 pipelines
+
+If you fine-tune with [Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx), the framework's MLflow integration (for example `report_to: mlflow` in LLaMA-Factory) authenticates the same way. Trainer v2 uses `apiVersion: trainer.kubeflow.org/v1alpha1`, `kind: TrainJob`, and a `spec.runtimeRef` + `spec.trainer` shape. Point it at the in-cluster Service and inject the id token from a `Secret`:
+
+```yaml
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  name: mlflow-finetune
+spec:
+  runtimeRef:
+    name: torch-distributed        # a TrainingRuntime / ClusterTrainingRuntime
+  trainer:
+    image: alaudadockerhub/fine_tune_with_llamafactory:v0.1.1
+    env:
+      - name: MLFLOW_TRACKING_URI
+        value: "http://mlflow-tracking-server.kubeflow:5000"
+      - name: MLFLOW_EXPERIMENT_NAME
+        value: "trainer-v2-finetune"
+      - name: MLFLOW_TRACKING_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: mlflow-token       # a Secret holding a Dex id token
+            key: token
+```
+
+See [Fine-tuning LLMs using Workbench](./fine-tuning-using-notebooks.mdx) for a full Trainer v2 + MLflow example.
+
+## Best practices
+
+### Use the pipeline job ID in MLflow
+
+KFP v2 provides `dsl.PIPELINE_JOB_ID_PLACEHOLDER` (the v1 `dsl.RUN_ID_PLACEHOLDER` was removed). It is a pipeline-level placeholder, so pass it into the component as an argument — a component cannot reference `dsl.*` from inside its own body. Use the received string in the run name to keep runs distinct per pipeline execution.
+
+### Keep credentials in a Secret and refresh tokens
+
+Never hardcode the token or service-account credentials in `pipeline.yaml` — compiled pipelines are stored and shared. Inject them from a `Secret`, and refresh the id token (or mint it inside the component) before it expires.
+
+### Log metrics inside a run
+
+Each metric belongs to a `mlflow.start_run()` block. If a component has multiple logical stages, open a run per stage rather than logging outside a run context.
+
+### Artifact storage for production
+
+Logging large model artifacts requires durable object storage. Configure S3-compatible storage in the MLflow plugin settings (see [MLflow Tracking Server](../kubeflow/how_to/mlflow.mdx) → High Availability And Storage) so artifact uploads do not hit pod disk limits.
+
+## Troubleshooting
+
+| Symptom | Check |
+|---------|-------|
+| Component fails with an HTML/redirect (`302`) response | The OAuth proxy rejected the token. Confirm the proxy has `--skip-jwt-bearer-tokens` and `MLFLOW_TRACKING_TOKEN` is a valid Dex id token (see the [SDK guide](../kubeflow/how_to/mlflow-python-sdk.mdx)). |
+| `401 UNAUTHENTICATED` | `MLFLOW_TRACKING_TOKEN` is unset, empty, or expired — refresh the `mlflow-token` Secret. |
+| `403 PERMISSION_DENIED` | The token's user lacks access to the workspace namespace. Grant access to the MLflow workspace (see [Workspace Access](../kubeflow/how_to/mlflow.mdx)); no ServiceAccount is involved. |
+| Run shows up under the wrong owner / workspace | The owner is the token's identity; the workspace is `set_workspace()` (else the server default). Check both. |
+| MLflow metrics not appearing in KFP UI | KFP and MLflow are separate systems. Metrics logged to MLflow appear in the MLflow UI (**Alauda AI → Tools → MLFlow**), not in the KFP run output. |
