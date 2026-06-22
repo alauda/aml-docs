@@ -1,0 +1,146 @@
+# Qwen3.6-27B (W8A8) — vLLM-Ascend (nightly), TP=2 × 4 replicas (8 Ascend 910B4
+# whole cards). This is the validated 8-card production topology: four small
+# TP=2 replicas behind a load-aware ingress, NOT one large TP=8 replica.
+#
+# Qwen3.6-27B is the `qwen3_5` architecture (Gated DeltaNet linear-attention
+# hybrid + multimodal + native MTP). Only the vLLM-Ascend *nightly* image can
+# load it — MindIE and vLLM-Ascend v0.18 cannot. The required flags are:
+#   --quantization ascend        W8A8 weights (config.json has no quant block)
+#   --no-enable-prefix-caching   mandatory for the GDN hybrid cache
+#   --language-model-only        skip the vision tower for text-only serving
+#   --speculative-config qwen3_5_mtp + FULL_DECODE_ONLY graph + async-scheduling
+#
+# The nightly image needs the Ascend toolkit env sourced *before* `vllm serve`
+# (TP workers otherwise crash on libop_plugin_atb.so) — that sourcing is baked
+# into the ServingRuntime command below.
+#
+# Change `metadata.namespace`, the image tag (match your host CANN / NPU driver),
+# and `storageUri` (a PVC of the W8A8 weights, or an oci:// ModelCar) before
+# applying. The Ascend resource key (`huawei.com/Ascend910`) is for this node's
+# device plugin — adjust it for your actual NPU model.
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: qwen3-6-27b-w8a8-vllm-ascend-nightly
+  namespace: demo
+  labels:
+    aml.cpaas.io/runtime-type: vllm
+spec:
+  supportedModelFormats:
+    - name: transformers
+      version: "1"
+      autoSelect: false
+  containers:
+    - name: kserve-container
+      image: quay.io/ascend/vllm-ascend:nightly-main-openeuler
+      # qwen3_5 needs the Ascend toolkit env sourced before `vllm serve`, plus the
+      # Qwen3 tool-call / reasoning parsers (agent-ready). Keep this script free of
+      # angle-bracket text — KServe renders the command through Go html/template,
+      # which fails on any literal HTML-looking tag.
+      command:
+        - bash
+        - -lc
+        - |
+          set -e
+          for f in /usr/local/Ascend/ascend-toolkit/set_env.sh \
+                   /usr/local/Ascend/nnal/atb/set_env.sh \
+                   /usr/local/Ascend/nnal/asdsip/set_env.sh; do
+            [ -f "$f" ] && source "$f"
+          done
+          MODEL_PATH="/mnt/models"
+          if [ -n "${MODEL_NAME}" ] && [ -d "/mnt/models/${MODEL_NAME}" ]; then MODEL_PATH="/mnt/models/${MODEL_NAME}"; fi
+          exec vllm serve "${MODEL_PATH}" \
+            --served-model-name {{.Name}} {{.Namespace}}/{{.Name}} \
+            --port 8080 \
+            --enable-auto-tool-choice \
+            --tool-call-parser qwen3_xml \
+            --reasoning-parser qwen3 \
+            "$@"
+        - bash
+      env:
+        - name: MODEL_NAME
+          value: '{{ index .Annotations "aml-model-repo" }}'
+      ports:
+        - { containerPort: 8080, name: http1, protocol: TCP }
+      securityContext:
+        # Ascend CANN needs real root (davinci_manager ioctls, driver file access).
+        allowPrivilegeEscalation: false
+        runAsNonRoot: false
+        runAsUser: 0
+      resources:
+        requests: { cpu: "4", memory: 16Gi }
+        limits: { cpu: "4", memory: 16Gi }
+      startupProbe:
+        # qwen3_5 graph capture (FULL_DECODE_ONLY) can take minutes on first cold
+        # start — allow up to ~40 min before failing.
+        httpGet: { path: /health, port: 8080 }
+        failureThreshold: 160
+        periodSeconds: 15
+        timeoutSeconds: 5
+      volumeMounts:
+        - { name: devshm, mountPath: /dev/shm }
+  volumes:
+    - name: devshm
+      emptyDir: { medium: Memory, sizeLimit: 8Gi }
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: qwen3-6-27b-w8a8
+  namespace: demo
+  annotations:
+    aml-model-repo: qwen36-27b-w8a8
+    aml.cpaas.io/runtime-type: vllm
+    serving.kserve.io/deploymentMode: Standard
+    serving.knative.dev/progress-deadline: "3600s"
+  labels:
+    aml.cpaas.io/runtime-type: vllm
+spec:
+  predictor:
+    minReplicas: 4          # 4 replicas × TP=2 = 8 cards (fills one 8-card node)
+    maxReplicas: 4
+    deploymentStrategy: { type: Recreate }
+    model:
+      modelFormat: { name: transformers }
+      runtime: qwen3-6-27b-w8a8-vllm-ascend-nightly
+      storageUri: pvc://qwen36-27b-w8a8/
+      args:
+        - --tensor-parallel-size
+        - "2"
+        - --quantization
+        - ascend
+        - --max-num-seqs
+        - "32"
+        - --max-model-len
+        - "65536"
+        - --max-num-batched-tokens
+        - "8192"
+        - --trust-remote-code
+        - --no-enable-prefix-caching        # mandatory for the GDN hybrid cache
+        - --language-model-only             # text-only serving: skip vision tower
+        - --gpu-memory-utilization
+        - "0.90"
+        - --speculative-config
+        - '{"method":"qwen3_5_mtp","num_speculative_tokens":3,"enforce_eager":true}'
+        - --compilation-config
+        - '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1,2,4,8,16,24,32]}'
+        - --additional-config
+        - '{"enable_cpu_binding":true}'
+        - --async-scheduling
+      env:
+        - { name: HOME, value: /tmp }
+        - { name: PYTORCH_NPU_ALLOC_CONF, value: "expandable_segments:True" }
+        - { name: HCCL_BUFFSIZE, value: "512" }
+        - { name: OMP_PROC_BIND, value: "false" }
+        - { name: OMP_NUM_THREADS, value: "1" }
+        - { name: TASK_QUEUE_ENABLE, value: "1" }
+        - { name: CPU_AFFINITY_CONF, value: "1" }
+        - { name: HCCL_OP_EXPANSION_MODE, value: AIV }
+      resources:
+        requests: { cpu: "3", memory: 20Gi }
+        limits:
+          cpu: "12"
+          memory: 80Gi
+          huawei.com/Ascend910: "2"          # two whole cards per replica (TP=2)
+      securityContext: { allowPrivilegeEscalation: false, runAsNonRoot: false, runAsUser: 0 }
+    securityContext: { runAsNonRoot: false, runAsUser: 0, runAsGroup: 0, fsGroup: 0, supplementalGroups: [0] }

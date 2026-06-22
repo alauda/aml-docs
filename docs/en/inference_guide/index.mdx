@@ -14,7 +14,8 @@ get a known-good `ServingRuntime` + `InferenceService` pair plus the throughput 
 can expect per replica.
 
 The models here were validated on **Huawei Ascend 910B NPU** with the community
-`vLLM-Ascend` and Huawei `MindIE` engines. For the runtime model (KServe
+`vLLM-Ascend` engine (and Huawei `MindIE` where the architecture is supported). For
+the runtime model (KServe
 `ServingRuntime` / `InferenceService`, ModelCar storage, scheduling) see
 [Model Deployment & Inference](../model_inference/index.mdx); for adding your own
 engine see [Extend Inference Runtimes](../model_inference/inference_service/how_to/custom_inference_runtime.mdx).
@@ -23,18 +24,19 @@ engine see [Extend Inference Runtimes](../model_inference/inference_service/how_
 
 | Model | Type | Params | dtype | Device | Engines | Per-page |
 |---|---|---|---|---|---|---|
-| Qwen3-30B-A3B | MoE (3B active) | 30B | BF16 | Ascend 910B3 ×2–4 | vLLM-Ascend / MindIE | [Qwen3-30B-A3B](./qwen3-30b-a3b.mdx) |
+| Qwen3.6-27B (W8A8) | `qwen3_5` hybrid (GDN + MTP) | 27.78B | W8A8 | Ascend 910B4 ×8 | vLLM-Ascend (nightly) | [Qwen3.6-27B (W8A8)](./qwen3-6-27b-w8a8.mdx) |
 
 Models listed here meet the target serving SLO: at rate=1, chatbot workload, **inter-token
-latency (ITL) P90 ≈ 30 ms**. Qwen3-30B-A3B (MoE, 30B total / 3B active, BF16) was validated on
-Ascend 910B3 at TP=2 and TP=4 with both vLLM-Ascend and MindIE.
+latency (ITL) P90 ≈ 30 ms**. Qwen3.6-27B (`qwen3_5` Gated DeltaNet hybrid, 27.78B, W8A8) was
+validated on Ascend 910B4 in its production topology — **TP=2 × 4 replicas (8 cards)** — where
+the direct-Service operating point hits chat ITL P90 **31.5 ms** at rate=1.
 
 ## Runtime images
 
 | Engine | Device | Image (validated tag) | Notes |
 |---|---|---|---|
-| vLLM-Ascend | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:v0.18.0-openeuler` | Community vLLM for Ascend, V1 engine. Pick the tag whose CANN version matches your host driver. |
-| MindIE | Huawei Ascend NPU | `swr.cn-south-1.myhuaweicloud.com/ascendhub/mindie:2.2.RC1-800I-A2-py311-openeuler24.03-lts` | Huawei engine (ATB backend). Picks BF16 automatically from the weights. Requires root + writable model volume. |
+| vLLM-Ascend (nightly) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-main-openeuler` | Community vLLM for Ascend, V1 engine (CANN 9.0.0). Required for the `qwen3_5` Gated DeltaNet hybrid — the stock `v0.18.0rc1` cannot load it. Match the tag's CANN version to your host driver. |
+| MindIE | Huawei Ascend NPU | `swr.cn-south-1.myhuaweicloud.com/ascendhub/mindie:2.2.RC1-800I-A2-py311-openeuler24.03-lts` | Huawei engine (ATB backend), BF16 auto-selected, root + writable volume. **Does not yet support `qwen3_5`** (the Qwen3.6-27B architecture). |
 | vLLM (NVIDIA) | NVIDIA GPU (CUDA) | Alauda AI built-in vLLM runtime | The platform's default GPU runtime. The models in this guide were validated on Ascend NPU; GPU validation at this size is tracked separately. |
 
 :::tip
@@ -46,13 +48,16 @@ runtime image's CANN version to the **host NPU driver** on your nodes.
 
 All numbers in this guide come from real `guidellm` runs, not estimates:
 
-- **Open-loop, per-replica.** `guidellm benchmark --rate-type constant --rate 1..9
-  --max-seconds 300 --max-error-rate 0.5`, measured at `replica=1`.
-- **Four fixed workloads** (prompt/output tokens): Chat `512/256`, Code `1024/1024`,
-  RAG `4096/512`, Long RAG `10240/1536`.
-- **Saturation capacity** = the peak achieved RPS across the rate 1→9 sweep.
-- A workload whose capacity is **< 1 RPS/replica** is reported honestly as such (it cannot
-  sustain even one request per second per replica on this hardware/stack).
+- **Open-loop, constant rate.** `guidellm benchmark --rate-type constant`, with the
+  replicas warmed before measuring and `thinking` disabled.
+- **Three workloads** (prompt/output tokens): Chat `512/256`, Code `1024/1024`, RAG `4096/512`.
+- **Reported on the validated topology** — W8A8, TP=2 × 4 replicas (8 cards) — driving the
+  same four replicas through two ingresses: the direct KServe predictor `Service`
+  (kube-proxy) and the Envoy AI Gateway (GIE `InferencePool` + EPP).
+- **Concurrency** = mean in-flight requests (Little's law: achieved RPS × mean E2E). At a
+  fixed offered rate, rising concurrency means the ingress is backing up.
+- A workload that **cannot sustain the offered rate** is reported honestly as saturated
+  (achieved RPS < offered rate, incomplete requests pile up on this hardware/stack).
 
 ## Deploy a validated model
 
@@ -66,7 +71,7 @@ base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_
 # 1. Edit the file first: set metadata.namespace, the image tag (match your CANN /
 #    host driver), and storageUri (a PVC of the weights, or an oci:// ModelCar).
 # 2. Apply the ServingRuntime + InferenceService.
-kubectl apply -f $base/qwen3-30b-a3b/qwen3-30b-a3b-mindie-tp2.yaml
+kubectl apply -f $base/qwen3-6-27b-w8a8/qwen3-6-27b-w8a8-vllm-ascend-tp2x4.yaml
 
 # 3. Watch it come up (first start loads weights + compiles graphs — can take minutes).
 kubectl -n <your-namespace> get inferenceservice -w
@@ -74,7 +79,7 @@ kubectl -n <your-namespace> get inferenceservice -w
 # 4. Call the OpenAI-compatible endpoint.
 curl -s http://<isvc-url>/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d '{"model":"qwen3-30b-a3b","messages":[{"role":"user","content":"hello"}]}'
+  -d '{"model":"qwen3-6-27b-w8a8","messages":[{"role":"user","content":"hello"}]}'
 ```
 
 ## Caveats
@@ -82,7 +87,7 @@ curl -s http://<isvc-url>/v1/chat/completions \
 - These are **namespace-scoped `ServingRuntime`** examples (not `ClusterServingRuntime`),
   one per model/engine/TP combination — apply them in the same namespace as the
   `InferenceService` that references them.
-- Resource keys are for **Ascend 910B3** (`huawei.com/Ascend910B3`). Adjust the resource
+- Resource keys are for **Ascend 910B4** (`huawei.com/Ascend910`). Adjust the resource
   key, image, and version fields for your actual NPU model.
 - For Ascend single-node **multi-card** (TP>1) the runtime image must support HCCL init
   under the configured Modelcar UID — see the Modelcar permission modes in

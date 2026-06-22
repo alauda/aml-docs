@@ -1,0 +1,113 @@
+---
+weight: 20
+i18n:
+  title:
+    en: Qwen3.6-27B (W8A8)
+    zh: Qwen3.6-27B (W8A8)
+---
+
+# Qwen3.6-27B (W8A8)
+
+`qwen3_5`-architecture model — Gated DeltaNet linear-attention hybrid (3:1 linear /
+full attention) with a native MTP speculative head, 27.78B parameters, served as
+**W8A8** (INT8 weights, ~33 GB). Validated on **Ascend 910B4 (32 GB/card)** with the
+vLLM-Ascend **nightly** engine. The validated 8-card production topology is **W8A8,
+TP=2 × 4 replicas** behind a load-aware ingress — four small replicas, not one large
+TP=8 replica.
+
+## Model identity
+
+| Field | Value |
+|---|---|
+| Publisher | Qwen (Alibaba) |
+| Architecture | `qwen3_5` — Gated DeltaNet linear-attention hybrid + full attention + native MTP (multimodal-capable) |
+| Parameters | 27.78B (64 layers, hidden 5120) |
+| Native dtype | BF16 (~54 GB); served here as **W8A8** (~33 GB) |
+| Hugging Face | https://huggingface.co/Qwen/Qwen3.6-27B |
+| ModelScope (W8A8) | https://www.modelscope.cn/models/Eco-Tech/Qwen3.6-27B-w8a8 |
+
+## Validated hardware × stack
+
+| Platform | Engine | Version | Status |
+|---|---|---|---|
+| Ascend 910B4 32 GB × 8 (TP=2 × 4 replicas) | vLLM-Ascend | `nightly-main-openeuler` (vLLM 0.22.1, CANN 9.0.0) | ✅ open-loop, 3-workload, multi-replica perf |
+| Ascend 910B4 | MindIE | — | ❌ no `qwen3_5` support (the GDN model is not wired up) |
+
+:::note
+`qwen3_5` (Gated DeltaNet hybrid + multimodal) only loads on the vLLM-Ascend **nightly**
+image (CANN 9.0.0). The stock `v0.18.0rc1` (CANN 8.5.1) and MindIE cannot serve it.
+W8A8 quantization saves HBM (larger KV cache) but does **not** speed up decode — the
+bottleneck is the `qwen3_5` GDN/MTP decode kernels in the nightly engine, not memory
+bandwidth, so BF16 and W8A8 measure the same inter-token latency.
+:::
+
+## Deploy
+
+Self-contained namespace-scoped `ServingRuntime` + `InferenceService` (4 replicas, TP=2):
+
+| Config | File |
+|---|---|
+| vLLM-Ascend nightly, W8A8, TP=2 × 4 replicas | [`qwen3-6-27b-w8a8-vllm-ascend-tp2x4.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-6-27b-w8a8/qwen3-6-27b-w8a8-vllm-ascend-tp2x4.yaml) |
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets/qwen3-6-27b-w8a8
+# edit namespace / image tag / storageUri first, then:
+kubectl apply -f $base/qwen3-6-27b-w8a8-vllm-ascend-tp2x4.yaml
+```
+
+:::warning
+Always **warm up** the replicas (drive a little concurrency) before serving traffic.
+A cold replica only captures the `batch=1` decode graph; the first concurrent burst
+then captures larger graphs on the hot path and falls into a slow steady state. The
+`max-num-seqs 32` cap is a required guardrail — without it, high concurrency can
+avalanche into a 256-concurrency / >1 s ITL state.
+:::
+
+## Benchmark results
+
+Open-loop `guidellm` runs on the validated topology only: **W8A8, TP=2 × 4 replicas
+(8 × 910B4)**, `thinking` off, replicas warmed, MTP on. The same four replicas were
+driven through two ingresses, one variable:
+
+- **Direct** — the KServe predictor `Service` (kube-proxy, connection-level random).
+- **Gateway** — Envoy AI Gateway (GIE `InferencePool` + EPP, request-level routing).
+
+Tables below show **rate = 1** (one offered request/second) for each of the three
+workloads. `Conc.` is the mean number of in-flight requests (Little's law: achieved
+RPS × mean E2E) — at a fixed offered rate, a higher concurrency means the ingress is
+backing up. TTFT / E2E in seconds, ITL in ms, TPS in tok/s.
+
+**Chat 512/256 — rate = 1**
+
+| Ingress | Conc. | TPS | TTFT mean | TTFT p90 | ITL mean | ITL p90 | E2E mean | Success/Total | Incomplete | Errored | Status |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:--|
+| Direct | 6.9 | 237.6 | 0.56 s | 0.61 s | 27.3 | 31.5 | 7.5 s | 82/89 | 7 | 0 | healthy |
+| Gateway | 21.2 | 142.4 | 13.1 s | 32.2 s | 101.3 | 152.3 | 38.9 s | 49/89 | 40 | 0 | saturated |
+
+**Code 1024/1024 — rate = 1**
+
+| Ingress | Conc. | TPS | TTFT mean | TTFT p90 | ITL mean | ITL p90 | E2E mean | Success/Total | Incomplete | Errored | Status |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:--|
+| Direct | 5.0 | 142.9 | 0.57 s | 0.61 s | 36.3 | 62.9 | 37.7 s | 12/89 | 77 | 0 | saturated |
+| Gateway | 5.3 | 111.2 | 4.9 s | 8.8 s | 47.4 | 77.9 | 53.5 s | 9/89 | 78 | 2 | saturated |
+
+**RAG 4096/512 — rate = 1**
+
+| Ingress | Conc. | TPS | TTFT mean | TTFT p90 | ITL mean | ITL p90 | E2E mean | Success/Total | Incomplete | Errored | Status |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:--|
+| Direct | 14.3 | 406.3 | 1.2 s | 1.3 s | 34.1 | 41.7 | 18.6 s | 69/89 | 20 | 0 | healthy |
+| Gateway | 17.2 | 300.6 | 9.1 s | 17.2 s | 41.4 | 54.4 | 30.3 s | 51/89 | 38 | 0 | saturated |
+
+:::note
+**How to read these.** At rate = 1 the **direct** path is the healthy operating point
+— chat ITL P90 **31.5 ms** at TTFT **0.56 s**, the target chatbot SLO. The **gateway**
+path is saturated at the same offered rate because this run used the chart-default EPP
+`--refresh-metrics-interval 60s` (≫ the 2 s staleness threshold), so the queue-scorer
+never sees fresh queue depth and degrades to near-random routing plus an extra
+`ext_proc` hop. Dropping that interval to ~1 s is the expected fix. Code 1024/1024 is
+oversubscribed on both ingresses (an honest negative result — a single offered
+request/second already exceeds capacity for this workload). `Incomplete` = requests
+still running when the 90 s window closed (an open-loop over-send artifact, not errors).
+Across the full rate sweep this topology peaks at ~2.96 RPS / ~760 tok/s — the 8-card
+ceiling for this model.
+:::
