@@ -126,6 +126,114 @@ run = client.create_run_from_pipeline_package(
 print(f"Run ID: {run.run_id}")
 ```
 
+## Runnable example without the kfp SDK (REST + container component)
+
+The example above compiles with the `kfp` SDK and authenticates each component
+with a **Dex id token** through the OAuth proxy. When you cannot run the SDK on
+the submitter (no Python / PyPI access) **and** the component runs **inside** the
+cluster, there is a lighter, fully cluster-verified path that needs neither the
+SDK nor the OAuth proxy:
+
+- **Pipeline shape — a KFP v2 _container component_.** A container component runs
+  its image and command directly, with **no `pip install kfp` bootstrap**, so it
+  works where PyPI is blocked — as long as the image already ships `mlflow`. Reuse
+  the MLflow server image (`mlops/mlflow-acp`, which contains `mlflow`) as the step
+  image, so the step can `import mlflow` and log.
+- **Auth — a workspace ServiceAccount token against the proxy-bypass Service.**
+  When the MLflow CR sets `spec.auth.kubernetes.authorizationMode: user_identity_token`,
+  the tracking server authenticates the `Authorization: Bearer` credential by a
+  Kubernetes **TokenReview** and authorizes it by RBAC. A namespace-scoped
+  `ServiceAccount` in the workspace (granted `get/list/create/update/delete` on
+  `mlflow.kubeflow.org` `experiments`/`datasets`/`registeredmodels`) is therefore a
+  valid identity — no Dex, no oauth2-proxy, no ROPC. The step talks to the
+  **proxy-bypass** Service (the one whose `targetPort` is the MLflow container port,
+  e.g. `mlflow-e2e-direct.kubeflow:5000`), so the bearer token is the SA token, not a
+  Dex id token.
+- **Submit over the KFP v2 REST API with `curl`** — upload the IR, then create a run.
+
+The complete, runnable assets live next to this guide:
+
+| File | Purpose |
+|------|---------|
+| [`mlflow_pipeline_step.py`](./assets/mlflow_pipeline_step.py) | The step: starts an MLflow run, logs params + a metric + an artifact, **tags the run with the KFP run id** (the integration linkage). |
+| [`build-pipeline-ir.sh`](./assets/build-pipeline-ir.sh) | Emits the KFP v2 IR — a container component that base64-embeds the step, injects the SA token as `MLFLOW_TRACKING_TOKEN` (`secretAsEnv`), and injects the KFP run id as `KFP_RUN_ID` (`fieldPathAsEnv`). |
+| [`mlflow-pipeline.yaml`](./assets/mlflow-pipeline.yaml) | The generated IR (pipeline spec + kubernetes platform spec). |
+| [`mlflow-pipeline-smoke.sh`](./assets/mlflow-pipeline-smoke.sh) | End-to-end smoke: submit, run, and **verify over the MLflow REST API** that the run carries the expected param/metric and the KFP-run-id tag. |
+
+### Inject the KFP run id (container components)
+
+`dsl.PIPELINE_JOB_ID_PLACEHOLDER` (`{{$.pipeline_job_uuid}}`) is **not** substituted
+in a raw container component's `args`, so it would reach the step verbatim. Inject
+the run id reliably with the Downward API instead — every KFP workflow pod carries
+the label `pipeline/runid` (its value is the run id the REST API returns):
+
+```yaml
+# kubernetes platform spec (second document of the IR)
+platforms:
+  kubernetes:
+    deploymentSpec:
+      executors:
+        exec-log-to-mlflow:
+          secretAsEnv:
+          - secretName: mlflow-pipeline-token        # workspace SA token
+            keyToEnv:
+            - secretKey: token
+              envVar: MLFLOW_TRACKING_TOKEN
+          fieldPathAsEnv:
+          - name: KFP_RUN_ID
+            fieldPath: "metadata.labels['pipeline/runid']"
+```
+
+### Submit and verify with curl
+
+```bash
+KFP=http://localhost:8888                # kubectl -n kubeflow port-forward svc/ml-pipeline 8888:8888
+USERID=admin@cpaas.io                     # multi-user identity header
+NS=<profile-namespace>                    # a KFP profile namespace (run lands here)
+
+# 1) workspace SA token -> Secret in the run namespace
+kubectl -n mlflow-e2e create token mlflow-e2e --duration=2h > /tmp/tok
+kubectl -n "$NS" create secret generic mlflow-pipeline-token --from-literal=token="$(cat /tmp/tok)"
+
+# 2) upload the IR, then create an experiment and a run
+PID=$(curl -s -H "kubeflow-userid: $USERID" -F "uploadfile=@mlflow-pipeline.yaml;type=application/x-yaml" \
+        "$KFP/apis/v2beta1/pipelines/upload?name=aip-mlflow&namespace=$NS" | jq -r .pipeline_id)
+VID=$(curl -s -H "kubeflow-userid: $USERID" "$KFP/apis/v2beta1/pipelines/$PID/versions" | jq -r '.pipeline_versions[0].pipeline_version_id')
+EID=$(curl -s -H "kubeflow-userid: $USERID" -H 'Content-Type: application/json' -X POST "$KFP/apis/v2beta1/experiments" \
+        -d "{\"display_name\":\"aip-mlflow\",\"namespace\":\"$NS\"}" | jq -r .experiment_id)
+RID=$(curl -s -H "kubeflow-userid: $USERID" -H 'Content-Type: application/json' -X POST "$KFP/apis/v2beta1/runs" \
+        -d "{\"display_name\":\"aip-mlflow-run\",\"experiment_id\":\"$EID\",\"pipeline_version_reference\":{\"pipeline_id\":\"$PID\",\"pipeline_version_id\":\"$VID\"}}" | jq -r .run_id)
+
+# 3) after the run succeeds, confirm the linkage over the MLflow REST API
+MLF=http://localhost:5000                 # port-forward the proxy-bypass Service
+curl -s -H "Authorization: Bearer $(cat /tmp/tok)" -H "X-MLFLOW-WORKSPACE: mlflow-e2e" \
+  -H 'Content-Type: application/json' -X POST "$MLF/api/2.0/mlflow/runs/search" \
+  -d "{\"experiment_ids\":[\"<eid>\"],\"filter\":\"tags.kfp_run_id = '$RID'\"}" | jq '.runs[0].data'
+```
+
+The MLflow run’s `kfp_run_id` tag equals the KFP run id — that tag is the
+AIP↔MLflow linkage. (Verified end-to-end on g1-c1-x86 with the smoke script.)
+
+:::warning Cluster prerequisites observed on g1-c1-x86
+This KFP install needs two environment fixes that are **independent of the
+integration** (the smoke script applies both):
+
+1. **Workflow pods set `runAsNonRoot: true` without a `runAsUser`**, so the root
+   `argoexec` init image is rejected (`CreateContainerConfigError`). Patch the run’s
+   Argo `Workflow` with `spec.podSpecPatch: '{"securityContext":{"runAsUser":<uid>}}'`
+   and delete the already-errored driver pods so Argo recreates them with the patch.
+2. **The run namespace’s `mlpipeline-minio-artifact` Secret must hold credentials the
+   artifact store (SeaweedFS S3) actually accepts** — some profile-synced copies are
+   stale, which fails the driver’s artifact upload (`access key ID … does not exist`).
+
+Also note: when the workspace tracking server uses a **server-local artifact root**
+without `--serve-artifacts`, a remote client cannot upload artifacts (the workspace
+plugin also forbids a custom `artifact_location`). The step therefore records the
+artifact payload as the `kfp_run_context` run tag (always verifiable) and treats the
+file upload as best-effort. For real artifact storage, configure S3-compatible
+storage for MLflow (see [Artifact storage for production](#artifact-storage-for-production)).
+:::
+
 ## Using MLflow in Trainer v2 pipelines
 
 If you fine-tune with [Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx), the framework's MLflow integration (for example `report_to: mlflow` in LLaMA-Factory) authenticates the same way. Trainer v2 uses `apiVersion: trainer.kubeflow.org/v1alpha1`, `kind: TrainJob`, and a `spec.runtimeRef` + `spec.trainer` shape. Point it at the in-cluster Service and inject the id token from a `Secret`:
