@@ -1,0 +1,47 @@
+# Minimal first-cycle FeatureStore — all-local, PVC-backed (file offline/online/registry).
+# The operator runs `feast apply` on init (runFeastApplyOnInit) against the demo repo it
+# scaffolds via `feast init`, and creates a (suspended) materialize CronJob.
+#
+# Reconciles to status.phase=Ready ONLY when the operator is installed in
+# `feast-operator-system` (see operator-install.yaml). PVC `path` values must be a bare
+# filename (no slashes) — the operator places them under the matching `mountPath`.
+apiVersion: feast.dev/v1
+kind: FeatureStore
+metadata:
+  name: feast-e2e
+  namespace: feast-e2e
+spec:
+  feastProject: feast_e2e
+  services:
+    offlineStore:
+      persistence:
+        file:
+          type: duckdb
+          pvc:
+            create:
+              resources:
+                requests:
+                  storage: 2Gi
+            mountPath: /data/offline
+    onlineStore:
+      persistence:
+        file:
+          path: online_store.db
+          pvc:
+            create:
+              resources:
+                requests:
+                  storage: 2Gi
+            mountPath: /data/online
+    registry:
+      local:
+        persistence:
+          file:
+            path: registry.db
+            pvc:
+              create:
+                resources:
+                  requests:
+                    storage: 2Gi
+              mountPath: /data/registry
+        server: {}

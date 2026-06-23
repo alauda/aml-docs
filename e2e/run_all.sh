@@ -29,6 +29,9 @@ CASES=(
   # C12 needs Kueue installed; it skips with rc=77 if the kueue.x-k8s.io API
   # group is missing. See preemptible-trainjobs-with-kueue.mdx.
   "C12:GPU:cases/c12_kueue_preemption.sh"
+  # C13 — Feast first-cycle (roadmap 8.5.2). Skips rc=77 if the feast operator /
+  # CRD / feature-server image is missing. See docs/en/feast/assets/first-cycle-e2e.
+  "C13:GPU:cases/c13_feast_firstcycle.sh"
 )
 
 want=( "$@" )
