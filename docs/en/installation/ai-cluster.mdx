@@ -558,7 +558,7 @@ Now, the core capabilities of Alauda AI have been successfully deployed. If you 
 
 ### 1. Configure the audit output directory for aml-skipper
 
-The default audit output path is `/cpaas/audit` on the host. However, on some operating systems (e.g., MicroOS), the root path of the host is read-only, and the `/cpaas` directory cannot be created. In this case, users need to modify the audit output path.
+The default audit output path is `/cpaas/audit` on the host. However, on some operating systems (e.g., Alauda OS), the root path of the host is read-only, and the `/cpaas` directory cannot be created. In this case, users need to modify the audit output path.
 
 To modify the audit output path, update the `AmlCluster` default resource and add the `amlSkipper.auditLogHostPath.path` configuration under `spec.values`. For example:
 
