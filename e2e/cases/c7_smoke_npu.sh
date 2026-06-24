@@ -21,7 +21,7 @@ sed -e "s/namespace: kubeflow-admin-cpaas-io/namespace: ${NS}/" \
   | retry_apply npu_kc
 
 log "C7: submitting TrainJob from trainjob-smoke.yaml (runtimeRef=torch2.6-cann8.5-arm64)"
-# Override CPU request to 200m — kubeos2 runs at ~99% CPU when shared with the dev workloads
+# Override CPU request to 200m — Alauda OS 2 runs at ~99% CPU when shared with the dev workloads
 # in this cluster, but has 4 free NPUs. The smoke probe just runs a matmul, 200m is plenty.
 TJ_NAME=$(sed -e "s/namespace: kubeflow-admin-cpaas-io/namespace: ${NS}/" \
               -e 's/name: torch2.6-cu126-amd64/name: torch2.6-cann8.5-arm64/' \
