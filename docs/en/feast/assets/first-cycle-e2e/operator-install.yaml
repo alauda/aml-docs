@@ -1,0 +1,35 @@
+# Feast Operator install (OLM) — AllNamespaces mode.
+#
+# IMPORTANT: the operator MUST be installed in the namespace `feast-operator-system`.
+# When it reconciles a FeatureStore it deploys a shared "namespace registry" into its
+# own namespace, which it resolves to `feast-operator-system` (the upstream default).
+# Installing it anywhere else leaves the FeatureStore stuck in phase=Failed with
+# `namespaces "feast-operator-system" not found`, even though every sub-store is Ready.
+#
+# Source catalog: the platform OLM catalog (cpaas-system/platform), package `feast-operator`,
+# channel `alpha`. Operator image (cluster-pullable): build-harbor.alauda.cn/mlops/feast/feast-operator
+# Feature-server image it deploys: build-harbor.alauda.cn/mlops/feast/feature-server:0.63.0
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: feast-operator-system
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: feast-operator
+  namespace: feast-operator-system
+spec: {}            # empty spec == AllNamespaces watch (required by this operator)
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: feast-operator
+  namespace: feast-operator-system
+spec:
+  channel: alpha
+  name: feast-operator
+  source: platform
+  sourceNamespace: cpaas-system
+  installPlanApproval: Automatic
