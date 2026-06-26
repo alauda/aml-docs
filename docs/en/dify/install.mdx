@@ -85,18 +85,29 @@ For **Option A** there is nothing to set up here — go to Step 5. For **Options
 
 ### Set Up the Gateway (Option B or C only)
 
-Three sub-steps: register the certificate and domain in ACP → install Envoy Gateway → create a `Gateway` resource that references the certificate Secret.
+Three sub-steps: register the domain (with its cert) in ACP → install Envoy Gateway → create a `Gateway` resource that references the cert Secret.
 
-#### 1. Register the certificate and domain in ACP
+#### 1. Register the domain in ACP
 
-ACP provides UI flows to import TLS certificates and register domain names; both are reused by the `Gateway` resource you create below.
+In **Administrator** view, go to **Network Management** → **Domain Names** → **Create Domain Name**, and fill the form:
 
-1. **Import the certificate** — in **Administrator** view, go to **Network Management** → **Certificates** → **Create Certificate**. Paste **Public Key** (`tls.crt`) + **Private Key** (`tls.key`) and assign it to the target project. ACP stores it as a TLS Secret in the cluster. Full instructions: <ExternalSiteLink name="acp" href="/networking/functions/configure_certificate.mdx" children="Creating Certificates" />.
-2. **Register the domain** — go to **Network Management** → **Domain Names** → **Create Domain Name**. Pick **Type** (Domain or Wildcard Domain), enter your hostname (e.g. `dify-console.example.com`), allocate it to the target cluster + project, and bind the certificate created above (or paste the cert inline; ACP will create a per-domain Secret named `<domain>-<random>`). Full instructions: <ExternalSiteLink name="acp" href="/networking/functions/configure_domain.mdx" children="Configure Domain" />.
-3. **Note the Secret name** — open the Domain detail page and copy the bound Secret's name. The `Gateway` listener references this Secret by name in step 3 below.
-4. **Resolve DNS** — register the domain (if not already) and point it at the cluster's load balancer address.
+| Field | Value |
+|---|---|
+| **Type** | Domain (specific hostname) or Wildcard Domain (`*.example.com`) |
+| **Domain** | The hostname, e.g. `dify-console.example.com` |
+| **Allocate Cluster** | Target cluster + project (or all projects) |
+| **Certificate** | Paste **Public Key** (`tls.crt`) and **Private Key** (`tls.key`) directly into the form — ACP creates the bound TLS Secret automatically |
 
-Repeat for the second hostname under Option C (two domains).
+ACP creates:
+
+- a `Domain` custom resource on the global cluster (`apiVersion: crd.alauda.io/v2`, cluster-scoped, with `cluster.cpaas.io/name` / `project.cpaas.io/name` labels);
+- a `kubernetes.io/tls` Secret in the **`cpaas-system`** namespace named **`<domain>-<random>`** (e.g. `dify-console.example.com-xfd8x`); the Domain's `cpaas.io/secret-ref` annotation records this name.
+
+You can find the Secret name from the Domain detail page. Full UI reference: <ExternalSiteLink name="acp" href="/networking/functions/configure_domain.mdx" children="Configure Domain" />.
+
+Then **resolve DNS** for the hostname to the cluster's load balancer address.
+
+Repeat for the second hostname under Option C (two domains). One certificate that covers both hosts (e.g. a wildcard) can be reused — paste the same cert in both Domain forms, or use **Network Management** → **Certificates** to import the cert once and select it during domain creation (see <ExternalSiteLink name="acp" href="/networking/functions/configure_certificate.mdx" children="Creating Certificates" />).
 
 #### 2. Install Envoy Gateway
 
@@ -104,14 +115,19 @@ ACP includes the **Alauda Build of Envoy Gateway** operator. If it isn't install
 
 #### 3. Create the `Gateway` resource
 
-Reference the Secret name(s) you noted in sub-step 1. The Dify instance's HTTP Route will reference this Gateway by name in Step 6.
+Reference the cert Secret(s) from sub-step 1. Because those Secrets live in **`cpaas-system`** and a Gateway listener's `certificateRefs` only resolves Secrets in the Gateway's own namespace by default, you have two equivalent options:
+
+- **Simpler — put the Gateway in `cpaas-system`** so it can name the Secrets directly.
+- **Cross-namespace — keep the Gateway in its own namespace** and add a `ReferenceGrant` in `cpaas-system` allowing your Gateway namespace to reference Secrets there.
+
+**Option a — Gateway in `cpaas-system`:**
 
 ```yaml
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: dify
-  namespace: <gateway-namespace>          # same namespace as the cert Secret(s)
+  namespace: cpaas-system                 # co-located with the cert Secrets
 spec:
   gatewayClassName: <envoy-gateway-class> # the GatewayClass exposed by Envoy Gateway
   listeners:
@@ -122,10 +138,45 @@ spec:
       tls:
         mode: Terminate
         certificateRefs:
-          - {name: <secret-name-from-ACP-domain>}  # name copied from the Domain detail page
+          - {name: <secret-name-from-ACP-domain>}   # from the Domain detail page
       allowedRoutes:
         namespaces:
           from: All
+```
+
+**Option b — Gateway in another namespace, with `ReferenceGrant`:**
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: dify
+  namespace: <gateway-namespace>
+spec:
+  gatewayClassName: <envoy-gateway-class>
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.example.com"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - {namespace: cpaas-system, name: <secret-name-from-ACP-domain>}
+      allowedRoutes:
+        namespaces:
+          from: All
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: dify-tls
+  namespace: cpaas-system                 # grant lives in the Secret's namespace
+spec:
+  from:
+    - {group: gateway.networking.k8s.io, kind: Gateway, namespace: <gateway-namespace>}
+  to:
+    - {group: "", kind: Secret}            # could also restrict by name
 ```
 
 For Option C with two different hosts on the same Gateway, add a second listener (each listener can point at its own `hostname` and `certificateRefs`).
