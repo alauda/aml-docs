@@ -17,7 +17,7 @@ For what Dify is and the components it deploys, see [Introduction](overview/intr
 | External **Redis 6+** (standalone or Sentinel) | Cache + Celery broker; Cluster mode is **not** supported |
 | External **pgvector** *(optional)* | Vector store for RAG; disable if not using RAG |
 | **RWX PVC** *or* **S3-compatible storage** | Shared, writable storage for API + Plugin Daemon |
-| An **access method** for browsers | One of: NodePort/Service, single domain, or two domains. See [Step 4](#access-method) |
+| An **access method** for browsers | One of: NodePort/Service, single domain, or two domains. Domains and TLS certs are registered through ACP **Network Management**. See [Step 4](#access-method) |
 | **In-cluster proxies** *(restricted-network only)* | A Marketplace reverse proxy + a PyPI mirror so plugins install offline |
 
 ## Step 1 — Publish the Operator Package
@@ -78,46 +78,57 @@ Both URLs must match how users actually reach Dify, otherwise the frontend canno
 | Option | When to use | What to prepare | Console URL / App URL |
 |---|---|---|---|
 | **A. NodePort / Service IP** | Dev / internal; no domain | Nothing | Both set to `http://<node-ip>:<nodeport>` (one address used for both) |
-| **B. Single domain** | One hostname for both surfaces | 1 DNS record + 1 TLS cert; an Envoy Gateway instance + Gateway resource | Both set to `https://<host>` |
-| **C. Two domains** | Production — separate admin vs end-user access (different DNS / cert / network exposure) | 2 DNS records + TLS cert(s); an Envoy Gateway instance + Gateway resource | Console URL = `https://<console-host>`, App URL = `https://<app-host>` |
+| **B. Single domain** | One hostname for both surfaces | 1 ACP Certificate + 1 ACP Domain; Envoy Gateway + a `Gateway` resource | Both set to `https://<host>` |
+| **C. Two domains** | Production — separate admin vs end-user access (different DNS / cert / network exposure) | 1 ACP Certificate (can cover both, e.g. wildcard) + 2 ACP Domains; Envoy Gateway + a `Gateway` resource | Console URL = `https://<console-host>`, App URL = `https://<app-host>` |
 
 For **Option A** there is nothing to set up here — go to Step 5. For **Options B and C**, set up the Gateway as follows.
 
 ### Set Up the Gateway (Option B or C only)
 
+Three sub-steps: register the certificate and domain in ACP → install Envoy Gateway → create a `Gateway` resource that references the certificate Secret.
+
+#### 1. Register the certificate and domain in ACP
+
+ACP provides UI flows to import TLS certificates and register domain names; both are reused by the `Gateway` resource you create below.
+
+1. **Import the certificate** — in **Administrator** view, go to **Network Management** → **Certificates** → **Create Certificate**. Paste **Public Key** (`tls.crt`) + **Private Key** (`tls.key`) and assign it to the target project. ACP stores it as a TLS Secret in the cluster. Full instructions: <ExternalSiteLink name="acp" href="/networking/functions/configure_certificate.mdx" children="Creating Certificates" />.
+2. **Register the domain** — go to **Network Management** → **Domain Names** → **Create Domain Name**. Pick **Type** (Domain or Wildcard Domain), enter your hostname (e.g. `dify-console.example.com`), allocate it to the target cluster + project, and bind the certificate created above (or paste the cert inline; ACP will create a per-domain Secret named `<domain>-<random>`). Full instructions: <ExternalSiteLink name="acp" href="/networking/functions/configure_domain.mdx" children="Configure Domain" />.
+3. **Note the Secret name** — open the Domain detail page and copy the bound Secret's name. The `Gateway` listener references this Secret by name in step 3 below.
+4. **Resolve DNS** — register the domain (if not already) and point it at the cluster's load balancer address.
+
+Repeat for the second hostname under Option C (two domains).
+
+#### 2. Install Envoy Gateway
+
 ACP includes the **Alauda Build of Envoy Gateway** operator. If it isn't installed yet, install it from **Marketplace / OperatorHub** — see <ExternalSiteLink name="acp" href="/networking/operators/envoy_gateway_operator.mdx" children="install_envoy_gateway_operator" />.
 
-Then prepare a TLS Secret and create a `Gateway` resource. The Dify instance's HTTP Route will reference this Gateway in Step 6.
+#### 3. Create the `Gateway` resource
 
-```bash
-kubectl create secret tls dify-tls \
-  --cert=tls.crt --key=tls.key \
-  -n <gateway-namespace>
-```
+Reference the Secret name(s) you noted in sub-step 1. The Dify instance's HTTP Route will reference this Gateway by name in Step 6.
 
 ```yaml
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: dify
-  namespace: <gateway-namespace>
+  namespace: <gateway-namespace>          # same namespace as the cert Secret(s)
 spec:
-  gatewayClassName: <envoy-gateway-class>    # the GatewayClass exposed by Envoy Gateway
+  gatewayClassName: <envoy-gateway-class> # the GatewayClass exposed by Envoy Gateway
   listeners:
     - name: https
       protocol: HTTPS
       port: 443
-      hostname: "*.example.com"               # cover both console + app hostnames
+      hostname: "*.example.com"           # cover all hostnames registered in sub-step 1
       tls:
         mode: Terminate
         certificateRefs:
-          - {name: dify-tls}
+          - {name: <secret-name-from-ACP-domain>}  # name copied from the Domain detail page
       allowedRoutes:
         namespaces:
           from: All
 ```
 
-Point DNS for each hostname at the Gateway's external address (`kubectl get gateway dify -n <gateway-namespace> -o wide`).
+For Option C with two different hosts on the same Gateway, add a second listener (each listener can point at its own `hostname` and `certificateRefs`).
 
 ## Step 5 — Provide Plugin-Install Proxies *(restricted network only)*
 
