@@ -21,7 +21,7 @@
 # (mooncake / kv-cache-aware routing) is not yet usable for the qwen3_5 GDN hybrid
 # on Ascend — enabling it crashes the engine (upstream hybrid-store gap).
 #
-# Before applying, replace <your-registry>, namespace `demo`, and ensure the
+# Before applying, set the namespace `demo` (model.uri already points at the public Docker Hub ModelCar). For a private mirror also ensure the
 # modelcar pull secret exists.
 ---
 # (1) Engine template: aggregation single-role, nightly vLLM-Ascend, TP=4, W8A8 + MTP.
@@ -188,7 +188,7 @@ metadata:
     infernex.io/disabled-components: "mooncake,cache-indexer,pd-orchestrator,eagle-eye"
 spec:
   model:
-    uri: oci://<your-registry>/mlops/modelcar-qwen3.6-27b-w8a8:v0.1.0
+    uri: oci://docker.io/alaudadockerhub/modelcar-qwen3-6-27b-w8a8:v0.1.0
     name: Eco-Tech/Qwen3.6-27B-w8a8        # == --served-model-name (keep aligned)
   baseRefs:
     - name: qwen36-27b-w8a8-agg-engine

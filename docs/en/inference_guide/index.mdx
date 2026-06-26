@@ -83,8 +83,9 @@ into the running instances.
 ```bash
 base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets
 
-# 1. Edit the file first: set the namespace, the ModelCar registry in model.uri
-#    (oci://<your-registry>/...), and the image tag (match your CANN / host driver).
+# 1. Edit the file first: set the namespace and the image tag (match your CANN /
+#    host driver). model.uri already points at the public ModelCar on Docker Hub
+#    (oci://docker.io/alaudadockerhub/...) — repoint it only if you mirror locally.
 # 2. Apply — the InferNex-Bridge reconciles the LLMInferenceService into the
 #    hermes-router (EPP) + the vLLM-Ascend instances.
 kubectl apply -f $base/qwen3-32b/qwen3-32b-agg-base-llmisvc.yaml
@@ -105,7 +106,34 @@ curl -s http://<gateway>/<namespace>/qwen3-32b-agg-base/v1/chat/completions \
   namespace; the `LLMInferenceService` lives in your deployment namespace.
 - Resource keys are for **Ascend 910B4** (`huawei.com/Ascend910`). Adjust the resource
   key, image, and version fields for your actual NPU model.
-- The ModelCar registry host (`oci://<your-registry>/...`) and the modelcar pull secret
-  are placeholders — point them at your own aml-harbor.
+- The ModelCar images are **public on Docker Hub** under
+  [`alaudadockerhub`](https://hub.docker.com/u/alaudadockerhub) — the manifests pull them
+  with no credentials. Mirror them to your own registry and repoint `model.uri` if you
+  prefer; the modelcar pull secret in the manifest is only needed for a private registry.
 - The benchmark numbers were measured **closed-loop** (concurrency 4) on 8 cards. Treat
   them as the per-instance operating point under steady load, not a saturation ceiling.
+
+## Verify the ModelCar signature
+
+The ModelCar images are signed with [Cosign](https://docs.sigstore.dev/). Verify an
+image against the published public key ([`cosign.pub`](https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/cosign.pub))
+before deploying:
+
+```bash
+curl -sO https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/cosign.pub
+
+cosign verify --key cosign.pub --insecure-ignore-tlog=true \
+  docker.io/alaudadockerhub/modelcar-qwen3-32b:v0.1.0
+```
+
+The three signed images and their digests:
+
+| Image | Digest |
+|---|---|
+| `docker.io/alaudadockerhub/modelcar-qwen3-32b:v0.1.0` | `sha256:eccffdb567038196638eb7e1c6bb9572d8bcc7829d11fcdfa17f2c43fbca0c6e` |
+| `docker.io/alaudadockerhub/modelcar-qwen3-6-27b-w8a8:v0.1.0` | `sha256:5eb8841a29a4f3d659f8cef25c7f8b16208b32265db23354dae79c4c04e8ef79` |
+| `docker.io/alaudadockerhub/modelcar-deepseek-v4-flash-w4a8-mtp:v0.1.0` | `sha256:ef57a46726bec9c6505504262beaa55ec6c45d595a1726ab90d594f42606c6be` |
+
+`--insecure-ignore-tlog=true` is required because these were signed with
+`--tlog-upload=false` (no public transparency-log entry); verification relies on the
+public key alone.

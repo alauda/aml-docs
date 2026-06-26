@@ -23,7 +23,7 @@
 # same loadable id (Qwen/Qwen3-32B). A short name makes the EPP tokenizer fail and
 # silently degrades KV-aware routing to plain load-balancing.
 #
-# Before applying, replace <your-registry>, namespace `demo`, and ensure the
+# Before applying, set the namespace `demo` (model.uri already points at the public Docker Hub ModelCar). For a private mirror also ensure the
 # modelcar pull secret exists. The cache-indexer/tokenizer images may need to be
 # pre-pulled + retagged on nodes that cannot reach cr.openfuyao.cn.
 ---
@@ -243,7 +243,7 @@ metadata:
     infernex.io/disabled-components: "pd-orchestrator,eagle-eye"
 spec:
   model:
-    uri: oci://<your-registry>/mlops/modelcar-qwen3-32b:v0.1.0
+    uri: oci://docker.io/alaudadockerhub/modelcar-qwen3-32b:v0.1.0
     name: Qwen/Qwen3-32B                  # keep == served-model-name == EPP tokenizer model == client -m
   baseRefs:
     - name: qwen3-32b-aggmckv-engine

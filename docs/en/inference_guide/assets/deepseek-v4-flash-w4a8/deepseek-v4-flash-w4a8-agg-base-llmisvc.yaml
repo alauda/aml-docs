@@ -21,7 +21,7 @@
 # and is kept for full-feature delivery; the speedup over older builds comes from the
 # nightly stack itself, not from prefix caching.
 #
-# Before applying, replace <your-registry> and namespace `demo`, and ensure the
+# Before applying, set the namespace `demo` (model.uri already points at the public Docker Hub ModelCar). For a private registry also ensure the
 # modelcar pull secret exists. The node needs enough ephemeral disk for the ~128 GB
 # ModelCar (native oci:// to /mnt/models).
 ---
@@ -38,7 +38,7 @@ metadata:
     infernex.io/disabled-components: "mooncake,cache-indexer,pd-orchestrator,eagle-eye"
 spec:
   model:
-    uri: oci://<your-registry>/mlops/modelcar-deepseek-v4-flash-w4a8-mtp:v0.1.0
+    uri: oci://docker.io/alaudadockerhub/modelcar-deepseek-v4-flash-w4a8-mtp:v0.1.0
     name: gdydems/DeepSeek-V4-Flash-w4a8-mtp   # == --served-model-name (keep aligned)
   replicas: 1                            # 1 instance × TP=8 = 8 cards (whole node)
   template:

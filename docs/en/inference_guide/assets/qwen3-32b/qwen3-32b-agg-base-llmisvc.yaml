@@ -13,7 +13,7 @@
 # cache-aware routing variant see qwen3-32b-agg-mc-kv-llmisvc.yaml.
 #
 # Before applying, replace:
-#   - <your-registry>  : your aml-harbor ModelCar registry (host[:port])
+#   - the model.uri registry (default = public docker.io/alaudadockerhub)  : your aml-harbor ModelCar registry (host[:port])
 #   - namespace `demo` : the namespace you deploy the LLMInferenceService in
 #   - the modelcar pull secret (modelcar-registry-auth) must exist + be on the SA
 # The Ascend resource key (huawei.com/Ascend910) is this node's device-plugin key.
@@ -176,7 +176,7 @@ metadata:
     infernex.io/disabled-components: "mooncake,cache-indexer,pd-orchestrator,eagle-eye"
 spec:
   model:
-    uri: oci://<your-registry>/mlops/modelcar-qwen3-32b:v0.1.0
+    uri: oci://docker.io/alaudadockerhub/modelcar-qwen3-32b:v0.1.0
     name: Qwen/Qwen3-32B                  # == --served-model-name (keep aligned)
   baseRefs:
     - name: qwen3-32b-agg-engine

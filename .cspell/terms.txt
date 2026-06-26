@@ -18,3 +18,7 @@ infernex
 mooncake
 hermes
 gdydems
+cosign
+sigstore
+alaudadockerhub
+tlog
