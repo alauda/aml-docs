@@ -4,7 +4,16 @@ weight: 20
 
 # Install Dify
 
-This document describes how to deploy Dify on a Kubernetes cluster using the **Dify Operator** (a helm-based OLM operator). You install the operator once, then create a **Dify** custom resource and configure it through the form (or YAML). The operator deploys the Dify workloads only — **PostgreSQL, Redis, and the vector store must be provided externally** and referenced from the Dify resource.
+This document describes how to deploy Dify on **Alauda Container Platform** using the **Dify Operator** (a helm-based OLM operator). The end-to-end flow is:
+
+1. **Publish** the Dify operator package to the platform repository (`violet push`).
+2. **Install the operator** from Marketplace / OperatorHub.
+3. **Prepare external dependencies** — PostgreSQL, Redis, optional pgvector, storage.
+4. **(For Gateway exposure)** install **Envoy Gateway** and create a `Gateway` resource that Dify will attach to.
+5. **(For restricted-network clusters)** deploy in-cluster reverse proxies for the **Dify Marketplace** and **PyPI**.
+6. **Create the Dify resource** and configure it.
+
+The operator deploys the Dify workloads only — PostgreSQL, Redis, and the vector store must be provided externally and referenced from the Dify resource.
 
 For an overview of Dify and its components, see [Introduction](overview/intro).
 
@@ -21,23 +30,39 @@ The operator runs the following Dify components as separate workloads:
 
 ## Prerequisites
 
-- Kubernetes 1.21+ (Gateway API CRDs installed if you expose Dify through a Gateway)
-- External **PostgreSQL 12+** (only PostgreSQL is supported for the main database)
-- External **Redis 6.0+** — **standalone or Sentinel (HA)**; Redis Cluster is not supported
-- For RAG: **PostgreSQL with the pgvector extension** (optional — can be disabled if you don't use RAG)
-- Storage for the API and Plugin Daemon: a **RWX** PersistentVolume StorageClass **or** an S3-compatible object store
+- **Alauda Container Platform** with a target cluster (Kubernetes 1.21+) and cluster-admin access.
+- External **PostgreSQL 12+** (only PostgreSQL is supported for the main database).
+- External **Redis 6.0+** — **standalone or Sentinel (HA)**; Redis Cluster is not supported.
+- For RAG: **PostgreSQL with the pgvector extension** (optional — can be disabled if you don't use RAG).
+- Storage for the API and Plugin Daemon: a **RWX** PersistentVolume StorageClass **or** an S3-compatible object store.
+- **For Gateway API exposure (recommended):** the **Gateway API CRDs** and a Gateway implementation (this guide uses **Envoy Gateway**).
+- **For restricted-network clusters:** in-cluster reverse proxies to the Dify Marketplace and to PyPI (see [Restricted network](#restricted-network)).
+
+## Publish the Operator Package
+
+The Dify operator is delivered as an installation package (e.g. `dify-operator.alpha.ALL.v<version>.tgz`). Publish it to the platform's local repository so it appears in **Marketplace / OperatorHub**:
+
+```bash
+violet push \
+  --platform-address=<platform-access-address> \
+  --platform-username=<platform-admin> \
+  --platform-password=<platform-admin-password> \
+  dify-operator.alpha.ALL.v<version>.tgz
+```
+
+After `violet push` succeeds, the operator becomes installable from the cluster's **Marketplace / OperatorHub** view.
 
 ## Install the Operator
 
-1. Sign in to **Alauda Container Platform** as an administrator.
-2. Open the cluster's **Marketplace / OperatorHub**, find **Dify**, and **Install** it into the target cluster.
-3. After the operator is running, create a **Dify** instance: select the target namespace and fill in the form (or switch to **YAML**). The sections below describe the fields. You can change them later by updating the Dify resource.
+1. Sign in to **Alauda Container Platform** as a cluster administrator.
+2. Open the target cluster's **Marketplace / OperatorHub**, find **Dify**, and **Install** it.
+3. After the operator is running you can create one or more **Dify** instances — see [Required Configuration](#required-configuration) and the optional sections.
 
 ## Prepare Dependencies
 
 ### PostgreSQL (required)
 
-Use **PostgreSQL 12+**. You can create a PostgreSQL cluster via the PostgreSQL operator in **Data Services** and obtain the host and credentials from the instance details. Create an empty database for Dify (e.g. `dify`).
+Use **PostgreSQL 12+**. You can create a PostgreSQL cluster via the **PostgreSQL operator in Data Services**, then read the host and credentials from the instance details. Create an empty database for Dify (e.g. `dify`).
 
 ### Redis (required — standalone or Sentinel)
 
@@ -55,7 +80,69 @@ Only **pgvector** is supported. Use a PostgreSQL instance with the pgvector exte
 The API and Plugin Daemon need shared, writable storage. Use either:
 
 - a **PVC** backed by a **ReadWriteMany (RWX)** StorageClass (the API, worker and worker-beat share it), or
-- an **S3-compatible** object store (recommended when no RWX class is available).
+- an **S3-compatible** object store (recommended when no RWX class is available; see [Storage — PVC (RWX) or S3](#storage)).
+
+## Set up the Gateway (for Gateway API exposure)
+
+If you want to expose Dify via Gateway API (recommended for production), install **Envoy Gateway** into the cluster **before** creating the Dify resource.
+
+### Install Envoy Gateway
+
+Install Envoy Gateway via its Helm chart (or via the Envoy Gateway operator if available in your Marketplace):
+
+```bash
+helm install eg oci://docker.io/envoyproxy/gateway-helm \
+  --version v1.2.4 \
+  --namespace envoy-gateway-system --create-namespace
+```
+
+Verify the controller is running:
+
+```bash
+kubectl -n envoy-gateway-system get pods
+kubectl get gatewayclass
+```
+
+You should see at least one `GatewayClass` named `eg` (or similar).
+
+### Create a Gateway resource
+
+Create a `Gateway` with the listeners Dify needs (one or two HTTPS listeners — for `consoleUrl` and `appUrl`, which can share a host or use separate hosts). The Dify resource's `httpRoute` will reference this Gateway by name.
+
+```yaml
+# TLS certificate for the listener
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dify-tls
+  namespace: <gateway-namespace>
+type: kubernetes.io/tls
+data:
+  tls.crt: <base64-cert>
+  tls.key: <base64-key>
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: dify
+  namespace: <gateway-namespace>
+spec:
+  gatewayClassName: eg                     # match the installed GatewayClass
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.example.com"            # or specific hosts
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - {name: dify-tls}
+      allowedRoutes:
+        namespaces:
+          from: All                        # allow HTTPRoutes from the Dify namespace
+```
+
+The Dify resource's `httpRoute.gatewayName` / `httpRoute.gatewayNamespace` / `httpRoute.hostnames` will reference this Gateway. Make sure `consoleUrl` / `appUrl` use the same hostnames so the browser reaches the right host.
 
 ## Required Configuration
 
@@ -68,7 +155,7 @@ kubectl create secret generic dify-redis    --from-literal=password='<redis-pass
 kubectl create secret generic dify-pgvector --from-literal=password='<pgvector-password>'
 ```
 
-Minimal Dify resource fields:
+Minimal Dify resource fields (form or YAML):
 
 ```yaml
 # Browser-facing base URLs (no path suffix) — required so the frontend loads correctly
@@ -150,24 +237,78 @@ storage:
   s3PathStyle: true                 # true for MinIO / most S3-compatible endpoints; false for AWS
 ```
 
-### Expose via Gateway API (HTTPRoute)
+### Expose via Gateway API (HTTPRoute) \{#httproute}
 
-Attach Dify to an existing Gateway:
+Attach Dify to the Gateway you set up in [Set up the Gateway](#set-up-the-gateway-for-gateway-api-exposure):
 
 ```yaml
 httpRoute:
-  gatewayName: <gateway-name>
+  gatewayName: dify
   gatewayNamespace: <gateway-namespace>
-  sectionName: <listener-name>       # optional; the Gateway listener to bind
+  sectionName: https                 # optional; the Gateway listener to bind
   hostnames:
     - <dify.example.com>
 ```
 
-Make sure `consoleUrl` / `appUrl` match the hostnames so the browser reaches the right host.
+Make sure `consoleUrl` / `appUrl` match the hostnames.
 
-### Restricted network (internal plugin installation)
+### Restricted network \{#restricted-network}
 
-When the cluster cannot reach public PyPI / the Dify Marketplace (`https://marketplace.dify.ai`), install plugins through an in-cluster **Marketplace reverse proxy + PIP mirror**:
+When the cluster cannot reach the public Dify Marketplace (`https://marketplace.dify.ai`) or PyPI, install plugins through **in-cluster reverse proxies**.
+
+#### Deploy a Marketplace reverse proxy
+
+The upstream requires `Host: marketplace.dify.ai`. A minimal Nginx proxy:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: dify-marketplace-proxy, namespace: <ns>}
+data:
+  nginx.conf: |
+    events {}
+    http {
+      resolver kube-dns.kube-system.svc.cluster.local valid=30s;
+      proxy_http_version 1.1;
+      server {
+        listen 80;
+        location / {
+          proxy_pass https://marketplace.dify.ai;
+          proxy_set_header Host marketplace.dify.ai;
+          proxy_ssl_server_name on;
+          proxy_buffering on;
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: dify-marketplace-proxy, namespace: <ns>}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: dify-marketplace-proxy}}
+  template:
+    metadata: {labels: {app: dify-marketplace-proxy}}
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          volumeMounts: [{name: cfg, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf}]
+      volumes: [{name: cfg, configMap: {name: dify-marketplace-proxy}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: dify-marketplace-proxy, namespace: <ns>}
+spec:
+  selector: {app: dify-marketplace-proxy}
+  ports: [{port: 80, targetPort: 80}]
+```
+
+#### Deploy a PIP mirror proxy (optional)
+
+Either point at a public mirror reachable from the cluster (e.g. `https://mirrors.aliyun.com/pypi/simple/`) or stand up a similar Nginx reverse proxy to it. For a self-hosted PyPI cache, [devpi](https://www.devpi.net/) is also an option.
+
+#### Configure Dify to use the proxies
 
 ```yaml
 proxy:
@@ -180,7 +321,9 @@ proxy:
   verifyPluginSignature: false  # allow repackaged / offline plugin packages
 ```
 
-- `marketplaceURL` must be a reverse proxy to `https://marketplace.dify.ai` (the upstream requires `Host: marketplace.dify.ai`), and must be an **FQDN** — the SSRF proxy cannot resolve short in-cluster names.
+Important notes:
+
+- `marketplaceURL` must be an **FQDN** — the SSRF proxy cannot resolve short in-cluster names.
 - By default plugin installs run `uv sync --frozen`, which pins PyPI and **bypasses** `pipMirrorUrl`. Set `ignoreUvLock: true` so plugin Python dependencies are fetched from the mirror.
 - To disable the marketplace entirely instead, set `proxy.marketplace: false` and install plugins via **Install via Local Package File** in the console. See [Dify: Installing the Plugin](https://docs.dify.ai/en/develop-plugin/publishing/marketplace-listing/release-by-file#installing-the-plugin).
 
