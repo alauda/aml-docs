@@ -1,0 +1,33 @@
+---
+weight: 10
+---
+
+# Introduction
+
+Alauda Build of Spark Operator is a Kubernetes-native operator that runs and manages [Apache Spark](https://spark.apache.org/) applications on Kubernetes. Built on the open-source [Kubeflow Spark Operator](https://github.com/kubeflow/spark-operator), it lets you submit, schedule, monitor, and clean up Spark workloads declaratively through Kubernetes Custom Resource Definitions (CRDs) — without running a `spark-submit` client or a standalone Spark cluster yourself.
+
+## Overview
+
+The operator provides the following CRDs (API group `sparkoperator.k8s.io`):
+
+- **SparkApplication**: Defines a single Spark application (a driver plus its executors). The operator submits it in cluster mode, tracks its lifecycle to completion, and garbage-collects its resources.
+- **ScheduledSparkApplication**: Runs a `SparkApplication` on a cron schedule, with concurrency and run-history controls.
+- **SparkConnect**: Manages a long-running [Spark Connect](https://spark.apache.org/spark-connect/) server for interactive / remote Spark sessions.
+
+## Key Features
+
+- **Declarative submission**: Submit Spark jobs as Kubernetes resources; the operator runs `spark-submit` in cluster mode for you.
+- **Lifecycle management**: Tracks driver/executor state, surfaces `applicationState`, honors the configured restart policy, and cleans up finished applications.
+- **Scheduling**: Cron-style recurring jobs via `ScheduledSparkApplication`.
+- **Admission webhook**: Mutates and validates Spark resources (volumes, affinity, security context, and more).
+- **Batch scheduler integration**: Optional gang scheduling via Volcano or Yunikorn.
+- **Metrics**: Exposes Prometheus metrics for applications, executors, and submission latency.
+
+## Use Cases
+
+- **Batch data processing**: ETL and analytics jobs on Kubernetes.
+- **Scheduled pipelines**: Recurring Spark jobs without an external scheduler.
+- **Distributed data prep / ML**: Large-scale feature engineering and training-data preparation.
+- **Interactive Spark**: Remote Spark sessions through Spark Connect.
+
+This release packages **Apache Spark 4.0.1**. For Spark concepts and Kubernetes specifics, see [Running Spark on Kubernetes](https://spark.apache.org/docs/latest/running-on-kubernetes.html).
