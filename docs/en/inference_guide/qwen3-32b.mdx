@@ -97,7 +97,7 @@ output pinned to 128 tokens. TTFT / E2E in ms, ITL in ms, TPS = total tokens/s
 | Deployment spec | TTFT avg (ms) | ITL avg (ms) | E2E avg (ms) | TPS (in+out) |
 |---|--:|--:|--:|--:|
 | agg-base | 4612 | 95.9 | 16791 | 4270 |
-| agg-mc-kv (warm) | 760 | 72.2 | 9922 | 7274 |
+| agg-mc-kv | 1663 | 77.3 | 11481 | 6498 |
 
 :::note
 **How to read these.** All runs completed 240/240 with zero errors at a steady 2
@@ -107,11 +107,12 @@ in-flight requests per instance. `agg-base` numbers are a single representative 
 The value of **`agg-mc-kv` shows up mainly in TTFT** (first-token latency): the
 cross-instance KV store lets a request reuse prefix KV that another instance already
 computed, skipping a re-prefill. The effect is largest on the **multi-turn** scenario
-(TTFT 4612 → 760 ms, E2E 16.8 → 9.9 s, TPS +70%), where each turn shares a long
-growing prefix. On scenario ② the **first (cold) run** still pays the full prefill of
-the 16k base (TTFT ~3.5 s); the figures above are the warm steady state (runs 2-3).
-Decode-step latency (ITL) is roughly the same between specs — it is not what the KV
-store accelerates.
+(TTFT 4612 → 1663 ms, E2E 16.8 → 11.5 s, TPS +52%), where each turn shares a long
+growing prefix. Within those 3 runs scenario ② has a wide cold/warm spread: the
+**first (cold) run** pays the full prefill of the 16k base (TTFT ~3.5 s), while the
+**warm runs** reach TTFT ~0.76 s and E2E ~9.9 s — the mean above blends both, and warm
+steady state is the operating point you see in sustained serving. Decode-step latency
+(ITL) is roughly the same between specs — it is not what the KV store accelerates.
 
 At this 2-instance scale most of the `agg-mc-kv` gain comes from the KV **store**;
 isolating the routing contribution would need a separate A/B, and the store's value

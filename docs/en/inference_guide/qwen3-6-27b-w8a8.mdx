@@ -104,33 +104,26 @@ TTFT / E2E in ms, ITL in ms (per-chunk; MTP emits ~3 tokens/chunk), TPS = total 
 
 **Scenario ① — fixed-length system-prompt reuse (ISL ~8k / OSL 128)**
 
-| Metric | avg | p50 | p90 | p99 |
+| Deployment spec | TTFT avg (ms) | ITL avg (ms) | E2E avg (ms) | TPS (in+out) |
 |---|--:|--:|--:|--:|
-| TTFT (ms) | 1509 | 1228 | 2192 | 5025 |
-| ITL (ms) | 32.0 | 29.7 | 45.0 | 68.7 |
-| E2E (ms) | 5577 | 5436 | — | 11812 |
-
-- **TPS (total, in+out):** 5807 ±197 tok/s · **decode-only:** 91.3 tok/s
-- **Throughput:** 0.72 req/s · **Success:** 240/240 (×3) · **Duration:** 337 s
+| agg-base | 1509 | 32.0 | 5577 | 5807 |
 
 **Scenario ② — multi-turn dialogue (ISL ~17.5k / OSL 128)**
 
-| Metric | avg | p50 | p90 | p99 |
+| Deployment spec | TTFT avg (ms) | ITL avg (ms) | E2E avg (ms) | TPS (in+out) |
 |---|--:|--:|--:|--:|
-| TTFT (ms) | 3999 | 3356 | 6290 | 9638 |
-| ITL (ms) | 45.3 | 41.1 | 78.4 | 94.5 |
-| E2E (ms) | 9751 | 9251 | — | 16974 |
-
-- **TPS (total, in+out):** 7408 ±487 tok/s · **decode-only:** 52.5 tok/s
-- **Throughput:** 0.41 req/s · **Success:** 240/240 (×3) · **Duration:** 588 s
+| agg-base | 3999 | 45.3 | 9751 | 7408 |
 
 :::note
 **How to read these.** All six runs completed 240/240 with zero errors at a steady 2
-in-flight requests per instance, and the per-token latency is highly reproducible (ITL
-run-to-run spread ~3–14%). ITL is reported **per chunk** — with the MTP speculative head
-emitting ~3 tokens per streamed chunk, the effective per-token latency is roughly a
-third. TTFT rises and its tail widens on the 17.5k workload as growing per-turn context
-gets re-prefilled (this model cannot use prefix caching). TPS is the total-token
-(input + output) caliber; the decode-only figure is the system's true output rate. These
+in-flight requests per instance; ITL is highly reproducible (run-to-run spread ~3–14%).
+`agg-base` is the only deployment spec for this model — the cross-instance KV store +
+KV-cache-aware routing (`agg-mc-kv`) is not usable for the `qwen3_5` GDN hybrid. ITL is
+reported **per chunk** — with the MTP speculative head emitting ~3 tokens per streamed
+chunk, the effective per-token latency is roughly a third. The decode-only output rate is
+**91.3 tok/s** (scenario ①) / **52.5 tok/s** (scenario ②); the TPS column is the
+total-token (input + output) caliber. ITL p90 is 45.0 ms (①) / 78.4 ms (②) and TTFT p90
+is 2192 ms (①) / 6290 ms (②). TTFT rises and its tail widens on the 17.5k workload as
+growing per-turn context gets re-prefilled (this model cannot use prefix caching). These
 are half-scale numbers (8 cards); aggregate throughput scales with the instance count.
 :::
