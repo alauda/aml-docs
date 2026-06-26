@@ -286,9 +286,9 @@ proxy:                           # restricted network only
 | `consoleUrl` | Access | Browser URL for the builder UI |
 | `appUrl` | Access | Browser URL for published apps |
 | `database.{host, port, username, name, secret, sslEnabled}` | Database | External PostgreSQL connection. `secret` holds key `password`. |
-| `redis.{mode, host, port, sentinels, masterName, secret, sentinelSecret, cacheDB, brokerDB, sslEnabled}` | Redis | `mode = standalone | sentinel` |
+| `redis.{mode, host, port, sentinels, masterName, secret, sentinelSecret, cacheDB, brokerDB, sslEnabled}` | Redis | `mode = standalone` or `sentinel` |
 | `vectorStore.{enabled, host, port, username, name, secret}` | Vector store | pgvector |
-| `storage.{type, storageClass, size, endpoint, apiBucket, pluginBucket, s3Secret, region, s3PathStyle}` | Storage | `type = PVC | S3` |
+| `storage.{type, storageClass, size, endpoint, apiBucket, pluginBucket, s3Secret, region, s3PathStyle}` | Storage | `type = PVC` or `S3` |
 | `httpRoute.{gatewayName, gatewayNamespace, sectionName, hostnames}` | HTTP Route | Gateway API exposure; omit for NodePort |
 | `proxy.{marketplace, marketplaceURL, pipMirrorUrl, ignoreUvLock, pluginInitTimeout, verifyPluginSignature}` | Advanced — Plugin proxy | Restricted-network plugin install |
 
