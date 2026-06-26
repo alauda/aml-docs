@@ -16,3 +16,4 @@ deepseek
 aiperf
 infernex
 mooncake
+hermes

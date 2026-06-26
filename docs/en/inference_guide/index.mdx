@@ -10,15 +10,16 @@ i18n:
 
 Ready-to-deploy recipes for **validated open-weight LLMs** on Alauda AI. Each model
 in this guide has been deployed end-to-end on a real cluster and benchmarked, so you
-get a known-good `ServingRuntime` + `InferenceService` pair, the runtime image that
-serves it, and the throughput you can expect.
+get a known-good deployment manifest, the runtime image that serves it, and the
+throughput you can expect.
 
 The models here were validated on **Huawei Ascend 910B4 NPU** with the community
-`vLLM-Ascend` engine. Both were run in the **same aggregation topology and the same
-benchmark caliber**, so their results are directly comparable. For the runtime model
-(KServe `ServingRuntime` / `InferenceService`, ModelCar storage, scheduling) see
-[Model Deployment & Inference](../model_inference/index.mdx); for adding your own
-engine see [Extend Inference Runtimes](../model_inference/inference_service/how_to/custom_inference_runtime.mdx).
+`vLLM-Ascend` engine, deployed through Alauda AI's **InferNex** surface — a KServe
+`LLMInferenceService` reconciled by the InferNex-Bridge into a load-aware router
+(hermes-router / EPP) in front of the vLLM-Ascend instances. Both models were run
+in the **same aggregation topology and the same benchmark scenarios**, so their
+results are directly comparable. For the runtime model (KServe, ModelCar storage,
+scheduling) see [Model Deployment & Inference](../model_inference/index.mdx).
 
 ## Validated models
 
@@ -29,9 +30,7 @@ engine see [Extend Inference Runtimes](../model_inference/inference_service/how_
 
 Both models were validated on Ascend 910B4 (32 GB/card) in an **8-card aggregation
 topology — 2 instances × TP=4** — driven through KServe `LLMInferenceService` with
-load-aware routing. This is a half-scale reproduction of the *InferNex v26.06*
-16-card baseline, so per-instance latency is directly comparable and aggregate
-throughput scales with the instance count.
+load-aware routing (InferNex-Bridge + hermes-router).
 
 ## Runtime images
 
@@ -39,98 +38,68 @@ throughput scales with the instance count.
 |---|---|---|---|---|
 | vLLM-Ascend v0.18.0 | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:v0.18.0-openeuler` | Qwen3-32B | Community vLLM for Ascend, V1 engine. Serves standard Qwen3 dense models directly. Match the tag's CANN version to your host NPU driver. |
 | vLLM-Ascend nightly (release-pinned) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-releases-v0.22.1rc-openeuler` | Qwen3.6-27B (W8A8) | Required for the `qwen3_5` Gated DeltaNet hybrid + MTP — the stock `v0.18.0` cannot load it. Use this **release-pinned** tag, **not** the moving `nightly-main-openeuler` (it drifted to a broken build whose TP workers crash). |
-| MindIE | Huawei Ascend NPU | `swr.cn-south-1.myhuaweicloud.com/ascendhub/mindie:2.2.RC1-800I-A2-py311-openeuler24.03-lts` | — | Huawei engine (ATB backend). Serves dense Qwen3 in BF16, but **does not yet support `qwen3_5`** (the Qwen3.6-27B architecture). |
-| vLLM (NVIDIA) | NVIDIA GPU (CUDA) | Alauda AI built-in vLLM runtime | — | The platform's default GPU runtime. The models in this guide were validated on Ascend NPU; GPU validation at this size is tracked separately. |
 
 :::tip
-CUDA / NVIDIA images are x86-64; the Ascend CANN images are arm64. Always match the
-runtime image's CANN version to the **host NPU driver** on your nodes.
+The Ascend CANN images are arm64. Always match the runtime image's CANN version to
+the **host NPU driver** on your nodes. Only the engines actually used in this guide
+are listed; other engines (MindIE, SGLang, …) were not benchmarked at this size.
 :::
 
-## Benchmark methodology
+## Benchmark scenarios
 
-All numbers in this guide come from real `aiperf` runs on the validated cluster, not
-estimates. Both models were measured with an identical setup:
+Both models were measured with `aiperf` against the same two scenarios, modelled on
+real serving patterns. Output is pinned to **128 tokens** and load is **closed-loop,
+concurrency 4** (4 in-flight requests, fixed). Each scenario ran 240 requests.
 
-- **Topology** — agg-base aggregation, **2 instances × TP=4 = 8 Ascend 910B4 cards**
-  (one node), each instance a vLLM-Ascend engine behind load-aware routing. This is a
-  half-scale reproduction of the *InferNex v26.06* 16-card baseline (4 × TP=4); latency
-  is directly comparable, aggregate throughput scales with the instance count.
-- **Closed-loop, concurrency 4** (`aiperf --concurrency 4`, 2 in-flight requests per
-  instance). This is a deliberate **exception** to a pure open-loop sweep, chosen to
-  reproduce the reference report's operating point apples-to-apples.
-- **Two workloads** (ISL/OSL tokens): ① **8k system-prompt reuse** `8000/128` and
-  ② **17.5k multi-turn** `~17.9k/128`. 240 requests each, output pinned to 128 tokens.
-- **TPS = total-token throughput (input + output)** = (Σ input + Σ output) / wall-time,
-  matching the reference caliber. The **decode-only** output throughput is reported
-  separately and is much smaller under these long-input workloads — don't confuse the two.
+| Scenario | What it models | Dataset | Request shape |
+|---|---|---|---|
+| **① Fixed-length system-prompt reuse** | A reused system prompt — performance when request length is fixed and KV cache repeats. | 60 distinct 8k-token system prompts, each reused 4 times = 240 requests. | ISL ~8k / OSL 128 |
+| **② Multi-turn dialogue** | Multiple users in a continuing conversation, several requests per session. | 60 independent users × 4 rounds = 240 requests. | Round 1 sends 16k and the model replies 128 tokens; round 2 adds 1k (~17k total); and so on for 4 rounds (16k / 17k / 18k / 19k), averaging **~17.5k** ISL / OSL 128. |
 
-:::warning Not a strict A/B between the two models
-Each model runs its own best validated config: Qwen3.6-27B **requires**
-`--no-enable-prefix-caching` (the GDN hybrid cache), while Qwen3-32B runs with
-`--enable-prefix-caching`. The Qwen3.6-27B advantage therefore reflects the
-*combination* of W8A8 + MTP + fewer parameters, not quantization alone — and on the
-8k-reuse workload, prefix caching gives Qwen3-32B a lower mean TTFT.
+:::note
+These two scenarios are run on a **single-node 8-card** deployment (2 instances ×
+TP=4). Latency (TTFT / ITL / E2E) is the per-instance operating point under steady
+2-in-flight load; total throughput (TPS) is the aggregate across both instances and
+scales with the instance count. **TPS is the total-token (input + output) caliber**;
+the decode-only output rate is reported separately and is much smaller under these
+long-input workloads.
 :::
-
-## Benchmark summary
-
-Closed-loop, concurrency 4, agg-base 2 × TP=4 (8 × 910B4), `aiperf 0.7.0`. TTFT / E2E
-mean, ITL per-chunk (Qwen3.6-27B MTP emits ~3 tokens/chunk), TPS = total tokens/s.
-
-**Scenario ① — 8k system-prompt reuse, output 128**
-
-| Model | dtype | ITL avg (ms) | ITL p90 | TTFT avg (ms) | E2E avg (s) | TPS (in+out) | Decode tok/s | Success |
-|---|---|--:|--:|--:|--:|--:|--:|--:|
-| Qwen3.6-27B | W8A8 | 32.0 | 45.0 | 1509 | 5.6 | 5807 | 91.3 | 240/240 |
-| Qwen3-32B | BF16 | 71.4 | 84.6 | 1328 | 10.4 | 3120 | 49.1 | 240/240 |
-
-**Scenario ② — 17.5k multi-turn, output 128**
-
-| Model | dtype | ITL avg (ms) | ITL p90 | TTFT avg (ms) | E2E avg (s) | TPS (in+out) | Decode tok/s | Success |
-|---|---|--:|--:|--:|--:|--:|--:|--:|
-| Qwen3.6-27B | W8A8 | 45.3 | 78.4 | 3999 | 9.8 | 7408 | 52.5 | 240/240 |
-| Qwen3-32B | BF16 | 95.9 | 135.2 | 4612 | 16.8 | 4270 | 30.3 | 240/240 |
-
-At a matched operating point, Qwen3.6-27B (W8A8) serves at roughly **half the
-inter-token latency** and **~1.7–1.9× the total throughput** of Qwen3-32B (BF16) —
-the payoff of fewer parameters, INT8 weights, and the native MTP speculative head.
-Per-model detail and percentiles are on each model's page.
 
 ## Deploy a validated model
 
-Each model page links a self-contained YAML under
+Each model page links self-contained YAMLs under
 [`assets/`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets)
-that bundles a namespace-scoped `ServingRuntime` **and** the matching `InferenceService`
-(2 replicas × TP=4 = 8 cards).
+that hold the real InferNex deployment — a KServe `LLMInferenceService`
+(`infernex.io/runtime: true`) plus the two `LLMInferenceServiceConfig` objects
+(engine template + hermes-router/EPP template) that the InferNex-Bridge reconciles
+into the running instances.
 
 ```bash
 base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets
 
-# 1. Edit the file first: set metadata.namespace, the image tag (match your CANN /
-#    host driver), and storageUri (a PVC of the weights, or an oci:// ModelCar).
-# 2. Apply the ServingRuntime + InferenceService.
-kubectl apply -f $base/qwen3-32b/qwen3-32b-vllm-ascend-tp4x2.yaml
+# 1. Edit the file first: set the namespace, the ModelCar registry in model.uri
+#    (oci://<your-registry>/...), and the image tag (match your CANN / host driver).
+# 2. Apply — the InferNex-Bridge reconciles the LLMInferenceService into the
+#    hermes-router (EPP) + the vLLM-Ascend instances.
+kubectl apply -f $base/qwen3-32b/qwen3-32b-agg-base-llmisvc.yaml
 
 # 3. Watch it come up (first start loads weights + compiles graphs — can take minutes).
-kubectl -n <your-namespace> get inferenceservice -w
+kubectl -n <your-namespace> get llminferenceservice -w
 
-# 4. Call the OpenAI-compatible endpoint.
-curl -s http://<isvc-url>/v1/chat/completions \
+# 4. Call the OpenAI-compatible endpoint through the gateway.
+curl -s http://<gateway>/<namespace>/qwen3-32b-agg-base/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d '{"model":"qwen3-32b","messages":[{"role":"user","content":"hello"}]}'
+  -d '{"model":"Qwen/Qwen3-32B","messages":[{"role":"user","content":"hello"}]}'
 ```
 
 ## Caveats
 
-- These are **namespace-scoped `ServingRuntime`** examples (not `ClusterServingRuntime`),
-  one per model — apply them in the same namespace as the `InferenceService` that
-  references them.
+- These manifests deploy through **InferNex** (`LLMInferenceService` + InferNex-Bridge
+  + hermes-router). The two `LLMInferenceServiceConfig` objects live in the `kserve`
+  namespace; the `LLMInferenceService` lives in your deployment namespace.
 - Resource keys are for **Ascend 910B4** (`huawei.com/Ascend910`). Adjust the resource
   key, image, and version fields for your actual NPU model.
-- For Ascend single-node **multi-card** (TP>1) the runtime image must support HCCL init
-  under the configured Modelcar UID — see the Modelcar permission modes in
-  [Extend Inference Runtimes](../model_inference/inference_service/how_to/custom_inference_runtime.mdx#modelcar-permission-modes-for-ascend-910).
-- The benchmark numbers were measured **closed-loop** (a deliberate exception to a pure
-  open-loop sweep) to reproduce a reference report apples-to-apples. Treat them as the
-  per-instance operating point under steady 2-in-flight load, not a saturation ceiling.
+- The ModelCar registry host (`oci://<your-registry>/...`) and the modelcar pull secret
+  are placeholders — point them at your own aml-harbor.
+- The benchmark numbers were measured **closed-loop** (concurrency 4) on 8 cards. Treat
+  them as the per-instance operating point under steady load, not a saturation ceiling.

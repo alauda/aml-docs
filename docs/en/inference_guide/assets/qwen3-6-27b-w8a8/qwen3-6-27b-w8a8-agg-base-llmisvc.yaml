@@ -1,0 +1,200 @@
+# Qwen3.6-27B (W8A8) — agg-base aggregation on Alauda AI's InferNex deployment
+# surface: KServe `LLMInferenceService` + InferNex-Bridge + vLLM-Ascend ModelCar.
+# This is the EXACT shape that was deployed and benchmarked (TP=4 × 2 replicas =
+# 8 Ascend 910B4 cards).
+#
+# You write the LLMInferenceService (infernex.io/runtime=true); InferNex-Bridge
+# reconciles it into a hermes-router (EPP, `random` strategy) + 2 vLLM-Ascend
+# instances. The two LLMInferenceServiceConfig objects are the engine and router
+# templates.
+#
+# Qwen3.6-27B is the `qwen3_5` architecture (Gated DeltaNet hybrid + native MTP).
+# Only the vLLM-Ascend nightly image loads it — use the RELEASE-PINNED tag
+# `nightly-releases-v0.22.1rc-openeuler`, NOT the moving `nightly-main-openeuler`
+# (it drifted to a broken build whose TP workers crash). Required engine flags:
+#   --quantization ascend        W8A8 weights (config.json has no quant block)
+#   --no-enable-prefix-caching   mandatory for the GDN hybrid cache
+#   --language-model-only        skip the vision tower for text-only serving
+#   --speculative-config qwen3_5_mtp + FULL_DECODE_ONLY graph + async-scheduling
+#
+# NOTE: only agg-base is available for this model. The cross-instance KV store
+# (mooncake / kv-cache-aware routing) is not yet usable for the qwen3_5 GDN hybrid
+# on Ascend — enabling it crashes the engine (upstream hybrid-store gap).
+#
+# Before applying, replace <your-registry>, namespace `demo`, and ensure the
+# modelcar pull secret exists.
+---
+# (1) Engine template: aggregation single-role, nightly vLLM-Ascend, TP=4, W8A8 + MTP.
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceServiceConfig
+metadata:
+  name: qwen36-27b-w8a8-agg-engine
+  namespace: kserve
+spec:
+  template:
+    containers:
+      - name: main
+        image: quay.io/ascend/vllm-ascend:nightly-releases-v0.22.1rc-openeuler
+        imagePullPolicy: IfNotPresent
+        command: ["bash", "-lc"]      # login shell: nightly image profile injects full CANN LD_LIBRARY_PATH
+        args:
+          - |
+            set -ex
+            source /usr/local/Ascend/ascend-toolkit/set_env.sh
+            source /usr/local/Ascend/nnal/atb/set_env.sh 2>/dev/null || true
+            source /usr/local/Ascend/nnal/asdsip/set_env.sh 2>/dev/null || true
+            exec python3 -m vllm.entrypoints.openai.api_server \
+              --port 8000 \
+              --served-model-name "Eco-Tech/Qwen3.6-27B-w8a8" \
+              --model /mnt/models \
+              --trust-remote-code \
+              --tensor-parallel-size 4 \
+              --quantization ascend \
+              --no-enable-prefix-caching \
+              --language-model-only \
+              --max-num-seqs 32 \
+              --max-model-len 24576 \
+              --max-num-batched-tokens 8192 \
+              --gpu-memory-utilization 0.85 \
+              --speculative-config '{"method":"qwen3_5_mtp","num_speculative_tokens":3,"enforce_eager":true}' \
+              --compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY","cudagraph_capture_sizes":[1,2,4,8,16,24,32]}' \
+              --additional-config '{"enable_cpu_binding":true}' \
+              --async-scheduling
+        ports:
+          - { name: http, containerPort: 8000, protocol: TCP }
+        env:
+          - { name: HOME,                   value: "/tmp" }
+          - { name: PYTORCH_NPU_ALLOC_CONF, value: "expandable_segments:True" }
+          - { name: HCCL_BUFFSIZE,          value: "512" }
+          - { name: OMP_PROC_BIND,          value: "false" }
+          - { name: OMP_NUM_THREADS,        value: "1" }
+          - { name: TASK_QUEUE_ENABLE,      value: "1" }
+          - { name: HCCL_OP_EXPANSION_MODE, value: "AIV" }
+          - { name: VLLM_USE_V1,            value: "1" }
+          - { name: HF_HUB_OFFLINE,         value: "1" }
+        resources:
+          requests: { cpu: "4",  memory: 24Gi, huawei.com/Ascend910: "4" }
+          limits:   { cpu: "16", memory: 96Gi, huawei.com/Ascend910: "4" }
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0
+          allowPrivilegeEscalation: false
+          runAsNonRoot: false
+          seccompProfile: { type: RuntimeDefault }
+        startupProbe:   { httpGet: { path: /health, port: http }, periodSeconds: 30, failureThreshold: 80 }  # nightly graph capture: ~40min budget
+        readinessProbe: { httpGet: { path: /health, port: http }, periodSeconds: 10, failureThreshold: 3 }
+        livenessProbe:  { httpGet: { path: /health, port: http }, periodSeconds: 10, timeoutSeconds: 10, failureThreshold: 3 }
+        volumeMounts:
+          - { name: shm, mountPath: /dev/shm }
+    volumes:
+      - { name: shm, emptyDir: { medium: Memory, sizeLimit: 16Gi } }
+    imagePullSecrets:
+      - { name: modelcar-registry-auth }
+---
+# (2) Router template = hermes-router (EPP), `random` strategy.
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceServiceConfig
+metadata:
+  name: qwen36-27b-w8a8-agg-router
+  namespace: kserve
+  labels:
+    app.kubernetes.io/part-of: infernex-bridge
+spec:
+  router:
+    scheduler:
+      pool:
+        spec:
+          selector:
+            matchLabels:
+              app.kubernetes.io/name: qwen36-27b-w8a8-agg-base
+              app.kubernetes.io/part-of: llminferenceservice
+              kserve.io/component: workload
+          targetPorts:
+            - number: 8000
+          endpointPickerRef:
+            failureMode: FailOpen
+            kind: Service
+            name: qwen36-27b-w8a8-agg-base-epp-service
+            port: { number: 9002 }
+      template:
+        serviceAccountName: qwen36-27b-w8a8-agg-base-epp-sa
+        containers:
+          - name: main
+            image: build-harbor.alauda.cn/3rdparty/openfuyao/hermes-router:26.6.0-rc.2
+            imagePullPolicy: IfNotPresent
+            ports:
+              - { containerPort: 9002, name: grpc,        protocol: TCP }
+              - { containerPort: 9003, name: grpc-health, protocol: TCP }
+              - { containerPort: 9090, name: metrics,     protocol: TCP }
+            args:
+              - --pool-name
+              - qwen36-27b-w8a8-agg-base-inference-pool
+              - --pool-namespace
+              - demo
+              - --pool-group
+              - inference.networking.k8s.io
+              - --zap-encoder
+              - json
+              - --v
+              - "1"
+              - --tracing
+              - "false"
+              - --metrics-endpoint-auth
+              - "false"
+              - --config-text
+              - |-
+                apiVersion: inference.networking.x-k8s.io/v1alpha1
+                kind: EndpointPickerConfig
+                plugins:
+                - type: metrics-data-source
+                  parameters: { scheme: "http", path: "/metrics", insecureSkipVerify: true }
+                - type: core-metrics-extractor
+                - type: random-picker
+                schedulingProfiles:
+                - name: default
+                  plugins:
+                  - pluginRef: random-picker
+            livenessProbe:  { grpc: { port: 9003, service: liveness },  periodSeconds: 10, timeoutSeconds: 5, failureThreshold: 3 }
+            readinessProbe: { grpc: { port: 9003, service: readiness }, periodSeconds: 10, timeoutSeconds: 5, failureThreshold: 3 }
+            startupProbe:   { grpc: { port: 9003, service: liveness },  periodSeconds: 10, timeoutSeconds: 5, failureThreshold: 30 }
+            resources:
+              requests: { cpu: "1", memory: 1Gi }
+              limits:   { memory: 4Gi }
+            volumeMounts:
+              - { name: tls-certs, mountPath: /etc/ssl/certs, readOnly: true }
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              capabilities: { drop: ["ALL"] }
+              seccompProfile: { type: RuntimeDefault }
+        volumes:
+          - name: tls-certs
+            secret:
+              secretName: "{{ ChildName .ObjectMeta.Name `-kserve-self-signed-certs` }}"
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        terminationGracePeriodSeconds: 30
+---
+# (3) LLMInferenceService: binds the W8A8 ModelCar + the two configs + replicas.
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceService
+metadata:
+  name: qwen36-27b-w8a8-agg-base
+  namespace: demo
+  labels:
+    infernex.io/runtime: "true"
+  annotations:
+    infernex.io/disabled-components: "mooncake,cache-indexer,pd-orchestrator,eagle-eye"
+spec:
+  model:
+    uri: oci://<your-registry>/mlops/modelcar-qwen3.6-27b-w8a8:v0.1.0
+    name: Eco-Tech/Qwen3.6-27B-w8a8        # == --served-model-name (keep aligned)
+  baseRefs:
+    - name: qwen36-27b-w8a8-agg-engine
+    - name: qwen36-27b-w8a8-agg-router
+  router:
+    scheduler: {}
+    gateway: {}
+    route: {}
+  replicas: 2                              # 2 instances × TP=4 = 8 cards
