@@ -1,0 +1,124 @@
+# Qwen3-32B (BF16) — vLLM-Ascend v0.18.0, TP=4 × 2 replicas (8 Ascend 910B4
+# whole cards). This is the validated 8-card aggregation topology: TWO TP=4
+# replicas behind the KServe predictor Service, a half-scale reproduction of
+# the fuyao "InferNex v26.06" agg-base baseline (which ran 4 × TP=4 = 16 cards).
+# Latency is directly comparable to the full-scale run; aggregate throughput
+# scales with the replica count.
+#
+# Qwen3-32B is a standard Qwen3 dense model, so the stock vLLM-Ascend v0.18.0
+# image serves it directly — no nightly engine, no MTP. The Ascend toolkit env
+# must be sourced before `vllm serve`, otherwise the TP workers crash on libatb.
+#
+# Edit metadata.namespace, the image tag (match your host CANN / NPU driver),
+# and storageUri (a PVC of the weights, or an oci:// ModelCar) before applying.
+# The Ascend resource key (huawei.com/Ascend910) is this node's device-plugin
+# key — adjust it for your actual NPU model.
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: qwen3-32b-vllm-ascend
+  namespace: demo
+  labels:
+    aml.cpaas.io/runtime-type: vllm
+spec:
+  supportedModelFormats:
+    - name: transformers
+      version: "1"
+      autoSelect: false
+  containers:
+    - name: kserve-container
+      image: quay.io/ascend/vllm-ascend:v0.18.0-openeuler
+      # Source the Ascend toolkit env before `vllm serve`. Keep this script free
+      # of angle-bracket text — KServe renders the command through Go
+      # html/template, which fails on any literal HTML-looking tag.
+      command:
+        - bash
+        - -lc
+        - |
+          set -e
+          for f in /usr/local/Ascend/ascend-toolkit/set_env.sh \
+                   /usr/local/Ascend/nnal/atb/set_env.sh; do
+            [ -f "$f" ] && source "$f"
+          done
+          MODEL_PATH="/mnt/models"
+          if [ -n "${MODEL_NAME}" ] && [ -d "/mnt/models/${MODEL_NAME}" ]; then MODEL_PATH="/mnt/models/${MODEL_NAME}"; fi
+          exec vllm serve "${MODEL_PATH}" \
+            --served-model-name {{.Name}} {{.Namespace}}/{{.Name}} \
+            --port 8080 \
+            "$@"
+        - bash
+      env:
+        - name: MODEL_NAME
+          value: '{{ index .Annotations "aml-model-repo" }}'
+        - { name: VLLM_USE_V1, value: "1" }
+        - { name: HF_HUB_OFFLINE, value: "1" }
+      ports:
+        - { containerPort: 8080, name: http1, protocol: TCP }
+      securityContext:
+        # Ascend CANN needs real root (davinci_manager ioctls, driver file access).
+        allowPrivilegeEscalation: false
+        runAsNonRoot: false
+        runAsUser: 0
+      resources:
+        requests: { cpu: "4", memory: 16Gi }
+        limits: { cpu: "4", memory: 16Gi }
+      startupProbe:
+        # 32B weights load slowly on first cold start — allow up to ~40 min.
+        httpGet: { path: /health, port: 8080 }
+        failureThreshold: 160
+        periodSeconds: 15
+        timeoutSeconds: 5
+      volumeMounts:
+        - { name: devshm, mountPath: /dev/shm }
+  volumes:
+    - name: devshm
+      emptyDir: { medium: Memory, sizeLimit: 16Gi }
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: qwen3-32b
+  namespace: demo
+  annotations:
+    aml-model-repo: qwen3-32b
+    aml.cpaas.io/runtime-type: vllm
+    serving.kserve.io/deploymentMode: Standard
+    serving.knative.dev/progress-deadline: "3600s"
+  labels:
+    aml.cpaas.io/runtime-type: vllm
+spec:
+  predictor:
+    minReplicas: 2          # 2 replicas × TP=4 = 8 cards (fills one 8-card node)
+    maxReplicas: 2
+    deploymentStrategy: { type: Recreate }
+    model:
+      modelFormat: { name: transformers }
+      runtime: qwen3-32b-vllm-ascend
+      storageUri: pvc://qwen3-32b/
+      args:
+        # Exactly the validated agg-base engine flags (BF16, prefix caching on).
+        - --tensor-parallel-size
+        - "4"
+        - --max-model-len
+        - "40960"
+        - --max-num-batched-tokens
+        - "40960"
+        - --gpu-memory-utilization
+        - "0.8"
+        - --block-size
+        - "128"
+        - --enable-prefix-caching
+        - --trust-remote-code
+        # For agent / tool use add the parsers below — note that turning on
+        # thinking mode shifts the latency profile from the numbers in the guide:
+        #   --enable-auto-tool-choice --tool-call-parser hermes --reasoning-parser qwen3
+      env:
+        - { name: HOME, value: /home }
+      resources:
+        requests: { cpu: "3", memory: 16Gi }
+        limits:
+          cpu: "12"
+          memory: 80Gi
+          huawei.com/Ascend910: "4"          # four whole cards per replica (TP=4)
+      securityContext: { allowPrivilegeEscalation: false, runAsNonRoot: false, runAsUser: 0 }
+    securityContext: { runAsNonRoot: false, runAsUser: 0, runAsGroup: 0, fsGroup: 0, supplementalGroups: [0] }

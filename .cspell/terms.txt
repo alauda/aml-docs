@@ -13,3 +13,6 @@ modelslim
 zhipuai
 npugraph
 deepseek
+aiperf
+infernex
+mooncake

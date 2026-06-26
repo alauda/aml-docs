@@ -1,23 +1,27 @@
-# Qwen3.6-27B (W8A8) — vLLM-Ascend (nightly), TP=2 × 4 replicas (8 Ascend 910B4
-# whole cards). This is the validated 8-card production topology: four small
-# TP=2 replicas behind a load-aware ingress, NOT one large TP=8 replica.
+# Qwen3.6-27B (W8A8) — vLLM-Ascend (nightly, release-pinned), TP=4 × 2 replicas
+# (8 Ascend 910B4 whole cards). This is the validated 8-card aggregation
+# topology: TWO TP=4 replicas behind the KServe predictor Service, a half-scale
+# reproduction of the fuyao "InferNex v26.06" agg-base baseline. Latency is
+# directly comparable; aggregate throughput scales with the replica count.
 #
 # Qwen3.6-27B is the `qwen3_5` architecture (Gated DeltaNet linear-attention
 # hybrid + multimodal + native MTP). Only the vLLM-Ascend *nightly* image can
-# load it — MindIE and vLLM-Ascend v0.18 cannot. The required flags are:
+# load it — MindIE and vLLM-Ascend v0.18 cannot. Required engine flags:
 #   --quantization ascend        W8A8 weights (config.json has no quant block)
 #   --no-enable-prefix-caching   mandatory for the GDN hybrid cache
 #   --language-model-only        skip the vision tower for text-only serving
 #   --speculative-config qwen3_5_mtp + FULL_DECODE_ONLY graph + async-scheduling
 #
-# The nightly image needs the Ascend toolkit env sourced *before* `vllm serve`
-# (TP workers otherwise crash on libop_plugin_atb.so) — that sourcing is baked
-# into the ServingRuntime command below.
+# IMAGE TAG: use the release-pinned `nightly-releases-v0.22.1rc-openeuler`, NOT
+# the moving `nightly-main-openeuler` — the latter drifted to a broken build
+# (imports vLLM symbols removed in 0.22.1, so the TP workers crash and qwen3_5
+# never loads). The toolkit env is sourced before `vllm serve` (TP workers
+# otherwise crash on libop_plugin_atb.so).
 #
-# Change `metadata.namespace`, the image tag (match your host CANN / NPU driver),
-# and `storageUri` (a PVC of the W8A8 weights, or an oci:// ModelCar) before
-# applying. The Ascend resource key (`huawei.com/Ascend910`) is for this node's
-# device plugin — adjust it for your actual NPU model.
+# Edit metadata.namespace, the image tag (match your host CANN / NPU driver),
+# and storageUri (a PVC of the W8A8 weights, or an oci:// ModelCar) before
+# applying. The Ascend resource key (huawei.com/Ascend910) is this node's
+# device-plugin key — adjust it for your actual NPU model.
 apiVersion: serving.kserve.io/v1alpha1
 kind: ServingRuntime
 metadata:
@@ -32,11 +36,10 @@ spec:
       autoSelect: false
   containers:
     - name: kserve-container
-      image: quay.io/ascend/vllm-ascend:nightly-main-openeuler
-      # qwen3_5 needs the Ascend toolkit env sourced before `vllm serve`, plus the
-      # Qwen3 tool-call / reasoning parsers (agent-ready). Keep this script free of
-      # angle-bracket text — KServe renders the command through Go html/template,
-      # which fails on any literal HTML-looking tag.
+      image: quay.io/ascend/vllm-ascend:nightly-releases-v0.22.1rc-openeuler
+      # qwen3_5 needs the Ascend toolkit env sourced before `vllm serve`. Keep
+      # this script free of angle-bracket text — KServe renders the command
+      # through Go html/template, which fails on any literal HTML-looking tag.
       command:
         - bash
         - -lc
@@ -52,14 +55,20 @@ spec:
           exec vllm serve "${MODEL_PATH}" \
             --served-model-name {{.Name}} {{.Namespace}}/{{.Name}} \
             --port 8080 \
-            --enable-auto-tool-choice \
-            --tool-call-parser qwen3_xml \
-            --reasoning-parser qwen3 \
             "$@"
         - bash
       env:
         - name: MODEL_NAME
           value: '{{ index .Annotations "aml-model-repo" }}'
+        - { name: HOME, value: /tmp }
+        - { name: PYTORCH_NPU_ALLOC_CONF, value: "expandable_segments:True" }
+        - { name: HCCL_BUFFSIZE, value: "512" }
+        - { name: OMP_PROC_BIND, value: "false" }
+        - { name: OMP_NUM_THREADS, value: "1" }
+        - { name: TASK_QUEUE_ENABLE, value: "1" }
+        - { name: HCCL_OP_EXPANSION_MODE, value: AIV }
+        - { name: VLLM_USE_V1, value: "1" }
+        - { name: HF_HUB_OFFLINE, value: "1" }
       ports:
         - { containerPort: 8080, name: http1, protocol: TCP }
       securityContext:
@@ -68,8 +77,8 @@ spec:
         runAsNonRoot: false
         runAsUser: 0
       resources:
-        requests: { cpu: "4", memory: 16Gi }
-        limits: { cpu: "4", memory: 16Gi }
+        requests: { cpu: "4", memory: 24Gi }
+        limits: { cpu: "4", memory: 24Gi }
       startupProbe:
         # qwen3_5 graph capture (FULL_DECODE_ONLY) can take minutes on first cold
         # start — allow up to ~40 min before failing.
@@ -81,7 +90,7 @@ spec:
         - { name: devshm, mountPath: /dev/shm }
   volumes:
     - name: devshm
-      emptyDir: { medium: Memory, sizeLimit: 8Gi }
+      emptyDir: { medium: Memory, sizeLimit: 16Gi }
 ---
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
@@ -97,29 +106,30 @@ metadata:
     aml.cpaas.io/runtime-type: vllm
 spec:
   predictor:
-    minReplicas: 4          # 4 replicas × TP=2 = 8 cards (fills one 8-card node)
-    maxReplicas: 4
+    minReplicas: 2          # 2 replicas × TP=4 = 8 cards (fills one 8-card node)
+    maxReplicas: 2
     deploymentStrategy: { type: Recreate }
     model:
       modelFormat: { name: transformers }
       runtime: qwen3-6-27b-w8a8-vllm-ascend-nightly
       storageUri: pvc://qwen36-27b-w8a8/
       args:
+        # Exactly the validated agg-base engine flags.
         - --tensor-parallel-size
-        - "2"
+        - "4"
         - --quantization
         - ascend
-        - --max-num-seqs
+        - --max-num-seqs                    # required guardrail against concurrency avalanche
         - "32"
-        - --max-model-len
-        - "65536"
+        - --max-model-len                   # covers the 17.5k multi-turn workload (~19.5k peak)
+        - "24576"
         - --max-num-batched-tokens
         - "8192"
-        - --trust-remote-code
-        - --no-enable-prefix-caching        # mandatory for the GDN hybrid cache
-        - --language-model-only             # text-only serving: skip vision tower
         - --gpu-memory-utilization
-        - "0.90"
+        - "0.85"                            # 0.85, NOT 0.90 — 0.90 OOMs at high concurrency with MTP
+        - --no-enable-prefix-caching        # mandatory for the GDN hybrid cache
+        - --language-model-only             # text-only serving: skip the vision tower
+        - --trust-remote-code
         - --speculative-config
         - '{"method":"qwen3_5_mtp","num_speculative_tokens":3,"enforce_eager":true}'
         - --compilation-config
@@ -129,18 +139,11 @@ spec:
         - --async-scheduling
       env:
         - { name: HOME, value: /tmp }
-        - { name: PYTORCH_NPU_ALLOC_CONF, value: "expandable_segments:True" }
-        - { name: HCCL_BUFFSIZE, value: "512" }
-        - { name: OMP_PROC_BIND, value: "false" }
-        - { name: OMP_NUM_THREADS, value: "1" }
-        - { name: TASK_QUEUE_ENABLE, value: "1" }
-        - { name: CPU_AFFINITY_CONF, value: "1" }
-        - { name: HCCL_OP_EXPANSION_MODE, value: AIV }
       resources:
-        requests: { cpu: "3", memory: 20Gi }
+        requests: { cpu: "4", memory: 24Gi }
         limits:
-          cpu: "12"
-          memory: 80Gi
-          huawei.com/Ascend910: "2"          # two whole cards per replica (TP=2)
+          cpu: "16"
+          memory: 96Gi
+          huawei.com/Ascend910: "4"          # four whole cards per replica (TP=4)
       securityContext: { allowPrivilegeEscalation: false, runAsNonRoot: false, runAsUser: 0 }
     securityContext: { runAsNonRoot: false, runAsUser: 0, runAsGroup: 0, fsGroup: 0, supplementalGroups: [0] }
