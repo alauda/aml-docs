@@ -16,9 +16,10 @@ throughput you can expect.
 The models here were validated on **Huawei Ascend 910B4 NPU** with the community
 `vLLM-Ascend` engine, deployed through Alauda AI's **InferNex** surface — a KServe
 `LLMInferenceService` reconciled by the InferNex-Bridge into a load-aware router
-(hermes-router / EPP) in front of the vLLM-Ascend instances. Both models were run
-in the **same aggregation topology and the same benchmark scenarios**, so their
-results are directly comparable. For the runtime model (KServe, ModelCar storage,
+(hermes-router / EPP) in front of the vLLM-Ascend instances. All were run through the
+**same InferNex aggregation surface and the same two benchmark scenarios** (the two
+Qwen models share an identical 2 × TP=4 topology and are directly comparable; the
+larger DeepSeek MoE uses 1 × TP=8). For the runtime model (KServe, ModelCar storage,
 scheduling) see [Model Deployment & Inference](../model_inference/index.mdx).
 
 ## Validated models
@@ -27,17 +28,20 @@ scheduling) see [Model Deployment & Inference](../model_inference/index.mdx).
 |---|---|---|---|---|---|---|
 | Qwen3-32B | Qwen3 dense | 32B | BF16 | Ascend 910B4 ×8 | vLLM-Ascend v0.18.0 | [Qwen3-32B](./qwen3-32b.mdx) |
 | Qwen3.6-27B (W8A8) | `qwen3_5` hybrid (GDN + MTP) | 27.78B | W8A8 | Ascend 910B4 ×8 | vLLM-Ascend nightly | [Qwen3.6-27B (W8A8)](./qwen3-6-27b-w8a8.mdx) |
+| DeepSeek-V4-Flash (W4A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W4A8 | Ascend 910B4 ×8 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W4A8)](./deepseek-v4-flash-w4a8.mdx) |
 
-Both models were validated on Ascend 910B4 (32 GB/card) in an **8-card aggregation
-topology — 2 instances × TP=4** — driven through KServe `LLMInferenceService` with
-load-aware routing (InferNex-Bridge + hermes-router).
+All three were validated on Ascend 910B4 (32 GB/card), driven through KServe
+`LLMInferenceService` with load-aware routing (InferNex-Bridge + hermes-router). The
+two Qwen models run an **8-card aggregation — 2 instances × TP=4**; DeepSeek-V4-Flash
+(~151 GB W4A8) fills all 8 cards as **1 instance × TP=8**, and additionally validated
+the **MaaS gateway (API-key) ingress** next to the internal KServe ingress.
 
 ## Runtime images
 
 | Engine | Device | Image (validated tag) | Used by | Notes |
 |---|---|---|---|---|
 | vLLM-Ascend v0.18.0 | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:v0.18.0-openeuler` | Qwen3-32B | Community vLLM for Ascend, V1 engine. Serves standard Qwen3 dense models directly. Match the tag's CANN version to your host NPU driver. |
-| vLLM-Ascend nightly (release-pinned) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-releases-v0.22.1rc-openeuler` | Qwen3.6-27B (W8A8) | Required for the `qwen3_5` Gated DeltaNet hybrid + MTP — the stock `v0.18.0` cannot load it. Use this **release-pinned** tag, **not** the moving `nightly-main-openeuler` (it drifted to a broken build whose TP workers crash). |
+| vLLM-Ascend nightly (release-pinned) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-releases-v0.22.1rc-openeuler` | Qwen3.6-27B (W8A8), DeepSeek-V4-Flash (W4A8) | Carries the `qwen3_5` Gated DeltaNet hybrid + MTP **and** the `deepseek_v4` MoE stack — the stock `v0.18.0` cannot load either. Use this **release-pinned** tag, **not** the moving `nightly-main-openeuler` (it drifted to a broken build whose TP workers crash). |
 
 :::tip
 The Ascend CANN images are arm64. Always match the runtime image's CANN version to
@@ -57,12 +61,14 @@ concurrency 4** (4 in-flight requests, fixed). Each scenario ran 240 requests.
 | **② Multi-turn dialogue** | Multiple users in a continuing conversation, several requests per session. | 60 independent users × 4 rounds = 240 requests. | Round 1 sends 16k and the model replies 128 tokens; round 2 adds 1k (~17k total); and so on for 4 rounds (16k / 17k / 18k / 19k), averaging **~17.5k** ISL / OSL 128. |
 
 :::note
-These two scenarios are run on a **single-node 8-card** deployment (2 instances ×
-TP=4). Latency (TTFT / ITL / E2E) is the per-instance operating point under steady
-2-in-flight load; total throughput (TPS) is the aggregate across both instances and
-scales with the instance count. **TPS is the total-token (input + output) caliber**;
-the decode-only output rate is reported separately and is much smaller under these
-long-input workloads.
+Both scenarios run on a **single-node 8-card** deployment (Qwen models: 2 instances ×
+TP=4; DeepSeek-V4-Flash: 1 instance × TP=8). Latency (TTFT / ITL / E2E) is the
+per-instance operating point under steady 2-in-flight load; total throughput (TPS) is
+the aggregate across the instances and scales with the instance count. **TPS is the
+total-token (input + output) caliber**; the decode-only output rate is reported
+separately and is much smaller under these long-input workloads. DeepSeek-V4-Flash
+additionally ran each scenario through the **MaaS gateway (API-key) ingress** as well
+as the internal KServe ingress — see its page.
 :::
 
 ## Deploy a validated model
