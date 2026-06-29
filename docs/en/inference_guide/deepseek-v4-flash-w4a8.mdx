@@ -1,0 +1,143 @@
+---
+weight: 30
+i18n:
+  title:
+    en: DeepSeek-V4-Flash (W4A8)
+    zh: DeepSeek-V4-Flash (W4A8)
+---
+
+# DeepSeek-V4-Flash (W4A8)
+
+`deepseek_v4`-architecture model — a 256-expert MoE with MLA + DSA sparse attention
+and a native MTP speculative head, served as **W4A8** (~151 GB weights, 43 layers).
+Validated on **Ascend 910B4 (32 GB/card)** with the vLLM-Ascend **nightly** engine
+through Alauda AI's InferNex surface. Because the weights need all 8 cards, the
+topology is **1 instance × TP=8 (+ expert parallel)**, and both benchmark scenarios
+were additionally driven through the **MaaS gateway (API-key) ingress** alongside the
+internal KServe ingress.
+
+## Model identity
+
+| Field | Value |
+|---|---|
+| Publisher | DeepSeek |
+| Architecture | `deepseek_v4` — 256-expert MoE (6 experts/token + 1 shared) + MLA + DSA sparse attention + native MTP |
+| Quantization | W4A8 (~151 GB weights, 43 layers); MIT license |
+| Model source (W4A8) | https://www.modelscope.cn/models/gdydems/DeepSeek-V4-Flash-w4a8-mtp |
+
+## Validated hardware × stack
+
+| Platform | Engine | Version / config | Status |
+|---|---|---|---|
+| Ascend 910B4 32 GB × 8 (1 instance × TP=8 + EP) | vLLM-Ascend | `nightly-releases-v0.22.1rc-openeuler` (vLLM 0.22.1, CANN 9.0.0) | ✅ closed-loop, 2-scenario perf (n=3), agg-base, two ingresses (KServe + MaaS) |
+
+:::note
+The release-pinned nightly `nightly-releases-v0.22.1rc-openeuler` (same image as
+Qwen3.6-27B) carries the full `deepseek_v4` stack. `enable_dsa_cp` is intentionally
+**off** (an upstream DSA-CP index-buffer bug crashes sustained 8k MTP decode on this
+build). Prefix caching is enabled but the **hit rate is 0** — DSA sparse attention
+selects KV per query, so a shared prefix is not directly reusable; it costs ~nothing
+and the speedup over older builds comes from the nightly stack itself, not prefix
+caching.
+:::
+
+## Model configuration
+
+| Parameter | Value |
+|---|---|
+| Tensor parallelism (`tensor-parallel-size`) | 8 |
+| Replicas (instances) | 1 (= 8 cards) |
+| Expert parallelism (`enable-expert-parallel`) | on |
+| `max-model-len` | 32768 |
+| `max-num-batched-tokens` | 2048 |
+| `max-num-seqs` | 4 |
+| `gpu-memory-utilization` | 0.90 (32 GB-card KV/activation balance) |
+| `block-size` | 128 |
+| `max_tokens` (output, benchmark-pinned) | 128 |
+| Quantization | `ascend` (W4A8) |
+| Speculative decoding (MTP) | `mtp`, 1 token |
+| Prefix caching | enabled, but 0% hit (DSA sparse attention) |
+
+## Deployment spec
+
+Served as **`agg-base`** only — aggregation, hermes-router strategy `random`. With a
+single TP=8 instance the router has one endpoint (a no-op); the structure is kept for
+consistency. The cross-instance KV store / KV-cache-aware routing (`agg-mc-kv`) does
+**not apply**: the ~151 GB weights fill all 8 cards, so only one replica fits and there
+is no second instance to share KV with.
+
+| Component | `agg-base` |
+|---|:--:|
+| hermes-router (EPP) | ✅ started (single endpoint, no-op) |
+| Routing strategy | `random` |
+| cache-indexer / mooncake KV store | — (not applicable to a single instance) |
+
+## Deploy
+
+Self-contained InferNex manifest (engine inlined in the `LLMInferenceService` +
+hermes-router preset, 1 replica × TP=8):
+
+| Spec | File |
+|---|---|
+| agg-base, TP=8 | [`deepseek-v4-flash-w4a8-agg-base-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/deepseek-v4-flash-w4a8/deepseek-v4-flash-w4a8-agg-base-llmisvc.yaml) |
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets/deepseek-v4-flash-w4a8
+# edit namespace / model.uri registry / image tag first, then:
+kubectl apply -f $base/deepseek-v4-flash-w4a8-agg-base-llmisvc.yaml
+
+# Internal KServe ingress (no auth):
+curl -s http://<gateway>/<namespace>/deepseek-v4-flash-w4a8-agg-base/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"gdydems/DeepSeek-V4-Flash-w4a8-mtp","messages":[{"role":"user","content":"hello"}]}'
+
+# Product MaaS gateway (OpenAI-compatible, API-key auth + token rate limiting):
+curl -s http://<maas-gateway>/v1/chat/completions \
+  -H "Authorization: Bearer $MAAS_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"gdydems/DeepSeek-V4-Flash-w4a8-mtp","messages":[{"role":"user","content":"hello"}]}'
+```
+
+## Benchmark results
+
+Closed-loop `aiperf 0.7.0`, **TP=8 × 1 replica (8 × 910B4)**, concurrency 4, agg-base.
+Two scenarios — ① 8k system-prompt reuse and ② 17.5k multi-turn — each 240 requests,
+output pinned to 128 tokens, n=3 (all runs 240/240, zero errors). **Each scenario was
+driven through two ingresses**: the internal **KServe** Service (no auth) and the
+product **MaaS gateway** (Envoy + API-key auth + token rate limiting — the
+customer-facing OpenAI endpoint). TTFT / E2E in ms, ITL in ms, TPS = total tokens/s.
+
+**Scenario ① — fixed-length system-prompt reuse (ISL ~8k / OSL 128)**
+
+| Ingress | TTFT avg (ms) | ITL avg (ms) | E2E avg (ms) | TPS (in+out) |
+|---|--:|--:|--:|--:|
+| KServe (internal) | 3758 | 90.9 | 15300 | 2124 |
+| MaaS gateway (API key) | 3872 | 91.4 | 15481 | 2099 |
+
+**Scenario ② — multi-turn dialogue (ISL ~17.5k / OSL 128)**
+
+| Ingress | TTFT avg (ms) | ITL avg (ms) | E2E avg (ms) | TPS (in+out) |
+|---|--:|--:|--:|--:|
+| KServe (internal) | 9789 | 182.1 | 32918 | 2189 |
+| MaaS gateway (API key) | 9003 | 175.9 | 31338 | 2306 |
+
+:::note
+**How to read these.** All runs completed 240/240 with zero errors at a steady 2
+in-flight requests per instance (n=3 mean). The **MaaS gateway vs internal KServe**
+difference is within run-to-run jitter (scenario ① is ~+1–3% on the gateway = a few
+hundred ms of extra hop; scenario ②'s two n=3 sets, taken at different times, land a
+few percent the other way). The takeaway: **the API-key + rate-limited MaaS gateway
+adds no measurable overhead beyond noise** for both typical and long-context requests,
+so it can be served as the production ingress. Decode-only output rate is 33 tok/s
+(scenario ①) / 16 tok/s (scenario ②); the TPS column is the total-token (input +
+output) caliber. MTP speculative decoding is on. This is a single TP=8 instance, so the
+TPS is not directly comparable to the 2-replica models in this guide.
+:::
+
+:::warning
+Long-context requests through the MaaS gateway need the gateway's request-body buffer
+raised — the 17.5k scenario (~85 KB streaming body) exceeds the default limit and
+hangs until `ClientTrafficPolicy.connection.bufferLimit` on the MaaS gateway is
+increased. The internal KServe ingress has no such limit. The numbers above are after
+that fix.
+:::

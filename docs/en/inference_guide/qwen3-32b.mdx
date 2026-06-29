@@ -1,0 +1,120 @@
+---
+weight: 10
+i18n:
+  title:
+    en: Qwen3-32B
+    zh: Qwen3-32B
+---
+
+# Qwen3-32B
+
+Standard **Qwen3 dense** model, 32B parameters, served in **BF16** (~62 GB across
+four cards). Validated on **Ascend 910B4 (32 GB/card)** with vLLM-Ascend **v0.18.0**
+through Alauda AI's InferNex surface. The validated 8-card topology is **TP=4 × 2
+replicas**, benchmarked in **two deployment specs** — `agg-base` (load-balancing) and
+`agg-mc-kv` (cross-instance KV cache store + KV-cache-aware routing).
+
+## Model identity
+
+| Field | Value |
+|---|---|
+| Publisher | Qwen (Alibaba) |
+| Architecture | Qwen3 dense (standard attention, no MTP) |
+| Parameters | 32B |
+| Native dtype | BF16 (~62 GB) |
+| Model source | https://huggingface.co/Qwen/Qwen3-32B |
+
+## Validated hardware × stack
+
+| Platform | Engine | Version / config | Status |
+|---|---|---|---|
+| Ascend 910B4 32 GB × 8 (TP=4 × 2 replicas) | vLLM-Ascend | `v0.18.0-openeuler` (V1 engine) | ✅ closed-loop, 2-scenario perf, two deployment specs (agg-base + agg-mc-kv) |
+
+## Model configuration
+
+The vLLM-Ascend engine flags that define the serving envelope (identical for both
+deployment specs):
+
+| Parameter | Value |
+|---|---|
+| Tensor parallelism (`tensor-parallel-size`) | 4 |
+| Replicas (instances) | 2 (= 8 cards) |
+| `max-model-len` | 40960 |
+| `max-num-batched-tokens` | 40960 |
+| `gpu-memory-utilization` | 0.8 |
+| `block-size` | 128 |
+| `max_tokens` (output, benchmark-pinned) | 128 |
+| Prefix caching | enabled (`--enable-prefix-caching`) |
+
+## Deployment specs
+
+Both specs run on the same 8 cards (2 × TP=4) through InferNex (KServe
+`LLMInferenceService` + InferNex-Bridge + hermes-router). `agg-mc-kv` adds a
+cross-instance KV cache store and KV-cache-aware routing on top of `agg-base`:
+
+| Component | `agg-base` | `agg-mc-kv` |
+|---|:--:|:--:|
+| hermes-router (EPP) | ✅ started | ✅ started |
+| Routing strategy | `random` (load-balancing) | `kv-cache-aware` |
+| cache-indexer | — | ✅ |
+| mooncake KV store (AscendStoreConnector) | — | ✅ |
+| tokenizer sidecar | — | ✅ |
+| Cross-instance KV reuse | no | yes |
+
+## Deploy
+
+Self-contained InferNex manifests (each bundles the engine + hermes-router
+`LLMInferenceServiceConfig` and the `LLMInferenceService`, 2 replicas × TP=4):
+
+| Spec | File |
+|---|---|
+| agg-base (load-balancing) | [`qwen3-32b-agg-base-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-32b/qwen3-32b-agg-base-llmisvc.yaml) |
+| agg-mc-kv (KV store + KV-cache-aware routing) | [`qwen3-32b-agg-mc-kv-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-32b/qwen3-32b-agg-mc-kv-llmisvc.yaml) |
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets/qwen3-32b
+# edit namespace / model.uri registry / image tag first, then:
+kubectl apply -f $base/qwen3-32b-agg-base-llmisvc.yaml
+```
+
+## Benchmark results
+
+Closed-loop `aiperf 0.7.0`, **TP=4 × 2 replicas (8 × 910B4)**, concurrency 4. Two
+scenarios — ① 8k system-prompt reuse and ② 17.5k multi-turn — each 240 requests,
+output pinned to 128 tokens. TTFT / E2E in ms, ITL in ms, TPS = total tokens/s
+(input + output).
+
+**Scenario ① — fixed-length system-prompt reuse (ISL ~8k / OSL 128)**
+
+| Deployment spec | TTFT avg (ms) | ITL avg (ms) | E2E avg (ms) | TPS (in+out) |
+|---|--:|--:|--:|--:|
+| agg-base | 1328 | 71.4 | 10391 | 3120 |
+| agg-mc-kv | 445 | 68.7 | 9165 | 3558 |
+
+**Scenario ② — multi-turn dialogue (ISL ~17.5k / OSL 128)**
+
+| Deployment spec | TTFT avg (ms) | ITL avg (ms) | E2E avg (ms) | TPS (in+out) |
+|---|--:|--:|--:|--:|
+| agg-base | 4612 | 95.9 | 16791 | 4270 |
+| agg-mc-kv | 1663 | 77.3 | 11481 | 6498 |
+
+:::note
+**How to read these.** All runs completed 240/240 with zero errors at a steady 2
+in-flight requests per instance. `agg-base` numbers are a single representative run;
+`agg-mc-kv` is the mean of 3 runs.
+
+The value of **`agg-mc-kv` shows up mainly in TTFT** (first-token latency): the
+cross-instance KV store lets a request reuse prefix KV that another instance already
+computed, skipping a re-prefill. The effect is largest on the **multi-turn** scenario
+(TTFT 4612 → 1663 ms, E2E 16.8 → 11.5 s, TPS +52%), where each turn shares a long
+growing prefix. Within those 3 runs scenario ② has a wide cold/warm spread: the
+**first (cold) run** pays the full prefill of the 16k base (TTFT ~3.5 s), while the
+**warm runs** reach TTFT ~0.76 s and E2E ~9.9 s — the mean above blends both, and warm
+steady state is the operating point you see in sustained serving. Decode-step latency
+(ITL) is roughly the same between specs — it is not what the KV store accelerates.
+
+At this 2-instance scale most of the `agg-mc-kv` gain comes from the KV **store**;
+isolating the routing contribution would need a separate A/B, and the store's value
+grows with more instances (more cross-instance reuse opportunities). These are
+half-scale numbers (8 cards); aggregate throughput scales with the instance count.
+:::

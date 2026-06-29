@@ -1,0 +1,128 @@
+---
+weight: 20
+i18n:
+  title:
+    en: Qwen3.6-27B (W8A8)
+    zh: Qwen3.6-27B (W8A8)
+---
+
+# Qwen3.6-27B (W8A8)
+
+`qwen3_5`-architecture model — Gated DeltaNet linear-attention hybrid (3:1 linear /
+full attention) with a native MTP speculative head, 27.78B parameters, served as
+**W8A8** (INT8 weights, ~33 GB). Validated on **Ascend 910B4 (32 GB/card)** with the
+vLLM-Ascend **nightly** engine through Alauda AI's InferNex surface. The validated
+8-card topology is **TP=4 × 2 replicas**, deployment spec **`agg-base`**.
+
+## Model identity
+
+| Field | Value |
+|---|---|
+| Publisher | Qwen (Alibaba) |
+| Architecture | `qwen3_5` — Gated DeltaNet linear-attention hybrid + full attention + native MTP (multimodal-capable) |
+| Parameters | 27.78B (64 layers, hidden 5120) |
+| Native dtype | BF16 (~54 GB); served here as **W8A8** (~33 GB) |
+| Model source (W8A8) | https://www.modelscope.cn/models/Eco-Tech/Qwen3.6-27B-w8a8 |
+
+## Validated hardware × stack
+
+| Platform | Engine | Version / config | Status |
+|---|---|---|---|
+| Ascend 910B4 32 GB × 8 (TP=4 × 2 replicas) | vLLM-Ascend | `nightly-releases-v0.22.1rc-openeuler` (vLLM 0.22.1, CANN 9.0.0) | ✅ closed-loop, 2-scenario perf (n=3), agg-base |
+
+:::note
+`qwen3_5` (Gated DeltaNet hybrid + multimodal) only loads on the vLLM-Ascend **nightly**
+image. Use the **release-pinned** `nightly-releases-v0.22.1rc-openeuler` tag — the moving
+`nightly-main-openeuler` drifted to a broken build whose TP workers crash. The stock
+`v0.18.0` cannot serve it. W8A8 quantization saves HBM (larger KV cache) but does **not**
+speed up decode on its own — the bottleneck is the `qwen3_5` GDN/MTP decode path in the
+nightly engine, not memory bandwidth.
+:::
+
+## Model configuration
+
+| Parameter | Value |
+|---|---|
+| Tensor parallelism (`tensor-parallel-size`) | 4 |
+| Replicas (instances) | 2 (= 8 cards) |
+| `max-model-len` | 24576 |
+| `max-num-batched-tokens` | 8192 |
+| `gpu-memory-utilization` | 0.85 (not 0.90 — OOMs at high concurrency with MTP) |
+| `max-num-seqs` | 32 (required guardrail) |
+| `max_tokens` (output, benchmark-pinned) | 128 |
+| Quantization | `ascend` (W8A8) |
+| Prefix caching | disabled (`--no-enable-prefix-caching`, GDN-required) |
+| Speculative decoding (MTP) | `qwen3_5_mtp`, 3 tokens |
+
+## Deployment spec
+
+This model is served as **`agg-base`** only — aggregation, hermes-router strategy
+`random` (load-balancing), no mooncake KV store. The cross-instance KV store /
+KV-cache-aware routing (`agg-mc-kv`) is **not yet usable** for the `qwen3_5` GDN hybrid
+on Ascend: the hybrid linear-attention KV pool's aligned-store support is still upstream
+work, so enabling it crashes the engine.
+
+| Component | `agg-base` |
+|---|:--:|
+| hermes-router (EPP) | ✅ started |
+| Routing strategy | `random` (load-balancing) |
+| cache-indexer | — |
+| mooncake KV store | — (not supported for `qwen3_5`) |
+
+## Deploy
+
+Self-contained InferNex manifest (engine + hermes-router `LLMInferenceServiceConfig`
+plus the `LLMInferenceService`, 2 replicas × TP=4):
+
+| Spec | File |
+|---|---|
+| agg-base (load-balancing) | [`qwen3-6-27b-w8a8-agg-base-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/qwen3-6-27b-w8a8/qwen3-6-27b-w8a8-agg-base-llmisvc.yaml) |
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets/qwen3-6-27b-w8a8
+# edit namespace / model.uri registry / image tag first, then:
+kubectl apply -f $base/qwen3-6-27b-w8a8-agg-base-llmisvc.yaml
+```
+
+:::warning
+Always **warm up** the replicas (drive a little concurrency) before serving traffic.
+A cold replica only captures the `batch=1` decode graph; the first concurrent burst
+then captures larger graphs on the hot path and falls into a slow steady state. The
+`--max-num-seqs 32` cap is a required guardrail — without it, high concurrency can
+avalanche into a 256-concurrency / >1 s ITL state. Keep `--gpu-memory-utilization` at
+**0.85**, not 0.90, which OOMs at high concurrency with MTP enabled.
+:::
+
+## Benchmark results
+
+Closed-loop `aiperf 0.7.0`, **TP=4 × 2 replicas (8 × 910B4)**, concurrency 4, agg-base,
+MTP on. Two scenarios — ① 8k system-prompt reuse and ② 17.5k multi-turn — each 240
+requests, output pinned to 128 tokens. Each scenario ran **3 times** (n=3, same trace +
+seed); all 6 runs returned 240/240 with zero errors. Values are the mean across runs.
+TTFT / E2E in ms, ITL in ms (per-chunk; MTP emits ~3 tokens/chunk), TPS = total tokens/s.
+
+**Scenario ① — fixed-length system-prompt reuse (ISL ~8k / OSL 128)**
+
+| Deployment spec | TTFT avg (ms) | ITL avg (ms) | E2E avg (ms) | TPS (in+out) |
+|---|--:|--:|--:|--:|
+| agg-base | 1509 | 32.0 | 5577 | 5807 |
+
+**Scenario ② — multi-turn dialogue (ISL ~17.5k / OSL 128)**
+
+| Deployment spec | TTFT avg (ms) | ITL avg (ms) | E2E avg (ms) | TPS (in+out) |
+|---|--:|--:|--:|--:|
+| agg-base | 3999 | 45.3 | 9751 | 7408 |
+
+:::note
+**How to read these.** All six runs completed 240/240 with zero errors at a steady 2
+in-flight requests per instance; ITL is highly reproducible (run-to-run spread ~3–14%).
+`agg-base` is the only deployment spec for this model — the cross-instance KV store +
+KV-cache-aware routing (`agg-mc-kv`) is not usable for the `qwen3_5` GDN hybrid. ITL is
+reported **per chunk** — with the MTP speculative head emitting ~3 tokens per streamed
+chunk, the effective per-token latency is roughly a third. The decode-only output rate is
+**91.3 tok/s** (scenario ①) / **52.5 tok/s** (scenario ②); the TPS column is the
+total-token (input + output) caliber. ITL p90 is 45.0 ms (①) / 78.4 ms (②) and TTFT p90
+is 2192 ms (①) / 6290 ms (②). TTFT rises and its tail widens on the 17.5k workload as
+growing per-turn context gets re-prefilled (this model cannot use prefix caching). These
+are half-scale numbers (8 cards); aggregate throughput scales with the instance count.
+:::
