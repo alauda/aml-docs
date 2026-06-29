@@ -1,0 +1,194 @@
+---
+weight: 40
+---
+
+# Security Architecture
+
+Beyond enrolling and discovering agents, the Kagenti Operator can wire a **zero-trust security stack** onto your agents: workload identity, transport encryption, and request authorization. This page explains how the pieces fit together so you can decide what to enable.
+
+This stack is the operator's **secure profile**. It is **disabled by default** in the core profile described in [Introduction](./intro.mdx) — agents run as a single container, `MTLSReady` reports `False` with reason `SPIREUnavailable`, and no authorization is enforced. Everything below is opt-in and depends on additional cluster components.
+
+## Overview
+
+Three concerns map to three technologies, all stitched together by an **AuthBridge** sidecar that the operator injects into each agent pod:
+
+| Concern | Question | Technology |
+|---------|----------|------------|
+| **Workload identity** | *Who is this workload?* | SPIFFE / SPIRE |
+| **Transport security** | *Is the connection encrypted and authenticated?* | Istio ambient mesh (+ AuthBridge mTLS) |
+| **Authorization** | *Is the caller allowed to do this?* | Open Policy Agent (OPA) + AuthBridge + Keycloak |
+
+The request path through a secured agent looks like this:
+
+```text
+                       ┌──────────────────────── Agent Pod ────────────────────────┐
+ caller (agent/tool) ─▶│  AuthBridge sidecar                  your agent container  │
+                       │   ├─ terminate / originate mTLS (SVID from SPIRE)          │
+                       │   ├─ validate JWT (issued by Keycloak)                     │
+                       │   └─ evaluate OPA policy (Rego bundle from bundle-service) │
+                       │  spiffe-helper sidecar ◀── SPIRE Workload API (X.509-SVID) │
+                       └────────────────────────────────────────────────────────────┘
+   Istio ambient (ztunnel) provides namespace-wide L4 mTLS underneath the pod.
+```
+
+:::info
+This operator does **not** use Authorino for authorization. Authorization is expressed as **OPA Rego policies** and enforced by the AuthBridge sidecar. The optional `Kuadrant` integration only ensures a bare `Kuadrant` custom resource exists for Istio ambient gateways — the operator does not translate policies into Kuadrant `AuthPolicy` or Authorino `AuthConfig` objects.
+:::
+
+## Workload identity (SPIFFE / SPIRE)
+
+[SPIFFE](https://spiffe.io/) gives every workload a cryptographic identity; [SPIRE](https://spiffe.io/docs/latest/spire-about/) is the runtime that issues it.
+
+- The operator reconciles the SPIRE components when a Zero-Trust Workload Identity Manager is present on the cluster, or you can bring your own SPIRE.
+- The AuthBridge webhook injects a **`spiffe-helper`** sidecar and the SPIFFE CSI socket. `spiffe-helper` fetches an **X.509-SVID** from the SPIRE Workload API and rotates it automatically.
+- The identity has the form:
+
+  ```text
+  spiffe://<trust-domain>/ns/<namespace>/sa/<service-account>
+  ```
+
+  Because the identity is derived from the **ServiceAccount**, give each agent its own ServiceAccount so it gets a distinct identity.
+
+This SVID is the root of trust for everything else: it secures transport (mTLS), names the workload's Keycloak client, and signs the agent's `AgentCard` for verifiable discovery.
+
+## Transport security (Istio ambient mesh)
+
+The operator enrolls the agent's **namespace** into [Istio ambient mode](https://istio.io/latest/docs/ambient/overview/) by labeling it:
+
+```text
+istio.io/dataplane-mode: ambient
+istio-discovery: enabled
+```
+
+- This is reported on the `AgentRuntime` as the `IstioMeshEnrolled` status condition. (The label is applied even in the core profile, which is why you see `IstioMeshEnrolled=True` there.)
+- L4 mTLS between pods is handled transparently by Istio's **ztunnel** — the operator does not author `PeerAuthentication` or `DestinationRule`.
+- The operator keeps the certificate authority chain consistent across namespaces (reconciling the Istio `cacerts` from cert-manager's mesh root) so SPIRE- and Istio-issued certificates chain to a common root.
+- Opt a namespace out with the annotation `kagenti.io/istio-mesh=disabled`.
+
+On top of mesh-level mTLS, the AuthBridge sidecar can do **application-level mTLS** between agents using the workload's own SVID — see [`mtlsMode`](#agentruntime-security-fields).
+
+## Authorization (OPA + AuthBridge + Keycloak)
+
+Authorization is **policy-as-code** evaluated at the AuthBridge sidecar:
+
+1. **Identity / token** — The agent is registered as an OAuth2 client in **Keycloak** by the operator. Its credentials are written to a Secret and mounted into the pod; the sidecar obtains and validates **JWTs** against the Keycloak issuer and audience. Token exchange supports tool-to-agent delegation.
+2. **Policy** — An `AuthorizationPolicy` custom resource holds one or more **Rego** policies. A `bundle-service` compiles them into OPA bundles and serves them per identity; the AuthBridge sidecar pulls the bundle that matches its SPIFFE ID.
+3. **Decision** — AuthBridge evaluates the policy at four points — inbound/outbound × request/response — and is **fail-closed** (`default allow := false`).
+
+Policies are scoped in a three-tier hierarchy:
+
+| `spec.scope` | Applies to |
+|--------------|------------|
+| `global` | All clients in the cluster (default policy in `kagenti-system`) |
+| `namespace` | A single namespace; extends/overrides global |
+| `client` | A specific OAuth2 client (an agent or tool, by `clientID`) |
+
+### Example: a global Rego policy
+
+```yaml
+apiVersion: agent.kagenti.dev/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: default
+  namespace: kagenti-system
+spec:
+  scope: global # [!code callout]
+  policies:
+    - path: "inbound/request.rego" # [!code callout]
+      content: | # [!code callout]
+        package authbridge.inbound.request
+        import rego.v1
+        default allow := false
+        allow if data.authbridge.ns.inbound.request.override
+        allow if {
+            ns_ok
+            client_ok
+        }
+        ns_ok     if data.authbridge.ns.inbound.request.allow
+        ns_ok     if not data.authbridge.ns.inbound.request
+        client_ok if data.authbridge.client.inbound.request.allow
+        client_ok if not data.authbridge.client.inbound.request
+    # ... plus inbound/response, outbound/request, outbound/response
+```
+
+<Callouts>
+
+1. `spec.scope` — `global`, `namespace`, or `client`. The default policy ships at cluster scope and delegates to namespace- and client-scoped rules.
+2. `policies[].path` — the decision point this Rego covers (`{inbound,outbound}/{request,response}.rego`).
+3. `policies[].content` — the Rego source. The default rule is fail-closed; teams layer `namespace`- or `client`-scoped policies on top to permit specific callers.
+
+</Callouts>
+
+## The AuthBridge sidecar
+
+AuthBridge is the data-plane component that enforces identity, mTLS, and authorization. The operator's mutating webhook injects it into any pod labeled `kagenti.io/type=agent` (and `tool`, when the `injectTools` feature gate is enabled), provided the global feature gate is on.
+
+The sidecar mode is selected per agent through `spec.authBridgeMode`:
+
+| Mode | What is injected | Notes |
+|------|------------------|-------|
+| `proxy-sidecar` | A lightweight AuthBridge proxy + `spiffe-helper` | Default; supports the TLS bridge |
+| `envoy-sidecar` | An Envoy proxy + `proxy-init` + `spiffe-helper` | Full Envoy data plane |
+| `lite` | Slimmed proxy | Minimal footprint |
+| `waypoint` | Standalone waypoint | For Istio ambient waypoints |
+
+The Envoy/proxy and `spiffe-helper` images ship in the companion `kagenti-extensions` image set, which must be available to the cluster when the secure profile is enabled.
+
+## AgentRuntime security fields \{#agentruntime-security-fields}
+
+The secure profile is configured per agent on the `AgentRuntime`. All fields default to off/safe; a fully secured agent looks like:
+
+```yaml
+apiVersion: agent.kagenti.dev/v1alpha1
+kind: AgentRuntime
+metadata:
+  name: weather-agent-runtime
+  namespace: agents
+spec:
+  type: agent
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: weather-agent
+  authBridgeMode: proxy-sidecar     # proxy-sidecar (default) | envoy-sidecar | lite | waypoint # [!code callout]
+  mtlsMode: permissive              # disabled | permissive (default) | strict # [!code callout]
+  tlsBridgeMode: enabled            # per-agent egress CA, requires cert-manager # [!code callout]
+  egressEnforcement: enforce-redirect
+```
+
+<Callouts>
+
+1. `authBridgeMode` — which sidecar data plane to inject (see the table above).
+2. `mtlsMode` — application-level mTLS between agents. `permissive` accepts both TLS and plaintext (use during rollout); `strict` is TLS-or-fail (production). The `MTLSReady` condition becomes `True` only when SPIRE is available, and it is informational — it never blocks `Ready`.
+3. `tlsBridgeMode` — provisions a per-agent CA (via cert-manager) so the sidecar can inspect outbound HTTPS. Supported with `proxy-sidecar` / `lite` only.
+
+</Callouts>
+
+## Enabling the secure profile
+
+The secure profile depends on cluster components that are **not** part of the core install. Stand them up first, in roughly this order:
+
+1. **cert-manager** — issues the operator's webhook certificates and the TLS-bridge / Istio CA chains.
+2. **SPIRE** (or a Zero-Trust Workload Identity Manager) — issues workload SVIDs.
+3. **Keycloak** — issues and validates OAuth2/OIDC tokens; the operator registers agents as clients.
+4. **Istio (ambient)** — provides the mesh and ztunnel mTLS; a `Kuadrant` custom resource is required for ambient gateways.
+
+Then enable the operator feature gates (`featureGates.globalEnabled: true`, `authbridgeConfig.enabled: true`) so the AuthBridge webhook begins injecting, make the `kagenti-extensions` images available, and set the `AgentRuntime` security fields shown above.
+
+:::info
+Enabling the secure profile is a substantial platform effort compared with core agent enablement. Validate it on a non-production cluster first, and roll out `mtlsMode` as `permissive` before switching to `strict`.
+:::
+
+## Use cases
+
+- **Agent-to-agent authorization** — allow Agent A to call Agent B but not the reverse, via a `client`-scoped Rego policy combined with Keycloak audience / token exchange.
+- **Multi-tenant isolation** — `namespace`-scoped policies keep one team's agents from reaching another's.
+- **Tool access control** — gate which workloads may act as tools through the `injectTools` feature gate and per-client policy.
+- **Verifiable agent identity** — `AgentCard`s are JWS-signed with the agent's SVID, so a consumer can verify the certificate chain to the trust bundle before trusting or calling the agent.
+- **Transparent transport encryption** — joining the namespace to Istio ambient gives ztunnel mTLS with no application changes, with optional application-level mTLS on top.
+
+## Related
+
+- [Introduction](./intro.mdx) — the core profile and CRD overview.
+- [Installation](./install.mdx) — installing the operator and creating the `Kagenti` operand.
+- [Deploy an Agent with AgentRuntime](./how_to/deploy_agent_with_agentruntime.mdx) — the core agent + MCP workflow.
