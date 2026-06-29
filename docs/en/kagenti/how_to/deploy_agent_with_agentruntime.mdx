@@ -1,0 +1,337 @@
+---
+weight: 10
+---
+
+# Deploy an Agent with AgentRuntime
+
+This guide shows how to deploy an AI agent and an MCP tool server with the Kagenti Operator, enroll them with `AgentRuntime` custom resources, and run an end-to-end query. The agent is driven by a model served from an <Term name="company" /> AI **InferenceService**.
+
+The scenario is a **weather agent** that answers questions like *"What is the weather in New York?"* by calling a **weather MCP tool** for live data and a large language model to compose the reply. The request flow is:
+
+```text
+client ──A2A message/send──▶ weather-agent ──OpenAI chat API──▶ InferenceService (qwen36-27b-gguf)
+                                  │
+                                  └──────────MCP──────────▶ weather-tool-mcp
+```
+
+## Prerequisites
+
+- Kagenti Operator is installed and its `Kagenti` operand is reconciled — see [Installation](../install.mdx).
+- `kubectl` access to the target cluster.
+- A demo namespace. This guide uses `team1`:
+
+  ```bash
+  kubectl create namespace team1
+  ```
+
+- An **InferenceService that serves an OpenAI-compatible chat API**, reachable in-cluster. This guide uses an InferenceService named `qwen36-27b-gguf`. Any chat model works; agent quality improves with a tool-calling-capable model.
+
+### Find your model endpoint and name
+
+The agent connects to the model with three environment variables — `LLM_API_BASE`, `LLM_API_KEY`, and `LLM_MODEL`. Resolve them from your InferenceService:
+
+```bash
+# The predictor Service exposes the OpenAI-compatible API in-cluster.
+# Base URL pattern: http://<isvc-name>-predictor.<namespace>.svc.cluster.local/v1
+kubectl get svc -n <model-namespace> | grep <isvc-name>-predictor
+
+# The model id to send as "model" — list what the endpoint serves:
+kubectl run modelq --rm -i --restart=Never -n <model-namespace> \
+  --image=docker.io/alaudadockerhub/curl:8.1.2 --command -- \
+  curl -sS http://<isvc-name>-predictor.<model-namespace>.svc.cluster.local/v1/models
+```
+
+For the `qwen36-27b-gguf` InferenceService deployed in namespace `zgsu-ns1`, that resolves to:
+
+| Variable | Value |
+|----------|-------|
+| `LLM_API_BASE` | `http://qwen36-27b-gguf-predictor.zgsu-ns1.svc.cluster.local/v1` |
+| `LLM_MODEL` | `qwen36-27b-gguf` |
+| `LLM_API_KEY` | `dummy` (any non-empty value; the in-cluster endpoint needs no key) |
+
+:::info
+Substitute your own InferenceService name, namespace, and model id throughout this guide. If the model is a **reasoning** model, the first tokens of a response are reasoning content — keep the agent's token budget unconstrained (as below) so the final answer is not truncated.
+:::
+
+## Step 1: Deploy the MCP tool server
+
+The MCP (Model Context Protocol) server provides the `get_weather` tool the agent calls. Deploy it, expose it with a Service, and enroll it as a `tool`-type `AgentRuntime`.
+
+```yaml
+kubectl apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-tool
+  namespace: team1
+  labels:
+    app.kubernetes.io/name: weather-tool
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: weather-tool
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: weather-tool
+    spec:
+      containers:
+      - name: mcp
+        image: docker.io/alaudadockerhub/weather_tool:v0.0.1-alpha.3 # [!code callout]
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: PORT
+          value: "8000"
+        - name: HOST
+          value: 0.0.0.0
+        - name: UV_CACHE_DIR
+          value: /app/.cache/uv
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - mountPath: /app/.cache
+          name: cache
+      volumes:
+      - name: cache
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weather-tool-mcp # [!code callout]
+  namespace: team1
+spec:
+  selector:
+    app.kubernetes.io/name: weather-tool
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+---
+apiVersion: agent.kagenti.dev/v1alpha1
+kind: AgentRuntime
+metadata:
+  name: weather-tool
+  namespace: team1
+spec:
+  type: tool # [!code callout]
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: weather-tool
+EOF
+```
+
+<Callouts>
+
+1. The MCP server image, mirrored to `docker.io/alaudadockerhub`. On an air-gapped cluster use the copy relocated into your platform registry.
+2. The Service the agent will reach at `http://weather-tool-mcp.team1.svc.cluster.local:8000/mcp`. The operator does **not** create this Service for you, so you define it explicitly and select the tool's pods.
+3. `spec.type: tool` enrolls the workload as an MCP tool; the operator applies the `kagenti.io/type: tool` label.
+
+</Callouts>
+
+Wait for the tool to be ready:
+
+```bash
+kubectl rollout status deploy/weather-tool -n team1
+kubectl get agentruntime weather-tool -n team1
+# NAME           TYPE   TARGET         READY   AGE
+# weather-tool   tool   weather-tool   True    1m
+```
+
+## Step 2: Deploy the agent
+
+The agent only needs a `protocol.kagenti.io/a2a` label on its Deployment — the controller applies `kagenti.io/type`, computes a config hash, and (when the identity stack is enabled) triggers sidecar injection. The protocol label also tells the AgentCard sync controller which protocol the agent speaks, enabling automatic discovery.
+
+```yaml
+kubectl apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-agent
+  namespace: team1
+  labels:
+    app.kubernetes.io/name: weather-agent
+    protocol.kagenti.io/a2a: "" # [!code callout]
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: weather-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: weather-agent
+    spec:
+      containers:
+      - name: agent
+        image: docker.io/alaudadockerhub/weather_service:v0.0.1-alpha.3 # [!code callout]
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+        env:
+        - name: PORT
+          value: "8000"
+        - name: UV_CACHE_DIR
+          value: /app/.cache/uv
+        - name: MCP_URL
+          value: http://weather-tool-mcp.team1.svc.cluster.local:8000/mcp # [!code callout]
+        - name: LLM_API_BASE
+          value: http://qwen36-27b-gguf-predictor.zgsu-ns1.svc.cluster.local/v1 # [!code callout]
+        - name: LLM_API_KEY
+          value: dummy
+        - name: LLM_MODEL
+          value: qwen36-27b-gguf # [!code callout]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weather-agent
+  namespace: team1
+spec:
+  selector:
+    app.kubernetes.io/name: weather-agent
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+---
+apiVersion: agent.kagenti.dev/v1alpha1
+kind: AgentRuntime
+metadata:
+  name: weather-agent-runtime
+  namespace: team1
+spec:
+  type: agent
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: weather-agent
+EOF
+```
+
+<Callouts>
+
+1. `protocol.kagenti.io/a2a: ""` marks the Deployment as an A2A agent. It enables automatic `AgentCard` creation; a `ValidatingAdmissionPolicy` forbids setting `kagenti.io/type` directly, so enrollment must go through the `AgentRuntime`.
+2. The agent image, mirrored to `docker.io/alaudadockerhub`.
+3. `MCP_URL` — the MCP tool endpoint from Step 1 (the Service name with the `/mcp` path).
+4. `LLM_API_BASE` — the OpenAI-compatible base URL of your InferenceService predictor (`.../v1`).
+5. `LLM_MODEL` — the model id served by the InferenceService.
+
+</Callouts>
+
+The agent's Service is named after the Deployment (`weather-agent`); the `AgentRuntime` controller resolves it to fetch the Agent Card for discovery.
+
+When the `AgentRuntime` is created, the controller will:
+
+1. Resolve `targetRef` and verify the Deployment exists.
+2. Apply `kagenti.io/type: agent` and `app.kubernetes.io/managed-by: kagenti-operator` labels.
+3. Compute a config hash and set it as a `kagenti.io/config-hash` annotation on the pod template, triggering a rolling update.
+
+## Step 3: Check status
+
+```bash
+# AgentRuntime status
+kubectl get agentruntime -n team1
+# NAME                    TYPE    TARGET          READY   AGE
+# weather-agent-runtime   agent   weather-agent   True    1m
+# weather-tool            tool    weather-tool    True    6m
+
+# Conditions (core profile: MTLSReady is False with reason SPIREUnavailable — expected)
+kubectl get agentruntime weather-agent-runtime -n team1 \
+  -o jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}'
+# TargetResolved=True
+# IstioMeshEnrolled=True
+# MTLSReady=False
+# ConfigResolved=True
+# Ready=True
+
+# Labels applied by the operator
+kubectl get deployment weather-agent -n team1 --show-labels
+
+# The AgentCard is created and synced automatically
+kubectl get agentcards -n team1
+# NAME                            PROTOCOL   KIND         TARGET          AGENT               SYNCED   AGE
+# weather-agent-deployment-card   a2a        Deployment   weather-agent   Weather Assistant   True     1m
+```
+
+`SYNCED=True` with the `AGENT` column populated (here `Weather Assistant`) confirms the sync controller fetched the agent's A2A card — dynamic discovery is working.
+
+## Step 4: Send a query (end-to-end test)
+
+Send an A2A `message/send` request to the agent from a temporary in-cluster pod, using the agent's internal Service DNS name:
+
+```bash
+kubectl run curl-wq --rm -i --restart=Never -n team1 \
+  --image=docker.io/alaudadockerhub/curl:8.1.2 --command -- \
+  curl -sS -X POST http://weather-agent.team1.svc.cluster.local:8000/ \
+    -H "Content-Type: application/json" \
+    -d '{"jsonrpc":"2.0","id":"76CD6BA3-16AA-4CED-8E0E-19156B8C5886","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"What is the weather in NY?"}],"messageId":"DF05857B-98B7-4414-BD63-19E16E684E39"}}}'
+```
+
+The agent calls the model, the model invokes the weather MCP tool, and the agent returns a completed A2A task:
+
+```json
+{
+  "id": "76CD6BA3-16AA-4CED-8E0E-19156B8C5886",
+  "jsonrpc": "2.0",
+  "result": {
+    "artifacts": [
+      {
+        "parts": [
+          {
+            "kind": "text",
+            "text": "The current weather in New York is 66.4°F with clear skies. The wind speed is 4.4."
+          }
+        ]
+      }
+    ],
+    "kind": "task",
+    "status": { "state": "completed" }
+  }
+}
+```
+
+The `history` array in the full response shows the tool-calling flow (`assistant` → `tools` → `assistant`), including the `ToolMessage` returned by the weather MCP server.
+
+:::info
+A reasoning model spends its first tokens "thinking" before the final answer, so the first request may take noticeably longer than a non-reasoning model. Subsequent requests are faster.
+:::
+
+You can watch the interaction in the logs:
+
+```bash
+# Agent logs
+kubectl logs -f -l app.kubernetes.io/name=weather-agent -n team1
+
+# MCP tool logs (in another terminal)
+kubectl logs -f -l kagenti.io/type=tool -n team1
+```
+
+## Updating and deleting an AgentRuntime
+
+Platform configuration changes (cluster or namespace ConfigMaps) trigger a rolling update so pods pick up new settings. Editing the `AgentRuntime` spec itself does not force a restart — new values are applied at pod creation time.
+
+Deleting the `AgentRuntime` performs a graceful cleanup: the controller removes the `kagenti.io/type` label and the `kagenti.io/config-hash` annotation (triggering a rolling update so any injected pods are replaced) and the `app.kubernetes.io/managed-by` label.
+
+```bash
+kubectl delete agentruntime weather-agent-runtime -n team1
+kubectl delete agentruntime weather-tool -n team1
+```
+
+## Clean up
+
+```bash
+kubectl delete namespace team1
+```
+
+## Troubleshooting
+
+| Symptom | Checks |
+|---------|--------|
+| `AgentRuntime` not `Ready` | `kubectl describe agentruntime <name> -n team1` — confirm `TargetResolved`. A common cause is the target Deployment or its Service not existing yet. |
+| Agent returns no answer / times out | Check the agent can reach the model: `LLM_API_BASE` resolves and `/v1/models` lists `LLM_MODEL`. Inspect `kubectl logs -l app.kubernetes.io/name=weather-agent -n team1` for LLM connection errors. |
+| Agent answers without live data | Verify `MCP_URL` points at the `weather-tool-mcp` Service and the tool pod is `Running`: `kubectl logs -l kagenti.io/type=tool -n team1`. |
+| `ImagePullBackOff` | On clusters without `docker.io` egress, relocate the images into your platform registry (e.g. via `violet`) and reference that copy. |
+| `MTLSReady=False` | Expected in the core profile (reason `SPIREUnavailable`); it does not affect agent or tool functionality. |
