@@ -78,7 +78,7 @@ spec:
     spec:
       containers:
       - name: mcp
-        image: docker.io/alaudadockerhub/weather_tool:v0.0.1-alpha.3 # [!code callout]
+        image: docker.io/alaudadockerhub/weather_tool:v0.1.0-rc.1 # [!code callout]
         imagePullPolicy: IfNotPresent
         env:
         - name: PORT
@@ -166,7 +166,7 @@ spec:
     spec:
       containers:
       - name: agent
-        image: docker.io/alaudadockerhub/weather_service:v0.0.1-alpha.3 # [!code callout]
+        image: docker.io/alaudadockerhub/weather_service:v0.1.0-rc.1 # [!code callout]
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
@@ -214,7 +214,7 @@ EOF
 <Callouts>
 
 1. `protocol.kagenti.io/a2a: ""` marks the Deployment as an A2A agent. It enables automatic `AgentCard` creation; a `ValidatingAdmissionPolicy` forbids setting `kagenti.io/type` directly, so enrollment must go through the `AgentRuntime`.
-2. The agent image, mirrored to `docker.io/alaudadockerhub`.
+2. The agent image, mirrored to `docker.io/alaudadockerhub`. Use `v0.1.0` or later — these read `HOST`/`PORT` from the environment, which is required under the [secure profile](./enable_secure_profile.mdx) (the AuthBridge sidecar remaps the app port).
 3. `MCP_URL` — the MCP tool endpoint from Step 1 (the Service name with the `/mcp` path).
 4. `LLM_API_BASE` — the OpenAI-compatible base URL of your InferenceService predictor (`.../v1`).
 5. `LLM_MODEL` — the model id served by the InferenceService.
@@ -325,6 +325,39 @@ kubectl delete agentruntime weather-tool -n team1
 ```bash
 kubectl delete namespace team1
 ```
+
+## Running under the secure profile
+
+The steps above are the **core profile** (no identity sidecars). The *same* agent and tool also run under the [secure profile](./enable_secure_profile.mdx), which adds SPIRE mTLS, Keycloak JWT authentication, and an Istio ambient mesh. A few things change:
+
+- **Install the dependencies and enable the profile first** — see [Install the Secure-Profile Dependencies](./install_secure_dependencies.mdx) and [Enable the Secure Profile](./enable_secure_profile.mdx).
+- **Label the namespace** so the operator manages identity in it:
+
+  ```bash
+  kubectl label namespace team1 kagenti-enabled=true
+  ```
+
+- **Use `$PORT`-aware images.** This guide already uses `weather_service` / `weather_tool` `v0.1.0`+, which read `PORT` from the environment. That is required: the AuthBridge proxy-sidecar binds the workload's service port and remaps the app to a different `PORT`, so an app that hardcodes its port collides with the proxy and crash-loops.
+- **No manifest changes are needed.** When the profile is on, the AuthBridge webhook injects an `authbridge-proxy` sidecar and a SPIRE SVID into each pod, and the operator registers a Keycloak client per workload — your `Deployment` / `AgentRuntime` YAML stays the same.
+
+Verify the secure wiring engaged:
+
+```bash
+# sidecar injected (app container + authbridge-proxy) and SVID present
+kubectl get pod -n team1 -l kagenti.io/type=agent \
+  -o jsonpath='{.items[0].spec.containers[*].name}{"\n"}'
+kubectl get secret -n team1 | grep kagenti-keycloak-client   # Keycloak client registered
+```
+
+:::warning Requests now require a token
+With the secure profile on, an **unauthenticated** request to the agent is rejected:
+
+```json
+{"error":"auth.unauthorized","message":"missing Authorization header","plugin":"jwt-validation"}
+```
+
+Send a valid Keycloak access token as `Authorization: Bearer <token>`. Obtain one with a `client_credentials` grant using the workload's registered client (`team1/weather-agent`; the client id and secret are in the `kagenti-keycloak-client-credentials-*` secret), then repeat the [Step 4](#step-4-send-a-query-end-to-end-test) query with the `Authorization` header added.
+:::
 
 ## Troubleshooting
 

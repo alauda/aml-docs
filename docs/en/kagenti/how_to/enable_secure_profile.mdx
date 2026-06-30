@@ -16,7 +16,7 @@ The secure profile depends on cluster components that are **not** part of the co
 4. **Istio (ambient)** — `ztunnel` + `istio-cni` for namespace-level mTLS.
 
 :::info
-On <Term name="company" /> AI these map to: cert-manager (built-in), the **SPIRE** cluster plugin, the **Keycloak** operator plus a `Keycloak` instance, and **Service Mesh v2** with ambient enabled (the `Istio` CR `profile: ambient` plus a `ZTunnel`).
+On <Term name="company" /> AI these map to: cert-manager (built-in), the **SPIRE** cluster plugin, the **Keycloak** operator plus a `Keycloak` instance, and **Service Mesh v2** with ambient enabled (the `Istio` CR `profile: ambient` plus a `ZTunnel`). For step-by-step installation and configuration of each, see [Install the Secure-Profile Dependencies](./install_secure_dependencies.mdx).
 :::
 
 ## 1. Enable the secure profile on the operand
