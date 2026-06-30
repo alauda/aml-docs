@@ -350,13 +350,81 @@ kubectl get secret -n team1 | grep kagenti-keycloak-client   # Keycloak client r
 ```
 
 :::warning Requests now require a token
-With the secure profile on, an **unauthenticated** request to the agent is rejected:
+With the secure profile on, an **unauthenticated** request to the agent is rejected by the AuthBridge `jwt-validation` plugin:
 
 ```json
 {"error":"auth.unauthorized","message":"missing Authorization header","plugin":"jwt-validation"}
 ```
+:::
 
-Send a valid Keycloak access token as `Authorization: Bearer <token>`. Obtain one with a `client_credentials` grant using the workload's registered client (`team1/weather-agent`; the client id and secret are in the `kagenti-keycloak-client-credentials-*` secret), then repeat the [Step 4](#step-4-send-a-query-end-to-end-test) query with the `Authorization` header added.
+### Send an authenticated request
+
+Each secured workload is registered as a Keycloak **client** named `<namespace>/<workload>` (here `team1/weather-agent`), and its credentials are stored in a `kagenti-keycloak-client-credentials-*` secret that the operator mounts into the pod. To call the agent you authenticate **as that client** (an OAuth2 `client_credentials` grant) to obtain an access token, then send it as `Authorization: Bearer <token>`. The token carries the realm issuer as its `aud` claim (via the `kagenti-platform-audience` scope), which is what AuthBridge validates.
+
+Because both Keycloak and the credentials secret live in the cluster, the simplest approach is a short pod that mounts the agent's credentials secret, fetches a token, and calls the agent — no port-forwarding and no secret leaves the cluster.
+
+1. Find the agent's credentials secret name:
+
+   ```bash
+   kubectl get secret -n team1 -o name | grep kagenti-keycloak-client
+   # secret/kagenti-keycloak-client-credentials-<hash>
+   ```
+
+2. Run the authenticated query from a pod. Replace `<credentials-secret>` with the name from step 1:
+
+   ```yaml
+   kubectl apply -f - <<'EOF'
+   apiVersion: v1
+   kind: Pod
+   metadata:
+     name: weather-query
+     namespace: team1
+   spec:
+     restartPolicy: Never
+     containers:
+     - name: query
+       image: docker.io/alaudadockerhub/curl:8.1.2
+       command: ["/bin/sh", "-c"]
+       args:
+       - |
+         CID=$(cat /creds/client-id.txt)
+         CSEC=$(cat /creds/client-secret.txt)
+
+         # 1. Get an access token from Keycloak (client_credentials grant)
+         TOKEN=$(curl -s \
+           http://keycloak-service.keycloak.svc.cluster.local:8080/realms/kagenti/protocol/openid-connect/token \
+           -d grant_type=client_credentials \
+           --data-urlencode "client_id=$CID" \
+           --data-urlencode "client_secret=$CSEC" \
+           | sed 's/.*"access_token":"\([^"]*\)".*/\1/')
+
+         # 2. Call the agent with the token in the Authorization header
+         curl -sS -X POST http://weather-agent.team1.svc.cluster.local:8000/ \
+           -H "Authorization: Bearer $TOKEN" \
+           -H "Content-Type: application/json" \
+           -d '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"What is the weather in NY?"}],"messageId":"m1"}}}'
+       volumeMounts:
+       - name: creds
+         mountPath: /creds
+         readOnly: true
+     volumes:
+     - name: creds
+       secret:
+         secretName: <credentials-secret>
+   EOF
+   ```
+
+3. Read the result and clean up:
+
+   ```bash
+   kubectl logs weather-query -n team1
+   kubectl delete pod weather-query -n team1
+   ```
+
+   You get the same completed A2A task as in [Step 4](#step-4-send-a-query-end-to-end-test) — now through the authenticated, JWT-validated path.
+
+:::info
+To call the agent from **outside** the cluster instead, request the token from a Keycloak endpoint exposed via an Ingress/Gateway, then send the request to the agent's exposed endpoint with the same `Authorization: Bearer <token>` header. The token request is the standard OIDC call: `POST <keycloak>/realms/kagenti/protocol/openid-connect/token` with `grant_type=client_credentials`, `client_id`, and `client_secret`.
 :::
 
 ## Troubleshooting
