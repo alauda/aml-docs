@@ -390,9 +390,12 @@ Because both Keycloak and the credentials secret live in the cluster, the simple
          CID=$(cat /creds/client-id.txt)
          CSEC=$(cat /creds/client-secret.txt)
 
-         # 1. Get an access token from Keycloak (client_credentials grant)
+         # 1. Get an access token from Keycloak (client_credentials grant).
+         # Use the same Keycloak hostname form set as `keycloak.publicUrl` on the
+         # Kagenti operand (the JWT `iss` claim must match what AuthBridge validates).
+         # The recommended in-cluster form is the short svc URL:
          TOKEN=$(curl -s \
-           http://keycloak-service.keycloak.svc.cluster.local:8080/realms/kagenti/protocol/openid-connect/token \
+           http://keycloak-service.keycloak.svc:8080/realms/kagenti/protocol/openid-connect/token \
            -d grant_type=client_credentials \
            --data-urlencode "client_id=$CID" \
            --data-urlencode "client_secret=$CSEC" \

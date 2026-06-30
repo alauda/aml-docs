@@ -100,7 +100,11 @@ spec:
 Do **not** pre-create the `keycloak-initial-admin` secret. The Keycloak operator creates and owns it; a pre-existing secret with that name blocks the operator's reconcile (the `Keycloak` instance never starts).
 :::
 
-The operator exposes the instance in-cluster at `http://keycloak-service.<namespace>.svc.cluster.local:8080` — use this URL as `keycloak.publicUrl` on the `Kagenti` operand.
+The operator exposes the instance in-cluster at `http://keycloak-service.<namespace>.svc:8080` — use this URL as `keycloak.publicUrl` on the `Kagenti` operand.
+
+:::warning
+The value you set as `keycloak.publicUrl` becomes the JWT issuer (`iss`) claim that AuthBridge validates against. **Use the same hostname form you will use to fetch tokens** — typically the short in-cluster service URL `http://keycloak-service.keycloak.svc:8080` (the upstream demo convention). If you pick the FQDN form (`…svc.cluster.local…`), clients fetching tokens must also call that FQDN; mixing the two yields `iss`-mismatch `401`s on otherwise-valid tokens.
+:::
 
 ### When to create a `KeycloakRealmImport`
 
