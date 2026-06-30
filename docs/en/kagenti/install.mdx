@@ -76,6 +76,12 @@ You should see the `agentruntimes`, `agentcards`, and `authorizationpolicies` CR
 
 The operator watches **all namespaces**, so you can enroll agents and tools in any namespace.
 
+## Profiles: Core vs Secure
+
+The empty-spec `Kagenti` resource above selects the **core profile** — agent enrollment, dynamic discovery, and MCP tool integration, with **no** identity sidecars. This is the default and needs only cert-manager.
+
+The **secure profile** layers on zero-trust workload identity (SPIRE mTLS), Keycloak OAuth2/JWT authentication, and an Istio ambient mesh — enforced by an AuthBridge sidecar. It requires additional cluster components (SPIRE, Keycloak, Istio ambient) and a few `Kagenti` spec settings, and each agent namespace must be labeled `kagenti-enabled=true`. To turn it on, see [Enable the Secure Profile](./how_to/enable_secure_profile.mdx); for the architecture, see [Security Architecture](./security_architecture.mdx).
+
 :::info
 A `Succeeded` CSV plus a reconciled `Kagenti` resource means the controllers are running. Agents and tools themselves only appear once you create the workloads and `AgentRuntime` resources — see [Deploy an Agent with AgentRuntime](./how_to/deploy_agent_with_agentruntime.mdx).
 :::

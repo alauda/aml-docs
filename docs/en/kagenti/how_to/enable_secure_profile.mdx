@@ -1,0 +1,102 @@
+---
+weight: 20
+---
+
+# Enable the Secure Profile
+
+The Kagenti Operator ships a **core profile** by default — agent enrollment and discovery, with **no** identity sidecars. The **secure profile** adds zero-trust workload identity (SPIRE mTLS), OAuth2/JWT authentication (Keycloak), and an Istio ambient mesh, all enforced by an **AuthBridge** sidecar injected into every enrolled workload. This guide turns it on. For the architecture and the reasoning, see [Security Architecture](../security_architecture.mdx).
+
+## Prerequisites
+
+The secure profile depends on cluster components that are **not** part of the core install. Install them first, in this order:
+
+1. **cert-manager** — webhook and CA certificates.
+2. **SPIRE** — issues workload SVIDs. Provides the `csi.spiffe.io` CSI driver and a trust bundle ConfigMap (`spire-bundle`). Note its **trust domain** (e.g. `kagenti.local`).
+3. **Keycloak** — an instance reachable in-cluster, with a `keycloak-initial-admin` secret in its namespace and the `token-exchange` feature enabled.
+4. **Istio (ambient)** — `ztunnel` + `istio-cni` for namespace-level mTLS.
+
+:::info
+On <Term name="company" /> AI these map to: cert-manager (built-in), the **SPIRE** cluster plugin, the **Keycloak** operator plus a `Keycloak` instance, and **Service Mesh v2** with ambient enabled (the `Istio` CR `profile: ambient` plus a `ZTunnel`).
+:::
+
+## 1. Enable the secure profile on the operand
+
+Patch the `Kagenti` custom resource to turn on sidecar injection and point it at your Keycloak and SPIRE trust domain:
+
+```yaml
+apiVersion: kagenti.alauda.io/v1alpha1
+kind: Kagenti
+metadata:
+  name: kagenti
+  namespace: kagenti-system
+spec:
+  featureGates:
+    globalEnabled: true   # [!code callout]
+    injectTools: true
+  authbridgeConfig:
+    enabled: true         # [!code callout]
+  keycloak:
+    publicUrl: http://keycloak-service.keycloak.svc.cluster.local:8080  # [!code callout]
+  defaults:
+    spiffe:
+      trustDomain: kagenti.local   # [!code callout]
+    images:                        # [!code callout]
+      envoyProxy: <registry>/authbridge-envoy:<tag>
+      authbridge: <registry>/authbridge:<tag>
+      authbridgeLite: <registry>/authbridge-lite:<tag>
+      proxyInit: <registry>/proxy-init:<tag>
+```
+
+<Callouts>
+
+1. `featureGates.globalEnabled` — the master switch for AuthBridge sidecar injection. `injectTools: true` extends injection to `tool` workloads so agent↔tool traffic is also secured.
+2. `authbridgeConfig.enabled` — turns on operator-managed Keycloak client registration, the per-namespace `authbridge-config` ConfigMap (issuer / audience), and the realm bootstrap.
+3. `keycloak.publicUrl` — the in-cluster Keycloak URL; it becomes the token **issuer** and **expected audience** that AuthBridge validates.
+4. `defaults.spiffe.trustDomain` — must match your SPIRE trust domain.
+5. `defaults.images` — the `kagenti-extensions` AuthBridge images (`spiffe-helper` is bundled inside them). Relocate them into a registry your cluster can pull; the operator bundle also records them in `relatedImages`.
+
+</Callouts>
+
+When `authbridgeConfig.enabled` is `true` **and** a Keycloak instance already exists in the configured namespace, the operator **automatically imports the `kagenti` realm** into it (a `KeycloakRealmImport` carrying the platform client and the `kagenti-platform-audience` scope) — no manual realm setup is required.
+
+## 2. Opt namespaces into the secure profile
+
+The operator only manages identity in namespaces that are explicitly opted in. **Label every namespace that runs secured agents or tools:**
+
+```bash
+kubectl label namespace <agent-namespace> kagenti-enabled=true
+```
+
+:::warning
+This label is required. Without `kagenti-enabled=true`, the operator does **not** create the `authbridge-config` ConfigMap for that namespace, and Keycloak client registration for its workloads never starts (the workloads stay pending on the missing credentials secret).
+:::
+
+## 3. Deploy a secured agent
+
+Deploy your agent, tool, and `AgentRuntime` resources exactly as in [Deploy an Agent with AgentRuntime](./deploy_agent_with_agentruntime.mdx). With the secure profile on, the AuthBridge webhook injects an `authbridge-proxy` sidecar and a SPIRE SVID into each enrolled pod, and the operator registers a Keycloak client per workload.
+
+:::info The agent image must honor `$PORT`
+In proxy-sidecar mode the AuthBridge reverse-proxy binds the workload's **service port**, and the operator remaps the application to a `PORT` env value (e.g. `8001`). The agent container **must bind `$PORT`** rather than a hardcoded port, or it collides with the reverse-proxy (`address already in use`). The upstream weather example honors `PORT` from `v0.1.0` onward.
+:::
+
+## 4. Verify
+
+```bash
+# AuthBridge sidecar injected (app container + authbridge-proxy)
+kubectl get pod -n <ns> -l kagenti.io/type=agent \
+  -o jsonpath='{.items[0].spec.containers[*].name}{"\n"}'
+
+# SPIRE SVID delivered to the sidecar
+kubectl exec -n <ns> <agent-pod> -c authbridge-proxy -- ls -l /opt/svid.pem
+
+# Keycloak client registered (credentials secret created + mounted)
+kubectl get secret -n <ns> | grep kagenti-keycloak-client
+```
+
+The mesh now enforces authentication. An **unauthenticated** request is rejected:
+
+```json
+{"error":"auth.unauthorized","message":"missing Authorization header","plugin":"jwt-validation"}
+```
+
+A successful request must carry a valid Keycloak access token whose audience matches the realm issuer — obtain one with a `client_credentials` grant using the workload's registered client (`<namespace>/<workload>`, secret from `kagenti-keycloak-client-credentials-*`) and send it as `Authorization: Bearer <token>`.
