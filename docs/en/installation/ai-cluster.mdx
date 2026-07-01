@@ -409,7 +409,89 @@ In **Administrator** view:
       the oauth2-proxy cookie exceed browser or ingress header size limits and
       cause login loops or HTTP 431/400 errors.
 
-10. **(Optional)** If you want to enable Knative functionality, update the `AmlCluster` YAML to reference the `KnativeServing` instance:
+10. **(Optional)** Configure the languages available in the Alauda AI console.
+
+    Alauda AI reads the available console languages from
+    `spec.i18n.languages` in the `AmlCluster` instance. The default value is
+    `en`.
+
+    Supported language codes are:
+
+    | Code | Language |
+    | --- | --- |
+    | `zh` | Chinese (Simplified) |
+    | `en` | English |
+    | `fr` | French |
+    | `ru` | Russian |
+    | `ja` | Japanese |
+    | `ko` | Korean |
+    | `de` | German |
+    | `es` | Spanish |
+    | `it` | Italian |
+    | `pt-BR` | Portuguese (Brazil) |
+    | `zh-TW` | Chinese (Traditional) |
+
+    `en` and `zh` are built-in languages. Other languages only add the
+    language as a selectable entry. To switch to those languages successfully,
+    you must also provide the corresponding translation file.
+
+    You can use the built-in English and Chinese translation files as
+    references when preparing translation files for other languages:
+
+    ```text
+    /clusters/<cluster-name>/aml/console-aml/assets/i18n/en/lich-single.json
+    /clusters/<cluster-name>/aml/console-aml/assets/i18n/zh/lich-single.json
+    ```
+
+    Generate the target-language translation from these files, or contact
+    Alauda to obtain the latest translation content for the required language.
+
+    For example, to make English, Chinese, and French selectable in the
+    console, update the `AmlCluster` YAML:
+
+    ```yaml
+    spec:
+      i18n:
+        languages:
+          - en
+          - zh
+          - fr
+    ```
+
+    Then create a translation file `ConfigMap` for French in the
+    `cpaas-system` namespace:
+
+    ```yaml
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      labels:
+        image-load-config: "true"
+      name: aml-i18n-fr
+      namespace: cpaas-system
+    data:
+      overrides: |
+        [{
+          "dest": "/console-i18n/fr/lich-single.json",
+          "configMap": {
+             "name": "aml-i18n-fr",
+             "key": "lich-single.json"
+          }
+        }]
+      lich-single.json: |
+        {
+          "nav_model_repo": "Referentiel de modeles",
+          "nav_infer_svc": "Service d'inference",
+          "workbench": "Workbench",
+          "tool": "Outils"
+        }
+    ```
+
+    Use the same pattern for other non-built-in languages by replacing `fr`
+    with the target language code and providing the translated
+    `lich-single.json` content.
+
+11. **(Optional)** If you want to enable Knative functionality, update the `AmlCluster` YAML to reference the `KnativeServing` instance:
 
     :::info
     Configure this only if you installed the Knative Operator and created the
@@ -429,7 +511,7 @@ In **Administrator** view:
           managementState: Unmanaged
     ```
 
-11. Under **Model Catalog** section, configure the following parameters:
+12. Under **Model Catalog** section, configure the following parameters:
 
     - **Model OCI Registry Address**: Registry address hosting model OCI artifacts for Model Catalog. This field has no default value and must be configured for your environment.
 
@@ -449,7 +531,7 @@ In **Administrator** view:
     - **Source of PVC**: Choose whether to reuse an existing PVC or create a new one. Use `CreateNew` to let the installation create the PVC.
     - **StorageClass Name**: StorageClass used when creating a new PVC.
 
-12. If you plan to use `llm-d` or `vLLM-ascend`, set KServe Modelcar UID to `0`. The default value is `1000`.
+13. If you plan to use `llm-d` or `vLLM-ascend`, set KServe Modelcar UID to `0`. The default value is `1000`.
 
     ```yaml
     spec:
@@ -463,7 +545,7 @@ In **Administrator** view:
 
     This setting is cluster-level and affects all Modelcar workloads in the Alauda AI installation cluster.
 
-13. Review the configuration and save the `default` `AmlCluster` instance.
+14. Review the configuration and save the `default` `AmlCluster` instance.
 
 ### Verification
 
