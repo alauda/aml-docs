@@ -53,7 +53,7 @@ spec:
 2. `authbridgeConfig.enabled` — turns on operator-managed Keycloak client registration, the per-namespace `authbridge-config` ConfigMap (issuer / audience), and the realm bootstrap.
 3. `keycloak.publicUrl` — the in-cluster Keycloak URL; it becomes the token **issuer** and **expected audience** that AuthBridge validates.
 4. `defaults.spiffe.trustDomain` — must match your SPIRE trust domain.
-5. `defaults.images` — the `kagenti-extensions` AuthBridge images (`spiffe-helper` is bundled inside them). Relocate them into a registry your cluster can pull; the operator bundle also records them in `relatedImages`.
+5. `defaults.images` — the AuthBridge sidecar images (`spiffe-helper` is bundled inside them). Relocate them into a registry your cluster can pull; the operator bundle also records them in `relatedImages`.
 
 </Callouts>
 

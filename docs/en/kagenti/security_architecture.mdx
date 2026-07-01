@@ -132,7 +132,7 @@ The sidecar mode is selected per agent through `spec.authBridgeMode`:
 | `lite` | Slimmed proxy | Minimal footprint |
 | `waypoint` | Standalone waypoint | For Istio ambient waypoints |
 
-The Envoy/proxy and `spiffe-helper` images ship in the companion `kagenti-extensions` image set, which must be available to the cluster when the secure profile is enabled.
+The Envoy/proxy and `spiffe-helper` images ship in the companion AuthBridge sidecar image set, which must be available to the cluster when the secure profile is enabled.
 
 ## AgentRuntime security fields \{#agentruntime-security-fields}
 
@@ -173,7 +173,7 @@ The secure profile depends on cluster components that are **not** part of the co
 3. **Keycloak** — issues and validates OAuth2/OIDC tokens; the operator registers agents as clients.
 4. **Istio (ambient)** — provides the mesh and ztunnel mTLS; a `Kuadrant` custom resource is required for ambient gateways.
 
-Then enable the operator feature gates (`featureGates.globalEnabled: true`, `authbridgeConfig.enabled: true`) so the AuthBridge webhook begins injecting, make the `kagenti-extensions` images available, and set the `AgentRuntime` security fields shown above.
+Then enable the operator feature gates (`featureGates.globalEnabled: true`, `authbridgeConfig.enabled: true`) so the AuthBridge webhook begins injecting, make the AuthBridge sidecar images available, and set the `AgentRuntime` security fields shown above.
 
 :::info
 Enabling the secure profile is a substantial platform effort compared with core agent enablement. Validate it on a non-production cluster first, and roll out `mtlsMode` as `permissive` before switching to `strict`.

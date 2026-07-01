@@ -4,7 +4,7 @@ weight: 27
 
 # Demo Advanced: AuthBridge on the Tool with Token Exchange
 
-The [Demo with Secure Profile](./demo_with_secure_profile.mdx) puts AuthBridge only on the agent — the tool is a plain workload and the agent → tool hop is a bare in-cluster HTTP call. This guide is the **advanced** variant of the same weather demo, adapted from the upstream [`weather-agent/demo-ui-advanced.md`](https://github.com/kagenti/kagenti-extensions/blob/main/authbridge/demos/weather-agent/demo-ui-advanced.md) pattern: AuthBridge is injected on **both** sides, and each agent-to-tool call goes through an **OAuth 2.0 RFC 8693 token exchange** so the token the tool sees is audience-scoped to the tool.
+The [Demo with Secure Profile](./demo_with_secure_profile.mdx) puts AuthBridge only on the agent — the tool is a plain workload and the agent → tool hop is a bare in-cluster HTTP call. This guide is the **advanced** variant of the same weather demo: AuthBridge is injected on **both** sides, and each agent-to-tool call goes through an **OAuth 2.0 RFC 8693 token exchange** so the token the tool sees is audience-scoped to the tool.
 
 Concretely:
 
@@ -14,9 +14,20 @@ Concretely:
 
 We use the naming suffix `-advanced` on every resource so this demo can co-exist with the basic secure-profile demo in the same `team1` namespace.
 
-:::info Alauda client-id convention differs from upstream
-The upstream demo uses the tool's **SPIFFE URI** (`spiffe://<trustDomain>/ns/team1/sa/weather-tool-advanced`) as the Keycloak client identifier — and therefore as the `target_audience` on the route. The Alauda operator's `ClientRegistrationReconciler` instead registers each workload with the short `<namespace>/<workload>` form (here `team1/weather-tool-advanced`). Every route target_audience and every Keycloak audience mapper in this guide is written to that short form. If you follow the upstream script or docs verbatim, the exchange will look up a non-existent client and fail.
-:::
+## ConfigMaps involved
+
+The advanced demo touches two AuthBridge-related ConfigMaps in the demo namespace:
+
+| ConfigMap | Managed by | Purpose |
+|-----------|------------|---------|
+| `authbridge-config` (plus one `authbridge-config-<workload>` per workload) | The operator — you do not create these. | Baseline sidecar config: Keycloak URL / realm, issuer, mTLS mode, plugin pipeline. |
+| **`authproxy-routes`** — with a single `routes.yaml` key | **You create it** in Step 3 below. | Per-host outbound rules that tell the agent's `token-exchange` plugin *"when the outbound `Host` header matches this pattern, exchange the current JWT for a token whose `aud` claim is this audience, requesting these scopes"*. |
+
+`authproxy-routes` is the only piece that requires an explicit `kubectl apply` from you.
+
+## Keycloak client-id convention
+
+The operator's `ClientRegistrationReconciler` registers each workload with Keycloak using the short `<namespace>/<workload>` form (for this demo: `team1/weather-tool-advanced` and `team1/weather-service-advanced`). Every `target_audience` on a route and every audience mapper on a Keycloak client scope in this guide is written to that short form — that is what the tool's own inbound JWT-validation plugin expects to see in the exchanged token's `aud` claim.
 
 ## Prerequisites
 
