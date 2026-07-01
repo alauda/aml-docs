@@ -14,7 +14,7 @@ Before starting, make sure:
 
 1. The **secure-profile dependencies are installed** — cert-manager, SPIRE, Keycloak, Istio ambient mesh. See [Install the Secure-Profile Dependencies](./install_secure_dependencies.mdx).
 2. The **secure profile is enabled** on the `Kagenti` operand (`spec.featureGates.globalEnabled: true`, `spec.authbridgeConfig.enabled: true`, `spec.keycloak.publicUrl` set). See [Enable the Secure Profile](./enable_secure_profile.mdx).
-3. An **InferenceService that serves an OpenAI-compatible chat API** is reachable in-cluster. This guide uses `qwen36-27b-gguf` in `zgsu-ns1`; substitute your own everywhere you see those names — see [the model-endpoint recipe in the quick start](./deploy_agent_with_agentruntime.mdx#find-your-model-endpoint-and-name) for how to resolve `LLM_API_BASE`, `LLM_MODEL`, and `LLM_API_KEY`.
+3. An **InferenceService that serves an OpenAI-compatible chat API** is reachable in-cluster. This guide uses `qwen36-27b-gguf` in `models`; substitute your own everywhere you see those names — see [the model-endpoint recipe in the quick start](./deploy_agent_with_agentruntime.mdx#find-your-model-endpoint-and-name) for how to resolve `LLM_API_BASE`, `LLM_MODEL`, and `LLM_API_KEY`.
 4. `kubectl` access to the target cluster.
 
 Create the demo namespace and opt it into the secure profile:
@@ -135,7 +135,7 @@ spec:
         - name: MCP_URL
           value: http://weather-tool-mcp.team1.svc.cluster.local:8000/mcp
         - name: LLM_API_BASE
-          value: http://qwen36-27b-gguf-predictor.zgsu-ns1.svc.cluster.local/v1
+          value: http://qwen36-27b-gguf-predictor.models.svc.cluster.local/v1
         - name: LLM_API_KEY
           value: dummy
         - name: LLM_MODEL

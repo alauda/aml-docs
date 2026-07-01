@@ -51,7 +51,7 @@ Before starting:
    kubectl label namespace team1 kagenti-enabled=true --overwrite
    ```
 
-4. An **InferenceService that serves an OpenAI-compatible chat API** (this guide uses `qwen36-27b-gguf` in `zgsu-ns1`).
+4. An **InferenceService that serves an OpenAI-compatible chat API** (this guide uses `qwen36-27b-gguf` in `models`).
 5. `kubectl` access to the cluster with permission to read `keycloak-initial-admin` in the `keycloak` namespace.
 
 The clients this demo relies on end up in Keycloak with the following names — you will refer back to these throughout the guide:
@@ -339,7 +339,7 @@ spec:
         - name: MCP_URL
           value: http://weather-tool-advanced-mcp.team1.svc.cluster.local:8000/mcp
         - name: LLM_API_BASE
-          value: http://qwen36-27b-gguf-predictor.zgsu-ns1.svc.cluster.local/v1
+          value: http://qwen36-27b-gguf-predictor.models.svc.cluster.local/v1
         - name: LLM_API_KEY
           value: dummy
         - name: LLM_MODEL

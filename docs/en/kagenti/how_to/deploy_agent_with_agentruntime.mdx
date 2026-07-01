@@ -43,11 +43,11 @@ kubectl run modelq --rm -i --restart=Never -n <model-namespace> \
   curl -sS http://<isvc-name>-predictor.<model-namespace>.svc.cluster.local/v1/models
 ```
 
-For the `qwen36-27b-gguf` InferenceService deployed in namespace `zgsu-ns1`, that resolves to:
+For the `qwen36-27b-gguf` InferenceService deployed in namespace `models`, that resolves to:
 
 | Variable | Value |
 |----------|-------|
-| `LLM_API_BASE` | `http://qwen36-27b-gguf-predictor.zgsu-ns1.svc.cluster.local/v1` |
+| `LLM_API_BASE` | `http://qwen36-27b-gguf-predictor.models.svc.cluster.local/v1` |
 | `LLM_MODEL` | `qwen36-27b-gguf` |
 | `LLM_API_KEY` | `dummy` (any non-empty value; the in-cluster endpoint needs no key) |
 
@@ -169,7 +169,7 @@ spec:
         - name: MCP_URL
           value: http://weather-tool-mcp.team1.svc.cluster.local:8000/mcp # [!code callout]
         - name: LLM_API_BASE
-          value: http://qwen36-27b-gguf-predictor.zgsu-ns1.svc.cluster.local/v1 # [!code callout]
+          value: http://qwen36-27b-gguf-predictor.models.svc.cluster.local/v1 # [!code callout]
         - name: LLM_API_KEY
           value: dummy
         - name: LLM_MODEL
