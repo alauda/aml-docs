@@ -55,7 +55,11 @@ Substitute your own InferenceService name, namespace, and model id throughout th
 
 ## Step 1: Deploy the MCP tool server
 
-The MCP (Model Context Protocol) server provides the `get_weather` tool the agent calls. Deploy it, expose it with a Service, and enroll it as a `tool`-type `AgentRuntime`.
+The MCP (Model Context Protocol) server provides the `get_weather` tool the agent calls. Deploy it and expose it with a Service. **This guide follows the upstream weather-agent demo pattern**: the tool workload runs as a plain `Deployment` with **no `AgentRuntime` and no AuthBridge sidecar** — a Kagenti `AgentRuntime` is only created for the agent side. The security posture (see [Security architecture](../security_architecture.mdx)) is inbound-only on the agent: the agent's AuthBridge validates the client's JWT, then the agent → tool call is a plain in-cluster HTTP hop, and the tool reaches its public data source (`geocoding-api.open-meteo.com`) directly.
+
+:::info
+Injection into tool workloads is off by default: the Kagenti operand's `spec.featureGates.injectTools` defaults to `false`, so tagging a Deployment with `kagenti.io/type: tool` does **not** on its own inject a sidecar. Flip `injectTools: true` on the `Kagenti` operand only when you need inbound JWT validation on the tool itself (or outbound token exchange from the tool). Injecting an AuthBridge sidecar into the tool would also route the tool's outbound calls through its HTTP forward proxy, which is HTTP-only and blocks external HTTPS with a `CONNECT` `405`; see [Allowing outbound traffic in `proxy-sidecar` mode](#allowing-outbound-traffic-in-proxy-sidecar-mode) for the `NO_PROXY` escape hatch when you do need injection on the tool.
+:::
 
 ```yaml
 kubectl apply -f - <<EOF
@@ -108,18 +112,6 @@ spec:
   - name: http
     port: 8000
     targetPort: 8000
----
-apiVersion: agent.kagenti.dev/v1alpha1
-kind: AgentRuntime
-metadata:
-  name: weather-tool
-  namespace: team1
-spec:
-  type: tool # [!code callout]
-  targetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: weather-tool
 EOF
 ```
 
@@ -127,7 +119,6 @@ EOF
 
 1. The MCP server image, mirrored to `docker.io/alaudadockerhub`. On an air-gapped cluster use the copy relocated into your platform registry.
 2. The Service the agent will reach at `http://weather-tool-mcp.team1.svc.cluster.local:8000/mcp`. The operator does **not** create this Service for you, so you define it explicitly and select the tool's pods.
-3. `spec.type: tool` enrolls the workload as an MCP tool; the operator applies the `kagenti.io/type: tool` label.
 
 </Callouts>
 
@@ -135,10 +126,12 @@ Wait for the tool to be ready:
 
 ```bash
 kubectl rollout status deploy/weather-tool -n team1
-kubectl get agentruntime weather-tool -n team1
-# NAME           TYPE   TARGET         READY   AGE
-# weather-tool   tool   weather-tool   True    1m
+kubectl get pod -n team1 -l app.kubernetes.io/name=weather-tool
+# NAME                            READY   STATUS    RESTARTS   AGE
+# weather-tool-XXXXXXXXXX-YYYYY   1/1     Running   0          1m
 ```
+
+`READY 1/1` confirms the tool is running as a single container — the agent side is the only workload with an injected AuthBridge sidecar (`READY 2/2`, added in the next step).
 
 ## Step 2: Deploy the agent
 
@@ -232,11 +225,10 @@ When the `AgentRuntime` is created, the controller will:
 ## Step 3: Check status
 
 ```bash
-# AgentRuntime status
+# AgentRuntime status — only the agent side has one in this pattern
 kubectl get agentruntime -n team1
 # NAME                    TYPE    TARGET          READY   AGE
 # weather-agent-runtime   agent   weather-agent   True    1m
-# weather-tool            tool    weather-tool    True    6m
 
 # Conditions (core profile: MTLSReady is False with reason SPIREUnavailable — expected)
 kubectl get agentruntime weather-agent-runtime -n team1 \
@@ -249,6 +241,12 @@ kubectl get agentruntime weather-agent-runtime -n team1 \
 
 # Labels applied by the operator
 kubectl get deployment weather-agent -n team1 --show-labels
+
+# Pods: agent 2/2 (sidecar injected), tool 1/1 (no sidecar)
+kubectl get pods -n team1
+# NAME                             READY   STATUS    RESTARTS   AGE
+# weather-agent-XXXXXXXXX-YYYYY    2/2     Running   0          1m
+# weather-tool-XXXXXXXXX-YYYYY     1/1     Running   0          6m
 
 # The AgentCard is created and synced automatically
 kubectl get agentcards -n team1
@@ -306,7 +304,7 @@ You can watch the interaction in the logs:
 kubectl logs -f -l app.kubernetes.io/name=weather-agent -n team1
 
 # MCP tool logs (in another terminal)
-kubectl logs -f -l kagenti.io/type=tool -n team1
+kubectl logs -f -l app.kubernetes.io/name=weather-tool -n team1
 ```
 
 ## Updating and deleting an AgentRuntime
@@ -317,7 +315,6 @@ Deleting the `AgentRuntime` performs a graceful cleanup: the controller removes 
 
 ```bash
 kubectl delete agentruntime weather-agent-runtime -n team1
-kubectl delete agentruntime weather-tool -n team1
 ```
 
 ## Clean up
@@ -511,9 +508,11 @@ Use **`envoy-sidecar`** when you specifically need:
 
 ### Allowing outbound traffic in `proxy-sidecar` mode
 
-AuthBridge's HTTP forward proxy is **HTTP-only** — it responds `405 Method Not Allowed` to `CONNECT`, so an app making an outbound HTTPS request through the sidecar hits `Tunnel connection failed: 405`. This is by design: the outbound `token-exchange` plugin needs to read and modify request headers, which is not possible through an opaque TLS tunnel.
+**The upstream weather-agent demo pattern this guide follows — no `AgentRuntime` and no sidecar on tool workloads (`spec.featureGates.injectTools: false` is the operand default) — sidesteps this issue entirely**: the tool runs as a single container without `HTTP_PROXY`/`HTTPS_PROXY` env, so its outbound calls to public APIs go direct via the pod's default egress. This is the recommended layout when the tool doesn't need its own inbound JWT validation or outbound token exchange.
 
-Two consequences worth knowing:
+The rest of this section applies only when you deliberately inject an AuthBridge sidecar into a workload that also needs external HTTPS (typically by flipping `injectTools: true` on the `Kagenti` operand, or by adding `kagenti.io/authbridge-inject: "true"` to an individual Deployment). AuthBridge's HTTP forward proxy is **HTTP-only** — it responds `405 Method Not Allowed` to `CONNECT`, so an injected app making an outbound HTTPS request through the sidecar hits `Tunnel connection failed: 405`. This is by design: the outbound `token-exchange` plugin needs to read and modify request headers, which is not possible through an opaque TLS tunnel.
+
+Two consequences worth knowing when you have a sidecar on an outbound-heavy workload:
 
 1. **In-cluster HTTP** works out of the box (agent → tool, LLM). No configuration needed.
 2. **External HTTPS** (a public API such as `geocoding-api.open-meteo.com` used by the weather MCP tool) needs to bypass the sidecar. Add the destination hostnames to `NO_PROXY` on the **app** container. The kagenti webhook sets `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` **only if not already present** on the container, so pre-declaring `NO_PROXY` on the workload cleanly overrides the default:
@@ -546,6 +545,7 @@ Two consequences worth knowing:
 |---------|--------|
 | `AgentRuntime` not `Ready` | `kubectl describe agentruntime <name> -n team1` — confirm `TargetResolved`. A common cause is the target Deployment or its Service not existing yet. |
 | Agent returns no answer / times out | Check the agent can reach the model: `LLM_API_BASE` resolves and `/v1/models` lists `LLM_MODEL`. Inspect `kubectl logs -l app.kubernetes.io/name=weather-agent -n team1` for LLM connection errors. |
-| Agent answers without live data | Verify `MCP_URL` points at the `weather-tool-mcp` Service and the tool pod is `Running`: `kubectl logs -l kagenti.io/type=tool -n team1`. |
+| Agent answers without live data | Verify `MCP_URL` points at the `weather-tool-mcp` Service and the tool pod is `Running`: `kubectl logs -l app.kubernetes.io/name=weather-tool -n team1`. |
+| Tool "weather service temporarily unavailable" | The tool's `get_weather` calls `geocoding-api.open-meteo.com` — a public HTTPS endpoint. With the recommended pattern (no sidecar on the tool) this works directly. If you injected a sidecar into the tool, the `HTTP_PROXY` env routes HTTPS through AuthBridge, which rejects `CONNECT` with `405`; either revert to the no-sidecar layout or add the destination to `NO_PROXY` — see [Allowing outbound traffic in `proxy-sidecar` mode](#allowing-outbound-traffic-in-proxy-sidecar-mode). |
 | `ImagePullBackOff` | On clusters without `docker.io` egress, relocate the images into your platform registry (e.g. via `violet`) and reference that copy. |
 | `MTLSReady=False` | Expected in the core profile (reason `SPIREUnavailable`); it does not affect agent or tool functionality. |
