@@ -462,7 +462,12 @@ data:
 ```
 
 :::warning
-The Envoy config template in this release wires transport security through file-based SDS but the operator does not yet render matching SPIRE-issued SVIDs into Envoy. `envoy-sidecar` therefore currently requires `mtls.mode: disabled` in the namespace `authbridge-runtime-config`; without it Envoy crash-loops on `Invalid path: /opt/svid_bundle.pem`. Use `proxy-sidecar` when mutual TLS between sidecars is required — its byte-peek listener implements `permissive` / `strict` modes today.
+`envoy-sidecar` **boots cleanly with `mtls.mode: permissive` since kagenti-extensions v0.6.0-alpha.9-aml.1** — the `authbridge-envoy` binary now writes X.509 SVIDs to `/opt/svid*.pem` in-process via go-spiffe, which is what the operator's Envoy filesystem-SDS config expects. However, two operator-template gaps remain and are being tracked for a follow-up release:
+
+- **Inbound auth enforcement**: the Envoy config template injects `x-authbridge-direction: inbound` at route level, which the router filter applies *after* `ext_proc`. AuthBridge therefore classifies inbound requests as outbound and applies the default passthrough policy — the JWT-validation plugin never runs. A follow-up patch moves the header injection into a Lua HTTP filter placed before `ext_proc`.
+- **External HTTPS through the sidecar**: Envoy's outbound listener assumes HTTP, so a client TLS handshake to an arbitrary public host is parsed as HTTP and mangled. There is no `NO_PROXY` escape hatch in this mode; a follow-up will add a `spec.egressBypass` field on the `Kagenti` operand that flows through to a proxy-init `OUTBOUND_PORTS_EXCLUDE` / hosts allowlist.
+
+**Recommendation for the current release:** use `proxy-sidecar` in production. Its inbound JWT validation and the `NO_PROXY` outbound-egress option (see below) are both verified end-to-end by the operator's [`e2e/`](https://gitlab-ce.alauda.cn/aml/kagenti-operator/-/tree/alauda/secure-profile/e2e) smoke Job. `envoy-sidecar` is fine for booting and inspecting the data path but should not be relied on for production auth enforcement until the two items above land.
 :::
 
 ### Reload after mode changes
