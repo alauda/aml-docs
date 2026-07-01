@@ -430,6 +430,111 @@ Because both Keycloak and the credentials secret live in the cluster, the simple
 To call the agent from **outside** the cluster instead, request the token from a Keycloak endpoint exposed via an Ingress/Gateway, then send the request to the agent's exposed endpoint with the same `Authorization: Bearer <token>` header. The token request is the standard OIDC call: `POST <keycloak>/realms/kagenti/protocol/openid-connect/token` with `grant_type=client_credentials`, `client_id`, and `client_secret`.
 :::
 
+## AuthBridge deployment modes
+
+AuthBridge can be injected in one of two shapes. The **mode** decides which sidecar image is added, how inbound traffic is validated, and how outbound traffic is intercepted. It is a **per-namespace** default (an admin knob), not a per-workload one — every agent and MCP tool in the namespace shares the same mode.
+
+| Mode | Sidecar container / image | Inbound (client → workload) | Outbound (workload → other services) |
+|------|---------------------------|-----------------------------|--------------------------------------|
+| **`proxy-sidecar`** (default) | `authbridge-proxy` container, image `authbridge`. | Reverse proxy on the workload's service port → JWT validation → forwards to the app on a shifted port. | **Cooperative**: the webhook injects `HTTP_PROXY` / `HTTPS_PROXY` env vars pointing at the sidecar's HTTP forward proxy on `:8081`. The app opts in by honouring those env vars. |
+| **`envoy-sidecar`** | `envoy-proxy` container, image `authbridge-envoy` (Envoy + authbridge as ext_proc). Adds a `proxy-init` initContainer that installs iptables rules. | Transparent redirect: iptables sends inbound traffic to Envoy, which calls authbridge over gRPC ext_proc for JWT validation. | **Transparent**: iptables redirects outbound TCP to Envoy's outbound listener. No `HTTP_PROXY` env vars are set on the app. |
+
+### Selecting the mode
+
+The mode is resolved in this order (first non-empty wins):
+
+1. The namespace ConfigMap **`authbridge-runtime-config`** — `mode:` field inside `config.yaml`.
+2. Cluster-wide default: `proxy-sidecar`.
+
+To switch a namespace to `envoy-sidecar`, apply a ConfigMap and restart the agent + tool deployments (see [Reload after mode changes](#reload-after-mode-changes)):
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authbridge-runtime-config
+  namespace: team1
+data:
+  config.yaml: |
+    mode: envoy-sidecar
+    mtls:
+      mode: disabled
+```
+
+:::warning
+The Envoy config template in this release wires transport security through file-based SDS but the operator does not yet render matching SPIRE-issued SVIDs into Envoy. `envoy-sidecar` therefore currently requires `mtls.mode: disabled` in the namespace `authbridge-runtime-config`; without it Envoy crash-loops on `Invalid path: /opt/svid_bundle.pem`. Use `proxy-sidecar` when mutual TLS between sidecars is required — its byte-peek listener implements `permissive` / `strict` modes today.
+:::
+
+### Reload after mode changes
+
+Both the manager and the per-workload injected config are cached at pod-create time, so a mode change needs three actions:
+
+```bash
+# 1. Roll the operator so it picks up the new namespace ConfigMap.
+kubectl -n kagenti-system rollout restart deploy/kagenti-controller-manager
+
+# 2. Delete stale per-workload ConfigMaps so the webhook re-renders them
+#    with the new mode. (Kept for both modes; the operator preserves
+#    existing values, see issue upstream #433.)
+kubectl -n team1 delete cm envoy-config-weather-agent envoy-config-weather-tool 2>/dev/null
+
+# 3. Recycle the workloads so the webhook re-injects the sidecars.
+kubectl -n team1 rollout restart deploy/weather-agent deploy/weather-tool
+```
+
+Confirm the injection happened as expected:
+
+```bash
+# proxy-sidecar: container "authbridge-proxy" runs image "authbridge:..."
+# envoy-sidecar: container "envoy-proxy" runs image "authbridge-envoy:...",
+#                and an "proxy-init" initContainer appears.
+kubectl -n team1 get pod -l app=weather-agent -o jsonpath='{range .spec.containers[*]}{.name}={.image}{"\n"}{end}'
+```
+
+### When to use each mode
+
+Use **`proxy-sidecar`** (the default) when any of the following applies — this is the tested-and-supported path for the current release:
+
+- You want sidecar-to-sidecar mTLS (`permissive` or `strict`).
+- You are only calling other in-cluster HTTP services (agent → MCP tool, LLM InferenceService, etc.). No `CONNECT`-tunnelling needed.
+- SPIRE is not required for the workloads.
+
+Use **`envoy-sidecar`** when you specifically need:
+
+- Envoy's routing / observability features on the data path.
+- Transparent iptables interception (no `HTTP_PROXY` env on the app).
+
+### Allowing outbound traffic in `proxy-sidecar` mode
+
+AuthBridge's HTTP forward proxy is **HTTP-only** — it responds `405 Method Not Allowed` to `CONNECT`, so an app making an outbound HTTPS request through the sidecar hits `Tunnel connection failed: 405`. This is by design: the outbound `token-exchange` plugin needs to read and modify request headers, which is not possible through an opaque TLS tunnel.
+
+Two consequences worth knowing:
+
+1. **In-cluster HTTP** works out of the box (agent → tool, LLM). No configuration needed.
+2. **External HTTPS** (a public API such as `geocoding-api.open-meteo.com` used by the weather MCP tool) needs to bypass the sidecar. Add the destination hostnames to `NO_PROXY` on the **app** container. The kagenti webhook sets `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` **only if not already present** on the container, so pre-declaring `NO_PROXY` on the workload cleanly overrides the default:
+
+   ```yaml
+   apiVersion: apps/v1
+   kind: Deployment
+   metadata:
+     name: weather-tool
+     namespace: team1
+   spec:
+     template:
+       spec:
+         containers:
+         - name: mcp                 # the app container, not the sidecar
+           env:
+           - name: NO_PROXY
+             value: "127.0.0.1,localhost,.svc,.svc.cluster.local,geocoding-api.open-meteo.com,api.open-meteo.com"
+   ```
+
+   Effect: outbound calls to any host **not** matched by `NO_PROXY` still route through the AuthBridge sidecar (and remain eligible for outbound token exchange, tracing, etc.); the listed public API calls bypass the sidecar and go direct via the pod's default egress. The cluster's egress network policy — not AuthBridge — governs whether the traffic actually reaches the public destination.
+
+   :::info
+   Only add the hosts you need to reach externally. Every entry in `NO_PROXY` is a hole in the outbound-inspection path — the sidecar can no longer inject Bearer tokens on that hostname.
+   :::
+
 ## Troubleshooting
 
 | Symptom | Checks |
