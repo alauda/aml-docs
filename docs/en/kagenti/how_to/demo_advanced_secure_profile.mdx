@@ -1,0 +1,562 @@
+---
+weight: 27
+---
+
+# Demo Advanced: AuthBridge on the Tool with Token Exchange
+
+The [Demo with Secure Profile](./demo_with_secure_profile.mdx) puts AuthBridge only on the agent — the tool is a plain workload and the agent → tool hop is a bare in-cluster HTTP call. This guide is the **advanced** variant of the same weather demo: AuthBridge is injected on **both** sides, and each agent-to-tool call goes through an **OAuth 2.0 RFC 8693 token exchange** so the token the tool sees is audience-scoped to the tool.
+
+Concretely:
+
+- The **agent's AuthBridge** matches the outbound host against an `authproxy-routes` rule, exchanges its inbound JWT for a new access token whose `aud` claim is the tool's Keycloak client id, and injects `Authorization: Bearer <exchanged-token>` on the outbound request.
+- The **tool's AuthBridge** validates that new token before the MCP server sees the request. Requests without the tool's audience in the token are rejected at the tool's ingress — even if they came from another workload inside the mesh.
+- **Keycloak** issues the exchange with `standard.token.exchange.enabled: true` on both clients, and a **client scope** whose token mapper puts the tool's audience into the exchanged token's `aud` claim.
+
+We use the naming suffix `-advanced` on every resource so this demo can co-exist with the basic secure-profile demo in the same `team1` namespace.
+
+## ConfigMaps involved
+
+The advanced demo touches two AuthBridge-related ConfigMaps in the demo namespace:
+
+| ConfigMap | Managed by | Purpose |
+|-----------|------------|---------|
+| `authbridge-config` (plus one `authbridge-config-<workload>` per workload) | The operator — you do not create these. | Baseline sidecar config: Keycloak URL / realm, issuer, mTLS mode, plugin pipeline. |
+| **`authproxy-routes`** — with a single `routes.yaml` key | **You create it** in Step 3 below. | Per-host outbound rules that tell the agent's `token-exchange` plugin *"when the outbound `Host` header matches this pattern, exchange the current JWT for a token whose `aud` claim is this audience, requesting these scopes"*. |
+
+`authproxy-routes` is the only piece that requires an explicit `kubectl apply` from you.
+
+## Keycloak client-id convention
+
+The operator's `ClientRegistrationReconciler` registers each workload with Keycloak using the short `<namespace>/<workload>` form (for this demo: `team1/weather-tool-advanced` and `team1/weather-service-advanced`). Every `target_audience` on a route and every audience mapper on a Keycloak client scope in this guide is written to that short form — that is what the tool's own inbound JWT-validation plugin expects to see in the exchanged token's `aud` claim.
+
+## Prerequisites
+
+Before starting:
+
+1. **Both prior guides finished** (or their steps repeated in-place):
+   - [Install the Secure-Profile Dependencies](./install_secure_dependencies.mdx) — SPIRE, Keycloak, Istio ambient.
+   - [Enable the Secure Profile](./enable_secure_profile.mdx) — `featureGates.globalEnabled: true`, `authbridgeConfig.enabled: true`, `keycloak.publicUrl` set.
+2. **`featureGates.injectTools: true` on the `Kagenti` operand.** The advanced demo puts AuthBridge on the tool, and injection into tool workloads is off by default. Patch the operand once and roll the controller so the new gate is picked up:
+
+   ```bash
+   kubectl -n kagenti-system patch kagenti kagenti --type merge \
+     -p '{"spec":{"featureGates":{"injectTools":true}}}'
+   kubectl -n kagenti-system rollout restart deploy/kagenti-controller-manager
+   ```
+
+3. The demo namespace `team1` labeled with `kagenti-enabled=true`:
+
+   ```bash
+   kubectl create namespace team1 --dry-run=client -o yaml | kubectl apply -f -
+   kubectl label namespace team1 kagenti-enabled=true --overwrite
+   ```
+
+4. An **InferenceService that serves an OpenAI-compatible chat API** (this guide uses `qwen36-27b-gguf` in `models`).
+5. `kubectl` access to the cluster with permission to read `keycloak-initial-admin` in the `keycloak` namespace.
+
+The clients this demo relies on end up in Keycloak with the following names — you will refer back to these throughout the guide:
+
+| Workload | Keycloak client id | SPIFFE ID (for reference) |
+|----------|--------------------|---------------------------|
+| Agent | `team1/weather-service-advanced` | `spiffe://kagenti.local/ns/team1/sa/weather-service-advanced` |
+| Tool | `team1/weather-tool-advanced` | `spiffe://kagenti.local/ns/team1/sa/weather-tool-advanced` |
+
+The SPIFFE ID column is what the sidecar uses for mTLS via SPIRE — it is not used as a Keycloak identifier by the Alauda operator.
+
+## Step 1: Deploy the tool with an AuthBridge sidecar
+
+Unlike the basic demo, this tool workload gets its own `AgentRuntime` so the AuthBridge webhook injects a sidecar and the operator registers a Keycloak client for the tool's ServiceAccount. Do **not** set `kagenti.io/type: tool` on the Deployment yourself — a `ValidatingAdmissionPolicy` reserves that label for the operator, which applies it in response to the `AgentRuntime` you create.
+
+```yaml
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: weather-tool-advanced
+  namespace: team1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-tool-advanced
+  namespace: team1
+  labels:
+    app.kubernetes.io/name: weather-tool-advanced
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: weather-tool-advanced
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: weather-tool-advanced
+    spec:
+      serviceAccountName: weather-tool-advanced   # [!code callout]
+      containers:
+      - name: mcp
+        image: docker.io/alaudadockerhub/weather_tool:v0.1.0-rc.1
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: PORT
+          value: "8000"
+        - name: HOST
+          value: 0.0.0.0
+        - name: UV_CACHE_DIR
+          value: /app/.cache/uv
+        - name: NO_PROXY   # [!code callout]
+          value: "127.0.0.1,localhost,.svc,.svc.cluster.local,geocoding-api.open-meteo.com,api.open-meteo.com"
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - mountPath: /app/.cache
+          name: cache
+      volumes:
+      - name: cache
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weather-tool-advanced-mcp
+  namespace: team1
+spec:
+  selector:
+    app.kubernetes.io/name: weather-tool-advanced
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+---
+apiVersion: agent.kagenti.dev/v1alpha1
+kind: AgentRuntime
+metadata:
+  name: weather-tool-advanced-runtime
+  namespace: team1
+spec:
+  type: tool   # [!code callout]
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: weather-tool-advanced
+EOF
+```
+
+<Callouts>
+
+1. `serviceAccountName: weather-tool-advanced` — SPIRE issues an X.509 SVID keyed to `spiffe://<trustDomain>/ns/team1/sa/weather-tool-advanced` and the operator registers the Keycloak client id as `team1/weather-tool-advanced`.
+2. `NO_PROXY` covers the tool's outbound call to the public geocoding API. The webhook honors pre-declared `NO_PROXY`, so those requests bypass the tool's own forward-proxy sidecar (see [Allowing outbound traffic in `proxy-sidecar` mode](./demo_with_secure_profile.mdx#allowing-outbound-traffic-in-proxy-sidecar-mode)).
+3. `spec.type: tool` on the `AgentRuntime` — the operator applies the `kagenti.io/type: tool` label, injects the AuthBridge sidecar (gated by `featureGates.injectTools: true`), and registers the Keycloak client for the tool.
+
+</Callouts>
+
+Wait for the sidecar to be injected and the credentials Secret to appear:
+
+```bash
+kubectl rollout status deploy/weather-tool-advanced -n team1 --timeout=180s
+kubectl get pod -n team1 -l app.kubernetes.io/name=weather-tool-advanced
+# NAME                                        READY   STATUS    RESTARTS   AGE
+# weather-tool-advanced-XXXXXXXXXX-YYYYY      2/2     Running   0          1m
+
+# The operator records the Secret name on the Deployment annotation
+kubectl -n team1 get deploy weather-tool-advanced \
+  -o jsonpath='{.spec.template.metadata.annotations.kagenti\.io/keycloak-client-credentials-secret-name}'; echo
+# kagenti-keycloak-client-credentials-<hash-tool>
+```
+
+`READY 2/2` confirms the tool now has an AuthBridge sidecar alongside the `mcp` app container.
+
+## Step 2: Configure Keycloak for token exchange
+
+The operator has already created a Keycloak client for the tool (clientId `team1/weather-tool-advanced`). We still need three admin changes:
+
+1. Create a **client scope** `weather-tool-advanced-aud` with an **audience mapper** that appends `team1/weather-tool-advanced` to the exchanged token's `aud` claim.
+2. Enable `standard.token.exchange.enabled: true` on the tool client.
+3. Assign the scope as an **optional** client scope on the tool client, so token-exchange requests that ask for it succeed.
+
+We drive all three through Keycloak's admin REST API from a temporary pod that mounts the platform's `keycloak-initial-admin` Secret. Copy the Secret into the demo namespace first (the pod only mounts Secrets from its own namespace):
+
+```bash
+kubectl -n keycloak get secret keycloak-initial-admin -o yaml \
+  | sed 's/namespace: keycloak/namespace: team1/' \
+  | kubectl apply -f -
+```
+
+Then run the setup Job:
+
+```yaml
+kubectl apply -f - <<'EOF'
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-setup-advanced-tool
+  namespace: team1
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: setup
+        image: docker.io/alaudadockerhub/curl:8.1.2
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          set -eu
+          KC=http://keycloak-service.keycloak.svc:8080
+          USER=$(cat /kc/username)
+          PASS=$(cat /kc/password)
+          T=$(curl -s -X POST $KC/realms/master/protocol/openid-connect/token \
+                -d grant_type=password -d client_id=admin-cli \
+                --data-urlencode "username=$USER" --data-urlencode "password=$PASS" \
+                | sed 's/.*"access_token":"\([^"]*\)".*/\1/')
+          AUTH="Authorization: Bearer $T"
+          echo "==> create client scope weather-tool-advanced-aud"
+          curl -sS -o /dev/null -w 'scope-status=%{http_code}\n' -X POST \
+            "$KC/admin/realms/kagenti/client-scopes" -H "$AUTH" -H 'Content-Type: application/json' -d '{
+              "name":"weather-tool-advanced-aud",
+              "protocol":"openid-connect",
+              "attributes":{"include.in.token.scope":"true","display.on.consent.screen":"true"},
+              "protocolMappers":[{
+                "name":"weather-tool-advanced-aud-mapper",
+                "protocol":"openid-connect",
+                "protocolMapper":"oidc-audience-mapper",
+                "consentRequired":false,
+                "config":{
+                  "included.custom.audience":"team1/weather-tool-advanced",
+                  "id.token.claim":"false",
+                  "access.token.claim":"true",
+                  "userinfo.token.claim":"false"
+                }
+              }]
+            }' || true
+          SCOPE_ID=$(curl -s "$KC/admin/realms/kagenti/client-scopes" -H "$AUTH" \
+                       | tr '}' '\n' | grep 'weather-tool-advanced-aud' \
+                       | grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"\([^"]*\)"/\1/')
+          echo "scope_id=$SCOPE_ID"
+          TOOL_ID=$(curl -s "$KC/admin/realms/kagenti/clients?clientId=team1%2Fweather-tool-advanced" -H "$AUTH" \
+                      | grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"\([^"]*\)"/\1/')
+          echo "tool_id=$TOOL_ID"
+          echo "==> enable token exchange on tool client"
+          curl -sS -o /dev/null -w 'te-status=%{http_code}\n' -X PUT \
+            "$KC/admin/realms/kagenti/clients/$TOOL_ID" -H "$AUTH" -H 'Content-Type: application/json' \
+            -d '{"attributes":{"standard.token.exchange.enabled":"true"}}'
+          echo "==> add scope as optional on tool client"
+          curl -sS -o /dev/null -w 'opt-status=%{http_code}\n' -X PUT \
+            "$KC/admin/realms/kagenti/clients/$TOOL_ID/optional-client-scopes/$SCOPE_ID" -H "$AUTH"
+        volumeMounts:
+        - name: kc-admin
+          mountPath: /kc
+          readOnly: true
+      volumes:
+      - name: kc-admin
+        secret:
+          secretName: keycloak-initial-admin
+EOF
+
+kubectl -n team1 wait --for=condition=Complete job/keycloak-setup-advanced-tool --timeout=120s
+kubectl -n team1 logs job/keycloak-setup-advanced-tool
+```
+
+Expected in the log tail: `scope-status=201`, `te-status=204`, `opt-status=204`.
+
+## Step 3: Prepare the agent's outbound routes
+
+The agent's AuthBridge reads its outbound rules from an `authproxy-routes` ConfigMap in the same namespace. Each entry says *"when the outbound request's `Host` header matches this pattern, exchange the incoming JWT for a token whose `aud` claim is that audience, requesting these scopes"*.
+
+Apply the rule before deploying the agent so the sidecar picks it up on first startup:
+
+```yaml
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authproxy-routes
+  namespace: team1
+data:
+  routes.yaml: |
+    - host: "weather-tool-advanced-mcp.team1.svc.cluster.local"   # [!code callout]
+      target_audience: "team1/weather-tool-advanced"              # [!code callout]
+      token_scopes: "openid weather-tool-advanced-aud"
+EOF
+```
+
+<Callouts>
+
+1. `host` matches the HTTP `Host` header **exactly** — not the short service name. The router uses `gobwas/glob` with `.` as the segment separator, so `*` never crosses a dot. Use the fully-qualified in-cluster hostname (without the port; the router strips ports before matching) or an explicit list of the patterns you need. **`weather-tool-advanced-mcp` alone does not match `weather-tool-advanced-mcp.team1.svc.cluster.local` here.**
+2. `target_audience` is the tool's Keycloak clientId (the Alauda `<ns>/<workload>` form), which is what the tool's own inbound JWT-validation plugin expects to see in the exchanged token's `aud`.
+
+</Callouts>
+
+Without a matching route the agent's AuthBridge falls back to `default_policy: passthrough` — the token is forwarded unchanged, its `aud` claim is still `team1/weather-service-advanced`, and the tool's ingress would reject it in a strict configuration.
+
+:::warning routes.yaml is loaded once at Configure time
+The `token-exchange` plugin reads `/etc/authproxy/routes.yaml` when the sidecar starts. Editing the ConfigMap does **not** take effect on already-running pods until they restart *and* kubelet has synced the new content into the mount (~60s). When you change routes, apply the ConfigMap, wait ~60s, then `kubectl delete pod` on the affected workloads. `rollout restart` alone can race the kubelet sync and start the new pod against the old file.
+:::
+
+## Step 4: Deploy the secured agent
+
+Same shape as the basic secure demo, but with the `-advanced` naming and pointed at the advanced tool's Service. The `MCP_URL` and the route's `host` field must agree — both must be the fully-qualified in-cluster hostname.
+
+```yaml
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: weather-service-advanced
+  namespace: team1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-service-advanced
+  namespace: team1
+  labels:
+    app.kubernetes.io/name: weather-service-advanced
+    protocol.kagenti.io/a2a: ""
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: weather-service-advanced
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: weather-service-advanced
+    spec:
+      serviceAccountName: weather-service-advanced
+      containers:
+      - name: agent
+        image: docker.io/alaudadockerhub/weather_service:v0.1.0-rc.1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+        env:
+        - name: PORT
+          value: "8000"
+        - name: UV_CACHE_DIR
+          value: /app/.cache/uv
+        - name: MCP_URL
+          value: http://weather-tool-advanced-mcp.team1.svc.cluster.local:8000/mcp
+        - name: LLM_API_BASE
+          value: http://qwen36-27b-gguf-predictor.models.svc.cluster.local/v1
+        - name: LLM_API_KEY
+          value: dummy
+        - name: LLM_MODEL
+          value: qwen36-27b-gguf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weather-service-advanced
+  namespace: team1
+spec:
+  selector:
+    app.kubernetes.io/name: weather-service-advanced
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+---
+apiVersion: agent.kagenti.dev/v1alpha1
+kind: AgentRuntime
+metadata:
+  name: weather-service-advanced-runtime
+  namespace: team1
+spec:
+  type: agent
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: weather-service-advanced
+EOF
+
+kubectl rollout status deploy/weather-service-advanced -n team1 --timeout=180s
+kubectl get pods -n team1 -l app.kubernetes.io/name=weather-service-advanced
+# NAME                                          READY   STATUS    RESTARTS   AGE
+# weather-service-advanced-XXXXXXXXX-YYYYY      2/2     Running   0          1m
+```
+
+Once the agent pod is Ready and its Keycloak client is registered, run a second setup Job to enable token exchange on the agent client and assign the same scope as optional on it. The Job is a two-line variant of Step 2:
+
+```yaml
+kubectl apply -f - <<'EOF'
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-setup-advanced-agent
+  namespace: team1
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: setup
+        image: docker.io/alaudadockerhub/curl:8.1.2
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          set -eu
+          KC=http://keycloak-service.keycloak.svc:8080
+          USER=$(cat /kc/username)
+          PASS=$(cat /kc/password)
+          T=$(curl -s -X POST $KC/realms/master/protocol/openid-connect/token \
+                -d grant_type=password -d client_id=admin-cli \
+                --data-urlencode "username=$USER" --data-urlencode "password=$PASS" \
+                | sed 's/.*"access_token":"\([^"]*\)".*/\1/')
+          AUTH="Authorization: Bearer $T"
+          SCOPE_ID=$(curl -s "$KC/admin/realms/kagenti/client-scopes" -H "$AUTH" \
+                       | tr '}' '\n' | grep 'weather-tool-advanced-aud' \
+                       | grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"\([^"]*\)"/\1/')
+          AGENT_ID=$(curl -s "$KC/admin/realms/kagenti/clients?clientId=team1%2Fweather-service-advanced" -H "$AUTH" \
+                       | grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"\([^"]*\)"/\1/')
+          echo "agent_id=$AGENT_ID scope_id=$SCOPE_ID"
+          curl -sS -o /dev/null -w 'te-status=%{http_code}\n' -X PUT \
+            "$KC/admin/realms/kagenti/clients/$AGENT_ID" -H "$AUTH" -H 'Content-Type: application/json' \
+            -d '{"attributes":{"standard.token.exchange.enabled":"true"}}'
+          curl -sS -o /dev/null -w 'opt-status=%{http_code}\n' -X PUT \
+            "$KC/admin/realms/kagenti/clients/$AGENT_ID/optional-client-scopes/$SCOPE_ID" -H "$AUTH"
+        volumeMounts:
+        - name: kc-admin
+          mountPath: /kc
+          readOnly: true
+      volumes:
+      - name: kc-admin
+        secret:
+          secretName: keycloak-initial-admin
+EOF
+
+kubectl -n team1 wait --for=condition=Complete job/keycloak-setup-advanced-agent --timeout=120s
+kubectl -n team1 logs job/keycloak-setup-advanced-agent
+```
+
+Expected: both `te-status=204` and `opt-status=204`.
+
+## Step 5: Exercise the token-exchange path
+
+Send an authenticated A2A `message/send` request to the agent, exactly as in the [basic secure demo Step 4](./demo_with_secure_profile.mdx#step-4-send-an-authenticated-query). The credentials Secret you mount is the **agent's** — the exchange happens transparently inside the agent's AuthBridge.
+
+Find the agent's credentials Secret from the operator's annotation on the Deployment:
+
+```bash
+AGENT_SECRET=$(kubectl -n team1 get deploy weather-service-advanced \
+  -o jsonpath='{.spec.template.metadata.annotations.kagenti\.io/keycloak-client-credentials-secret-name}')
+echo "$AGENT_SECRET"
+# kagenti-keycloak-client-credentials-<agent-hash>
+```
+
+Run the authenticated query from a pod (the shell here uses the `$AGENT_SECRET` value from above):
+
+```yaml
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: adv-smoke
+  namespace: team1
+spec:
+  restartPolicy: Never
+  containers:
+  - name: query
+    image: docker.io/alaudadockerhub/curl:8.1.2
+    command: ["/bin/sh", "-c"]
+    args:
+    - |
+      set -e
+      CID=\$(cat /creds/client-id.txt)
+      CSEC=\$(cat /creds/client-secret.txt)
+
+      TOKEN=\$(curl -s \\
+        http://keycloak-service.keycloak.svc:8080/realms/kagenti/protocol/openid-connect/token \\
+        -d grant_type=client_credentials \\
+        --data-urlencode "client_id=\$CID" \\
+        --data-urlencode "client_secret=\$CSEC" \\
+        | sed 's/.*"access_token":"\\([^"]*\\)".*/\\1/')
+
+      curl -sS -X POST http://weather-service-advanced.team1.svc.cluster.local:8000/ \\
+        -H "Authorization: Bearer \$TOKEN" \\
+        -H "Content-Type: application/json" \\
+        -d '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"What is the weather in Berlin?"}],"messageId":"m1"}}}'
+    volumeMounts:
+    - name: creds
+      mountPath: /creds
+      readOnly: true
+  volumes:
+  - name: creds
+    secret:
+      secretName: $AGENT_SECRET
+EOF
+
+kubectl -n team1 wait --for=condition=Ready pod/adv-smoke --timeout=60s
+kubectl -n team1 logs adv-smoke
+kubectl -n team1 delete pod adv-smoke
+```
+
+You should get a completed A2A task with real weather data. The request path is:
+
+```text
+client ─(token A, aud=team1/weather-service-advanced)─▶ agent AuthBridge
+                                            │ validates token A (inbound)
+                                            ▼
+                                        weather-service-advanced
+                                            │ MCP call to weather-tool-advanced-mcp
+                                            ▼
+                                        agent AuthBridge outbound
+                                            │ matches route → RFC 8693 exchange
+                                            │ obtains token B (aud=team1/weather-tool-advanced)
+                                            ▼
+                                        tool AuthBridge
+                                            │ validates token B against its own audience
+                                            ▼
+                                        weather-tool-advanced (mcp)
+                                            │ HTTPS to geocoding-api.open-meteo.com (NO_PROXY)
+                                            ▼
+                                        response
+```
+
+Confirm the exchange happened in the agent-sidecar logs:
+
+```bash
+kubectl -n team1 logs -c authbridge-proxy \
+  -l app.kubernetes.io/name=weather-service-advanced --tail=100 \
+  | grep -E 'outbound token exchanged|outbound passthrough'
+# time=... level=INFO msg="outbound token exchanged" host=weather-tool-advanced-mcp.team1.svc.cluster.local:8000 audience=team1/weather-tool-advanced
+```
+
+And the incoming validation on the tool side:
+
+```bash
+kubectl -n team1 logs -c authbridge-proxy \
+  -l app.kubernetes.io/name=weather-tool-advanced --tail=100 \
+  | grep -E 'inbound authorized|inbound rejected'
+# time=... level=INFO msg="inbound authorized" subject=<uuid> clientID=team1/weather-service-advanced
+```
+
+`"outbound token exchanged"` on the agent side plus `"inbound authorized"` on the tool side is the two-line proof that the RFC 8693 flow is wired end-to-end.
+
+## Clean up
+
+```bash
+kubectl delete namespace team1
+```
+
+You may also want to revert `featureGates.injectTools` to `false` on the `Kagenti` operand if you no longer plan to secure tool workloads:
+
+```bash
+kubectl -n kagenti-system patch kagenti kagenti --type merge \
+  -p '{"spec":{"featureGates":{"injectTools":false}}}'
+```
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| `Deployment ... forbidden: ValidatingAdmissionPolicy 'agent-label-protection' denied` | You set `kagenti.io/type: tool` on the Deployment manually. | Remove that label from the Deployment. The operator applies it in response to the `AgentRuntime` you create. |
+| Tool pod stays `1/1` | `featureGates.injectTools` is still `false`, or the controller-manager wasn't restarted after the patch. | Re-run the two commands in the Prerequisites and delete the tool pod. |
+| Agent-sidecar log says `outbound passthrough … reason="no matching route"` | The route's `host` pattern does not match the outbound `Host` header. Common trap: short service name against an FQDN Host, or `*` wildcard against a hostname with dots (`.` is a glob separator). | Use the exact fully-qualified hostname (e.g. `weather-tool-advanced-mcp.team1.svc.cluster.local`), then delete the agent pod so it re-reads `/etc/authproxy/routes.yaml`. |
+| Route ConfigMap edited but nothing changes | `routes.yaml` is read at Configure time; kubelet sync of ConfigMap mounts also takes ~60s. | Apply the ConfigMap, wait ~60s, then `kubectl delete pod` on the agent so the new pod's Configure reads the synced file. |
+| Agent request returns `503` from the agent, exchange log line is missing | Token exchange failed — usually because the requested scope isn't assigned to the agent client, or `standard.token.exchange.enabled: true` isn't set. | Re-run the Step 4 Job **after** the agent pod is Ready. |
+| Agent request returns `401` from the tool with a matching `outbound token exchanged` on the agent side | Tool's inbound audience validation didn't match. Confirm the audience mapper wrote `team1/weather-tool-advanced` (not the SPIFFE URI) and that the tool client has the scope as optional. | Re-run the Step 2 Job. |
+| Tool "weather service temporarily unavailable" | The tool's outbound HTTPS to `geocoding-api.open-meteo.com` is going through the tool's own AuthBridge forward proxy (HTTP-only) and getting `CONNECT 405`. | The manifest above already sets `NO_PROXY` on the `mcp` container. If you edited it out, re-apply — see [Allowing outbound traffic in `proxy-sidecar` mode](./demo_with_secure_profile.mdx#allowing-outbound-traffic-in-proxy-sidecar-mode). |
+| `kagenti.io/client-registration-inject: "true"` set anywhere | Legacy label from earlier kagenti releases; today it silently disables operator-managed registration. | Remove it from every manifest. |

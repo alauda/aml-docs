@@ -1,0 +1,87 @@
+---
+weight: 20
+---
+
+# Installation
+
+Kagenti Operator is delivered as an **OLM Operator** and installed from the platform **OperatorHub**.
+
+## Prerequisites
+
+- **ACP version: v4.0 or later** (validated on v4.3).
+- Target cluster architecture `linux/amd64` or `linux/arm64` (the operator ships multi-arch images).
+- Operator Lifecycle Manager (OLM) available on the target cluster (provided by ACP).
+- **cert-manager** installed on the target cluster. The operator's admission webhooks get their serving certificate from cert-manager.
+
+## Upload Operator \{#upload-operator}
+
+Download the `Kagenti Operator` bundle from the <Term name="company" /> Customer Portal / Marketplace, then publish it to the platform repository with the `violet` command-line tool:
+
+```bash
+violet push \
+  --platform-address=<platform-access-address> \
+  --platform-username=<platform-admin> \
+  --platform-password=<platform-admin-password> \
+  kagenti-operator.ALL.xxxx.tgz
+```
+
+:::info
+The operator bundle records its runtime images in the CSV `relatedImages`, so a `violet` release relocates them into the platform registry. This makes the operator installable on **air-gapped** clusters without reaching `docker.io` or `ghcr.io`.
+:::
+
+## Install Operator
+
+In the **Administrator** view:
+
+1. Click **Marketplace** / **OperatorHub**.
+2. At the top of the console, from the **Cluster** dropdown, select the destination cluster.
+3. Search for and select **Kagenti Operator**, then click **Install**.
+4. Leave **Channel** unchanged (`stable`).
+5. Check that the **Version** matches the release you want to install.
+6. Leave **Installation Location** unchanged — it defaults to the `kagenti-system` namespace.
+7. Choose an **Upgrade Strategy** (`Manual` is recommended for production).
+8. Click **Install**.
+
+### Create the Kagenti operand
+
+Installing the operator from OperatorHub runs the **OLM operator**. To deploy the agent controllers, CRDs, and webhooks, create a `Kagenti` custom resource. An empty spec selects the **core profile**:
+
+```yaml
+kubectl apply -f - <<EOF
+apiVersion: kagenti.alauda.io/v1alpha1
+kind: Kagenti
+metadata:
+  name: kagenti
+  namespace: kagenti-system
+spec: {}
+EOF
+```
+
+### Verification
+
+Confirm the **Kagenti Operator** tile shows `Installed`, then verify on the cluster:
+
+```bash
+# the CSV reports Succeeded
+kubectl get csv -n kagenti-system | grep kagenti
+
+# the operator and agent controllers are Running
+kubectl get pods -n kagenti-system
+
+# the agent CRDs are registered
+kubectl get crd | grep agent.kagenti.dev
+```
+
+You should see the `agentruntimes`, `agentcards`, and `authorizationpolicies` CRDs (group `agent.kagenti.dev`), the `kagenti-controller-manager` and `kagenti-helm-operator-controller-manager` pods `Running`, and the `agent-label-protection` `ValidatingAdmissionPolicy`.
+
+The operator watches **all namespaces**, so you can enroll agents and tools in any namespace.
+
+## Profiles: Core vs Secure
+
+The empty-spec `Kagenti` resource above selects the **core profile** — agent enrollment, dynamic discovery, and MCP tool integration, with **no** identity sidecars. This is the default and needs only cert-manager.
+
+The **secure profile** layers on zero-trust workload identity (SPIRE mTLS), Keycloak OAuth2/JWT authentication, and an Istio ambient mesh — enforced by an AuthBridge sidecar. It requires additional cluster components (SPIRE, Keycloak, Istio ambient) and a few `Kagenti` spec settings, and each agent namespace must be labeled `kagenti-enabled=true`. To turn it on, see [Enable the Secure Profile](./how_to/enable_secure_profile.mdx); for the architecture, see [Security Architecture](./security_architecture.mdx).
+
+:::info
+A `Succeeded` CSV plus a reconciled `Kagenti` resource means the controllers are running. Agents and tools themselves only appear once you create the workloads and `AgentRuntime` resources — see [Deploy an Agent with AgentRuntime](./how_to/deploy_agent_with_agentruntime.mdx).
+:::

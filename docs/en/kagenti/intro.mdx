@@ -1,0 +1,42 @@
+---
+weight: 10
+---
+
+# Introduction
+
+Kagenti Operator is a Kubernetes-native operator that **enrolls, discovers, and secures AI agents and MCP tools** that run as ordinary Kubernetes workloads. Built on the open-source [`kagenti/kagenti-operator`](https://github.com/kagenti/kagenti-operator), it lets you turn a plain `Deployment` into a managed agent — with consistent labels, agent-to-agent (A2A) discovery, and an optional identity/security mesh — declaratively through Kubernetes Custom Resource Definitions (CRDs).
+
+## Overview
+
+The operator provides the following CRDs (API group `agent.kagenti.dev`):
+
+- **AgentRuntime**: Enrolls a target workload (a `Deployment` or `StatefulSet`) as an `agent` or a `tool`. The controller applies the `kagenti.io/type` and `app.kubernetes.io/managed-by` labels, computes a configuration hash, and — when the identity stack is enabled — triggers sidecar injection through the AuthBridge webhook.
+- **AgentCard**: Represents a discovered agent. The sync controller fetches the agent's [A2A](https://github.com/a2aproject/A2A) Agent Card from the workload's Service and indexes it, with optional JWS signature verification and SPIFFE identity binding.
+- **AuthorizationPolicy**: Application-level authorization intent that the operator translates to the underlying mesh (Istio / Kuadrant).
+
+The operator itself is delivered as an **OLM operator** whose operand is a single `Kagenti` custom resource (API group `kagenti.alauda.io`). Installing the operator and creating a `Kagenti` resource deploys the agent controllers, CRDs, and admission webhooks onto the cluster.
+
+A `ValidatingAdmissionPolicy` named `agent-label-protection` prevents the `kagenti.io/type` label from being set directly on a `Deployment` or `StatefulSet` — it can only be applied by the operator via an `AgentRuntime`.
+
+## Key Features
+
+- **Declarative agent enrollment**: Mark a `Deployment` with a `protocol.kagenti.io/a2a` label and point an `AgentRuntime` at it; the operator manages the rest.
+- **Dynamic agent discovery**: `AgentCard` resources are created and synced automatically so agents can find one another.
+- **LLM-backend agnostic**: Agents talk to any OpenAI-compatible chat endpoint, so an in-cluster <Term name="company" /> AI **InferenceService** can serve as the model backend.
+- **MCP tool integration**: Deploy [Model Context Protocol](https://modelcontextprotocol.io/) servers as `tool`-type workloads that agents call to extend their capabilities.
+- **Pluggable identity & security**: An optional stack (SPIRE/SPIFFE mTLS, Keycloak, Istio) can be enabled for workload identity and zero-trust transport.
+
+## Core Profile
+
+On <Term name="company" /> AI the operator ships a **core profile**: agent enrollment, dynamic discovery (`AgentCard`), and MCP tool integration are enabled, while the identity/security stack (SPIRE, Keycloak, Istio mTLS) is **disabled by default** because it requires components that are not part of the base install. In this profile:
+
+- Agent pods run with **no injected sidecars** (only your own container).
+- `AgentRuntime` reports `MTLSReady=False` with reason `SPIREUnavailable` — this is expected and does not block agent or tool functionality.
+
+Opt into the identity stack once SPIRE, Keycloak, and Istio are available on the cluster.
+
+## Use Cases
+
+- **Agentic applications on Kubernetes**: Run A2A agents and MCP tool servers as first-class, discoverable workloads.
+- **Self-hosted model backends**: Drive agents with models served by <Term name="company" /> AI InferenceServices instead of external LLM providers.
+- **Tool-augmented agents**: Extend agents with MCP servers for live data (weather, search, internal APIs, …).

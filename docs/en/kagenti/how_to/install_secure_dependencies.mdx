@@ -1,0 +1,160 @@
+---
+weight: 15
+---
+
+# Install the Secure-Profile Dependencies
+
+The [secure profile](./enable_secure_profile.mdx) requires **cert-manager**, **SPIRE**, **Keycloak**, and **Istio (ambient mode)** on the target cluster. cert-manager ships with the platform; this guide installs the other three. Install them **before** enabling the secure profile.
+
+## Common installation pattern
+
+Each component is delivered as a platform package — an OLM operator or a Cluster Plugin. The steps are the same for all of them:
+
+1. **Download** the component package from the <Term name="company" /> Customer Portal — `https://cloud.alauda.cn` (China) or `https://cloud.alauda.io` (international).
+2. **Upload** it to the platform with `violet`:
+
+   ```bash
+   violet push \
+     --platform-address=<platform-access-address> \
+     --platform-username=<platform-admin> \
+     --platform-password=<platform-admin-password> \
+     <package>.tgz
+   ```
+
+   `violet` relocates the package's images into the platform registry, so the components install on **air-gapped** clusters.
+3. **Install** from the web console — **Administrator → Marketplace / OperatorHub**, selecting the target cluster — or with `kubectl` (a `Subscription` for OLM operators, a `ModuleInfo` for Cluster Plugins).
+
+The sections below cover the per-component configuration.
+
+## SPIRE
+
+SPIRE issues the workload SVIDs that AuthBridge uses for mTLS. It is delivered as a **Cluster Plugin**.
+
+Upload the SPIRE package with `violet` and install it on the **workload cluster** (Marketplace → install on cluster, or create a `ModuleInfo` from the global cluster). Configure the install:
+
+| Setting | Notes |
+|---------|-------|
+| `trustDomain` | The SPIFFE trust domain, e.g. `kagenti.local`. **Record this** — it must match `defaults.spiffe.trustDomain` on the `Kagenti` operand. |
+| `clusterName` | A name for this cluster. |
+| `persistence.storageClass` | A real `StorageClass` for the SPIRE server datastore (replace the default placeholder). |
+| `caSubject` | CA subject (country / organization / common name) for the SPIRE trust bundle. |
+
+Verify:
+
+```bash
+# server, agent, and CSI driver running
+kubectl get pods -n spire-server
+kubectl get pods -n spire-system
+
+# the trust bundle ConfigMap (key bundle.spiffe) and the ClusterSPIFFEID CRD
+kubectl get configmap spire-bundle -n spire-system
+kubectl get crd clusterspiffeids.spire.spiffe.io
+```
+
+SPIRE auto-registers every pod (via a default `ClusterSPIFFEID`) as `spiffe://<trustDomain>/ns/<namespace>/sa/<serviceaccount>`, delivered through the `csi.spiffe.io` CSI driver.
+
+## Keycloak
+
+Keycloak issues the OAuth2/JWT tokens that AuthBridge validates. It is delivered as an **OLM operator** plus a `Keycloak` instance you create.
+
+### 1. Install the operator
+
+Upload the Keycloak operator package with `violet`, then install it from **OperatorHub**. Platform operators require the **`Manual`** upgrade approval — approve the generated `InstallPlan` to complete the install.
+
+### 2. Deploy a Keycloak instance
+
+Create a `Keycloak` custom resource. Name it **`keycloak`** so the operator generates the `keycloak-initial-admin` secret that the Kagenti operator reads:
+
+```yaml
+apiVersion: k8s.keycloak.org/v2beta1
+kind: Keycloak
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  instances: 1
+  image: <relocated-keycloak-image>   # [!code callout]
+  startOptimized: false
+  db:
+    vendor: dev-file                   # [!code callout]
+  http:
+    httpEnabled: true
+  hostname:
+    strict: false                      # [!code callout]
+  features:
+    enabled:
+      - token-exchange                 # [!code callout]
+      - admin-fine-grained-authz
+```
+
+<Callouts>
+
+1. `image` — the Keycloak server image relocated by `violet` (the cluster cannot pull `quay.io` directly).
+2. `db.vendor: dev-file` runs an in-pod H2 database — fine for dev/test (data is not persisted across restarts). For production, set `vendor: postgres` and point `db.host` / `db.usernameSecret` / `db.passwordSecret` at an external PostgreSQL.
+3. `hostname.strict: false` lets Keycloak resolve its hostname from requests, which suits in-cluster access. Do **not** set `hostname.backchannelDynamic: true` unless you also set `hostname.hostname`, or the server fails to start.
+4. `token-exchange` (with `admin-fine-grained-authz`) is required for the Kagenti audience / token-exchange flow.
+
+</Callouts>
+
+:::warning
+Do **not** pre-create the `keycloak-initial-admin` secret. The Keycloak operator creates and owns it; a pre-existing secret with that name blocks the operator's reconcile (the `Keycloak` instance never starts).
+:::
+
+The operator exposes the instance in-cluster at `http://keycloak-service.<namespace>.svc:8080` — use this URL as `keycloak.publicUrl` on the `Kagenti` operand.
+
+:::warning
+The value you set as `keycloak.publicUrl` becomes the JWT issuer (`iss`) claim that AuthBridge validates against. **Use the same hostname form you will use to fetch tokens** — typically the short in-cluster service URL `http://keycloak-service.keycloak.svc:8080` (the upstream demo convention). If you pick the FQDN form (`…svc.cluster.local…`), clients fetching tokens must also call that FQDN; mixing the two yields `iss`-mismatch `401`s on otherwise-valid tokens.
+:::
+
+### When to create a `KeycloakRealmImport`
+
+`KeycloakRealmImport` is how the Keycloak operator imports a realm declaratively (`spec.keycloakCRName` + `spec.realm`). The secure profile needs a **`kagenti`** realm with a platform client and an audience scope.
+
+- **You normally do not create it yourself.** When `authbridgeConfig.enabled` is `true` and a `Keycloak` instance already exists, the Kagenti operator **auto-imports** the `kagenti` realm — it applies a `KeycloakRealmImport` named `kagenti-realm-import` (carrying the platform client and the `kagenti-platform-audience` scope) into your Keycloak.
+- **Create one manually only if** you are not using the auto-import (for example `authbridgeConfig` is off but you still want the realm), or you need to customise the realm. Apply a `KeycloakRealmImport` that references your instance (`spec.keycloakCRName: keycloak`) with your realm representation under `spec.realm`.
+
+## Istio (ambient mode)
+
+The secure profile uses Istio **ambient** mesh (ztunnel) for namespace-level mTLS, delivered as **<Term name="company" /> Service Mesh v2** (the `servicemesh-operator2` / Sail operator).
+
+Install the **Alauda Service Mesh v2** operator from the Marketplace (download → `violet` → install), version **2.1.1 or later** (ambient support). Ambient on ACP also requires the **Multus** CNI plugin and `kube-ovn` ≥ v4.1.5.
+
+Then enable ambient by creating the `IstioCNI`, `Istio`, and `ZTunnel` resources with `profile: ambient`. Create the `istio-cni`, `istio-system`, and `ztunnel` namespaces first, each labeled `istio-discovery=enabled`. The full, authoritative procedure (prerequisites, namespace labels, verification) is in the **Alauda Service Mesh v2** documentation — *Installing Istio ambient mode* ([`alauda/servicemesh2-docs`](https://github.com/alauda/servicemesh2-docs/blob/master/docs/en/installing/ambient-mode/installing-ambient-mode.mdx)). In summary:
+
+```yaml
+apiVersion: sailoperator.io/v1
+kind: IstioCNI
+metadata: { name: default }
+spec:
+  namespace: istio-cni
+  profile: ambient
+  values:
+    cni:
+      cniConfDir: /etc/cni/multus/net.d
+      ambient: { reconcileIptablesOnStartup: true }
+---
+apiVersion: sailoperator.io/v1
+kind: Istio
+metadata: { name: default }
+spec:
+  namespace: istio-system
+  profile: ambient
+  values:
+    pilot: { trustedZtunnelNamespace: ztunnel }
+---
+apiVersion: sailoperator.io/v1
+kind: ZTunnel
+metadata: { name: default }
+spec:
+  namespace: ztunnel   # must match pilot.trustedZtunnelNamespace
+```
+
+:::note
+If the cluster already runs a shared Istio (e.g. for the platform dashboard), enable ambient **additively** — set `profile: ambient` on the existing `Istio` and `IstioCNI` resources (preserving their existing `spec.values`, such as a custom `meshConfig`) and add a `ZTunnel`. Existing sidecar-mode workloads keep working, and `istiod` is updated in place.
+:::
+
+The Kagenti operator labels each enrolled agent namespace with `istio.io/dataplane-mode: ambient` and `istio-discovery: enabled` automatically — you do not label agent namespaces yourself.
+
+## Next
+
+With cert-manager, SPIRE, Keycloak, and Istio ambient in place, continue to [Enable the Secure Profile](./enable_secure_profile.mdx).
