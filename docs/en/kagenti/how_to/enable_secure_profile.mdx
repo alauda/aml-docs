@@ -73,7 +73,9 @@ This label is required. Without `kagenti-enabled=true`, the operator does **not*
 
 ## 3. Deploy a secured agent
 
-Deploy your agent, tool, and `AgentRuntime` resources exactly as in [Deploy an Agent with AgentRuntime](./deploy_agent_with_agentruntime.mdx). With the secure profile on, the AuthBridge webhook injects an `authbridge-proxy` sidecar and a SPIRE SVID into each enrolled pod, and the operator registers a Keycloak client per workload.
+Continue to [Demo with Secure Profile](./demo_with_secure_profile.mdx) for the full weather-agent walk-through under the secure profile. Deployment YAML is the same as the [core-profile quick start](./deploy_agent_with_agentruntime.mdx) — no secure-profile-specific fields are required in the `Deployment` or `AgentRuntime`, because the AuthBridge webhook does all the wiring at admission time based on the `Kagenti` operand and the namespace label. It injects an `authbridge-proxy` sidecar and a SPIRE SVID into each enrolled pod, and the operator registers a Keycloak client per workload.
+
+For a locked-down variant that puts AuthBridge on the tool too and exchanges tokens between agent and tool, see [Demo Advanced: AuthBridge on the Tool with Token Exchange](./demo_advanced_secure_profile.mdx).
 
 :::info The agent image must honor `$PORT`
 In proxy-sidecar mode the AuthBridge reverse-proxy binds the workload's **service port**, and the operator remaps the application to a `PORT` env value (e.g. `8001`). The agent container **must bind `$PORT`** rather than a hardcoded port, or it collides with the reverse-proxy (`address already in use`). The upstream weather example honors `PORT` from `v0.1.0` onward.

@@ -2,9 +2,9 @@
 weight: 10
 ---
 
-# Deploy an Agent with AgentRuntime
+# Quick Start with Core Profile
 
-This guide shows how to deploy an AI agent and an MCP tool server with the Kagenti Operator, enroll them with `AgentRuntime` custom resources, and run an end-to-end query. The agent is driven by a model served from an <Term name="company" /> AI **InferenceService**.
+This guide walks through the smallest possible end-to-end deployment on the Kagenti Operator's **core profile** — the default install shape with agent enrollment and dynamic discovery, but **no** identity sidecars, no Keycloak, and no mesh mTLS. It is the fastest way to prove your operator install works and to become familiar with the `AgentRuntime` custom resource before layering on the [secure profile](./enable_secure_profile.mdx).
 
 The scenario is a **weather agent** that answers questions like *"What is the weather in New York?"* by calling a **weather MCP tool** for live data and a large language model to compose the reply. The request flow is:
 
@@ -13,6 +13,8 @@ client ──A2A message/send──▶ weather-agent ──OpenAI chat API──
                                   │
                                   └──────────MCP──────────▶ weather-tool-mcp
 ```
+
+Under the core profile there is no authentication or transport security — every step below is a plain in-cluster HTTP call. For the secured version (Bearer-token requests, SPIRE mTLS, an AuthBridge sidecar per agent), continue to [Demo with Secure Profile](./demo_with_secure_profile.mdx) after this guide.
 
 ## Prerequisites
 
@@ -26,7 +28,7 @@ client ──A2A message/send──▶ weather-agent ──OpenAI chat API──
 
 - An **InferenceService that serves an OpenAI-compatible chat API**, reachable in-cluster. This guide uses an InferenceService named `qwen36-27b-gguf`. Any chat model works; agent quality improves with a tool-calling-capable model.
 
-### Find your model endpoint and name
+### Find your model endpoint and name \{#find-your-model-endpoint-and-name\}
 
 The agent connects to the model with three environment variables — `LLM_API_BASE`, `LLM_API_KEY`, and `LLM_MODEL`. Resolve them from your InferenceService:
 
@@ -53,13 +55,9 @@ For the `qwen36-27b-gguf` InferenceService deployed in namespace `zgsu-ns1`, tha
 Substitute your own InferenceService name, namespace, and model id throughout this guide. If the model is a **reasoning** model, the first tokens of a response are reasoning content — keep the agent's token budget unconstrained (as below) so the final answer is not truncated.
 :::
 
-## Step 1: Deploy the MCP tool server
+## Step 1: Deploy the MCP tool server \{#step-1-deploy-the-mcp-tool-server\}
 
-The MCP (Model Context Protocol) server provides the `get_weather` tool the agent calls. Deploy it and expose it with a Service. **This guide follows the upstream weather-agent demo pattern**: the tool workload runs as a plain `Deployment` with **no `AgentRuntime` and no AuthBridge sidecar** — a Kagenti `AgentRuntime` is only created for the agent side. The security posture (see [Security architecture](../security_architecture.mdx)) is inbound-only on the agent: the agent's AuthBridge validates the client's JWT, then the agent → tool call is a plain in-cluster HTTP hop, and the tool reaches its public data source (`geocoding-api.open-meteo.com`) directly.
-
-:::info
-Injection into tool workloads is off by default: the Kagenti operand's `spec.featureGates.injectTools` defaults to `false`, so tagging a Deployment with `kagenti.io/type: tool` does **not** on its own inject a sidecar. Flip `injectTools: true` on the `Kagenti` operand only when you need inbound JWT validation on the tool itself (or outbound token exchange from the tool). Injecting an AuthBridge sidecar into the tool would also route the tool's outbound calls through its HTTP forward proxy, which is HTTP-only and blocks external HTTPS with a `CONNECT` `405`; see [Allowing outbound traffic in `proxy-sidecar` mode](#allowing-outbound-traffic-in-proxy-sidecar-mode) for the `NO_PROXY` escape hatch when you do need injection on the tool.
-:::
+The MCP (Model Context Protocol) server provides the `get_weather` tool the agent calls. Deploy it and expose it with a Service. On the core profile the tool runs as a plain `Deployment` (single container, no sidecar); the same layout is used again unchanged under the secure profile since the operand default is `spec.featureGates.injectTools: false`.
 
 ```yaml
 kubectl apply -f - <<EOF
@@ -131,9 +129,9 @@ kubectl get pod -n team1 -l app.kubernetes.io/name=weather-tool
 # weather-tool-XXXXXXXXXX-YYYYY   1/1     Running   0          1m
 ```
 
-`READY 1/1` confirms the tool is running as a single container — the agent side is the only workload with an injected AuthBridge sidecar (`READY 2/2`, added in the next step).
+`READY 1/1` confirms the tool is running as a single container.
 
-## Step 2: Deploy the agent
+## Step 2: Deploy the agent \{#step-2-deploy-the-agent\}
 
 The agent only needs a `protocol.kagenti.io/a2a` label on its Deployment — the controller applies `kagenti.io/type`, computes a config hash, and (when the identity stack is enabled) triggers sidecar injection. The protocol label also tells the AgentCard sync controller which protocol the agent speaks, enabling automatic discovery.
 
@@ -225,7 +223,7 @@ When the `AgentRuntime` is created, the controller will:
 ## Step 3: Check status
 
 ```bash
-# AgentRuntime status — only the agent side has one in this pattern
+# AgentRuntime status — only the agent has one in this pattern
 kubectl get agentruntime -n team1
 # NAME                    TYPE    TARGET          READY   AGE
 # weather-agent-runtime   agent   weather-agent   True    1m
@@ -242,10 +240,10 @@ kubectl get agentruntime weather-agent-runtime -n team1 \
 # Labels applied by the operator
 kubectl get deployment weather-agent -n team1 --show-labels
 
-# Pods: agent 2/2 (sidecar injected), tool 1/1 (no sidecar)
+# Pods: agent 1/1, tool 1/1 — no sidecars in the core profile
 kubectl get pods -n team1
 # NAME                             READY   STATUS    RESTARTS   AGE
-# weather-agent-XXXXXXXXX-YYYYY    2/2     Running   0          1m
+# weather-agent-XXXXXXXXX-YYYYY    1/1     Running   0          1m
 # weather-tool-XXXXXXXXX-YYYYY     1/1     Running   0          6m
 
 # The AgentCard is created and synced automatically
@@ -256,7 +254,7 @@ kubectl get agentcards -n team1
 
 `SYNCED=True` with the `AGENT` column populated (here `Weather Assistant`) confirms the sync controller fetched the agent's A2A card — dynamic discovery is working.
 
-## Step 4: Send a query (end-to-end test)
+## Step 4: Send a query (end-to-end test) \{#step-4-send-a-query-end-to-end-test\}
 
 Send an A2A `message/send` request to the agent from a temporary in-cluster pod, using the agent's internal Service DNS name:
 
@@ -323,221 +321,14 @@ kubectl delete agentruntime weather-agent-runtime -n team1
 kubectl delete namespace team1
 ```
 
-## Running under the secure profile
+## Next steps
 
-The steps above are the **core profile** (no identity sidecars). The *same* agent and tool also run under the [secure profile](./enable_secure_profile.mdx), which adds SPIRE mTLS, Keycloak JWT authentication, and an Istio ambient mesh. A few things change:
+The core profile you just exercised has no authentication or transport security. To layer those on:
 
-- **Install the dependencies and enable the profile first** — see [Install the Secure-Profile Dependencies](./install_secure_dependencies.mdx) and [Enable the Secure Profile](./enable_secure_profile.mdx).
-- **Label the namespace** so the operator manages identity in it:
-
-  ```bash
-  kubectl label namespace team1 kagenti-enabled=true
-  ```
-
-- **Use `$PORT`-aware images.** This guide already uses `weather_service` / `weather_tool` `v0.1.0`+, which read `PORT` from the environment. That is required: the AuthBridge proxy-sidecar binds the workload's service port and remaps the app to a different `PORT`, so an app that hardcodes its port collides with the proxy and crash-loops.
-- **No manifest changes are needed.** When the profile is on, the AuthBridge webhook injects an `authbridge-proxy` sidecar and a SPIRE SVID into each pod, and the operator registers a Keycloak client per workload — your `Deployment` / `AgentRuntime` YAML stays the same.
-
-Verify the secure wiring engaged:
-
-```bash
-# sidecar injected (app container + authbridge-proxy) and SVID present
-kubectl get pod -n team1 -l kagenti.io/type=agent \
-  -o jsonpath='{.items[0].spec.containers[*].name}{"\n"}'
-kubectl get secret -n team1 | grep kagenti-keycloak-client   # Keycloak client registered
-```
-
-:::warning Requests now require a token
-With the secure profile on, an **unauthenticated** request to the agent is rejected by the AuthBridge `jwt-validation` plugin:
-
-```json
-{"error":"auth.unauthorized","message":"missing Authorization header","plugin":"jwt-validation"}
-```
-:::
-
-### Send an authenticated request
-
-Each secured workload is registered as a Keycloak **client** named `<namespace>/<workload>` (here `team1/weather-agent`), and its credentials are stored in a `kagenti-keycloak-client-credentials-*` secret that the operator mounts into the pod. To call the agent you authenticate **as that client** (an OAuth2 `client_credentials` grant) to obtain an access token, then send it as `Authorization: Bearer <token>`. The token carries the realm issuer as its `aud` claim (via the `kagenti-platform-audience` scope), which is what AuthBridge validates.
-
-Because both Keycloak and the credentials secret live in the cluster, the simplest approach is a short pod that mounts the agent's credentials secret, fetches a token, and calls the agent — no port-forwarding and no secret leaves the cluster.
-
-1. Find the agent's credentials secret name:
-
-   ```bash
-   kubectl get secret -n team1 -o name | grep kagenti-keycloak-client
-   # secret/kagenti-keycloak-client-credentials-<hash>
-   ```
-
-2. Run the authenticated query from a pod. Replace `<credentials-secret>` with the name from step 1:
-
-   ```yaml
-   kubectl apply -f - <<'EOF'
-   apiVersion: v1
-   kind: Pod
-   metadata:
-     name: weather-query
-     namespace: team1
-   spec:
-     restartPolicy: Never
-     containers:
-     - name: query
-       image: docker.io/alaudadockerhub/curl:8.1.2
-       command: ["/bin/sh", "-c"]
-       args:
-       - |
-         CID=$(cat /creds/client-id.txt)
-         CSEC=$(cat /creds/client-secret.txt)
-
-         # 1. Get an access token from Keycloak (client_credentials grant).
-         # Use the same Keycloak hostname form set as `keycloak.publicUrl` on the
-         # Kagenti operand (the JWT `iss` claim must match what AuthBridge validates).
-         # The recommended in-cluster form is the short svc URL:
-         TOKEN=$(curl -s \
-           http://keycloak-service.keycloak.svc:8080/realms/kagenti/protocol/openid-connect/token \
-           -d grant_type=client_credentials \
-           --data-urlencode "client_id=$CID" \
-           --data-urlencode "client_secret=$CSEC" \
-           | sed 's/.*"access_token":"\([^"]*\)".*/\1/')
-
-         # 2. Call the agent with the token in the Authorization header
-         curl -sS -X POST http://weather-agent.team1.svc.cluster.local:8000/ \
-           -H "Authorization: Bearer $TOKEN" \
-           -H "Content-Type: application/json" \
-           -d '{"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{"role":"user","parts":[{"kind":"text","text":"What is the weather in NY?"}],"messageId":"m1"}}}'
-       volumeMounts:
-       - name: creds
-         mountPath: /creds
-         readOnly: true
-     volumes:
-     - name: creds
-       secret:
-         secretName: <credentials-secret>
-   EOF
-   ```
-
-3. Read the result and clean up:
-
-   ```bash
-   kubectl logs weather-query -n team1
-   kubectl delete pod weather-query -n team1
-   ```
-
-   You get the same completed A2A task as in [Step 4](#step-4-send-a-query-end-to-end-test) — now through the authenticated, JWT-validated path.
-
-:::info
-To call the agent from **outside** the cluster instead, request the token from a Keycloak endpoint exposed via an Ingress/Gateway, then send the request to the agent's exposed endpoint with the same `Authorization: Bearer <token>` header. The token request is the standard OIDC call: `POST <keycloak>/realms/kagenti/protocol/openid-connect/token` with `grant_type=client_credentials`, `client_id`, and `client_secret`.
-:::
-
-## AuthBridge deployment modes
-
-AuthBridge can be injected in one of two shapes. The **mode** decides which sidecar image is added, how inbound traffic is validated, and how outbound traffic is intercepted. It is a **per-namespace** default (an admin knob), not a per-workload one — every agent and MCP tool in the namespace shares the same mode.
-
-| Mode | Sidecar container / image | Inbound (client → workload) | Outbound (workload → other services) |
-|------|---------------------------|-----------------------------|--------------------------------------|
-| **`proxy-sidecar`** (default) | `authbridge-proxy` container, image `authbridge`. | Reverse proxy on the workload's service port → JWT validation → forwards to the app on a shifted port. | **Cooperative**: the webhook injects `HTTP_PROXY` / `HTTPS_PROXY` env vars pointing at the sidecar's HTTP forward proxy on `:8081`. The app opts in by honouring those env vars. |
-| **`envoy-sidecar`** | `envoy-proxy` container, image `authbridge-envoy` (Envoy + authbridge as ext_proc). Adds a `proxy-init` initContainer that installs iptables rules. | Transparent redirect: iptables sends inbound traffic to Envoy, which calls authbridge over gRPC ext_proc for JWT validation. | **Transparent**: iptables redirects outbound TCP to Envoy's outbound listener. No `HTTP_PROXY` env vars are set on the app. |
-
-### Selecting the mode
-
-The mode is resolved in this order (first non-empty wins):
-
-1. The namespace ConfigMap **`authbridge-runtime-config`** — `mode:` field inside `config.yaml`.
-2. Cluster-wide default: `proxy-sidecar`.
-
-To switch a namespace to `envoy-sidecar`, apply a ConfigMap and restart the agent + tool deployments (see [Reload after mode changes](#reload-after-mode-changes)):
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: authbridge-runtime-config
-  namespace: team1
-data:
-  config.yaml: |
-    mode: envoy-sidecar
-    mtls:
-      mode: disabled
-```
-
-:::warning
-`envoy-sidecar` **boots cleanly with `mtls.mode: permissive` since kagenti-extensions v0.6.0-alpha.9-aml.1** — the `authbridge-envoy` binary now writes X.509 SVIDs to `/opt/svid*.pem` in-process via go-spiffe, which is what the operator's Envoy filesystem-SDS config expects. However, two operator-template gaps remain and are being tracked for a follow-up release:
-
-- **Inbound auth enforcement**: the Envoy config template injects `x-authbridge-direction: inbound` at route level, which the router filter applies *after* `ext_proc`. AuthBridge therefore classifies inbound requests as outbound and applies the default passthrough policy — the JWT-validation plugin never runs. A follow-up patch moves the header injection into a Lua HTTP filter placed before `ext_proc`.
-- **External HTTPS through the sidecar**: Envoy's outbound listener assumes HTTP, so a client TLS handshake to an arbitrary public host is parsed as HTTP and mangled. There is no `NO_PROXY` escape hatch in this mode; a follow-up will add a `spec.egressBypass` field on the `Kagenti` operand that flows through to a proxy-init `OUTBOUND_PORTS_EXCLUDE` / hosts allowlist.
-
-**Recommendation for the current release:** use `proxy-sidecar` in production. Its inbound JWT validation and the `NO_PROXY` outbound-egress option (see below) are both verified end-to-end by the operator's [`e2e/`](https://gitlab-ce.alauda.cn/aml/kagenti-operator/-/tree/alauda/secure-profile/e2e) smoke Job. `envoy-sidecar` is fine for booting and inspecting the data path but should not be relied on for production auth enforcement until the two items above land.
-:::
-
-### Reload after mode changes
-
-Both the manager and the per-workload injected config are cached at pod-create time, so a mode change needs three actions:
-
-```bash
-# 1. Roll the operator so it picks up the new namespace ConfigMap.
-kubectl -n kagenti-system rollout restart deploy/kagenti-controller-manager
-
-# 2. Delete stale per-workload ConfigMaps so the webhook re-renders them
-#    with the new mode. (Kept for both modes; the operator preserves
-#    existing values, see issue upstream #433.)
-kubectl -n team1 delete cm envoy-config-weather-agent envoy-config-weather-tool 2>/dev/null
-
-# 3. Recycle the workloads so the webhook re-injects the sidecars.
-kubectl -n team1 rollout restart deploy/weather-agent deploy/weather-tool
-```
-
-Confirm the injection happened as expected:
-
-```bash
-# proxy-sidecar: container "authbridge-proxy" runs image "authbridge:..."
-# envoy-sidecar: container "envoy-proxy" runs image "authbridge-envoy:...",
-#                and an "proxy-init" initContainer appears.
-kubectl -n team1 get pod -l app=weather-agent -o jsonpath='{range .spec.containers[*]}{.name}={.image}{"\n"}{end}'
-```
-
-### When to use each mode
-
-Use **`proxy-sidecar`** (the default) when any of the following applies — this is the tested-and-supported path for the current release:
-
-- You want sidecar-to-sidecar mTLS (`permissive` or `strict`).
-- You are only calling other in-cluster HTTP services (agent → MCP tool, LLM InferenceService, etc.). No `CONNECT`-tunnelling needed.
-- SPIRE is not required for the workloads.
-
-Use **`envoy-sidecar`** when you specifically need:
-
-- Envoy's routing / observability features on the data path.
-- Transparent iptables interception (no `HTTP_PROXY` env on the app).
-
-### Allowing outbound traffic in `proxy-sidecar` mode
-
-**The upstream weather-agent demo pattern this guide follows — no `AgentRuntime` and no sidecar on tool workloads (`spec.featureGates.injectTools: false` is the operand default) — sidesteps this issue entirely**: the tool runs as a single container without `HTTP_PROXY`/`HTTPS_PROXY` env, so its outbound calls to public APIs go direct via the pod's default egress. This is the recommended layout when the tool doesn't need its own inbound JWT validation or outbound token exchange.
-
-The rest of this section applies only when you deliberately inject an AuthBridge sidecar into a workload that also needs external HTTPS (typically by flipping `injectTools: true` on the `Kagenti` operand, or by adding `kagenti.io/authbridge-inject: "true"` to an individual Deployment). AuthBridge's HTTP forward proxy is **HTTP-only** — it responds `405 Method Not Allowed` to `CONNECT`, so an injected app making an outbound HTTPS request through the sidecar hits `Tunnel connection failed: 405`. This is by design: the outbound `token-exchange` plugin needs to read and modify request headers, which is not possible through an opaque TLS tunnel.
-
-Two consequences worth knowing when you have a sidecar on an outbound-heavy workload:
-
-1. **In-cluster HTTP** works out of the box (agent → tool, LLM). No configuration needed.
-2. **External HTTPS** (a public API such as `geocoding-api.open-meteo.com` used by the weather MCP tool) needs to bypass the sidecar. Add the destination hostnames to `NO_PROXY` on the **app** container. The kagenti webhook sets `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` **only if not already present** on the container, so pre-declaring `NO_PROXY` on the workload cleanly overrides the default:
-
-   ```yaml
-   apiVersion: apps/v1
-   kind: Deployment
-   metadata:
-     name: weather-tool
-     namespace: team1
-   spec:
-     template:
-       spec:
-         containers:
-         - name: mcp                 # the app container, not the sidecar
-           env:
-           - name: NO_PROXY
-             value: "127.0.0.1,localhost,.svc,.svc.cluster.local,geocoding-api.open-meteo.com,api.open-meteo.com"
-   ```
-
-   Effect: outbound calls to any host **not** matched by `NO_PROXY` still route through the AuthBridge sidecar (and remain eligible for outbound token exchange, tracing, etc.); the listed public API calls bypass the sidecar and go direct via the pod's default egress. The cluster's egress network policy — not AuthBridge — governs whether the traffic actually reaches the public destination.
-
-   :::info
-   Only add the hosts you need to reach externally. Every entry in `NO_PROXY` is a hole in the outbound-inspection path — the sidecar can no longer inject Bearer tokens on that hostname.
-   :::
+1. [Install the Secure-Profile Dependencies](./install_secure_dependencies.mdx) — SPIRE, Keycloak, Istio ambient.
+2. [Enable the Secure Profile](./enable_secure_profile.mdx) — flip the operand feature gates.
+3. [Demo with Secure Profile](./demo_with_secure_profile.mdx) — re-run the same weather scenario with an AuthBridge sidecar on the agent, a SPIRE SVID per workload, and Bearer-token-authenticated requests.
+4. [Demo Advanced: AuthBridge on the Tool with Token Exchange](./demo_advanced_secure_profile.mdx) — add AuthBridge to the tool too, with RFC 8693 token exchange between agent and tool.
 
 ## Troubleshooting
 
@@ -546,6 +337,5 @@ Two consequences worth knowing when you have a sidecar on an outbound-heavy work
 | `AgentRuntime` not `Ready` | `kubectl describe agentruntime <name> -n team1` — confirm `TargetResolved`. A common cause is the target Deployment or its Service not existing yet. |
 | Agent returns no answer / times out | Check the agent can reach the model: `LLM_API_BASE` resolves and `/v1/models` lists `LLM_MODEL`. Inspect `kubectl logs -l app.kubernetes.io/name=weather-agent -n team1` for LLM connection errors. |
 | Agent answers without live data | Verify `MCP_URL` points at the `weather-tool-mcp` Service and the tool pod is `Running`: `kubectl logs -l app.kubernetes.io/name=weather-tool -n team1`. |
-| Tool "weather service temporarily unavailable" | The tool's `get_weather` calls `geocoding-api.open-meteo.com` — a public HTTPS endpoint. With the recommended pattern (no sidecar on the tool) this works directly. If you injected a sidecar into the tool, the `HTTP_PROXY` env routes HTTPS through AuthBridge, which rejects `CONNECT` with `405`; either revert to the no-sidecar layout or add the destination to `NO_PROXY` — see [Allowing outbound traffic in `proxy-sidecar` mode](#allowing-outbound-traffic-in-proxy-sidecar-mode). |
 | `ImagePullBackOff` | On clusters without `docker.io` egress, relocate the images into your platform registry (e.g. via `violet`) and reference that copy. |
 | `MTLSReady=False` | Expected in the core profile (reason `SPIREUnavailable`); it does not affect agent or tool functionality. |
