@@ -1,0 +1,61 @@
+---
+weight: 20
+---
+
+# Installation
+
+Alauda Build of MCP Lifecycle Operator is delivered as an **OLM Operator** and installed from the platform **OperatorHub**.
+
+## Upload Operator
+
+Download the Alauda Build of MCP Lifecycle Operator package from the <Term name="company" /> Customer Portal / Marketplace, then publish it to the platform repository with the `violet` command-line tool:
+
+```bash
+violet push \
+  --platform-address=<platform-access-address> \
+  --platform-username=<platform-admin> \
+  --platform-password=<platform-admin-password> \
+  mcp-lifecycle-operator.ALL.xxxx.tgz
+```
+
+:::info
+The operator package includes the OLM bundle and the related runtime images required by the operator. For air-gapped clusters, make sure the MCP server images used by your `MCPServer` resources are also mirrored to a registry that the cluster can pull from.
+:::
+
+## Install Operator
+
+In the **Administrator** view:
+
+1. Click **Marketplace** / **OperatorHub**.
+2. From the **Cluster** dropdown, select the destination cluster.
+3. Search for and select **Alauda Build of MCP Lifecycle Operator**.
+4. Click **Install**.
+5. Keep **Installation Location** unchanged unless your environment requires a different namespace. The default namespace is `mcp-lifecycle-operator-system`.
+6. Choose an **Upgrade Strategy**. `Manual` is recommended for production.
+7. Click **Install**.
+
+The operator watches all namespaces. You can create `MCPServer` resources in any application namespace after the installation succeeds.
+
+## Verify the Installation
+
+Confirm that the OperatorHub tile shows `Installed`, then verify on the cluster:
+
+```bash
+# the CSV reports Succeeded
+kubectl get csv -n mcp-lifecycle-operator-system | grep mcp-lifecycle-operator
+
+# the controller pod is Running
+kubectl get pods -n mcp-lifecycle-operator-system
+
+# the MCPServer CRD is registered
+kubectl get crd mcpservers.mcp.x-k8s.io
+```
+
+You should see the `mcp-lifecycle-operator-controller-manager` pod in `Running` state and the `mcpservers.mcp.x-k8s.io` CRD registered.
+
+## Upgrade Operator
+
+1. Upload the new Alauda Build of MCP Lifecycle Operator package with `violet push`.
+2. Go to **Administrator** -> **Marketplace** -> **OperatorHub**.
+3. Find **Alauda Build of MCP Lifecycle Operator** and apply the new version according to the configured upgrade strategy.
+4. Verify the CSV, controller pod, and existing `MCPServer` resources after the upgrade.

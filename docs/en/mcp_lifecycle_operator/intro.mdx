@@ -1,0 +1,55 @@
+---
+weight: 10
+---
+
+# Introduction
+
+**Alauda Build of MCP Lifecycle Operator** is based on the [Kubernetes SIG Apps MCP Lifecycle Operator](https://github.com/kubernetes-sigs/mcp-lifecycle-operator) project. It provides a Kubernetes-native API for deploying and managing [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) servers as ordinary cluster workloads.
+
+The operator introduces the `MCPServer` custom resource (`mcp.x-k8s.io/v1alpha1`). An `MCPServer` describes the MCP server container image, network port, MCP endpoint path, environment variables, mounted configuration, runtime resources, and security settings. The controller reconciles that declaration into a Kubernetes `Deployment` and `Service` with the same name as the `MCPServer`. The current API supports `ContainerImage` as the only `spec.source.type`.
+
+:::warning Alpha API
+The upstream `MCPServer` API is currently `v1alpha1`. Field names and behavior may change in future releases.
+:::
+
+## Key Features
+
+- **Declarative MCP server lifecycle**: Create, update, scale, and delete MCP servers by applying `MCPServer` resources.
+- **Managed Kubernetes resources**: The operator creates and owns the backing `Deployment` and `Service`, and reports their names in `MCPServer` status.
+- **Built-in service discovery**: The `MCPServer` status exposes an internal URL such as `http://<name>.<namespace>.svc.cluster.local:<port>/mcp` for other workloads.
+- **Runtime customization**: Configure command-line arguments, environment variables, ConfigMap and Secret mounts, `EmptyDir` storage, resource requests and limits, replicas, probes, service accounts, and security contexts.
+- **Session-aware services**: Use `spec.mcp.stateless` to choose whether the generated Service uses free load balancing or client-IP session affinity.
+
+## How It Works
+
+1. A user applies an `MCPServer` resource in an application namespace.
+2. The controller validates the desired MCP server configuration.
+3. The controller creates or updates a same-named `Deployment` that runs the MCP server container image.
+4. The controller creates or updates a same-named `Service` that exposes the MCP endpoint inside the cluster.
+5. The controller writes readiness conditions and the service address into `MCPServer.status`.
+
+## Use Cases
+
+- **MCP tools for AI agents**: Run tool servers that expose live data, internal APIs, or operational actions to agent frameworks.
+- **Reusable platform services**: Package MCP servers as Kubernetes workloads with consistent deployment, scaling, and status behavior.
+- **Agentic MLOps integration**: Provide MCP endpoints that can be consumed by Kagenti agents, Llama Stack agents, notebooks, or other in-cluster AI applications.
+
+## Why Use MCPServer
+
+For a single MCP server that is fully managed by an existing application deployment pipeline, a plain `Deployment` and `Service` may be enough. `MCPServer` adds value when MCP tools are shared, discovered, or repeatedly deployed across namespaces and teams.
+
+The main benefits are:
+
+- **A stable MCP-specific API**: Users declare the MCP server image, port, path, runtime settings, and protocol behavior in one object.
+- **Consistent status and discovery**: The operator reports `Accepted`, `Ready`, managed resource names, and the cluster-internal MCP address on the `MCPServer` status. Other tools and platform workflows can discover MCP endpoints without parsing arbitrary Kubernetes manifests.
+- **Protocol-aware defaults**: MCP-specific fields such as `spec.config.path` and `spec.mcp.stateless` make endpoint path and session affinity explicit.
+- **Room for platform integration**: A dedicated MCP API gives the platform a single integration point for future policy, UI, catalog, observability, and agent-tool workflows.
+
+## Documentation
+
+Upstream documentation and related resources:
+
+- **MCP Lifecycle Operator Documentation**: [https://mcp-lifecycle-operator.sigs.k8s.io/](https://mcp-lifecycle-operator.sigs.k8s.io/)
+- **MCP Lifecycle Operator GitHub**: [https://github.com/kubernetes-sigs/mcp-lifecycle-operator](https://github.com/kubernetes-sigs/mcp-lifecycle-operator)
+- **Model Context Protocol**: [https://modelcontextprotocol.io/](https://modelcontextprotocol.io/)
+- **Kagenti Operator**: [../kagenti/intro](../kagenti/intro) - deploys and discovers AI agents and MCP tools.
