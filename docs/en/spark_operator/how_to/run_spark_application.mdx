@@ -1,0 +1,230 @@
+---
+weight: 10
+---
+
+# Run a Spark Application
+
+This guide shows how to submit an Apache Spark job with a `SparkApplication` custom resource, monitor it to completion, and inspect the result. It uses the built-in **Spark Pi** example that ships in the Spark image.
+
+## Prerequisites
+
+- Alauda Build of Spark Operator is installed and its CSV reports `Succeeded` — see [Installation](../install.mdx).
+- `kubectl` access to the target cluster.
+
+## 1. Create a namespace and Spark RBAC
+
+In cluster mode the Spark **driver** creates and manages its **executor** pods, so the driver's `ServiceAccount` needs permission to manage pods (and the services / configmaps Spark uses) in its namespace.
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spark-demo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spark
+  namespace: spark-demo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: spark-driver
+  namespace: spark-demo
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "persistentvolumeclaims"]
+    verbs: ["create", "get", "list", "watch", "delete", "deletecollection", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: spark-driver
+  namespace: spark-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: spark-driver
+subjects:
+  - kind: ServiceAccount
+    name: spark
+    namespace: spark-demo
+```
+
+Save as `spark-rbac.yaml` and apply:
+
+```bash
+kubectl apply -f spark-rbac.yaml
+```
+
+## 2. Submit a SparkApplication
+
+```yaml
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: spark-pi
+  namespace: spark-demo
+spec:
+  type: Scala
+  mode: cluster
+  image: docker.io/library/spark:4.0.1 # [!code callout]
+  imagePullPolicy: IfNotPresent
+  mainClass: org.apache.spark.examples.SparkPi
+  mainApplicationFile: "local:///opt/spark/examples/jars/spark-examples.jar" # [!code callout]
+  arguments: ["100"] # [!code callout]
+  sparkVersion: "4.0.1"
+  restartPolicy:
+    type: Never
+  driver:
+    coreRequest: "500m"
+    coreLimit: "1000m"
+    memory: 512m
+    serviceAccount: spark # [!code callout]
+    securityContext: # [!code callout]
+      runAsUser: 185
+      runAsGroup: 185
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities: { drop: ["ALL"] }
+      seccompProfile: { type: RuntimeDefault }
+  executor:
+    instances: 2 # [!code callout]
+    coreRequest: "500m"
+    coreLimit: "1000m"
+    memory: 512m
+    securityContext:
+      runAsUser: 185
+      runAsGroup: 185
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities: { drop: ["ALL"] }
+      seccompProfile: { type: RuntimeDefault }
+```
+
+<Callouts>
+
+1. `spec.image` — the Apache Spark runtime image for the driver and executors. On an air-gapped cluster, use the copy relocated into the platform registry (recorded in the CSV `relatedImages`) or your internal mirror, e.g. `build-harbor.alauda.cn/mlops/spark:4.0.1`.
+2. `spec.mainApplicationFile` — path or URL to the application artifact. `local://` refers to a path inside the image; the Spark examples jar ships in the Spark image.
+3. `spec.arguments` — arguments passed to the application; for Spark Pi this is the number of partitions.
+4. `spec.driver.serviceAccount` — must reference the `ServiceAccount` created in step 1.
+5. `spec.driver.securityContext` / `spec.executor.securityContext` — required to satisfy a restricted Pod Security Admission policy. The Spark image runs as UID/GID `185`.
+6. `spec.executor.instances` — number of executor pods to run.
+
+</Callouts>
+
+Save as `spark-pi.yaml` and apply:
+
+```bash
+kubectl apply -f spark-pi.yaml
+```
+
+## 3. Monitor the application
+
+The operator reports progress in `.status.applicationState.state`, which moves through `SUBMITTED` → `RUNNING` → `COMPLETED`.
+
+```bash
+# high-level status
+kubectl get sparkapplication spark-pi -n spark-demo
+
+# just the state field
+kubectl get sparkapplication spark-pi -n spark-demo \
+  -o jsonpath='{.status.applicationState.state}{"\n"}'
+
+# driver and executor pods (driver pod is named <app-name>-driver)
+kubectl get pods -n spark-demo
+```
+
+## 4. Verify the result
+
+When the application reaches `COMPLETED`, check the driver log for the computed value of Pi:
+
+```bash
+kubectl logs spark-pi-driver -n spark-demo | grep "Pi is roughly"
+```
+
+You should see output similar to:
+
+```text
+Pi is roughly 3.1415...
+```
+
+## 5. Clean up
+
+```bash
+kubectl delete sparkapplication spark-pi -n spark-demo
+# optionally remove the demo namespace
+kubectl delete namespace spark-demo
+```
+
+## Schedule a recurring job
+
+To run a Spark application on a schedule, wrap the same application `spec` in a `ScheduledSparkApplication`:
+
+```yaml
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: ScheduledSparkApplication
+metadata:
+  name: spark-pi-scheduled
+  namespace: spark-demo
+spec:
+  schedule: "@every 5m" # [!code callout]
+  concurrencyPolicy: Forbid # [!code callout]
+  successfulRunHistoryLimit: 3
+  failedRunHistoryLimit: 1
+  template: # [!code callout]
+    type: Scala
+    mode: cluster
+    image: docker.io/library/spark:4.0.1
+    imagePullPolicy: IfNotPresent
+    mainClass: org.apache.spark.examples.SparkPi
+    mainApplicationFile: "local:///opt/spark/examples/jars/spark-examples.jar"
+    arguments: ["100"]
+    sparkVersion: "4.0.1"
+    restartPolicy:
+      type: Never
+    driver:
+      coreRequest: "500m"
+      coreLimit: "1000m"
+      memory: 512m
+      serviceAccount: spark
+    executor:
+      instances: 2
+      coreRequest: "500m"
+      coreLimit: "1000m"
+      memory: 512m
+```
+
+<Callouts>
+
+1. `spec.schedule` — a cron expression (or `@every <duration>`) controlling when runs start.
+2. `spec.concurrencyPolicy` — `Allow`, `Forbid`, or `Replace`; controls overlapping runs.
+3. `spec.template` — the `SparkApplication` spec to run on each tick.
+
+</Callouts>
+
+Inspect the schedule and its generated runs:
+
+```bash
+kubectl get scheduledsparkapplication spark-pi-scheduled -n spark-demo
+kubectl get sparkapplication -n spark-demo
+```
+
+## Common SparkApplication fields
+
+| Field | Description |
+|-------|-------------|
+| `spec.type` | Application language: `Scala`, `Java`, `Python`, or `R`. |
+| `spec.mode` | Submission mode; use `cluster`. |
+| `spec.image` | Spark runtime image for the driver and executors. |
+| `spec.mainClass` | Main class for JVM (`Scala` / `Java`) applications. |
+| `spec.mainApplicationFile` | Path or URL to the application artifact (`local://`, `http(s)://`, `s3a://`, …). |
+| `spec.arguments` | Arguments passed to the application. |
+| `spec.sparkVersion` | Spark version of the image (`4.0.1`). |
+| `spec.sparkConf` | Arbitrary `spark.*` configuration passed to the application. |
+| `spec.deps` | Extra `jars`, `files`, `pyFiles`, and Maven package coordinates to fetch. |
+| `spec.driver` / `spec.executor` | Pod settings: `cores` / `coreRequest` / `coreLimit`, `memory`, `serviceAccount`, `instances` (executor), labels, env, volumes, node selectors, `securityContext`, … |
+| `spec.restartPolicy` | `Never`, `OnFailure`, or `Always`, with retry / backoff settings. |
+
+For the full schema, see the upstream [Spark Operator API reference](https://github.com/kubeflow/spark-operator/blob/master/docs/api-docs.md).
