@@ -29,6 +29,18 @@ CASES=(
   # C12 needs Kueue installed; it skips with rc=77 if the kueue.x-k8s.io API
   # group is missing. See preemptible-trainjobs-with-kueue.mdx.
   "C12:GPU:cases/c12_kueue_preemption.sh"
+  # C13 — QLoRA (4-bit NF4 LoRA) via training_hub.lora_sft on the traininghub
+  # runtime. Self-contained synthetic model; SKIPs (rc=77) if no Ampere+ GPU
+  # slice is schedulable or the available GPU is < sm_75 (bitsandbytes 4-bit).
+  # Defaults to the cluster-pullable build-harbor image (docker.io is blocked).
+  "C13:GPU:cases/c13_traininghub_qlora.sh"
+  # C14 — continued pre-training (CPT) via training_hub.sft(is_pretraining=True).
+  # Self-contained (synthetic base model + synthetic raw-text corpus, no fetch).
+  # CPT is full-parameter SDPA — no sm_75 floor, so it runs on any schedulable
+  # GPU slice (Ampere/Hopper/Pascal). SKIPs (rc=77) when the only Ampere GPU
+  # (A30) is reserved by the persistent inference workload and no slice frees up;
+  # the orchestrator controls A30 capacity. Same build-harbor image as C13.
+  "C14:GPU:cases/c14_traininghub_cpt.sh"
 )
 
 want=( "$@" )
