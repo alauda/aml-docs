@@ -4,18 +4,33 @@ weight: 50
 
 # Fine-tuning LLMs with Training Hub
 
-`training_hub` is a Python library that wraps Supervised Fine-Tuning (SFT) and Orthogonal Subspace Fine-Tuning (OSFT) behind a single function call (`sft(...)`, `osft(...)`) that handles single-GPU, multi-GPU, and multi-node training uniformly.
+`training_hub` is a Python library that wraps several LLM post-training algorithms — Supervised Fine-Tuning (SFT), Orthogonal Subspace Fine-Tuning (OSFT), LoRA / QLoRA, and continued pre-training (CPT) — behind single function calls (`sft(...)`, `osft(...)`, `lora_sft(...)`) that handle single-GPU, multi-GPU, and multi-node training uniformly.
 
 - **Automatic memory management** — `max_tokens_per_gpu` caps GPU memory and auto-computes micro-batch size and gradient accumulation to hit your target `effective_batch_size`.
 - **OSFT** implements [Nayak et al., 2025 (arXiv:2504.07097)](https://arxiv.org/abs/2504.07097) — restricting weight updates to orthogonal subspaces prevents catastrophic forgetting without replay data.
+- **QLoRA** loads the frozen base model in 4-bit and trains only LoRA adapters, fitting large models on a single small GPU slice ([Dettmers et al., 2023, arXiv:2305.14314](https://arxiv.org/abs/2305.14314)).
+- **Continued pre-training (CPT)** runs next-token prediction over a raw-text corpus to inject domain knowledge before instruction tuning.
 - Built-in checkpointing, experiment tracking, and Liger kernel support.
 
-| Aspect | SFT | OSFT |
-|--------|-----|------|
-| Use case | Initial instruction tuning | Continual domain adaptation of tuned models |
-| Forgetting mitigation | Mix/replay data | Algorithmic (orthogonal subspaces) |
-| Key parameter | Standard hyperparameters | `unfreeze_rank_ratio` (0.0–1.0) |
-| Backend | instructlab-training | mini-trainer |
+:::note Design context
+`training_hub` is the upstream library RHOAI / Open Data Hub uses to expose post-training
+algorithms behind a single API, and Alauda AI runs the same code on Kubeflow Trainer v2
+(`TrainJob` / `ClusterTrainingRuntime`). The split between the *algorithm* (this library)
+and the *distributed runtime* (Kubeflow Trainer) follows the Open Data Hub
+[architecture decision records](https://github.com/opendatahub-io/architecture-decision-records/tree/main/documentation)
+(see the `distributed-workload` and `workbenches` component docs) — so the recipes here
+map cleanly onto the same `sft` / `osft` / `lora_sft` entrypoints whether you run them in a
+workbench notebook or as a cluster `TrainJob`.
+:::
+
+| Aspect | SFT | OSFT | QLoRA | CPT |
+|--------|-----|------|-------|-----|
+| Use case | Initial instruction tuning | Continual domain adaptation of tuned models | Memory-efficient adaptation | Domain knowledge injection |
+| Data | Chat JSONL | Chat JSONL | Chat JSONL | Raw text |
+| Trainable weights | All (bf16) | Orthogonal subspace | LoRA adapters (base in 4-bit) | All (bf16) |
+| Key parameter | Standard hyperparameters | `unfreeze_rank_ratio` (0.0–1.0) | `load_in_4bit` + `lora_r` | `is_pretraining` + `block_size` |
+| Entrypoint | `sft(...)` | `osft(...)` | `lora_sft(...)` | `sft(..., is_pretraining=True)` |
+| Backend | instructlab-training | mini-trainer | unsloth / peft + bitsandbytes | instructlab-training |
 
 ## Requirements
 
@@ -47,6 +62,8 @@ Download into your workbench and execute cell-by-cell:
 |---|---|---|
 | SFT comprehensive tutorial | SFT | [`sft-comprehensive-tutorial.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/sft-comprehensive-tutorial.ipynb) |
 | OSFT comprehensive tutorial | OSFT | [`osft-comprehensive-tutorial.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/osft-comprehensive-tutorial.ipynb) |
+| QLoRA comprehensive tutorial | QLoRA | [`qlora-comprehensive-tutorial.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/qlora-comprehensive-tutorial.ipynb) |
+| CPT comprehensive tutorial | CPT | [`cpt-comprehensive-tutorial.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/cpt-comprehensive-tutorial.ipynb) |
 
 Install and configure:
 
@@ -130,6 +147,118 @@ OSFT-only:
 | `unfreeze_rank_ratio` | Yes | Fraction of each weight matrix updateable (0.0–1.0). Lower = more preservation. |
 | `unmask_messages` | No | If `True`, train on all non-system content |
 | `target_patterns` | No | Substring patterns to restrict OSFT to specific layers |
+
+## QLoRA (4-bit LoRA) \{#qlora}
+
+QLoRA freezes the base model in **4-bit NormalFloat (NF4)** precision and trains only small
+**LoRA adapter** matrices on top. A 7B model that needs ~60 GiB for full SFT then fits on a
+single 16–24 GiB GPU (or HAMI vGPU slice). Use it whenever you are GPU-memory bound; the cost
+is a small quantization quality gap and slightly slower steps.
+
+`training_hub` exposes QLoRA through `lora_sft(...)` — LoRA plus the bitsandbytes 4-bit knobs:
+
+```python
+from training_hub import lora_sft
+
+result = lora_sft(
+    model_path="Qwen/Qwen2.5-7B-Instruct",   # HF name or local path
+    data_path="/path/to/training_data.jsonl", # same chat JSONL as SFT
+    ckpt_output_dir="/path/to/checkpoints/qlora_run",
+    # LoRA adapter
+    lora_r=16, lora_alpha=32, lora_dropout=0.05,
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],  # or "all-linear"
+    # 4-bit quantization — this is what makes it QLoRA
+    load_in_4bit=True,
+    bnb_4bit_quant_type="nf4",
+    bnb_4bit_compute_dtype="bfloat16",
+    bnb_4bit_use_double_quant=True,
+    # core training (LoRA tolerates higher LRs than full SFT)
+    num_epochs=3, effective_batch_size=16, learning_rate=2e-4, max_seq_len=4096,
+    nproc_per_node=1,
+)
+```
+
+QLoRA-specific parameters:
+
+| Parameter | Required | Description |
+|---|---|---|
+| `load_in_4bit` | Yes (for QLoRA) | Load the frozen base model in 4-bit. Without it `lora_sft` is plain (16-bit) LoRA. |
+| `bnb_4bit_quant_type` | No | `"nf4"` (recommended) or `"fp4"` |
+| `bnb_4bit_compute_dtype` | No | De-quantization compute dtype, e.g. `"bfloat16"` |
+| `bnb_4bit_use_double_quant` | No | Nested quantization of the quant constants (extra memory saving) |
+| `lora_r`, `lora_alpha`, `lora_dropout` | Yes | LoRA adapter rank / scaling / dropout |
+| `target_modules` | No | Modules to adapt (attention projections, or `"all-linear"`) |
+| `load_in_8bit` | No | 8-bit base (LoRA-8bit, not QLoRA) |
+
+The output is a **LoRA adapter**, not a full checkpoint. To serve, load base + adapter with
+`peft`, or merge once with `merge_and_unload()` and export a standalone model.
+
+:::note
+4-bit QLoRA via bitsandbytes needs an NVIDIA GPU of compute capability **sm_75 or newer**
+(Turing / Ampere / Hopper). The `traininghub0.1-cu126-amd64` runtime already bundles
+`trl`, `peft`, and `bitsandbytes`. The default `lora_sft` backend is `unsloth`; for full
+control you can also drive `peft` + `bitsandbytes` directly on the same runtime image.
+
+**NPU:** bitsandbytes 4-bit is not available on Huawei Ascend. Use LoRA (without 4-bit) on
+the `llamafactory0.9-cann8.5-arm64` runtime (`finetuning_type: lora`) as the
+parameter-efficient path — see [Fine-tune and Pretrain on Ascend NPU](./fine-tune-and-pretrain-llms-on-ascend-npu.mdx).
+:::
+
+## Continued pre-training (CPT) \{#cpt}
+
+Continued pre-training (CPT) keeps the original **next-token prediction** objective but runs
+it over a **raw-text corpus** from your domain (medical, legal, code, a new language). It
+injects *knowledge and vocabulary* — unlike SFT/OSFT, which teach *behavior* from chat data.
+A common pipeline is **CPT → SFT → alignment**.
+
+`training_hub` runs CPT through the same `sft(...)` entrypoint with `is_pretraining=True`:
+the loss covers *all* tokens (no assistant-only masking) and documents are packed into
+fixed-size `block_size` windows.
+
+```python
+from training_hub import sft
+
+result = sft(
+    model_path="Qwen/Qwen2.5-7B",             # a BASE checkpoint
+    data_path="/path/to/corpus.jsonl",         # raw text, one document per line
+    ckpt_output_dir="/path/to/checkpoints/cpt_run",
+    # continued pre-training
+    is_pretraining=True,
+    block_size=4096,                           # packed context-window length
+    document_column_name="text",               # JSONL field holding the raw text
+    # core training — keep the LR low to limit forgetting
+    num_epochs=1, effective_batch_size=128, learning_rate=5e-6,
+    max_seq_len=4096, max_tokens_per_gpu=20000,
+    nproc_per_node=8,
+)
+```
+
+CPT data is raw text, **not** chat turns — one document per line under `document_column_name`:
+
+```json
+{"text": "A paragraph or document of raw domain text ..."}
+{"text": "Another document ..."}
+```
+
+CPT-specific parameters:
+
+| Parameter | Required | Description |
+|---|---|---|
+| `is_pretraining` | Yes | Switch to raw-text pre-training (no chat masking) |
+| `block_size` | No | Packed context-window length (e.g. 1024–4096) |
+| `document_column_name` | No | JSONL field holding the raw text (default `"text"`) |
+
+CPT updates **all** weights and writes a full checkpoint. It can cause catastrophic
+forgetting of general ability — mitigate with a low learning rate, by mixing in some
+general-domain text, and by following up with an SFT/OSFT pass (point `model_path` at the CPT
+checkpoint). If forgetting is the primary concern, prefer **OSFT**.
+
+:::note
+**NPU:** Full-parameter continued pre-training also runs on Huawei Ascend via the
+`MindSpeed-LLM` runtime (`pretrain_gpt.py`). See
+[Fine-tune and Pretrain on Ascend NPU](./fine-tune-and-pretrain-llms-on-ascend-npu.mdx) and
+the `qwen25_pretrain_verify.ipynb` recipe.
+:::
 
 ## Multi-node
 

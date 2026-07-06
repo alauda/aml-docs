@@ -95,6 +95,42 @@ yaml_image_pull_secrets() {
   printf '%*s- name: %s\n' "$((indent + 2))" '' "${secret}"
 }
 
+# Ensure a build-harbor.alauda.cn pull secret exists in the given namespace and
+# echo its name (for use as imagePullSecrets). docker.io is egress-blocked on the
+# GPU cluster nodes, so the traininghub/llamafactory runtimes must be pulled from
+# build-harbor, which is private and needs dockerconfigjson creds.
+#
+# Resolution order (echoes the secret NAME on stdout; diagnostics go to stderr):
+#   1. If a secret named ${HARBOR_PULL_SECRET:-harbor-mlops-regcred} already exists
+#      in the namespace, reuse it (the orchestrator/cluster usually pre-seeds it).
+#   2. Else, if $ACP_HARBOR_USER and $ACP_HARBOR_PASS are set, create it.
+#   3. Else, echo nothing (caller falls through to no pull secret) and warn — the
+#      orchestrator must pre-create it; the Pod will ImagePullBackOff otherwise.
+ensure_pull_secret() {
+  local ns="$1"
+  local name="${HARBOR_PULL_SECRET:-harbor-mlops-regcred}"
+  local server="${HARBOR_SERVER:-build-harbor.alauda.cn}"
+  if gpu_kc -n "${ns}" get secret "${name}" >/dev/null 2>&1; then
+    log "ensure_pull_secret: reusing existing secret ${name} in ns ${ns}" >&2
+    printf '%s' "${name}"
+    return 0
+  fi
+  if [ -n "${ACP_HARBOR_USER:-}" ] && [ -n "${ACP_HARBOR_PASS:-}" ]; then
+    if gpu_kc -n "${ns}" create secret docker-registry "${name}" \
+        --docker-server="${server}" \
+        --docker-username="${ACP_HARBOR_USER}" \
+        --docker-password="${ACP_HARBOR_PASS}" >/dev/null 2>&1; then
+      log "ensure_pull_secret: created ${name} (server=${server}) in ns ${ns}" >&2
+      printf '%s' "${name}"
+      return 0
+    fi
+    log "ensure_pull_secret: failed to create ${name} in ns ${ns}" >&2
+  fi
+  log "ensure_pull_secret: no pull secret available (set E2E_IMAGE_PULL_SECRET or ACP_HARBOR_USER/PASS, or pre-create ${name} for ${server} in ns ${ns})" >&2
+  printf ''
+  return 0
+}
+
 yaml_node_selector() {
   local indent="$1" key="${2:-}" value="${3:-}"
   [ -z "${key}" ] && return 0
