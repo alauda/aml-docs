@@ -73,7 +73,7 @@ curl -sS ${BASE_URL}/chat/completions \
 A normal JSON completion confirms the endpoint is reachable and the model name is correct. Note the three values you will reuse for every agent: **base URL** (ending in `/v1`), **model name** (the `--served-model-name`), and **API key**.
 
 :::tip
-For reasoning models (DeepSeek R1, QwQ, Qwen3, etc.), also add the matching `--reasoning-parser` to the vLLM launch flags. See [Configure reasoning models and reasoning effort](#configure-reasoning-effort).
+For reasoning-capable models (among the recommended set, GLM-5.2 and Qwen3.6, plus reasoning-mode Deepseek-v4 builds), also add the matching `--reasoning-parser` to the vLLM launch flags. See [Configure reasoning models and reasoning effort](#configure-reasoning-effort).
 :::
 
 ## Step 2: Enable tool calling on the runtime \{#enable-tool-calling-on-the-runtime}
@@ -93,7 +93,7 @@ Verify tool calling end-to-end by asking the agent to perform a trivial file ope
 
 ## Step 2b (optional): Configure reasoning models and reasoning effort \{#configure-reasoning-effort}
 
-Some models (for example, DeepSeek R1, QwQ, Hunyuan, or Cohere Command A Reasoning) emit chain-of-thought reasoning before their final answer. vLLM separates the reasoning traces from the assistant content so your agent receives clean output — but you must enable the matching flags.
+Some models emit chain-of-thought reasoning before their final answer. Among the recommended families this includes **GLM-5.2** and **Qwen3.6** (reasoning is on by default), as well as reasoning-mode **Deepseek-v4** builds. vLLM separates the reasoning traces from the assistant content so your agent receives clean output — but you must enable the matching flags.
 
 ### Server-side flags
 
@@ -105,17 +105,15 @@ Add `--reasoning-parser` to your vLLM launch command. If the same model also nee
 --reasoning-parser <reasoning-parser>
 ```
 
-The table below shows common model families and their required parsers. Confirm against the [vLLM tool calling documentation](https://docs.vllm.ai/en/latest/features/tool_calling.html) for the current list.
+The table below shows parser pairs for reference. Parser names are version-specific and change across vLLM releases — always confirm against the [vLLM tool calling documentation](https://docs.vllm.ai/en/latest/features/tool_calling.html) for the version you run.
 
 | Model family | `--tool-call-parser` | `--reasoning-parser` | Notes |
 | --- | --- | --- | --- |
-| DeepSeek R1 (`deepseek-ai/DeepSeek-R1-*`) | `deepseek_v3` for DeepSeek-R1 tool calling | `deepseek_r1` | DeepSeek-R1-0528 tool calling also needs `--chat-template examples/tool_chat_template_deepseekr1.jinja` |
-| QwQ (`Qwen/QwQ-32B`) | `hermes` | `deepseek_r1` | QwQ uses Hermes-style tool calls and DeepSeek-style reasoning tags |
-| Qwen3 reasoning (`Qwen/Qwen3-*`) | Check the current vLLM docs for the exact Qwen variant | `qwen3` | Qwen3 reasoning is enabled by default; disable it with `chat_template_kwargs` if needed |
-| Hunyuan-A13B-Instruct | `hunyuan_a13b` | `hunyuan_a13b` | Use both parsers when serving the reasoning mode with tool calls |
-| Cohere Command A Reasoning | `cohere_command3` | `cohere_command3` | Requires the optional `cohere_melody` package |
+| Qwen3 / Qwen3.6 reasoning (`Qwen/Qwen3*`) | Check the current vLLM docs for the exact Qwen variant | `qwen3` | Reasoning is on by default; disable it with `chat_template_kwargs` if needed |
+| GLM-5.2 (Zhipu AI) | Check the current vLLM docs for the GLM variant | Check the current vLLM docs for the GLM variant | Hybrid reasoning; the tool-call and reasoning parsers share the GLM family value |
+| Deepseek-v4 (`deepseek_v4`) | Check the current vLLM docs for the DeepSeek variant | Check the current vLLM docs for the DeepSeek variant | Reasoning-mode builds only; see the [DeepSeek-V4-Flash (W4A8)](../inference_guide/deepseek-v4-flash-w4a8.mdx) recipe |
 
-For model families not listed above, check the model card for reasoning instructions and the [vLLM tool calling documentation](https://docs.vllm.ai/en/latest/features/tool_calling.html) for the matching parser pair.
+The exact `--tool-call-parser` / `--reasoning-parser` values for these families depend on the vLLM version — read the model card and the [vLLM tool calling documentation](https://docs.vllm.ai/en/latest/features/tool_calling.html) before committing, and verify tool calls round-trip end-to-end.
 
 ### Configuring reasoning effort and thinking behavior
 
@@ -184,7 +182,7 @@ opencode reads configuration from `opencode.json` in the project root or `~/.con
       },
       "models": {
         "qwen-2": {
-          "name": "Qwen2.5-Coder (on-prem)"
+          "name": "Qwen3.6-35B-A3B (on-prem)"
         }
       }
     }
@@ -291,54 +289,68 @@ Claude Code's agentic quality depends heavily on the served model's tool-calling
 
 ## Best practices \{#best-practices}
 
-### Recommended model families for coding agents
+### Recommended models for coding agents \{#recommended-models}
 
-**Qwen3.6** and **Gemma 4** are the two model families we currently recommend for on-premise coding agents. Both have strong instruction tuning and a wide range of sizes and quantization formats available; verify tool-calling parser support against the vLLM version you run.
+As a best practice, build on-premise coding agents on the following five model families — and, to keep results predictable, treat them as the shortlist rather than reaching for other models. Each one combines strong code generation, reliable instruction following, and native tool/function calling, and each ships in a range of sizes and quantization formats so you can fit it to the accelerator you have. Pair every choice with a hardware-matched quantization: an [Unsloth](https://huggingface.co/unsloth) GGUF build on GPU, or a **ModelSlim (`msModelSlim`)** W8A8/W4A8 build on Ascend NPU (see [Quantized variants to fit your hardware](#quantized-variants)).
 
-| Family | Why it works for coding agents | vLLM `--tool-call-parser` |
-| --- | --- | --- |
-| **Qwen3.6** (Qwen team) | Strong code generation and instruction following. MoE variants (35B-A3B) activate only ~3B parameters per token, giving high throughput at low VRAM cost. | Check [vLLM tool calling docs](https://docs.vllm.ai/en/latest/features/tool_calling.html) |
-| **Gemma 4** (Google) | Clean instruction tuning, compact sizes (E2B, E4B) that fit on consumer GPUs. Verify tool-calling support in the vLLM version you run; Gemma's parser assignment may vary by vLLM release. | Check [vLLM tool calling docs](https://docs.vllm.ai/en/latest/features/tool_calling.html) |
-| **Qwen3-Coder** (Qwen team) | Code-specialized; the MoE variants (30B-A3B, 480B-A35B) are powerful but require more hardware. | `qwen3_xml` |
+| Model | Type | Why it works for coding agents | Fit & notes |
+| --- | --- | --- | --- |
+| **GLM-5.2** (Zhipu AI) | Large MoE | Frontier agentic reasoning and multi-step tool use; excels at long, planned edits that span many files. | Heaviest of the set — serve quantized (GGUF / ModelSlim) or tensor-parallel across multiple accelerators. |
+| **Qwen3.6-27B-MTP** (Qwen) | Dense `qwen3_5` hybrid + MTP | Strong general-purpose coding; the native multi-token-prediction head speeds up decode for snappier interactive turns. | W8A8 validated on Ascend → [Qwen3.6-27B (W8A8)](../inference_guide/qwen3-6-27b-w8a8.mdx). ~33–36 GB quantized. |
+| **Qwen3.6-35B-A3B** (Qwen) | MoE, ~3B active | Best quality-per-VRAM in the set: activates only ~3B parameters per token while carrying a 35B knowledge base. | Runs comfortably on a single 24 GB GPU — the recommended default for most users. |
+| **Gemma4-12B-it / Gemma4-31B-it** (Google) | Dense, instruction-tuned | Clean instruction following and dependable tool calls. 12B fits mid-range GPUs; 31B raises quality on 40–48 GB cards. | Pick **12B** for latency, **31B** for quality. |
+| **Deepseek-v4** (DeepSeek) | Large MoE (MLA + DSA + MTP) | Frontier-grade coding and agentic planning; the sparse MoE keeps active parameters low despite a large expert pool. | Heavy — serve quantized or multi-GPU/-card. W4A8 validated on Ascend → [DeepSeek-V4-Flash (W4A8)](../inference_guide/deepseek-v4-flash-w4a8.mdx). |
+
+Confirm the matching vLLM `--tool-call-parser` (and `--reasoning-parser` for the reasoning-capable families) against the vLLM version you run — see [Enable tool calling on the runtime](#enable-tool-calling-on-the-runtime).
 
 ### Choose a model that fits your hardware
 
 Start from the GPU memory you have, then pick the largest capable model that leaves headroom for the KV cache. A rough weight-size estimate is `parameters × bytes-per-parameter` — FP16 ≈ 2 bytes, FP8/INT8 ≈ 1 byte, INT4 ≈ 0.5 bytes per parameter — on top of which the KV cache and runtime overhead consume more memory. Leave **15–25% headroom**.
 
-#### Quantized models from Unsloth on HuggingFace
+#### Quantized variants to fit your hardware \{#quantized-variants}
 
-[Unsloth](https://huggingface.co/unsloth) publishes GGUF-quantized versions of the latest models, optimized for fast loading with vLLM. The table below lists the most useful ones for coding agents:
+Two quantization paths cover the accelerators Alauda AI runs on. Pick the build that matches your hardware, then apply the 15–25% headroom rule above.
+
+**GPU — Unsloth GGUF.** [Unsloth](https://huggingface.co/unsloth) publishes GGUF builds of the latest models, optimized for fast loading with vLLM (`--quantization gguf`). Its QAT (quantization-aware training) builds hold quality at aggressive bit-widths better than post-hoc quantization. The most useful builds for the recommended models:
 
 | Model | Format | Active params | VRAM (approx.) | Notes |
 | --- | --- | --- | --- | --- |
-| [`unsloth/gemma-4-E2B-it-qat-GGUF`](https://huggingface.co/unsloth/gemma-4-E2B-it-qat-GGUF) | GGUF (QAT) | 2B | ~4 GB | Fastest option; fits on any GPU |
-| [`unsloth/gemma-4-E4B-it-qat-GGUF`](https://huggingface.co/unsloth/gemma-4-E4B-it-qat-GGUF) | GGUF (QAT) | 4B | ~8 GB | Strong tool-calling at low cost |
-| [`unsloth/gemma-4-12b-it-GGUF`](https://huggingface.co/unsloth/gemma-4-12b-it-GGUF) | GGUF | 12B | ~16 GB | Good balance of speed and quality |
-| [`unsloth/gemma-4-26B-A4B-it-GGUF`](https://huggingface.co/unsloth/gemma-4-26B-A4B-it-GGUF) | GGUF (MoE) | 4B active | ~12 GB | MoE: high quality, low active VRAM |
-| [`unsloth/gemma-4-31B-it-GGUF`](https://huggingface.co/unsloth/gemma-4-31B-it-GGUF) | GGUF | 31B | ~40 GB | Largest Gemma 4 dense model |
-| [`unsloth/Qwen3.6-27B-GGUF`](https://huggingface.co/unsloth/Qwen3.6-27B-GGUF) | GGUF | 27B | ~36 GB | Strong general-purpose coding |
+| [`unsloth/gemma-4-12b-it-GGUF`](https://huggingface.co/unsloth/gemma-4-12b-it-GGUF) | GGUF | 12B | ~16 GB | Fits a single mid-range GPU |
+| [`unsloth/Qwen3.6-35B-A3B-GGUF`](https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF) | GGUF (MoE) | ~3B active | ~12 GB | Best quality/VRAM ratio; fits 24 GB |
 | [`unsloth/Qwen3.6-27B-MTP-GGUF`](https://huggingface.co/unsloth/Qwen3.6-27B-MTP-GGUF) | GGUF (MTP) | 27B | ~36 GB | Multi-token prediction for faster decode |
-| [`unsloth/Qwen3.6-35B-A3B-MTP-GGUF`](https://huggingface.co/unsloth/Qwen3.6-35B-A3B-MTP-GGUF) | GGUF (MoE+MTP) | 3B active | ~12 GB | Best quality/cost ratio; MoE + MTP |
+| [`unsloth/gemma-4-31b-it-GGUF`](https://huggingface.co/unsloth/gemma-4-31b-it-GGUF) | GGUF | 31B | ~40 GB | Highest-quality dense Gemma 4 |
+| `unsloth/GLM-5.2-GGUF` | GGUF (MoE) | large | multi-GPU | Frontier agentic; shard with `--tensor-parallel-size` |
+| `unsloth/Deepseek-v4-GGUF` | GGUF (MoE) | large | multi-GPU | Frontier coding; shard across GPUs |
 
-> **Note:** GGUF-quantized models load in vLLM via `--quantization gguf`. For AWQ or GPTQ INT4 variants, check [huggingface.co/models](https://huggingface.co/models?sort=trending&search=AWQ) — search for `qwen3.6 AWQ` or `gemma-4 GPTQ` to find community-quantized versions. Unsloth's QAT (quantization-aware training) models typically retain higher quality at aggressive bit-widths than post-hoc quantization.
+> **Note:** Unsloth repo names follow the `unsloth/<model>-GGUF` convention — confirm the exact path on the [Unsloth org page](https://huggingface.co/unsloth) before pulling, especially for the large `GLM-5.2` and `Deepseek-v4` builds, which are usually split into multiple files. For AWQ or GPTQ INT4 variants instead, search [huggingface.co/models](https://huggingface.co/models?sort=trending&search=AWQ) for e.g. `qwen3.6 AWQ` or `gemma-4 GPTQ`.
+
+**Ascend NPU — ModelSlim (`msModelSlim`).** On Huawei Ascend NPUs, quantize with Ascend's `msModelSlim` toolkit, which produces **W8A8 / W4A8** weights that serve on the `vLLM-Ascend` engine through Alauda AI's InferNex surface. Two of the recommended models already ship as validated, benchmarked recipes:
+
+| Model | ModelSlim format | Topology | Recipe |
+| --- | --- | --- | --- |
+| Qwen3.6-27B | W8A8 (~33 GB) | Ascend 910B4 ×8 (2 × TP=4) | [Qwen3.6-27B (W8A8)](../inference_guide/qwen3-6-27b-w8a8.mdx) |
+| DeepSeek-V4-Flash | W4A8 (~151 GB) | Ascend 910B4 ×8 (1 × TP=8) | [DeepSeek-V4-Flash (W4A8)](../inference_guide/deepseek-v4-flash-w4a8.mdx) |
+
+To quantize your own weights on NPU, use the ModelSlim workbench image and its verification notebook (see [Create a Workbench](../workbench/how_to/create_workbench.mdx)).
 
 #### Hardware fit guide
 
-| GPU memory (single GPU) | Example GPUs | Recommended model |
+| Accelerator memory | Example hardware | Recommended model |
 | --- | --- | --- |
-| 8–16 GB | L4, A10, RTX 4070 | `gemma-4-E2B` or `gemma-4-E4B` (QAT GGUF) |
-| 16–24 GB | A30 (24G), RTX 4090 | `gemma-4-12B` or `Qwen3.6-35B-A3B` (MoE, 3B active) |
-| 40–48 GB | A40, L40S, A6000 | `Qwen3.6-27B` or `gemma-4-31B` (GGUF) |
-| 80 GB | A100-80G, H100, H800 | `Qwen3.6-27B` at FP16, or `gemma-4-31B` at FP16 |
-| Multi-GPU (2–8×) | 2–8 × 80 GB | `Qwen3-Coder-480B-A35B` (MoE, tensor-parallel) |
+| 12–16 GB | L4, A10, RTX 4070 | `Qwen3.6-35B-A3B` (MoE, ~3B active) or `Gemma4-12B-it` |
+| 24 GB | A30 (24G), RTX 4090 | `Qwen3.6-35B-A3B` (MoE) — the recommended default |
+| 40–48 GB | A40, L40S, A6000 | `Qwen3.6-27B-MTP` or `Gemma4-31B-it` (GGUF) |
+| 80 GB | A100-80G, H100, H800 | `Qwen3.6-27B-MTP` or `Gemma4-31B-it` at FP16 |
+| Ascend NPU (8 × 32 GB) | Ascend 910B4 ×8 | `Qwen3.6-27B` (W8A8) or `Deepseek-v4` (W4A8), ModelSlim — see [Inference Guide](../inference_guide/index.mdx) |
+| Multi-GPU / multi-card (2–8×) | 2–8 × 80 GB | `GLM-5.2` or `Deepseek-v4` (large MoE, tensor-parallel) |
 
 Additional selection guidance:
 
-- **Prefer code-specialized, instruction-tuned models** that natively support tool/function calling. If the model card does not mention tool calling, the agent will not be able to edit files reliably.
-- **Confirm a matching vLLM parser exists** for the model (see [Enable tool calling on the runtime](#enable-tool-calling-on-the-runtime)) before committing to it. Qwen3-Coder models use `qwen3_xml`; verify Qwen3.6 and Gemma 4 parser support in the vLLM docs for your version.
+- **Stay within the five recommended families.** All are instruction-tuned and natively support tool/function calling — the prerequisite for an agent to edit files reliably. Straying to a model whose card does not mention tool calling usually means the agent can chat but not act.
+- **Confirm a matching vLLM parser exists** for your chosen model (see [Enable tool calling on the runtime](#enable-tool-calling-on-the-runtime)) before committing to it. Verify the `--tool-call-parser` (and `--reasoning-parser` for the reasoning-capable GLM-5.2, Qwen3.6, and Deepseek-v4) in the vLLM docs for your version.
 - **Budget for context length.** Coding agents send large prompts (system prompt + file and repo context). Pick a model whose context window covers your largest expected prompt, and remember that a longer `--max-model-len` consumes more KV cache per request, reducing concurrency.
-- **Quantization is a force multiplier on-premise.** INT4 (AWQ/GPTQ) or GGUF quantization lets you fit a noticeably more capable model in the same VRAM, which usually matters more for agent quality than raw FP16 precision.
-- **MoE models are especially efficient.** Qwen3.6-35B-A3B and Gemma 4-26B-A4B activate only 3–4B parameters per token while carrying a larger knowledge base, giving near-dense quality at a fraction of the VRAM cost.
+- **Quantization is a force multiplier on-premise.** GGUF (GPU, via Unsloth) or W8A8/W4A8 (Ascend NPU, via ModelSlim) lets you fit a noticeably more capable model in the same memory, which usually matters more for agent quality than raw FP16 precision.
+- **MoE models are especially efficient.** `Qwen3.6-35B-A3B`, `GLM-5.2`, and `Deepseek-v4` activate only a fraction of their parameters per token while carrying a larger knowledge base, giving near-dense quality at a fraction of the VRAM cost.
 
 ### Tune inference service performance
 
@@ -352,15 +364,37 @@ Coding-agent traffic has a distinctive shape: long, highly repetitive prompts (t
 - **Tune batching** with `--max-num-seqs` and `--max-num-batched-tokens` to balance throughput against per-request latency for your concurrency level.
 - **Use FP8 KV cache** (`--kv-cache-dtype fp8`) to stretch context length and concurrency when memory is tight.
 - **Shard large models** across GPUs with `--tensor-parallel-size` when a model does not fit on one card.
-- **Consider speculative decoding** for lower interactive latency on agent loops — see [Speculative Decoding for vLLM Inference Services](../model_inference/inference_service/how_to/vllm_speculative_decoding.mdx).
+- **Enable MTP / speculative decoding** for lower interactive latency on agent loops — the recommended `Qwen3.6-27B-MTP` and `Deepseek-v4` ship a native multi-token-prediction head. See [Enable MTP (multi-token prediction)](#enable-mtp) below and [Speculative Decoding for vLLM Inference Services](../model_inference/inference_service/how_to/vllm_speculative_decoding.mdx).
 - **Mind autoscaling and cold starts.** For interactive single-user agent use, keep `minReplicas: 1` — scaling from zero adds a multi-minute cold start that is painful mid-task. For bursty multi-developer usage, configure autoscaling deliberately; see [Configure Scaling for Inference Services](../model_inference/inference_service/how_to/autoscale_settings.mdx) and [Set Up Autoscaling for Inference Services with KEDA](../model_inference/inference_service/how_to/keda_autoscaling.mdx).
 - **Allow long requests.** Agent turns can be long-running; size the Knative `serving.knative.dev/progress-deadline` annotation and your client timeouts accordingly. If requests are cut off, see [Inference timeout troubleshooting](../model_inference/inference_service/trouble_shooting/infer_timeout.mdx).
+
+#### Enable MTP (multi-token prediction) \{#enable-mtp}
+
+Two of the recommended models — `Qwen3.6-27B-MTP` and `Deepseek-v4` — ship a native **multi-token-prediction (MTP)** head that proposes several tokens per decode step, cutting interactive latency on agent loops with no separate draft model to manage. MTP is a form of speculative decoding, enabled through the runtime's speculative-decoding config.
+
+**vLLM.** Pass the model's MTP method to `--speculative-config`. The `method` string and token count are model- and version-specific; these are the values from the validated recipes:
+
+```bash
+# Qwen3.6-27B-MTP (qwen3_5 architecture)
+--speculative-config '{"method":"qwen3_5_mtp","num_speculative_tokens":3}'
+
+# Deepseek-v4
+--speculative-config '{"method":"mtp","num_speculative_tokens":1}'
+```
+
+Confirm the exact `method` against your vLLM version, and treat the full recipe — including the MTP guardrails these need on Ascend (disabled prefix caching, a capped `--max-num-seqs`, `enforce_eager`) — as the source of truth: [Qwen3.6-27B (W8A8)](../inference_guide/qwen3-6-27b-w8a8.mdx) and [DeepSeek-V4-Flash (W4A8)](../inference_guide/deepseek-v4-flash-w4a8.mdx). For other speculative methods (EAGLE-3, N-gram) and end-to-end verification and rollback, see [Speculative Decoding for vLLM Inference Services](../model_inference/inference_service/how_to/vllm_speculative_decoding.mdx).
+
+**llama.cpp (GGUF).** When serving an MTP-enabled GGUF build (for example the Unsloth `-MTP` weights), turn on the draft-MTP path with `--spec-type draft-mtp`. Verify the flag against your llama.cpp build — MTP support and flag names change across releases.
+
+:::note
+MTP accelerates **decode**, not prefill, and its payoff depends on the proposal acceptance rate for your traffic. Benchmark with and without it on a representative coding-agent workload before committing, and measure true per-token latency (ITL): an MTP step emits several tokens per streamed chunk, so chunk-level latency understates the per-token gain. On the Ascend recipes above, W8A8/W4A8 quantization frees HBM for a larger KV cache but does not itself speed up the MTP decode path.
+:::
 
 ### Getting started with vibe coding
 
 "Vibe coding" — iterating quickly by describing intent and letting the agent write the code — works well with a self-hosted model once the basics are right:
 
-1. Start with a Qwen3.6 or Gemma 4 model that fits comfortably on your GPU with headroom; a responsive smaller model beats a sluggish larger one for interactive flow. For 24 GB GPUs, `Qwen3.6-35B-A3B` (MoE) is an excellent starting point.
+1. Start with one of the recommended models that fits comfortably on your GPU with headroom — `Qwen3.6-35B-A3B` or `Gemma4-12B-it` are good first picks; a responsive smaller model beats a sluggish larger one for interactive flow. For 24 GB GPUs, `Qwen3.6-35B-A3B` (MoE, ~3B active) is an excellent starting point.
 2. Set a **low temperature** (around `0–0.2`) for code generation to keep edits deterministic and reduce flailing.
 3. Validate tool calling with one trivial task ("create a file and run it") before attempting anything real.
 4. Keep prompts focused — open or reference only the relevant files so the agent's context stays on-topic and prefill stays cheap.
