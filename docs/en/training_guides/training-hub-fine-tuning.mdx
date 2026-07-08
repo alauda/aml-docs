@@ -63,7 +63,9 @@ Download into your workbench and execute cell-by-cell:
 | SFT comprehensive tutorial | SFT | [`sft-comprehensive-tutorial.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/sft-comprehensive-tutorial.ipynb) |
 | OSFT comprehensive tutorial | OSFT | [`osft-comprehensive-tutorial.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/osft-comprehensive-tutorial.ipynb) |
 | QLoRA comprehensive tutorial | QLoRA | [`qlora-comprehensive-tutorial.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/qlora-comprehensive-tutorial.ipynb) |
+| QLoRA on Ascend NPU | QLoRA (NPU) | [`qlora-npu-tutorial.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/qlora-npu-tutorial.ipynb) |
 | CPT comprehensive tutorial | CPT | [`cpt-comprehensive-tutorial.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/cpt-comprehensive-tutorial.ipynb) |
+| CPT on Ascend NPU | CPT (NPU) | [`cpt-npu-tutorial.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/cpt-npu-tutorial.ipynb) |
 
 Install and configure:
 
@@ -199,9 +201,19 @@ The output is a **LoRA adapter**, not a full checkpoint. To serve, load base + a
 `trl`, `peft`, and `bitsandbytes`. The default `lora_sft` backend is `unsloth`; for full
 control you can also drive `peft` + `bitsandbytes` directly on the same runtime image.
 
-**NPU:** bitsandbytes 4-bit is not available on Huawei Ascend. Use LoRA (without 4-bit) on
-the `llamafactory0.9-cann8.5-arm64` runtime (`finetuning_type: lora`) as the
-parameter-efficient path — see [Fine-tune and Pretrain on Ascend NPU](./fine-tune-and-pretrain-llms-on-ascend-npu.mdx).
+**NPU:** `training_hub` and mainline `bitsandbytes` do not target Huawei Ascend. Two paths on
+NPU:
+
+- **True 4-bit NF4 QLoRA** via the community `bitsandbytes-npu-beta` fork
+  ([SlightwindSec/bitsandbytes](https://github.com/SlightwindSec/bitsandbytes), tracked
+  upstream in [PR #1695](https://github.com/bitsandbytes-foundation/bitsandbytes/pull/1695)) —
+  see [`qlora-npu-tutorial.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/qlora-npu-tutorial.ipynb). Uses standard
+  `transformers` + `peft` + `torch_npu`; the API is drop-in, but the wheel is only tested
+  against `torch_npu 2.1–2.4` / CANN 8.0–8.1 and compatibility with newer CANN builds is
+  best-effort.
+- **Plain LoRA (no 4-bit)** on the `llamafactory0.9-cann8.5-arm64` runtime
+  (`finetuning_type: lora`) — see [Fine-tune and Pretrain on Ascend NPU](./fine-tune-and-pretrain-llms-on-ascend-npu.mdx).
+  Slightly higher memory footprint than QLoRA, but no non-mainline dependencies.
 :::
 
 ## Continued pre-training (CPT) \{#cpt}
@@ -254,10 +266,15 @@ general-domain text, and by following up with an SFT/OSFT pass (point `model_pat
 checkpoint). If forgetting is the primary concern, prefer **OSFT**.
 
 :::note
-**NPU:** Full-parameter continued pre-training also runs on Huawei Ascend via the
-`MindSpeed-LLM` runtime (`pretrain_gpt.py`). See
-[Fine-tune and Pretrain on Ascend NPU](./fine-tune-and-pretrain-llms-on-ascend-npu.mdx) and
-the `qwen25_pretrain_verify.ipynb` recipe.
+**NPU:** Two paths for CPT on Ascend:
+
+- **Light-weight, single-node** CPT with `transformers.Trainer` on `torch_npu` —
+  see [`cpt-npu-tutorial.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/cpt-npu-tutorial.ipynb). Uses only mainline
+  `transformers` + `torch_npu` (no `MindSpeed-LLM`, no HF↔MCore conversion). Best when the
+  model fits in bf16 on the NPUs you have and you don't need TP/PP.
+- **Distributed, TP/PP-aware** CPT via the `MindSpeed-LLM` runtime (`pretrain_gpt.py`) —
+  see [Fine-tune and Pretrain on Ascend NPU](./fine-tune-and-pretrain-llms-on-ascend-npu.mdx)
+  and the `qwen25_pretrain_verify.ipynb` recipe.
 :::
 
 ## Multi-node
