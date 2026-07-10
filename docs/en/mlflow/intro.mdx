@@ -1,0 +1,43 @@
+---
+weight: 10
+---
+
+# Introduction
+
+The **MLflow Operator** deploys and manages a multi-tenant **MLflow Tracking Server** on Alauda AI. Built on open-source [MLflow](https://mlflow.org), it gives data-science and ML teams a shared experiment-tracking and model-registry service that is integrated with the platform's single sign-on and Kubernetes RBAC — so each team only sees and manages its own runs, experiments, and registered models.
+
+MLflow is delivered as an **OLM Helm-based operator**. Installing the operator from the platform **OperatorHub** and creating a single `MLflow` custom resource stands up the tracking server, exposes it through the platform ingress, and adds an **MLFlow** entry to the **Alauda AI → Tools** menu.
+
+## What it deploys
+
+When you create an `MLflow` custom resource, the operator reconciles one MLflow stack in the configured namespace (`kubeflow` by default):
+
+- **MLflow Tracking Server** — the experiment-tracking API and web UI: log parameters, metrics, and artifacts; browse runs; and manage the model registry (the target of the `mlflow` Python SDK).
+- **OAuth proxy** (`oauth2-proxy`) — authenticates every request against the platform OIDC provider before it reaches MLflow. Clients always go through the proxy; they never connect to the MLflow container port directly.
+- **Kubernetes auth plugin** — inside the tracking server, reads the caller's identity from the forwarded token, records each run under that user, and authorizes the request against Kubernetes RBAC.
+- **Tools-menu entry and ingress route** — a `ConfigMap` that adds **MLFlow** to the Alauda AI **Tools** menu, plus an ingress route on the platform load balancer.
+
+MLflow metadata is stored in an **external PostgreSQL** database you provide. Run artifacts are written to the tracking server's configured artifact root (see [Installation → High availability and storage](./install.mdx#storage)).
+
+## Key concepts
+
+| Concept | Description |
+|---|---|
+| `MLflow` custom resource | The CR (`mlflow.alauda.io/v1alpha1`) that declares one MLflow tracking server. One CR = one tracking server per cluster. |
+| Workspace | A **Kubernetes namespace** exposed to MLflow as a tenant boundary. Experiments, runs, datasets, and registered models belong to a workspace. |
+| Multi-tenancy | Only namespaces matching the configured label selector (`mlflow-enabled=true` by default) are visible as workspaces; access is authorized per-namespace with Kubernetes RBAC. |
+| OAuth proxy | `oauth2-proxy` fronts the tracking server: it authenticates the caller against platform SSO and forwards the identity token to MLflow. |
+
+## Multi-tenancy model \{#multi-tenancy}
+
+On Alauda AI, MLflow is multi-tenant by mapping **workspaces to Kubernetes namespaces**:
+
+- A namespace becomes an MLflow **workspace** when it carries the configured label (`mlflow-enabled=true` by default).
+- Every MLflow API call is authenticated by the OAuth proxy, then authorized against the caller's Kubernetes RBAC in the target namespace, using the `mlflow.kubeflow.org` API group.
+- Runs are recorded under the calling user's identity.
+
+Workspace membership and permissions are therefore managed with ordinary Kubernetes `Role` / `RoleBinding` objects — see [Workspaces and access control](./how_to/workspaces.mdx).
+
+## When to use it
+
+Use the MLflow Operator when teams need a shared, SSO-protected experiment-tracking and model-registry service where each team's runs and models are isolated by namespace and governed by Kubernetes RBAC — rather than an unauthenticated, single-tenant MLflow server.

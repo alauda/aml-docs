@@ -1,23 +1,23 @@
 ---
-weight: 55
+weight: 30
 ---
 
 # Kubeflow Pipeline + MLflow Integration
 
-This guide shows how Kubeflow Pipelines (KFP) components log parameters, metrics, and models to [MLflow on Kubeflow](../kubeflow/how_to/mlflow.mdx) with the **MLflow Python client**. Authentication and workspace/RBAC follow [Using the MLflow Python SDK with Authentication and RBAC](../kubeflow/how_to/mlflow-python-sdk.mdx) — each component authenticates with a user identity token and the server records the run under that user.
+This guide shows how Kubeflow Pipelines (KFP) components log parameters, metrics, and models to [MLflow on Alauda AI](../intro.mdx) with the **MLflow Python client**. Authentication and workspace/RBAC follow [Using the MLflow Python SDK with Authentication and RBAC](./mlflow-python-sdk.mdx) — each component authenticates with a user identity token and the server records the run under that user.
 
 ## Scope
 
 - Alauda AI 2.5 and later.
 - Kubeflow Pipelines and the MLflow cluster plugin are installed.
 - The MLflow workspace is a namespace labelled `mlflow-enabled=true`.
-- For the bearer-token method, the MLflow OAuth proxy must accept Dex id tokens (`--skip-jwt-bearer-tokens`) — see [Platform setup](../kubeflow/how_to/mlflow-python-sdk.mdx#platform-setup) in the SDK guide. No global-auth change is needed, and the cookie method needs no setup at all.
+- For the bearer-token method, the MLflow OAuth proxy must accept Dex id tokens (`--skip-jwt-bearer-tokens`) — see [Platform setup](./mlflow-python-sdk.mdx#platform-setup) in the SDK guide. No global-auth change is needed, and the cookie method needs no setup at all.
 
 ## Prerequisites
 
 - `kfp` and `kfp-kubernetes` Python SDKs (`pip install kfp kfp-kubernetes`).
-- Access to a KFP endpoint (see [Use Kubeflow Pipelines](../kubeflow/how_to/pipelines.mdx)).
-- A **Dex id token** for a dedicated service account, minted with the OAuth2 password grant (see the [SDK guide](../kubeflow/how_to/mlflow-python-sdk.mdx)). Store it in a Kubernetes `Secret` and inject it into the component.
+- Access to a KFP endpoint (see [Use Kubeflow Pipelines](../../kubeflow/how_to/pipelines.mdx)).
+- A **Dex id token** for a dedicated, non-personal account (an ordinary platform login, not a Kubernetes ServiceAccount), minted browser-free with the authorization-code flow (see the [SDK guide](./mlflow-python-sdk.mdx)). Store it in a Kubernetes `Secret` and inject it into the component.
 - An MLflow workspace (a namespace with `mlflow-enabled=true`) the account can access.
 
 ## How components reach MLflow
@@ -27,7 +27,7 @@ A pipeline component runs **inside** the cluster, so it talks to MLflow through 
 - `MLFLOW_TRACKING_TOKEN` — a Dex id token; the MLflow client sends it as `Authorization: Bearer …`.
 - `mlflow.set_workspace(...)` — selects the workspace (`X-MLFLOW-WORKSPACE`).
 
-The server reads the identity from the token and records the run under that user. See the [SDK guide](../kubeflow/how_to/mlflow-python-sdk.mdx) for how the token is obtained and how authorization works.
+The server reads the identity from the token and records the run under that user. See the [SDK guide](./mlflow-python-sdk.mdx) for how the token is obtained and how authorization works.
 
 ## Complete example: training pipeline with MLflow
 
@@ -94,7 +94,7 @@ def training_pipeline(
 compiler.Compiler().compile(training_pipeline, "pipeline.yaml")
 ```
 
-Create the `mlflow-token` Secret with a Dex id token. Mint `ID_TOKEN` browser-free with the authorization-code flow from the SDK guide — see [Get a token from the command line](../kubeflow/how_to/mlflow-python-sdk.mdx#get-a-token):
+Create the `mlflow-token` Secret with a Dex id token. Mint `ID_TOKEN` browser-free with the authorization-code flow from the SDK guide — see [Get a token from the command line](./mlflow-python-sdk.mdx#get-a-token):
 
 ```bash
 # ID_TOKEN: mint it with the curl/Python flow in the SDK guide (browser-free, current grants)
@@ -102,7 +102,7 @@ kubectl -n <pipeline-namespace> create secret generic mlflow-token --from-litera
 ```
 
 :::warning
-id tokens expire (24 h by default), so refresh the `mlflow-token` Secret before submitting long pipelines — or mint the token **inside** the component from service-account credentials kept in a Secret (the [token flow](../kubeflow/how_to/mlflow-python-sdk.mdx#get-a-token) in the SDK guide) and renew it with the refresh token, so each run gets a fresh token.
+id tokens expire (24 h by default), so refresh the `mlflow-token` Secret before submitting long pipelines — or mint the token **inside** the component from the account's credentials kept in a Secret (the [token flow](./mlflow-python-sdk.mdx#get-a-token) in the SDK guide) and renew it with the refresh token, so each run gets a fresh token.
 :::
 
 ## Upload and run
@@ -128,7 +128,7 @@ print(f"Run ID: {run.run_id}")
 
 ## Using MLflow in Trainer v2 pipelines
 
-If you fine-tune with [Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx), the framework's MLflow integration (for example `report_to: mlflow` in LLaMA-Factory) authenticates the same way. Trainer v2 uses `apiVersion: trainer.kubeflow.org/v1alpha1`, `kind: TrainJob`, and a `spec.runtimeRef` + `spec.trainer` shape. Point it at the in-cluster Service and inject the id token from a `Secret`:
+If you fine-tune with [Kubeflow Trainer v2](../../training_guides/fine-tune-with-trainer-v2.mdx), the framework's MLflow integration (for example `report_to: mlflow` in LLaMA-Factory) authenticates the same way. Trainer v2 uses `apiVersion: trainer.kubeflow.org/v1alpha1`, `kind: TrainJob`, and a `spec.runtimeRef` + `spec.trainer` shape. Point it at the in-cluster Service and inject the id token from a `Secret`:
 
 ```yaml
 apiVersion: trainer.kubeflow.org/v1alpha1
@@ -152,7 +152,7 @@ spec:
             key: token
 ```
 
-See [Fine-tuning LLMs using Workbench](./fine-tuning-using-notebooks.mdx) for a full Trainer v2 + MLflow example.
+See [Fine-tuning LLMs using Workbench](../../training_guides/fine-tuning-using-notebooks.mdx) for a full Trainer v2 + MLflow example.
 
 ## Best practices
 
@@ -162,7 +162,7 @@ KFP v2 provides `dsl.PIPELINE_JOB_ID_PLACEHOLDER` (the v1 `dsl.RUN_ID_PLACEHOLDE
 
 ### Keep credentials in a Secret and refresh tokens
 
-Never hardcode the token or service-account credentials in `pipeline.yaml` — compiled pipelines are stored and shared. Inject them from a `Secret`, and refresh the id token (or mint it inside the component) before it expires.
+Never hardcode the token or the account's credentials in `pipeline.yaml` — compiled pipelines are stored and shared. Inject them from a `Secret`, and refresh the id token (or mint it inside the component) before it expires.
 
 ### Log metrics inside a run
 
@@ -170,14 +170,14 @@ Each metric belongs to a `mlflow.start_run()` block. If a component has multiple
 
 ### Artifact storage for production
 
-Logging large model artifacts requires durable object storage. Configure S3-compatible storage in the MLflow plugin settings (see [MLflow Tracking Server](../kubeflow/how_to/mlflow.mdx) → High Availability And Storage) so artifact uploads do not hit pod disk limits.
+Logging large model artifacts requires durable object storage. Configure S3-compatible storage in the MLflow settings (see [MLflow installation → High availability and storage](../install.mdx#storage)) so artifact uploads do not hit pod disk limits.
 
 ## Troubleshooting
 
 | Symptom | Check |
 |---------|-------|
-| Component fails with an HTML/redirect (`302`) response | The OAuth proxy rejected the token. Confirm the proxy has `--skip-jwt-bearer-tokens` and `MLFLOW_TRACKING_TOKEN` is a valid Dex id token (see the [SDK guide](../kubeflow/how_to/mlflow-python-sdk.mdx)). |
+| Component fails with an HTML/redirect (`302`) response | The OAuth proxy rejected the token. Confirm the proxy has `--skip-jwt-bearer-tokens` and `MLFLOW_TRACKING_TOKEN` is a valid Dex id token (see the [SDK guide](./mlflow-python-sdk.mdx)). |
 | `401 UNAUTHENTICATED` | `MLFLOW_TRACKING_TOKEN` is unset, empty, or expired — refresh the `mlflow-token` Secret. |
-| `403 PERMISSION_DENIED` | The token's user lacks access to the workspace namespace. Grant access to the MLflow workspace (see [Workspace Access](../kubeflow/how_to/mlflow.mdx)); no ServiceAccount is involved. |
+| `403 PERMISSION_DENIED` | The token's user lacks access to the workspace namespace. Grant access to the MLflow workspace (see [Workspaces and access control](./workspaces.mdx)); no ServiceAccount is involved. |
 | Run shows up under the wrong owner / workspace | The owner is the token's identity; the workspace is `set_workspace()` (else the server default). Check both. |
 | MLflow metrics not appearing in KFP UI | KFP and MLflow are separate systems. Metrics logged to MLflow appear in the MLflow UI (**Alauda AI → Tools → MLFlow**), not in the KFP run output. |
