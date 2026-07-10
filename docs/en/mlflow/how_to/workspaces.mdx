@@ -1,0 +1,96 @@
+---
+weight: 10
+---
+
+# Workspaces and access control
+
+On Alauda AI, MLflow is multi-tenant: each **workspace** is a Kubernetes **namespace**, and access to a workspace's experiments, runs, datasets, and registered models is authorized with Kubernetes RBAC. This guide shows how to expose a namespace as a workspace and grant users access to it.
+
+For the underlying model, see [Introduction → Multi-tenancy model](../intro.mdx#multi-tenancy).
+
+## Expose a namespace as a workspace \{#workspace-access}
+
+A namespace becomes an MLflow workspace when it carries the label selected by the MLflow configuration (`mlflow-enabled=true` by default). Only matching namespaces are visible as workspaces.
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-a
+  labels:
+    mlflow-enabled: "true"
+  annotations:
+    mlflow.kubeflow.org/workspace-description: "Team A MLflow workspace"
+```
+
+Apply it, or label an existing namespace:
+
+```bash
+kubectl label namespace team-a mlflow-enabled=true
+```
+
+:::info
+The tracking server's **default workspace** namespace must exist and be labelled **before** the server first starts, or it will not boot (see [Installation → Prerequisites](../install.mdx)).
+:::
+
+## Grant users access
+
+MLflow authorizes each request against the caller's Kubernetes permissions in the target namespace, using the `mlflow.kubeflow.org` API group. Grant access with a `Role` and `RoleBinding` in the workspace namespace:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mlflow-manager
+  namespace: team-a
+rules:
+  - apiGroups: ["mlflow.kubeflow.org"]
+    resources: ["experiments", "datasets", "registeredmodels"]
+    verbs: ["get", "list", "create", "update", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mlflow-manager
+  namespace: team-a
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mlflow-manager
+subjects:
+  - kind: Group
+    name: team-a-mlflow-users
+    apiGroup: rbac.authorization.k8s.io
+```
+
+The group or user name in the binding must match the identity claim in the token the OAuth proxy forwards (the platform's OIDC groups/user).
+
+## Select a workspace from a client
+
+Set the MLflow tracking URI to the in-cluster Service (or the platform route) and select the workspace:
+
+```python
+import mlflow
+
+mlflow.set_tracking_uri("http://mlflow-tracking-server.kubeflow:5000")  # in-cluster Service, via the OAuth proxy
+mlflow.set_workspace("team-a")
+
+with mlflow.start_run():
+    mlflow.log_param("tenant", "team-a")
+```
+
+For raw HTTP clients, pass the workspace header:
+
+```bash
+curl \
+  -H "X-MLFLOW-WORKSPACE: team-a" \
+  "https://<platform>/clusters/<cluster-name>/mlflow/api/2.0/mlflow/experiments/search"
+```
+
+You can only use a workspace your account has access to. For full authentication details — obtaining an identity token browser-free and connecting the SDK — see [Using the MLflow Python SDK with Authentication and RBAC](./mlflow-python-sdk.mdx).
+
+## Troubleshooting
+
+- **A workspace is not visible.** Verify its namespace matches the configured `workspaceLabelSelector` (default `mlflow-enabled=true`).
+- **`403 PERMISSION_DENIED`.** The account lacks access to the workspace namespace. Add a `RoleBinding` for the user or group in that namespace.
+- **A run shows the wrong owner or workspace.** The owner is the authenticated identity; the workspace is what `set_workspace()` / `MLFLOW_WORKSPACE` selected (else the server default). Check both.

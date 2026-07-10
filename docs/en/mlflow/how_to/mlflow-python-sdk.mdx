@@ -1,10 +1,10 @@
 ---
-weight: 46
+weight: 20
 ---
 
 # Using the MLflow Python SDK with Authentication and RBAC
 
-On Alauda AI the [MLflow Tracking Server](./mlflow.mdx) runs behind single sign-on and multi-tenancy: an OAuth proxy authenticates every caller, and the server records each run under the calling user and authorizes it against Kubernetes RBAC. This guide drives the stock **MLflow Python SDK** through that OAuth proxy with your own identity, **browser-free**, using the OAuth2 **authorization code** flow (with PKCE) scripted against the platform login — no password grant, and never the MLflow container port.
+On Alauda AI the [MLflow Tracking Server](../intro.mdx) runs behind single sign-on and multi-tenancy: an OAuth proxy authenticates every caller, and the server records each run under the calling user and authorizes it against Kubernetes RBAC. This guide drives the stock **MLflow Python SDK** through that OAuth proxy with your own identity, **browser-free**, using the OAuth2 **authorization code** flow (with PKCE) scripted against the platform login — no password grant, and never the MLflow container port.
 
 There are two browser-free ways to present your identity; pick one:
 
@@ -23,7 +23,7 @@ The client always goes through the OAuth proxy — never connect to the MLflow c
 ## Prerequisites
 
 - `mlflow` **3.10 or later** (`pip install "mlflow>=3.10"`). Workspace selection (`mlflow.set_workspace`) is a 3.10+ feature. The Python token helper also uses `requests` and `cryptography`.
-- A platform **username and password** — ideally a dedicated service account, not a person's login — that can access the target workspace (see [Workspace Access](./mlflow.mdx)).
+- A platform **username and password** — ideally a dedicated service account, not a person's login — that can access the target workspace (see [Workspaces and access control](./workspaces.mdx)).
 - The platform's **OAuth client id and secret** — the client the MLflow proxy uses (from your administrator). On Alauda this is the platform auth client, e.g. `alauda-auth`; its secret lives in a Kubernetes `Secret` (e.g. `cpaas-oidc-secret`).
 
 ## Platform setup for the token method (administrator, one-time) \{#platform-setup}
@@ -144,7 +144,7 @@ Runs are recorded in the workspace you select; if you select none, the server's 
 - `mlflow.set_workspace("team-a")` in code,
 - the `MLFLOW_WORKSPACE=team-a` environment variable.
 
-You can only use a workspace your account has access to; see [Workspace Access](./mlflow.mdx).
+You can only use a workspace your account has access to; see [Workspaces and access control](./workspaces.mdx).
 
 ## Registering models
 
@@ -214,5 +214,5 @@ You can also copy the `_oauth2_proxy` cookie from a browser session (DevTools �
 | Call returns HTML or a redirect (`302` to the login page) | **Token method:** the proxy rejected the bearer token — confirm `--skip-jwt-bearer-tokens` is enabled and the token is a valid Dex id token (`aud` = the proxy's client). **Cookie method:** the `_oauth2_proxy` cookie is missing or expired. |
 | `Invalid … character(s) in header value: 'Bearer …\n'` | The token has trailing whitespace. Set `MLFLOW_TRACKING_TOKEN` to the `.strip()`-ed value. |
 | `Failed to query /api/3.0/mlflow/server-info`, often with `SSLCertVerificationError: self-signed certificate` | The proxy **rejected** your credential and returned a `302` to the login page; the SDK then follows that redirect to the platform's self-signed HTTPS endpoint and fails TLS. Fix the credential, not the TLS: for the **token method** confirm `--skip-jwt-bearer-tokens` is enabled and the token is valid; for the **cookie method** re-mint the cookie. Only if you *intentionally* use the external `https://<platform>/…` route, also set `MLFLOW_TRACKING_INSECURE_TLS=true` (or point `REQUESTS_CA_BUNDLE` at the platform CA). |
-| `403 PERMISSION_DENIED` | Your account lacks access to the workspace namespace. Request access to the workspace (see [Workspace Access](./mlflow.mdx)); no ServiceAccount is involved. |
+| `403 PERMISSION_DENIED` | Your account lacks access to the workspace namespace. Request access to the workspace (see [Workspaces and access control](./workspaces.mdx)); no ServiceAccount is involved. |
 | Run shows the wrong owner or workspace | The owner is your authenticated identity; the workspace is `set_workspace()` / `MLFLOW_WORKSPACE` (else the server default). Check both. |
