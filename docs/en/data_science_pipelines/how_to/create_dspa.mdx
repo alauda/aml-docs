@@ -1,0 +1,177 @@
+---
+weight: 10
+---
+
+# Create a Data Science Pipelines Application
+
+This guide shows how to create a `DataSciencePipelinesApplication` (DSPA) — one isolated Kubeflow Pipelines v2 stack in a namespace — and then use it from the `kfp` Python SDK.
+
+You can create a DSPA in two ways:
+
+- **`kubectl`** — apply a `DataSciencePipelinesApplication` manifest.
+- **Alauda Console UI** — from **Administrator** → **Marketplace** → **OperatorHub** → **Data Science Pipelines Operator** → **All instances** → **Create**.
+
+Both create the same resource; use whichever fits your workflow.
+
+## Prerequisites
+
+- The Data Science Pipelines Operator is installed and its CSV reports `Succeeded` — see [Installation](../install.mdx).
+- `kubectl` access to the target cluster (for the CLI method and for verification).
+- A target project **namespace** for the pipeline stack (this guide uses `data-science-project`).
+
+## 1. Choose a database and object storage
+
+Each DSPA needs a database (pipeline metadata) and an S3-compatible object store (pipeline artifacts). You have two options:
+
+- **Managed (simplest)** — let the operator deploy a MariaDB and a MinIO for you inside the DSPA namespace. Good for a quick start or a self-contained project.
+
+  :::warning
+  The managed MariaDB and MinIO are intended for **development and testing** only (they are single-instance, with no backup or HA). Use external backends for production.
+  :::
+- **External** — point the DSPA at your own MySQL and S3-compatible store. **Recommended for production** (you control backup, HA, and sizing).
+
+For an **external** setup, create the credential secrets first:
+
+```bash
+kubectl create namespace data-science-project
+
+# database password
+kubectl -n data-science-project create secret generic dspa-db \
+  --from-literal=password='<db-password>'
+
+# object-storage access + secret keys
+kubectl -n data-science-project create secret generic dspa-s3 \
+  --from-literal=accesskey='<s3-access-key>' \
+  --from-literal=secretkey='<s3-secret-key>'
+```
+
+## 2. Create the DSPA
+
+### Method A — using `kubectl`
+
+**Managed backends (quick start):** the operator deploys MariaDB + MinIO.
+
+```yaml
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: sample
+  namespace: data-science-project
+spec:
+  dspVersion: v2
+  apiServer:
+    enableSamplePipeline: false
+  objectStorage:
+    minio:
+      deploy: true
+  # database omitted → the operator deploys a managed MariaDB
+```
+
+**External backends (production):** point at your own MySQL and S3.
+
+```yaml
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: sample
+  namespace: data-science-project
+spec:
+  dspVersion: v2
+  apiServer:
+    enableOauth: false
+    enableSamplePipeline: false
+  workflowController:
+    deploy: true
+  mlmd:
+    deploy: true
+  database:
+    externalDB:
+      host: mysql.example.com
+      port: "3306"
+      username: root
+      pipelineDBName: mlpipeline
+      passwordSecret:
+        name: dspa-db
+        key: password
+  objectStorage:
+    externalStorage:
+      host: s3.example.com
+      port: "8333"
+      scheme: http
+      bucket: mlpipeline
+      s3CredentialsSecret:
+        secretName: dspa-s3
+        accessKey: accesskey
+        secretKey: secretkey
+```
+
+Save as `dspa.yaml` and apply:
+
+```bash
+kubectl apply -f dspa.yaml
+```
+
+### Method B — using the Alauda Console UI
+
+1. In the **Administrator** view, go to **Marketplace** → **OperatorHub**.
+2. From the **Cluster** dropdown at the top, select the target cluster.
+3. Open the installed **Data Science Pipelines Operator**.
+4. Switch to the **All instances** tab and click **Create** (choose **DataSciencePipelinesApplication** if prompted).
+5. Fill in the form, or switch to **YAML** view and paste one of the manifests from Method A. Set **Namespace** to your project namespace (for example `data-science-project`).
+6. Click **Create**.
+
+The instance now appears under **All instances**; its status reflects the DSPA's readiness (see the next step).
+
+## 3. Verify the DSPA is ready
+
+```bash
+# Ready=True means all components reconciled
+kubectl -n data-science-project get dspa sample \
+  -o jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}'
+
+# the component pods are Running
+kubectl -n data-science-project get pods -l component=data-science-pipelines
+```
+
+You should see `Ready=True` and the `ds-pipeline-*` pods (APIServer, persistence agent, scheduled-workflow, workflow controller, MLMD) `Running`.
+
+## 4. Use the pipeline stack (KFP v2 SDK)
+
+The DSPA's APIServer is reachable in-cluster at `http://ds-pipeline-<name>.<namespace>.svc:8888` — here `http://ds-pipeline-sample.data-science-project.svc:8888`. Compile and upload a pipeline with the `kfp` Python SDK (from a pod or a machine that can reach that Service):
+
+```python
+import kfp
+from kfp import dsl
+
+@dsl.component(base_image="python:3.12-slim")
+def hello(msg: str) -> str:
+    return msg
+
+@dsl.pipeline(name="hello-pipeline")
+def hello_pipeline(msg: str = "hello"):
+    hello(msg=msg)
+
+client = kfp.Client(
+    host="http://ds-pipeline-sample.data-science-project.svc:8888",
+    namespace="data-science-project",
+)
+
+# compile + upload the pipeline
+kfp.compiler.Compiler().compile(hello_pipeline, package_path="hello.yaml")
+uploaded = client.upload_pipeline("hello.yaml", pipeline_name="hello-pipeline")
+print("uploaded pipeline:", uploaded.pipeline_id)
+
+# confirm it is listed
+for p in client.list_pipelines(page_size=10).pipelines or []:
+    print(" -", p.display_name, p.pipeline_id)
+```
+
+If you installed the operator with `EXTERNAL_ROUTE_PROVIDER=virtualservice`, the DSPA's `status.components.apiServer.externalUrl` also gives an external path through the shared Istio gateway.
+
+## Clean up
+
+```bash
+kubectl -n data-science-project delete dspa sample
+```
+
+Deleting the DSPA removes the pipeline stack it created. With managed backends, the managed MariaDB/MinIO (and their data) are removed too; external backends are left untouched.
