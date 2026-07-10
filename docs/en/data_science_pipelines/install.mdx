@@ -1,0 +1,93 @@
+---
+weight: 20
+---
+
+# Installation
+
+The Data Science Pipelines Operator is delivered as an **OLM Operator** and installed from the platform **OperatorHub**.
+
+## Prerequisites
+
+- **ACP version: v4.0 or later** (validated on v4.3 / Kubernetes 1.34).
+- Target cluster architecture `linux/amd64` (the operator and its images also ship `linux/arm64`).
+- Operator Lifecycle Manager (OLM) available on the target cluster (provided by ACP).
+- **The shared Kubeflow Pipelines install (`kfp-operator`) must NOT be present** on the target cluster — DSPO is mutually exclusive with it (see [Introduction](./intro.mdx#mutual-exclusion)).
+- **Argo Workflow CRDs.** Each DSPA runs an Argo Workflow controller and the KFP v2 driver/launcher, which require the `workflows.argoproj.io` CRDs. DSPO does **not** ship these CRDs in its bundle (to avoid OLM CRD-ownership conflicts on clusters that already run Argo). Install them once at cluster-install time from the operator source tree:
+
+  ```bash
+  kubectl apply -k config/argo
+  ```
+
+  Skip this if the cluster already has `workflows.argoproj.io` (for example, via an existing Argo install).
+- **Alauda ServiceMesh v2 (Istio)** — only required if you plan to expose the DSPA APIServer through an Istio `VirtualService` (`EXTERNAL_ROUTE_PROVIDER=virtualservice`). `virtualservices.networking.istio.io` must be Established.
+
+## Upload Operator \{#upload-operator}
+
+Download the `Data Science Pipelines Operator` bundle from the <Term name="company" /> Customer Portal / Marketplace (e.g. `data-science-pipelines-operator.ALL.xxxx.tgz`), then publish it to the platform repository with the `violet` command-line tool:
+
+```bash
+violet push \
+  --platform-address=<platform-access-address> \
+  --platform-username=<platform-admin> \
+  --platform-password=<platform-admin-password> \
+  data-science-pipelines-operator.ALL.xxxx.tgz
+```
+
+:::info
+The operator bundle records every runtime image (operator, KFP APIServer / driver / launcher / persistence-agent / scheduled-workflow, Argo workflow-controller and argoexec, MLMD, MariaDB, and the pipeline runtime image) in the CSV `relatedImages`, so a `violet` release relocates them into the platform registry. This makes the operator installable on **air-gapped** clusters without reaching `quay.io` / `docker.io`.
+:::
+
+## Install Operator
+
+In the **Administrator** view:
+
+1. Click **Marketplace** / **OperatorHub**.
+2. At the top of the console, from the **Cluster** dropdown, select the destination cluster.
+3. Search for and select **Data Science Pipelines Operator**, then click **Install**.
+4. Leave **Channel** unchanged (`stable`).
+5. Check that the **Version** matches the release you want to install (e.g. `v2.15.1`).
+6. Leave **Installation Location** unchanged — it defaults to the `data-science-pipelines-operator` namespace.
+7. Choose an **Upgrade Strategy** (`Manual` is recommended for production).
+8. Click **Install**.
+
+### External endpoint provider (optional)
+
+The operator exposes each DSPA's APIServer according to its `EXTERNAL_ROUTE_PROVIDER` setting, configured on the Subscription's `spec.config.env`:
+
+- `none` (default) — the operator creates no external endpoint. The APIServer is reachable only in-cluster (`ds-pipeline-<name>.<namespace>.svc:8888`). Use this when ingress is handled separately.
+- `virtualservice` — the operator creates one Istio `VirtualService` per DSPA, bound to a shared Istio Gateway (default `kubeflow/kubeflow-gateway`), routing `/pipelines/<namespace>/<name>/...` to the DSPA's APIServer and MLMD services. Requires ServiceMesh v2 (see Prerequisites).
+
+To use the `virtualservice` provider, set the env when creating the Subscription (or edit it afterward):
+
+```yaml
+spec:
+  config:
+    env:
+      - name: EXTERNAL_ROUTE_PROVIDER
+        value: virtualservice
+      - name: ISTIO_GATEWAY
+        value: kubeflow/kubeflow-gateway
+      - name: ISTIO_HOSTS
+        value: "*"
+```
+
+### Verification
+
+Confirm the **Data Science Pipelines Operator** tile shows `Installed`, then verify on the cluster:
+
+```bash
+# the CSV reports Succeeded
+kubectl get csv -n data-science-pipelines-operator | grep data-science-pipelines-operator
+
+# the operator controller-manager pod is Running
+kubectl get pods -n data-science-pipelines-operator
+
+# the CRDs are registered
+kubectl get crd | grep -E 'datasciencepipelinesapplications|pipelines.kubeflow.org|scheduledworkflows'
+```
+
+The operator watches **all namespaces** by default, so you can create `DataSciencePipelinesApplication` resources in any project namespace.
+
+:::info
+A `Succeeded` CSV means the operator controller is running. The KFP pipeline stack itself only appears once you create a `DataSciencePipelinesApplication` — see [Create a Data Science Pipelines Application](./how_to/create_dspa.mdx).
+:::
