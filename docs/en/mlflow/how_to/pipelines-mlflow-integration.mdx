@@ -17,7 +17,7 @@ This guide shows how Kubeflow Pipelines (KFP) components log parameters, metrics
 
 - `kfp` and `kfp-kubernetes` Python SDKs (`pip install kfp kfp-kubernetes`).
 - Access to a KFP endpoint (see [Use Kubeflow Pipelines](../../kubeflow/how_to/pipelines.mdx)).
-- A **Dex id token** for a dedicated service account, minted with the OAuth2 password grant (see the [SDK guide](./mlflow-python-sdk.mdx)). Store it in a Kubernetes `Secret` and inject it into the component.
+- A **Dex id token** for a dedicated, non-personal account (an ordinary platform login, not a Kubernetes ServiceAccount), minted browser-free with the authorization-code flow (see the [SDK guide](./mlflow-python-sdk.mdx)). Store it in a Kubernetes `Secret` and inject it into the component.
 - An MLflow workspace (a namespace with `mlflow-enabled=true`) the account can access.
 
 ## How components reach MLflow
@@ -102,7 +102,7 @@ kubectl -n <pipeline-namespace> create secret generic mlflow-token --from-litera
 ```
 
 :::warning
-id tokens expire (24 h by default), so refresh the `mlflow-token` Secret before submitting long pipelines — or mint the token **inside** the component from service-account credentials kept in a Secret (the [token flow](./mlflow-python-sdk.mdx#get-a-token) in the SDK guide) and renew it with the refresh token, so each run gets a fresh token.
+id tokens expire (24 h by default), so refresh the `mlflow-token` Secret before submitting long pipelines — or mint the token **inside** the component from the account's credentials kept in a Secret (the [token flow](./mlflow-python-sdk.mdx#get-a-token) in the SDK guide) and renew it with the refresh token, so each run gets a fresh token.
 :::
 
 ## Upload and run
@@ -162,7 +162,7 @@ KFP v2 provides `dsl.PIPELINE_JOB_ID_PLACEHOLDER` (the v1 `dsl.RUN_ID_PLACEHOLDE
 
 ### Keep credentials in a Secret and refresh tokens
 
-Never hardcode the token or service-account credentials in `pipeline.yaml` — compiled pipelines are stored and shared. Inject them from a `Secret`, and refresh the id token (or mint it inside the component) before it expires.
+Never hardcode the token or the account's credentials in `pipeline.yaml` — compiled pipelines are stored and shared. Inject them from a `Secret`, and refresh the id token (or mint it inside the component) before it expires.
 
 ### Log metrics inside a run
 

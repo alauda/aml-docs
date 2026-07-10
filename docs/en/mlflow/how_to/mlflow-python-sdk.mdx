@@ -23,7 +23,7 @@ The client always goes through the OAuth proxy — never connect to the MLflow c
 ## Prerequisites
 
 - `mlflow` **3.10 or later** (`pip install "mlflow>=3.10"`). Workspace selection (`mlflow.set_workspace`) is a 3.10+ feature. The Python token helper also uses `requests` and `cryptography`.
-- A platform **username and password** — ideally a dedicated service account, not a person's login — that can access the target workspace (see [Workspaces and access control](./workspaces.mdx)).
+- A platform **username and password** that can access the target workspace (see [Workspaces and access control](./workspaces.mdx)). This is an ordinary platform login — **not** a Kubernetes ServiceAccount — and a normal user account works. For shared or automated use (pipelines, headless jobs), prefer a **dedicated, non-personal account** over an individual's login, since the credentials/token are stored in a `Secret` and every run is recorded under whoever you authenticate as.
 - The platform's **OAuth client id and secret** — the client the MLflow proxy uses (from your administrator). On Alauda this is the platform auth client, e.g. `alauda-auth`; its secret lives in a Kubernetes `Secret` (e.g. `cpaas-oidc-secret`).
 
 ## Platform setup for the token method (administrator, one-time) \{#platform-setup}
@@ -134,7 +134,7 @@ The run appears under **Alauda AI → Tools → MLFlow**, owned by the user you 
 Use the in-cluster Service URL `http://mlflow-tracking-server.kubeflow:5000` when the client runs **inside** the cluster (pipeline components, Workbench notebooks). From **outside** the cluster, point at the platform route `https://<platform>/clusters/<cluster>/mlflow` instead — both reach the same OAuth proxy (set `MLFLOW_TRACKING_INSECURE_TLS=true` if the platform certificate is not trusted by your machine).
 
 :::warning
-Use a **dedicated service-account user** and keep its credentials and the client secret in a Kubernetes `Secret`, never in code. Always `.strip()` the token (a trailing newline produces `Invalid … character(s) in header value: 'Bearer …\n'`). id tokens expire (24 h by default); for long-running jobs renew with `refresh(tok["refresh_token"])` instead of logging in again.
+For shared or headless use, prefer a **dedicated, non-personal account** (an ordinary platform login, not a Kubernetes ServiceAccount) and keep its credentials and the client secret in a Kubernetes `Secret`, never in code. Always `.strip()` the token (a trailing newline produces `Invalid … character(s) in header value: 'Bearer …\n'`). id tokens expire (24 h by default); for long-running jobs renew with `refresh(tok["refresh_token"])` instead of logging in again.
 :::
 
 ## Selecting a workspace
