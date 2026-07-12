@@ -1,0 +1,198 @@
+---
+weight: 40
+i18n:
+  title:
+    en: DeepSeek-V4-Flash (W8A8)
+    zh: DeepSeek-V4-Flash (W8A8)
+---
+
+# DeepSeek-V4-Flash (W8A8)
+
+`deepseek_v4`-architecture model — a 256-expert MoE with MLA + DSA sparse attention
+and a native MTP speculative head, served as **W8A8** (int8 attention + expert,
+~280 GB weights, 70 shards, 43 layers). At ~280 GB the weights do not fit a single
+8 × 32 GB node, so it was validated on **Ascend 910B3 (64 GB/card) across two
+nodes = 16 cards** as a single aggregated **DP2 × TP=8 + EP16** service, with the
+vLLM-Ascend **nightly** engine through Alauda AI's InferNex surface. It adds a **mooncake
+cross-rank KV store** so the two data-parallel ranks share prefix KV, and both benchmark
+scenarios were driven through the **MaaS gateway (API-key) ingress** as a concurrency
+sweep (8 / 16 / 32).
+
+## Model identity
+
+| Field | Value |
+|---|---|
+| Publisher | DeepSeek |
+| Architecture | `deepseek_v4` — 256-expert MoE (6 experts/token + 1 shared) + MLA + DSA sparse attention + native MTP |
+| Quantization | W8A8 (`W8A8_DYNAMIC`, int8 attention + expert; ~280 GB weights, 70 shards, 43 layers); MIT license |
+| Model source (W8A8) | https://www.modelscope.cn/models/Eco-Tech/DeepSeek-V4-Flash-w8a8-mtp |
+| ModelCar (OCI Image Layout tar) | `http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/DeepSeek-V4-Flash-w8a8-mtp.oci.tar` |
+
+:::note
+The W8A8 ModelCar is distributed as an **OCI Image Layout tar** on the internal package
+store (link above), not a public Docker Hub image. The cluster pulls an OCI *image*, not
+the tar, so **import it into your own registry once** and point `model.uri` at that —
+see the **Deploy** section below. The benchmark itself was run with the weights staged on a
+**node-local PVC per node**; the ModelCar is the same weights repackaged (the manifest
+header documents that PVC alternative).
+:::
+
+## Validated hardware × stack
+
+| Platform | Engine | Version / config | Status |
+|---|---|---|---|
+| Ascend 910B3 64 GB × 16, 2 nodes (1 instance, DP2 × TP=8 + EP16) | vLLM-Ascend | `nightly-main-openeuler` (vLLM 0.23.0) | ✅ closed-loop, 2-scenario **concurrency sweep (8/16/32)**, 480 req/tier, 0 error / 0 mismatch, agg + mooncake KV store, via MaaS gateway |
+
+:::note
+The nightly-main image carries the full `deepseek_v4` stack **and** the DP2 cross-node
+graph + DSA-CP prefix-cache fixes. `enable_dsa_cp` is intentionally **on** — it is a
+prerequisite for a non-zero prefix-cache hit, and this build is stable with it. With the
+full hit gate satisfied (see the config table), **prefix caching works** — ~90.9 %
+single-rank hit at a 21k prefix.
+:::
+
+## Model configuration
+
+| Parameter | Value |
+|---|---|
+| Tensor parallelism (`tensor-parallel-size`) | 8 |
+| Data parallelism (`data-parallel-size`) | 2 (1 rank per node, cross-node) |
+| Replicas (instances) | 1 aggregated service (leader + worker = 16 cards) |
+| Expert parallelism (`enable-expert-parallel`) | on (EP16) |
+| `max-model-len` | 200000 (agent long-context) |
+| `max-num-batched-tokens` | 8192 |
+| `max-num-seqs` | 32 |
+| `gpu-memory-utilization` | 0.92 (64 GB card — ~20.6 GB/card weights leave ample KV room) |
+| `block-size` | 128 |
+| Quantization | `ascend` (W8A8_DYNAMIC) |
+| Speculative decoding (MTP) | `mtp`, 1 token (`enforce_eager` on the draft head) |
+| Decode graph | `FULL_DECODE_ONLY` (`enable_npugraph_ex`) |
+| DSA context parallel (`enable_dsa_cp`) | on (prefix-cache hit prerequisite) |
+| Prefix caching | enabled **and effective** (~90.9 % single-rank hit; requires `VLLM_ASCEND_ENABLE_FLASHCOMM1=1` + `VLLM_PREFIX_CACHE_RETENTION_INTERVAL=16384` + prefix ≥ 16384) |
+| Tool calling / reasoning | `--tool-call-parser deepseek_v4` + `--enable-auto-tool-choice` + `--reasoning-parser deepseek_v4` (thinking off by default) |
+
+## Deployment spec
+
+Served as **`agg-mc-kv`** — a single DP2 × TP=8 aggregation **plus** a mooncake KV store
+shared by the two DP ranks. DP2 random routing scatters each user's growing history
+across the two ranks, so per-rank local multi-turn hit is only ~41 %; the mooncake store
+lets one rank pull prefix KV the other already computed, lifting **merged effective
+prefix reuse to ~84 %**. The router stays `random` and the cache-indexer is **off**: a
+single aggregated endpoint needs no global KV index or KV-cache-aware routing — this
+matches the GLM-5.2 / Qwen3-8B aggregation paradigm (store shares KV; router stays
+random).
+
+| Component | `agg-mc-kv` |
+|---|:--:|
+| hermes-router (EPP) | ✅ started (single leader endpoint, `random` no-op) |
+| Routing strategy | `random` |
+| mooncake KV store (AscendStoreConnector) | ✅ (shared across the two DP ranks) |
+| cache-indexer / KV-cache-aware routing | — (not needed for a single aggregated endpoint) |
+| Cross-rank prefix KV reuse | yes (~84 % merged effective) |
+
+:::note
+The store writes **asynchronously** (~30–60 s to land a 21k prefix). Cross-rank hits
+land for multi-turn agent sessions with turn gaps of roughly a minute or more;
+back-to-back sub-second reuse only hits the same rank's local prefix cache. A separate
+attempt at KV-cache-aware routing (to steer follow-ups back to the rank holding the
+cache) was evaluated and **reverted** — it gave no benefit on this stack at this scale,
+so the production form stays `random` + mooncake store.
+:::
+
+## Deploy
+
+Self-contained InferNex manifest (engine inlined in the `LLMInferenceService` leader +
+worker templates + hermes-router preset, DP2 × TP=8 across two nodes with the mooncake
+store):
+
+| Spec | File |
+|---|---|
+| agg-mc-kv, DP2 × TP=8 | [`deepseek-v4-flash-w8a8-agg-mc-kv-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/deepseek-v4-flash-w8a8/deepseek-v4-flash-w8a8-agg-mc-kv-llmisvc.yaml) |
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets/deepseek-v4-flash-w8a8
+
+# 1. Import the ModelCar (OCI Image Layout tar) into your own registry once — the cluster
+#    pulls an OCI image, not the tar. skopeo does the multi-arch (amd64+arm64) push in one go:
+curl -sO http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/DeepSeek-V4-Flash-w8a8-mtp.oci.tar
+skopeo copy --all \
+  oci-archive:DeepSeek-V4-Flash-w8a8-mtp.oci.tar:v0.1.0 \
+  docker://<your-registry>/modelcar-deepseek-v4-flash-w8a8-mtp:v0.1.0
+
+# 2. Edit the manifest: set the namespace, set model.uri to the registry ref you just
+#    pushed, and the image tag (match your CANN / host driver). Then apply — the
+#    storageInitializer pulls the ModelCar to /mnt/models in each DP rank.
+#    (Alternative: stage the weights on a node-local PVC per node — see the manifest header.)
+kubectl apply -f $base/deepseek-v4-flash-w8a8-agg-mc-kv-llmisvc.yaml
+
+# Internal KServe ingress (no auth):
+curl -s http://<gateway>/<namespace>/deepseek-v4-flash-w8a8-agg-mc-kv/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"deepseek-v4-flash-w8a8","messages":[{"role":"user","content":"hello"}]}'
+
+# Product MaaS gateway (OpenAI-compatible, API-key auth + token rate limiting):
+curl -s http://<maas-gateway>/v1/chat/completions \
+  -H "Authorization: Bearer $MAAS_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"deepseek-v4-flash-w8a8","messages":[{"role":"user","content":"hello"}]}'
+```
+
+## Benchmark results
+
+Closed-loop `aiperf 0.7.0`, **DP2 × TP=8 (16 × 910B3 64 GB)**, driven through the product
+**MaaS gateway**. Concurrency sweep **8 / 16 / 32**, 480 requests per tier (all tiers
+0 error / 0 mismatch). The headline numbers are the **production `agg-mc-kv`
+configuration** — FULL_DECODE_ONLY graph + mooncake cross-rank KV store, the exact config
+the manifest above deploys — on scenario ② (multi-turn nested long context), the
+agent-style workload the store targets. TTFT / E2E in s, ITL in ms; decode = output-only
+tok/s (measured), TPS = total tokens/s (input + output, computed; prefill-dominated).
+
+**Scenario ② — multi-turn dialogue, production `agg-mc-kv` (ISL ~17.5k / OSL 128)**
+
+| Concurrency | TTFT avg (s) | ITL avg (ms) | E2E avg (s) | Decode (tok/s) | TPS (in+out) |
+|--:|--:|--:|--:|--:|--:|
+| 8  | 1.76 | 72  | 10.9 | 93.6  | 13198 |
+| 16 | 1.36 | 90  | 12.8 | 159.3 | 22467 |
+| 32 | 1.94 | 123 | 17.6 | 230.9 | **32559** |
+
+The mooncake cross-rank KV store is what makes this fast: it lifts multi-turn prefix
+reuse from ~41 % (per-rank local) to ~84 % (merged effective). Stepping the same
+scenario ② at concurrency 32 through the configs the deployment evolved from shows where
+the gain comes from:
+
+**Config evolution — Scenario ②, concurrency 32**
+
+| Config | TTFT avg (s) | E2E avg (s) | Decode (tok/s) | TPS (in+out) |
+|---|--:|--:|--:|--:|
+| agg (base — eager, no store) | 10.2 | 83.7 | 48.1 | 6781 |
+| + FULL_DECODE_ONLY graph | 3.2 | 29.3 | 138.7 | 19554 |
+| **+ mooncake KV store (production)** | **1.9** | **17.6** | **230.9** | **32559** |
+
+→ graph + store together are **TTFT ~5.3× / E2E ~4.8× / TPS ~4.8×** better than the base
+aggregation at the same concurrency.
+
+**Scenario ① — fixed-length system-prompt reuse (ISL ~8k / OSL 128), base agg**
+
+The 8k fixed-prompt scenario was measured only on the **base aggregation** config (graph
++ mooncake were not separately re-run for it), so treat these as a lower bound — the
+production config would lift them much like scenario ②:
+
+| Concurrency | TTFT avg (s) | ITL avg (ms) | E2E avg (s) | Decode (tok/s) | TPS (in+out) |
+|--:|--:|--:|--:|--:|--:|
+| 8  | 3.19 | 305 | 41.9 | 24.2 | 1539 |
+| 16 | 3.42 | 350 | 47.8 | 42.3 | 2689 |
+| 32 | 5.71 | 493 | 68.3 | 59.2 | 3759 |
+
+:::note
+**How to read these.** Every tier completed 480/480 with zero errors and zero output
+mismatches. As concurrency rises, **system throughput (decode / TPS) climbs**
+(sub-linear, saturating) while tail latency (TTFT / ITL / E2E) also climbs — the queueing
+cost of more in-flight requests. TPS is the **total-token (input + output)** caliber and
+is prefill-dominated (ISL 8k / 17.5k, OSL 128); the decode-only output rate is the
+separate "Decode" column.
+
+These numbers are **not directly comparable** to the other models in this guide: it is a
+concurrency sweep (not the fixed concurrency-4 run the Qwen models use), on **910B3 64 GB**
+cards (not 910B4 32 GB), with a **16-card DP2 × TP=8** topology. Treat them as the
+operating envelope of this specific large-MoE deployment, not a cross-model ranking.
+:::

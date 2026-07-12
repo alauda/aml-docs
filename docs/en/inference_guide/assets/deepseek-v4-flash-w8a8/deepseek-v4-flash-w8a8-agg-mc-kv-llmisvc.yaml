@@ -1,0 +1,456 @@
+# DeepSeek-V4-Flash (W8A8) — agg-mc-kv aggregation on Alauda AI's InferNex surface:
+# KServe `LLMInferenceService` + InferNex-Bridge + hermes-router, DP2 × TP=8 across
+# TWO nodes (16 cards) with a mooncake cross-rank KV store. This is the EXACT shape
+# deployed and benchmarked on 2 × 8 × Ascend 910B3 (64 GB/card).
+#
+# DeepSeek-V4-Flash is the `deepseek_v4` architecture: 256-expert MoE + MLA + DSA
+# sparse attention + MTP, served here as W8A8 (W8A8_DYNAMIC int8 attn+expert,
+# ~280 GB weights, 70 shards, 43 layers). At ~280 GB the weights do not fit a single
+# 8 × 32 GB node, so this variant runs a single aggregated service spanning TWO 64 GB
+# nodes as **DP2 × TP=8 + EP16** (~280 GB / 16 ≈ 20.6 GB/card — very comfortable on
+# 64 GB cards, leaving room for a 200k-token KV pool). It is a SINGLE service with
+# replicas=1: the two DP ranks are the leader (rank 0) and worker (rank 1) of one
+# LeaderWorkerSet, NOT two independent replicas (replicas:2 would halve the ctx).
+#
+# Model source: ModelScope `Eco-Tech/DeepSeek-V4-Flash-w8a8-mtp` (70 shards, ~280 GB),
+# repackaged as an Alauda ModelCar in OCI Image Layout format (multi-arch amd64+arm64):
+#   http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/DeepSeek-V4-Flash-w8a8-mtp.oci.tar
+# The cluster pulls an OCI *image*, not the tar, so import the archive into your own
+# registry once (skopeo does the multi-arch push in one shot), then point model.uri at it:
+#   skopeo copy --all \
+#     oci-archive:DeepSeek-V4-Flash-w8a8-mtp.oci.tar:v0.1.0 \
+#     docker://<your-registry>/modelcar-deepseek-v4-flash-w8a8-mtp:v0.1.0
+#   # v0.1.0 = the tag inside index.json; confirm with:
+#   #   tar -xO -f DeepSeek-V4-Flash-w8a8-mtp.oci.tar index.json \
+#   #     | jq -r '.manifests[0].annotations["org.opencontainers.image.ref.name"]'
+# With model.uri = oci://…, InferNex/KServe runs a storageInitializer that pulls the
+# ModelCar to /mnt/models in EACH DP rank's pod (leader on node 0, worker on node 1), so
+# each node needs ~280 GB+ free ephemeral space.
+#   ALT (what the docs benchmark actually used): stage the weights on a node-local PVC per
+#   node and skip the pull — set `spec.model.uri: pvc://<node0-pvc>/` +
+#   `spec.storageInitializer.enabled: false`, and add back a `model` volume
+#   (persistentVolumeClaim) + `/mnt/models` volumeMount on BOTH the leader (node-0 PVC) and
+#   worker (node-1 PVC). The ModelCar is the same weights; the DP2 cross-node
+#   storageInitializer pull path was not separately re-run for this model.
+#
+# agg-mc-kv = the validated graph config PLUS a mooncake KV store shared by the two DP
+# ranks. DP2 random routing scatters each user's growing history across the two ranks,
+# so per-rank local multi-turn hit is only ~41%; the mooncake store lets a rank pull
+# prefix KV the other rank already computed, lifting merged effective prefix reuse to
+# ~84% (measured, S2 conc 8/16/32 × 480). vs a mooncake-free graph build that is
+# TTFT −24…44% / decode throughput +24…67%, ctx 200k intact, 0 error.
+#   NOTE: the store writes asynchronously (~30–60 s to land a 21k prefix). Cross-rank
+#   hits land for multi-turn agent sessions with >~1 min turn gaps; back-to-back
+#   sub-second reuse only hits the same rank's local prefix cache.
+#
+# Router = hermes-router (EPP) with the `random` picker and cache-indexer OFF: a single
+# aggregated endpoint needs no global KV index / KV-cache-aware routing — this matches
+# the GLM-5.2 / Qwen3-8B aggregation paradigm (mooncake store shares KV; router stays
+# random). Disabling only cache-indexer/pd-orchestrator/eagle-eye lets InferNex-Bridge
+# reconcile the mooncake-master + redis backends for the store.
+#
+# Prefix-cache hit gate on deepseek_v4 (ALL required, miss any → 0% hit): (1)
+# --enable-prefix-caching, (2) additional-config enable_dsa_cp:true, (3)
+# VLLM_ASCEND_ENABLE_FLASHCOMM1=1 (DSA-CP hard-depends on sequence parallel; without it
+# EngineCore crashes "DSA CP requires SP"), (4) VLLM_PREFIX_CACHE_RETENTION_INTERVAL=16384
+# (DSA sliding-window sparse checkpoint granularity; a prefix shorter than this has no
+# reusable checkpoint). decode graph = FULL_DECODE_ONLY (MTP keeps enforce_eager for the
+# draft head only). Requires the nightly-main image carrying the DP2 cross-node graph +
+# DSA-CP prefix-cache fixes (PIECEWISE graph is still unsupported for deepseek_v4).
+#
+# Image: quay.io/ascend/vllm-ascend:nightly-main-openeuler-0709 (vLLM 0.23.0). Match
+# the tag's CANN version to your host NPU driver; the two nodes must have it locally.
+#
+# Ingress: benchmarked through the product **MaaS gateway** (OpenAI-compatible, API-key
+# auth) as well as the internal KServe ingress — see the page for both curl forms.
+#
+# Before applying: set the namespace `demo`, import the ModelCar and set model.uri to your
+# registry (or use the node-local PVC ALT above), and make sure both nodes can pull the
+# engine + hermes-router images (air-gapped nodes need them pre-loaded).
+# =============================================================================
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceService
+metadata:
+  name: deepseek-v4-flash-w8a8-agg-mc-kv
+  namespace: demo
+  labels:
+    infernex.io/runtime: "true"          # triggers InferNex-Bridge reconcile
+  annotations:
+    # agg-mc-kv: dropping "mooncake" from disabled-components makes InferNex-Bridge
+    # reconcile the mooncake-master + redis-service backends. cache-indexer stays OFF
+    # (a single aggregated endpoint needs no global KV index / KV-aware routing).
+    infernex.io/disabled-components: "cache-indexer,pd-orchestrator,eagle-eye"
+spec:
+  model:
+    name: deepseek-v4-flash-w8a8      # == --served-model-name == MaaS modelName == client -m
+    # Import the OCI ModelCar tar into your registry first (see header); the
+    # storageInitializer then pulls it to /mnt/models in each DP rank. For the
+    # node-local PVC ALT (what the benchmark used), see the header block.
+    uri: oci://<your-registry>/modelcar-deepseek-v4-flash-w8a8-mtp:v0.1.0
+  replicas: 1                         # ONE aggregated service (leader + worker below) = 16 cards
+  parallelism:
+    data: 2                           # DP2 across the two nodes
+    dataLocal: 1                      # 1 DP rank per node
+  # ===== router: hermes-router (EPP), random-picker. DP2 has one leader endpoint, so
+  #       random is effectively a no-op, but the structure is kept for consistency. =====
+  router:
+    gateway: {}
+    route: {}
+    scheduler:
+      pool:
+        spec:
+          endpointPickerRef:
+            failureMode: FailOpen
+            group: ""
+            kind: Service
+            name: deepseek-v4-flash-w8a8-agg-mc-kv-epp-service
+            port:
+              number: 9002
+          selector:
+            matchLabels:
+              app.kubernetes.io/name: deepseek-v4-flash-w8a8-agg-mc-kv
+              app.kubernetes.io/part-of: llminferenceservice
+              kserve.io/component: workload
+              leaderworkerset.sigs.k8s.io/worker-index: "0"   # target the DP leader (rank 0)
+          targetPorts:
+          - number: 8000
+      template:
+        containers:
+        - args:
+          - --pool-name
+          - deepseek-v4-flash-w8a8-agg-mc-kv-inference-pool
+          - --pool-namespace
+          - demo
+          - --pool-group
+          - inference.networking.k8s.io
+          - --zap-encoder
+          - json
+          - --v
+          - "1"
+          - --tracing
+          - "false"
+          - --metrics-endpoint-auth
+          - "false"
+          - --config-text
+          - |-
+            apiVersion: inference.networking.x-k8s.io/v1alpha1
+            kind: EndpointPickerConfig
+            plugins:
+            - type: metrics-data-source
+              parameters: { scheme: "http", path: "/metrics", insecureSkipVerify: true }
+            - type: core-metrics-extractor
+            - type: random-picker
+            schedulingProfiles:
+            - name: default
+              plugins:
+              - pluginRef: random-picker
+          image: build-harbor.alauda.cn/3rdparty/openfuyao/hermes-router:26.6.0-rc.3
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            grpc: { port: 9003, service: liveness }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: main
+          ports:
+          - { containerPort: 9002, name: grpc, protocol: TCP }
+          - { containerPort: 9003, name: grpc-health, protocol: TCP }
+          - { containerPort: 9090, name: metrics, protocol: TCP }
+          readinessProbe:
+            failureThreshold: 3
+            grpc: { port: 9003, service: readiness }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            limits: { memory: 4Gi }
+            requests: { cpu: "1", memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile: { type: RuntimeDefault }
+          startupProbe:
+            failureThreshold: 30
+            grpc: { port: 9003, service: liveness }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+          - { mountPath: /etc/ssl/certs, name: tls-certs, readOnly: true }
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        serviceAccountName: deepseek-v4-flash-w8a8-agg-mc-kv-epp-sa
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: tls-certs
+          secret:
+            secretName: '{{ ChildName .ObjectMeta.Name `-kserve-self-signed-certs` }}'
+  # ===== leader (DP rank 0, node 0, mounts the node-0 weights PVC) =====
+  template:
+    initContainers:
+    # Write /app/mooncake.json — tells the in-engine mooncake client where the store is
+    # (local_hostname = this pod IP; master/redis are reconciled by InferNex-Bridge).
+    - name: mooncake-config-init
+      image: quay.io/ascend/vllm-ascend:nightly-main-openeuler-0709
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/bash", "-c"]
+      args:
+      - |
+        set -e
+        cat > /app/mooncake.json <<EOF
+        {"local_hostname":"${POD_IP:-0.0.0.0}","metadata_server":"redis://redis-service:6379","master_server_address":"mooncake-master-service:30089","device_name":"","protocol":"ascend","global_segment_size":42949672960,"use_ascend_direct":true}
+        EOF
+        echo "[mooncake-config-init] wrote /app/mooncake.json:"; cat /app/mooncake.json
+      env:
+      - name: POD_IP
+        valueFrom: { fieldRef: { fieldPath: status.podIP } }
+      volumeMounts:
+      - { name: mooncake-config, mountPath: /app }
+    containers:
+    - args:
+      - |
+        set +e   # a fresh-start getent lookup can transiently fail; set -e would crash bash immediately
+        source /usr/local/Ascend/ascend-toolkit/set_env.sh 2>/dev/null || true
+        source /usr/local/Ascend/nnal/atb/set_env.sh 2>/dev/null || true
+        for _i in $(seq 1 60); do DP_ADDR=$(getent hosts "${LWS_LEADER_ADDRESS}" 2>/dev/null | awk '{print $1}' | head -1); [ -n "${DP_ADDR:-}" ] && break; echo "[dsv4] waiting LWS_LEADER_ADDRESS dns ($_i)"; sleep 2; done
+        DP_ADDR=${DP_ADDR:-${LWS_LEADER_ADDRESS}}
+        echo "[dsv4-leader] HCCL_IF_IP=${HCCL_IF_IP} DP_ADDR=${DP_ADDR} devices=$(ls /dev/davinci* 2>/dev/null | tr '\n' ' ')"
+        export LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH:-}"   # ascend_transport.so (mooncake store transport)
+        exec vllm serve /mnt/models \
+          --host 0.0.0.0 --port 8000 \
+          --served-model-name deepseek-v4-flash-w8a8 \
+          --seed 1024 \
+          --trust-remote-code \
+          --api-server-count 1 \
+          --kv-transfer-config '{"engine_id":"$(POD_NAME)","kv_connector":"AscendStoreConnector","kv_role":"kv_both","kv_port":"20000","kv_connector_extra_config":{"backend":"mooncake","decode":{"dp_size":2,"tp_size":8},"prefill":{"dp_size":2,"tp_size":8},"lookup_rpc_port":"1"}}' \
+          --data-parallel-size 2 \
+          --data-parallel-size-local 1 \
+          --data-parallel-address ${DP_ADDR} \
+          --data-parallel-rpc-port 13389 \
+          --tensor-parallel-size 8 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --tokenizer-mode deepseek_v4 \
+          --tool-call-parser deepseek_v4 \
+          --enable-auto-tool-choice \
+          --reasoning-parser deepseek_v4 \
+          --max-model-len 200000 \
+          --max-num-batched-tokens 8192 \
+          --max-num-seqs 32 \
+          --gpu-memory-utilization 0.92 \
+          --block-size 128 \
+          --safetensors-load-strategy 'prefetch' \
+          --model-loader-extra-config '{"enable_multithread_load":"true","num_threads":128}' \
+          --async-scheduling \
+          --enable-prefix-caching \
+          --speculative-config '{"num_speculative_tokens":1,"method":"mtp","enforce_eager":true}' \
+          --compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY"}' \
+          --additional-config '{"ascend_compilation_config":{"enable_npugraph_ex":true,"enable_static_kernel":false},"enable_cpu_binding":true,"enable_dsa_cp":true,"multistream_overlap_shared_expert":true}'
+      command: ["/bin/bash", "-c"]
+      env:
+      - { name: HOME, value: /home }
+      - { name: VLLM_LOGGING_LEVEL, value: INFO }
+      - { name: HF_HUB_OFFLINE, value: "1" }
+      - { name: HCCL_OP_EXPANSION_MODE, value: AIV }
+      - { name: VLLM_PREFIX_CACHE_RETENTION_INTERVAL, value: "16384" }   # deepseek_v4 prefix-cache hit prerequisite
+      - { name: VLLM_ASCEND_ENABLE_FLASHCOMM1, value: "1" }              # enable_dsa_cp hard-depends on SP; also a cross-node comm optimization
+      - name: HCCL_IF_IP
+        valueFrom: { fieldRef: { fieldPath: status.podIP } }
+      - { name: GLOO_SOCKET_IFNAME, value: eth0 }
+      - { name: TP_SOCKET_IFNAME, value: eth0 }
+      - { name: HCCL_SOCKET_IFNAME, value: eth0 }
+      - { name: VLLM_RPC_TIMEOUT, value: "360000" }
+      - { name: VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS, value: "3000" }
+      - { name: HCCL_EXEC_TIMEOUT, value: "200" }
+      - { name: HCCL_CONNECT_TIMEOUT, value: "120" }
+      - { name: OMP_PROC_BIND, value: "false" }
+      - { name: OMP_NUM_THREADS, value: "10" }
+      - { name: PYTORCH_NPU_ALLOC_CONF, value: expandable_segments:True }
+      - { name: ACL_OP_INIT_MODE, value: "1" }
+      - { name: TASK_QUEUE_ENABLE, value: "1" }
+      - { name: CPU_AFFINITY_CONF, value: "1" }
+      - { name: VLLM_ENGINE_READY_TIMEOUT_S, value: "1200" }
+      # --- mooncake KV store (agg-mc-kv: shared prefix KV across the two DP ranks) ---
+      - { name: PYTHONHASHSEED, value: "0" }                    # identical cross-pod block hashes (store key match; unset → 0 hit)
+      - { name: MOONCAKE_CONFIG_PATH, value: /app/mooncake.json }
+      - { name: HCCL_WHITELIST_DISABLE, value: "1" }
+      - { name: HCCL_INTRA_ROCE_ENABLE, value: "1" }           # cross-pod KV transfer over NIC RoCE/RDMA
+      - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }   # unique engine_id (store participant id)
+      - { name: POD_IP,   valueFrom: { fieldRef: { fieldPath: status.podIP } } }
+      image: quay.io/ascend/vllm-ascend:nightly-main-openeuler-0709
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 8
+        httpGet: { path: /health, port: http }
+        periodSeconds: 15
+        timeoutSeconds: 10
+      name: main
+      ports:
+      - { containerPort: 8000, name: http, protocol: TCP }
+      readinessProbe:
+        failureThreshold: 3
+        httpGet: { path: /health, port: http }
+        periodSeconds: 10
+      resources:
+        limits: { cpu: "48", huawei.com/Ascend910: "8", memory: 480Gi }
+        requests: { cpu: "16", huawei.com/Ascend910: "8", memory: 96Gi }
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsGroup: 0
+        runAsNonRoot: false
+        runAsUser: 0
+        seccompProfile: { type: RuntimeDefault }
+      startupProbe:
+        failureThreshold: 160     # ~280 GB from PVC + init: budget ~80 min
+        httpGet: { path: /health, port: http }
+        periodSeconds: 30
+      volumeMounts:
+      # /mnt/models is provided by the storageInitializer (ModelCar pull). For the PVC ALT
+      # (see header) add: - { mountPath: /mnt/models, name: model, readOnly: true }
+      - { mountPath: /dev/shm, name: shm }
+      - { mountPath: /app, name: mooncake-config, readOnly: true }   # read the mooncake.json the initContainer wrote
+    hostIPC: true
+    imagePullSecrets:
+    - { name: modelcar-registry-auth }   # only needed if <your-registry> is private
+    tolerations:
+    - operator: Exists
+    volumes:
+    # For the PVC ALT (see header) add here:
+    #   - name: model
+    #     persistentVolumeClaim: { claimName: <node-0 weights PVC> }
+    - name: shm
+      emptyDir: { medium: Memory, sizeLimit: 32Gi }
+    - name: mooncake-config
+      emptyDir: {}
+  # ===== worker (DP rank 1, node 1, mounts the node-1 weights PVC) =====
+  worker:
+    initContainers:
+    - name: mooncake-config-init
+      image: quay.io/ascend/vllm-ascend:nightly-main-openeuler-0709
+      imagePullPolicy: IfNotPresent
+      command: ["/bin/bash", "-c"]
+      args:
+      - |
+        set -e
+        cat > /app/mooncake.json <<EOF
+        {"local_hostname":"${POD_IP:-0.0.0.0}","metadata_server":"redis://redis-service:6379","master_server_address":"mooncake-master-service:30089","device_name":"","protocol":"ascend","global_segment_size":42949672960,"use_ascend_direct":true}
+        EOF
+        echo "[mooncake-config-init] wrote /app/mooncake.json:"; cat /app/mooncake.json
+      env:
+      - name: POD_IP
+        valueFrom: { fieldRef: { fieldPath: status.podIP } }
+      volumeMounts:
+      - { name: mooncake-config, mountPath: /app }
+    containers:
+    - args:
+      - |
+        set +e
+        source /usr/local/Ascend/ascend-toolkit/set_env.sh 2>/dev/null || true
+        source /usr/local/Ascend/nnal/atb/set_env.sh 2>/dev/null || true
+        for _i in $(seq 1 60); do DP_ADDR=$(getent hosts "${LWS_LEADER_ADDRESS}" 2>/dev/null | awk '{print $1}' | head -1); [ -n "${DP_ADDR:-}" ] && break; echo "[dsv4] waiting LWS_LEADER_ADDRESS dns ($_i)"; sleep 2; done
+        DP_ADDR=${DP_ADDR:-${LWS_LEADER_ADDRESS}}
+        echo "[dsv4-worker] HCCL_IF_IP=${HCCL_IF_IP} DP_ADDR=${DP_ADDR} devices=$(ls /dev/davinci* 2>/dev/null | tr '\n' ' ')"
+        export LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH:-}"   # ascend_transport.so (mooncake store transport)
+        exec vllm serve /mnt/models \
+          --host 0.0.0.0 --port 8000 \
+          --headless \
+          --served-model-name deepseek-v4-flash-w8a8 \
+          --seed 1024 \
+          --trust-remote-code \
+          --data-parallel-size 2 \
+          --data-parallel-size-local 1 \
+          --data-parallel-start-rank 1 \
+          --kv-transfer-config '{"engine_id":"$(POD_NAME)","kv_connector":"AscendStoreConnector","kv_role":"kv_both","kv_port":"20000","kv_connector_extra_config":{"backend":"mooncake","decode":{"dp_size":2,"tp_size":8},"prefill":{"dp_size":2,"tp_size":8},"lookup_rpc_port":"1"}}' \
+          --data-parallel-address ${DP_ADDR} \
+          --data-parallel-rpc-port 13389 \
+          --tensor-parallel-size 8 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --tokenizer-mode deepseek_v4 \
+          --tool-call-parser deepseek_v4 \
+          --enable-auto-tool-choice \
+          --reasoning-parser deepseek_v4 \
+          --max-model-len 200000 \
+          --max-num-batched-tokens 8192 \
+          --max-num-seqs 32 \
+          --gpu-memory-utilization 0.92 \
+          --block-size 128 \
+          --safetensors-load-strategy 'prefetch' \
+          --model-loader-extra-config '{"enable_multithread_load":"true","num_threads":128}' \
+          --async-scheduling \
+          --enable-prefix-caching \
+          --speculative-config '{"num_speculative_tokens":1,"method":"mtp","enforce_eager":true}' \
+          --compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY"}' \
+          --additional-config '{"ascend_compilation_config":{"enable_npugraph_ex":true,"enable_static_kernel":false},"enable_cpu_binding":true,"enable_dsa_cp":true,"multistream_overlap_shared_expert":true}'
+      command: ["/bin/bash", "-c"]
+      env:
+      - { name: HOME, value: /home }
+      - { name: VLLM_LOGGING_LEVEL, value: INFO }
+      - { name: HF_HUB_OFFLINE, value: "1" }
+      - { name: HCCL_OP_EXPANSION_MODE, value: AIV }
+      - { name: VLLM_PREFIX_CACHE_RETENTION_INTERVAL, value: "16384" }   # deepseek_v4 prefix-cache hit prerequisite
+      - { name: VLLM_ASCEND_ENABLE_FLASHCOMM1, value: "1" }              # enable_dsa_cp hard-depends on SP; also a cross-node comm optimization
+      - name: HCCL_IF_IP
+        valueFrom: { fieldRef: { fieldPath: status.podIP } }
+      - { name: GLOO_SOCKET_IFNAME, value: eth0 }
+      - { name: TP_SOCKET_IFNAME, value: eth0 }
+      - { name: HCCL_SOCKET_IFNAME, value: eth0 }
+      - { name: VLLM_RPC_TIMEOUT, value: "360000" }
+      - { name: VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS, value: "3000" }
+      - { name: HCCL_EXEC_TIMEOUT, value: "200" }
+      - { name: HCCL_CONNECT_TIMEOUT, value: "120" }
+      - { name: OMP_PROC_BIND, value: "false" }
+      - { name: OMP_NUM_THREADS, value: "10" }
+      - { name: PYTORCH_NPU_ALLOC_CONF, value: expandable_segments:True }
+      - { name: ACL_OP_INIT_MODE, value: "1" }
+      - { name: TASK_QUEUE_ENABLE, value: "1" }
+      - { name: CPU_AFFINITY_CONF, value: "1" }
+      - { name: VLLM_ENGINE_READY_TIMEOUT_S, value: "1200" }
+      # --- mooncake KV store (agg-mc-kv: shared prefix KV across the two DP ranks) ---
+      - { name: PYTHONHASHSEED, value: "0" }                    # identical cross-pod block hashes (store key match; unset → 0 hit)
+      - { name: MOONCAKE_CONFIG_PATH, value: /app/mooncake.json }
+      - { name: HCCL_WHITELIST_DISABLE, value: "1" }
+      - { name: HCCL_INTRA_ROCE_ENABLE, value: "1" }           # cross-pod KV transfer over NIC RoCE/RDMA
+      - { name: POD_NAME, valueFrom: { fieldRef: { fieldPath: metadata.name } } }   # unique engine_id (store participant id)
+      - { name: POD_IP,   valueFrom: { fieldRef: { fieldPath: status.podIP } } }
+      image: quay.io/ascend/vllm-ascend:nightly-main-openeuler-0709
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        exec: { command: ["bash", "-c", "pgrep -f 'vllm serve' >/dev/null"] }
+        failureThreshold: 6
+        periodSeconds: 30
+        timeoutSeconds: 10
+      name: main
+      ports:
+      - { containerPort: 13389, name: dp-rpc, protocol: TCP }
+      resources:
+        limits: { cpu: "48", huawei.com/Ascend910: "8", memory: 480Gi }
+        requests: { cpu: "16", huawei.com/Ascend910: "8", memory: 96Gi }
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsGroup: 0
+        runAsNonRoot: false
+        runAsUser: 0
+        seccompProfile: { type: RuntimeDefault }
+      startupProbe:
+        exec: { command: ["bash", "-c", "pgrep -f 'vllm serve' >/dev/null"] }
+        failureThreshold: 160
+        periodSeconds: 30
+      volumeMounts:
+      # /mnt/models is provided by the storageInitializer (ModelCar pull). For the PVC ALT
+      # (see header) add: - { mountPath: /mnt/models, name: model, readOnly: true }
+      - { mountPath: /dev/shm, name: shm }
+      - { mountPath: /app, name: mooncake-config, readOnly: true }   # read the mooncake.json the initContainer wrote
+    hostIPC: true
+    imagePullSecrets:
+    - { name: modelcar-registry-auth }   # only needed if <your-registry> is private
+    tolerations:
+    - operator: Exists
+    volumes:
+    # For the PVC ALT (see header) add here:
+    #   - name: model
+    #     persistentVolumeClaim: { claimName: <node-1 weights PVC> }
+    - name: shm
+      emptyDir: { medium: Memory, sizeLimit: 32Gi }
+    - name: mooncake-config
+      emptyDir: {}
