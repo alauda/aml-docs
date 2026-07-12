@@ -150,9 +150,11 @@ The three signed images and their digests:
 | `docker.io/alaudadockerhub/modelcar-deepseek-v4-flash-w4a8-mtp:v0.1.0` | `sha256:ef57a46726bec9c6505504262beaa55ec6c45d595a1726ab90d594f42606c6be` |
 
 :::note
-DeepSeek-V4-Flash (**W8A8**) is not in this table — it has no public ModelCar image. Its
-~280 GB weights are staged from the ModelScope source onto a node-local PVC per node (see
-its [page](./deepseek-v4-flash-w8a8.mdx)), so there is no signed image to verify.
+DeepSeek-V4-Flash (**W8A8**) is not in this Cosign table — its ModelCar is distributed as
+an **OCI Image Layout tar** (not a signed registry image), so there is no Cosign signature
+to verify. Its integrity is content-addressed instead: the tar's `index.json` carries the
+image digest and every blob under `blobs/sha256/` is verified against its own digest on
+import (`skopeo copy` checks this). See its [page](./deepseek-v4-flash-w8a8.mdx).
 :::
 
 `--insecure-ignore-tlog=true` is required because these were signed with

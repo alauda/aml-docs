@@ -12,11 +12,26 @@
 # replicas=1: the two DP ranks are the leader (rank 0) and worker (rank 1) of one
 # LeaderWorkerSet, NOT two independent replicas (replicas:2 would halve the ctx).
 #
-# Model source: ModelScope `Eco-Tech/DeepSeek-V4-Flash-w8a8-mtp` (70 shards, ~280 GB).
-# Unlike the other models in this guide there is NO public Docker Hub ModelCar for this
-# W8A8 variant — the weights are pre-downloaded to a node-local PVC on EACH node (rank 0
-# mounts the copy on node 0, rank 1 the copy on node 1). Repoint the two claims below at
-# wherever you stage the weights.
+# Model source: ModelScope `Eco-Tech/DeepSeek-V4-Flash-w8a8-mtp` (70 shards, ~280 GB),
+# repackaged as an Alauda ModelCar in OCI Image Layout format (multi-arch amd64+arm64):
+#   http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/DeepSeek-V4-Flash-w8a8-mtp.oci.tar
+# The cluster pulls an OCI *image*, not the tar, so import the archive into your own
+# registry once (skopeo does the multi-arch push in one shot), then point model.uri at it:
+#   skopeo copy --all \
+#     oci-archive:DeepSeek-V4-Flash-w8a8-mtp.oci.tar:v0.1.0 \
+#     docker://<your-registry>/modelcar-deepseek-v4-flash-w8a8-mtp:v0.1.0
+#   # v0.1.0 = the tag inside index.json; confirm with:
+#   #   tar -xO -f DeepSeek-V4-Flash-w8a8-mtp.oci.tar index.json \
+#   #     | jq -r '.manifests[0].annotations["org.opencontainers.image.ref.name"]'
+# With model.uri = oci://…, InferNex/KServe runs a storageInitializer that pulls the
+# ModelCar to /mnt/models in EACH DP rank's pod (leader on node 0, worker on node 1), so
+# each node needs ~280 GB+ free ephemeral space.
+#   ALT (what the docs benchmark actually used): stage the weights on a node-local PVC per
+#   node and skip the pull — set `spec.model.uri: pvc://<node0-pvc>/` +
+#   `spec.storageInitializer.enabled: false`, and add back a `model` volume
+#   (persistentVolumeClaim) + `/mnt/models` volumeMount on BOTH the leader (node-0 PVC) and
+#   worker (node-1 PVC). The ModelCar is the same weights; the DP2 cross-node
+#   storageInitializer pull path was not separately re-run for this model.
 #
 # agg-mc-kv = the validated graph config PLUS a mooncake KV store shared by the two DP
 # ranks. DP2 random routing scatters each user's growing history across the two ranks,
@@ -49,9 +64,9 @@
 # Ingress: benchmarked through the product **MaaS gateway** (OpenAI-compatible, API-key
 # auth) as well as the internal KServe ingress — see the page for both curl forms.
 #
-# Before applying: set the namespace `demo`, repoint the two node-local PVC claims at
-# your staged weights, and make sure both nodes can pull the engine + hermes-router
-# images (air-gapped nodes need them pre-loaded).
+# Before applying: set the namespace `demo`, import the ModelCar and set model.uri to your
+# registry (or use the node-local PVC ALT above), and make sure both nodes can pull the
+# engine + hermes-router images (air-gapped nodes need them pre-loaded).
 # =============================================================================
 apiVersion: serving.kserve.io/v1alpha2
 kind: LLMInferenceService
@@ -68,13 +83,14 @@ metadata:
 spec:
   model:
     name: deepseek-v4-flash-w8a8      # == --served-model-name == MaaS modelName == client -m
-    uri: pvc://dsv4-n8/               # node-local weights (no public ModelCar for W8A8)
+    # Import the OCI ModelCar tar into your registry first (see header); the
+    # storageInitializer then pulls it to /mnt/models in each DP rank. For the
+    # node-local PVC ALT (what the benchmark used), see the header block.
+    uri: oci://<your-registry>/modelcar-deepseek-v4-flash-w8a8-mtp:v0.1.0
   replicas: 1                         # ONE aggregated service (leader + worker below) = 16 cards
   parallelism:
     data: 2                           # DP2 across the two nodes
     dataLocal: 1                      # 1 DP rank per node
-  storageInitializer:
-    enabled: false
   # ===== router: hermes-router (EPP), random-picker. DP2 has one leader endpoint, so
   #       random is effectively a no-op, but the structure is kept for consistency. =====
   router:
@@ -289,15 +305,19 @@ spec:
         httpGet: { path: /health, port: http }
         periodSeconds: 30
       volumeMounts:
-      - { mountPath: /mnt/models, name: model, readOnly: true }
+      # /mnt/models is provided by the storageInitializer (ModelCar pull). For the PVC ALT
+      # (see header) add: - { mountPath: /mnt/models, name: model, readOnly: true }
       - { mountPath: /dev/shm, name: shm }
       - { mountPath: /app, name: mooncake-config, readOnly: true }   # read the mooncake.json the initContainer wrote
     hostIPC: true
+    imagePullSecrets:
+    - { name: modelcar-registry-auth }   # only needed if <your-registry> is private
     tolerations:
     - operator: Exists
     volumes:
-    - name: model
-      persistentVolumeClaim: { claimName: dsv4-n8 }   # node-0 weights PVC
+    # For the PVC ALT (see header) add here:
+    #   - name: model
+    #     persistentVolumeClaim: { claimName: <node-0 weights PVC> }
     - name: shm
       emptyDir: { medium: Memory, sizeLimit: 32Gi }
     - name: mooncake-config
@@ -417,15 +437,19 @@ spec:
         failureThreshold: 160
         periodSeconds: 30
       volumeMounts:
-      - { mountPath: /mnt/models, name: model, readOnly: true }
+      # /mnt/models is provided by the storageInitializer (ModelCar pull). For the PVC ALT
+      # (see header) add: - { mountPath: /mnt/models, name: model, readOnly: true }
       - { mountPath: /dev/shm, name: shm }
       - { mountPath: /app, name: mooncake-config, readOnly: true }   # read the mooncake.json the initContainer wrote
     hostIPC: true
+    imagePullSecrets:
+    - { name: modelcar-registry-auth }   # only needed if <your-registry> is private
     tolerations:
     - operator: Exists
     volumes:
-    - name: model
-      persistentVolumeClaim: { claimName: dsv4-n9 }   # node-1 weights PVC
+    # For the PVC ALT (see header) add here:
+    #   - name: model
+    #     persistentVolumeClaim: { claimName: <node-1 weights PVC> }
     - name: shm
       emptyDir: { medium: Memory, sizeLimit: 32Gi }
     - name: mooncake-config

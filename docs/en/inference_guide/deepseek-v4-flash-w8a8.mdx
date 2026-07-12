@@ -26,13 +26,15 @@ sweep (8 / 16 / 32).
 | Architecture | `deepseek_v4` — 256-expert MoE (6 experts/token + 1 shared) + MLA + DSA sparse attention + native MTP |
 | Quantization | W8A8 (`W8A8_DYNAMIC`, int8 attention + expert; ~280 GB weights, 70 shards, 43 layers); MIT license |
 | Model source (W8A8) | https://www.modelscope.cn/models/Eco-Tech/DeepSeek-V4-Flash-w8a8-mtp |
+| ModelCar (OCI Image Layout tar) | `http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/DeepSeek-V4-Flash-w8a8-mtp.oci.tar` |
 
 :::note
-Unlike the other models in this guide, this W8A8 variant has **no public Docker Hub
-ModelCar** — the ~280 GB weights are pulled from the ModelScope source above and staged
-on a **node-local PVC on each of the two nodes** (rank 0 mounts the node-0 copy, rank 1
-the node-1 copy). The deployment manifest uses `pvc://` sources rather than an
-`oci://` ModelCar; repoint the two claims at wherever you stage the weights.
+The W8A8 ModelCar is distributed as an **OCI Image Layout tar** on the internal package
+store (link above), not a public Docker Hub image. The cluster pulls an OCI *image*, not
+the tar, so **import it into your own registry once** and point `model.uri` at that —
+see the **Deploy** section below. The benchmark itself was run with the weights staged on a
+**node-local PVC per node**; the ModelCar is the same weights repackaged (the manifest
+header documents that PVC alternative).
 :::
 
 ## Validated hardware × stack
@@ -109,8 +111,18 @@ store):
 
 ```bash
 base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets/deepseek-v4-flash-w8a8
-# Edit first: set the namespace, repoint the two node-local weight PVC claims
-# (dsv4-n8 / dsv4-n9), and the image tag (match your CANN / host driver). Then:
+
+# 1. Import the ModelCar (OCI Image Layout tar) into your own registry once — the cluster
+#    pulls an OCI image, not the tar. skopeo does the multi-arch (amd64+arm64) push in one go:
+curl -sO http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/DeepSeek-V4-Flash-w8a8-mtp.oci.tar
+skopeo copy --all \
+  oci-archive:DeepSeek-V4-Flash-w8a8-mtp.oci.tar:v0.1.0 \
+  docker://<your-registry>/modelcar-deepseek-v4-flash-w8a8-mtp:v0.1.0
+
+# 2. Edit the manifest: set the namespace, set model.uri to the registry ref you just
+#    pushed, and the image tag (match your CANN / host driver). Then apply — the
+#    storageInitializer pulls the ModelCar to /mnt/models in each DP rank.
+#    (Alternative: stage the weights on a node-local PVC per node — see the manifest header.)
 kubectl apply -f $base/deepseek-v4-flash-w8a8-agg-mc-kv-llmisvc.yaml
 
 # Internal KServe ingress (no auth):
