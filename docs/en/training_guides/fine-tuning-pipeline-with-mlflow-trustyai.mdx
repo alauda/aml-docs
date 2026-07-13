@@ -182,18 +182,22 @@ def fine_tune(
         mlflow.set_tag("pipeline_run_id", run_id)
         mlflow.set_tag("base_model", base_model)
         with mlflow.start_run(run_name=f"train-{run_id}", nested=True):
+            # TRL 0.12+ renamed the `tokenizer` kwarg to `processing_class`.
             trainer = SFTTrainer(model=model, args=args, train_dataset=ds,
-                                 tokenizer=tokenizer)
+                                 processing_class=tokenizer)
             trainer.train()
             trainer.save_model(output_dir)
 
         # 5) Register the fine-tuned model.
         # The artifact upload uses the MLflow plugin's artifact store (S3).
         # KServe then pulls the model back from that S3 URI in the deploy step.
+        # `task="text-generation"` is required because MLflow cannot infer the
+        # task from a locally-loaded (non-Hub) model.
         mv = mlflow.transformers.log_model(
             transformers_model={"model": trainer.model, "tokenizer": tokenizer},
             artifact_path="model",
             registered_model_name=registered_name,
+            task="text-generation",
         )
 
         # 6) Record the PVC path on the model version so downstream steps
@@ -698,6 +702,9 @@ client.set_registered_model_alias("qwen3-0.6b-sft", "champion", best.version)
 | KServe pod crashes with `FileNotFoundError: No such file or directory: /mnt/models/model.safetensors`, even though the file is present on the PVC | The `KServe` container runs as UID 1000 (defined on the `ClusterServingRuntime`), while the `fine_tune` component writes as UID 1001 with the default umask, which produces mode `0660` — group-writable, but not world-readable. Add a `chmod` pass after `save_pretrained` (as the example does): `os.chmod` every directory to `0755` and every file to `0644`. Setting `fsGroup: 1001` on the fine-tune pod is not enough — it changes the mount root's group but does not backfill child files' modes. |
 | `mlflow.exceptions.RestException: RESOURCE_DOES_NOT_EXIST: No Experiment with id=0 exists` inside the `evaluate` component | `start_run(run_id=parent)` attaches to an existing run, but the **nested** `start_run(run_name=...)` needs an experiment context. Call `mlflow.set_experiment(experiment)` **once** at the top of the component, before opening any run. Otherwise MLflow defaults to experiment `0`, which the multi-tenant server refuses. |
 | MLflow `create_model_version` fails with `INVALID_PARAMETER_VALUE: Invalid model version source: '/mnt/…'. To use a local path as a model version source, the run_id request parameter has to be specified and the local path has to be contained within the artifact directory of the run specified by the run_id.` and switching to `mlflow.log_artifacts` then trips `PermissionError: [Errno 13] Permission denied: '/mlflow'` | The Alauda MLflow plugin defaults its artifact root to `/mlflow/artifacts` — a local path on the tracking server pod's `emptyDir`. Client-side `log_artifacts` / `log_model` cannot write there, and a `file://` version source outside a run's artifact dir is rejected. Two options: (a) reconfigure the MLflow deployment for an S3 artifact backend (see the **High Availability And Storage** section of [MLflow Tracking Server](../kubeflow/how_to/mlflow.mdx)), or (b) skip the model registry and coordinate downstream steps via **tags on the parent run** — the pipeline still gets a single MLflow row per run, with `pvc_path`, `final_loss`, `eval_acc` all reachable via `mlflow.get_run(...).data.tags`. |
+| `TypeError: SFTTrainer.__init__() got an unexpected keyword argument 'tokenizer'` | TRL 0.12+ removed the `tokenizer` keyword — pass the tokenizer as `processing_class=tokenizer` instead. The reference runtime image ships a post-0.12 TRL (transitively via LLaMA-Factory 0.9.4). The example above uses `processing_class=`; older forks that still pass `tokenizer=` need the same rename. |
+| `mlflow.transformers.log_model` fails with `MlflowException: The task could not be inferred from the model. If you are saving a custom local model that is not available in the Hugging Face hub, please provide the 'task' argument to the log_model or save_model function.` | MLflow can infer the pipeline task from a Hub model but not from a locally-loaded (path-mirrored) one — the fine-tune pod's `trainer.model` is the latter after `AutoModelForCausalLM.from_pretrained("/mnt/shared/models/…")`. Pass `task="text-generation"` (or the appropriate task string for other model types) to `log_model`. |
+| MLflow client-side calls fail with `UNAUTHENTICATED: Authentication with the Kubernetes API failed. The provided token may be invalid or expired.` | The mlflow-tracking-server's `oauth2-proxy` sidecar is not forwarding bearer tokens — the plugin does not expose this in its config surface and the flag has to be patched onto the Deployment. Add `OAUTH2_PROXY_SKIP_JWT_BEARER_TOKENS=true` to the `oauth2-proxy` container's env, wait for rollout, then re-run. Note that the mlflow-plugin controller reconciles the Deployment and may revert this env; re-apply after any operator upgrade or manual re-install. |
 
 ## Bake a custom image \{#bake-a-custom-image}
 
