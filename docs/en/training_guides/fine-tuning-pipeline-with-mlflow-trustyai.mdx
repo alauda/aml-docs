@@ -41,6 +41,7 @@ Each daily run adds one row to the MLflow experiment. Because the training and e
 | Requirement | Details |
 |---|---|
 | Alauda AI 2.5 or later | Kubeflow Pipelines, MLflow (with **Model Registry** artifact store configured), TrustyAI, KServe all installed. |
+| A pre-built pipeline runtime image | The four KFP components below use `docker.io/alaudadockerhub/finetune-pipeline-runtime-cu126-amd64:v0.1.0` (linux/amd64). It bakes in the full CUDA / HF / trl / MLflow / KServe / kubernetes stack so no `pip install` runs at pod start — the same shape works on air-gapped clusters once you mirror the image into your internal registry. See [Bake a custom image](#bake-a-custom-image) below to derive your own, and [Training Runtime Images](./training-runtimes.mdx) for the source Containerfile catalog. |
 | MLflow artifact store | S3-compatible object storage configured in the MLflow plugin. `mlflow.transformers.log_model()` needs this to persist model files that KServe can pull back later. See the **High Availability And Storage** section of [MLflow Tracking Server](../kubeflow/how_to/mlflow.mdx). |
 | A namespace `finetune` with the MLflow label | `mlflow-enabled=true` on the namespace so it appears as a workspace. |
 | Shared PVC `finetune-shared` (RWX) | Used to cache the base model and the fine-tuned checkpoint between components. Any StorageClass that supports RWX (CephFS, NFS, JuiceFS) works. |
@@ -91,20 +92,16 @@ PVC_MOUNT       = "/mnt/shared"
 
 MLFLOW_URI      = "http://mlflow-tracking-server.kubeflow:5000"
 
+# Pre-built runtime image with torch (CUDA 12.6) + HF + trl + mlflow + kserve
+# + kubernetes baked in. No pip install runs at pod start, so the same tag
+# works on air-gapped clusters once it's mirrored into an internal registry.
+RUNTIME_IMAGE   = "docker.io/alaudadockerhub/finetune-pipeline-runtime-cu126-amd64:v0.1.0"
+
+
 # ---------------------------------------------------------------------------
 # 1. Fine-tune with the HF Trainer, autolog to MLflow, register the model.
 # ---------------------------------------------------------------------------
-@dsl.component(
-    base_image="python:3.11-slim",
-    packages_to_install=[
-        "mlflow>=3.10",
-        "transformers>=4.44",
-        "datasets>=2.20",
-        "accelerate>=0.34",
-        "trl>=0.10",
-        "torch>=2.3",
-    ],
-)
+@dsl.component(base_image=RUNTIME_IMAGE)
 def fine_tune(
     workspace: str,
     experiment: str,
@@ -183,10 +180,7 @@ def fine_tune(
 # ---------------------------------------------------------------------------
 # 2. Deploy the just-registered model as a temporary KServe InferenceService.
 # ---------------------------------------------------------------------------
-@dsl.component(
-    base_image="python:3.11-slim",
-    packages_to_install=["kserve>=0.13", "kubernetes>=29", "mlflow>=3.10"],
-)
+@dsl.component(base_image=RUNTIME_IMAGE)
 def deploy_for_evaluation(
     workspace: str,
     registered_name: str,
@@ -247,10 +241,7 @@ def deploy_for_evaluation(
 # ---------------------------------------------------------------------------
 # 3. Evaluate the InferenceService with a TrustyAI LMEvalJob, log to MLflow.
 # ---------------------------------------------------------------------------
-@dsl.component(
-    base_image="python:3.11-slim",
-    packages_to_install=["kubernetes>=29", "mlflow>=3.10"],
-)
+@dsl.component(base_image=RUNTIME_IMAGE)
 def evaluate(
     workspace: str,
     experiment: str,
@@ -352,10 +343,7 @@ def evaluate(
 # ---------------------------------------------------------------------------
 # 4. Cleanup: delete the temporary InferenceService and LMEvalJob.
 # ---------------------------------------------------------------------------
-@dsl.component(
-    base_image="python:3.11-slim",
-    packages_to_install=["kubernetes>=29"],
-)
+@dsl.component(base_image=RUNTIME_IMAGE)
 def cleanup(isvc_name: str):
     from kubernetes import client, config
     config.load_incluster_config()
@@ -552,7 +540,6 @@ client.set_registered_model_alias("qwen3-0.6b-sft", "champion", best.version)
 
 | Symptom | Check |
 |---|---|
-| `fine_tune` component fails on `import mlflow.transformers` with `AttributeError: module 'mlflow' has no attribute 'transformers'` | `mlflow` was installed without extras. Change `packages_to_install` to `mlflow[transformers]>=3.10` or install `transformers` explicitly (already done in the example). |
 | `log_model` fails with `NoCredentialsError` / `Endpoint URL error` | The MLflow artifact store is not configured for S3. See the **High Availability And Storage** section of [MLflow Tracking Server](../kubeflow/how_to/mlflow.mdx) and set the artifact bucket in the MLflow plugin. Then re-run. |
 | `deploy_for_evaluation` never sees `Ready=True` | Check the InferenceService: `kubectl -n finetune describe isvc <name>`. Most often the PVC path in the `pvc_path` tag does not exist, or the KServe HF runtime image is not available on the cluster. |
 | `LMEvalJob` stays in `Scheduled` | The eval job pod is Pending. Verify the pod's node selector and PVC binding: `kubectl -n finetune get pods -l app=<job-name>` and `kubectl describe` the pending pod. |
@@ -565,11 +552,36 @@ client.set_registered_model_alias("qwen3-0.6b-sft", "champion", best.version)
 | KFP v2 pods fail with `container has runAsNonRoot and image will run as root` (on the argoexec `init` init-container and the `kfp-launcher` init-container) | The KFP-v2 pod template sets `runAsNonRoot: true` at pod-level but the argoexec / kfp-launcher images do not set a non-root `USER`. On backends that surface this (DSPO's Argo-based pipeline stack), patch the `Workflow` at runtime with a `spec.podSpecPatch` that sets `runAsUser: 1001` at both pod-level and on each init-container (`init` + `kfp-launcher`). |
 | Fine-tune component fails with `PermissionError: [Errno 13] Permission denied: '/mnt/shared/...'` | The shared PVC's root dir was root-owned. Either add `fsGroup: 1001` to the same `podSpecPatch`, or bootstrap the PVC once with a one-shot pod running as root that `chown -R 1001:1001 /mnt`. |
 | Fine-tune component fails with `modelscope_hub.errors.CacheError: [E1022] Failed to create SDK directories: [Errno 13] Permission denied: '/.modelscope'` | The `python:3.12-slim` container leaves `HOME=/`, and ModelScope + Hugging Face default their caches to `~/`. Non-root pods cannot write there. In the fine-tune component, set `MODELSCOPE_CACHE`, `HF_HOME`, and `HOME` to a path on the shared PVC (or `/tmp`) **before** the first `from modelscope import …` / `AutoModel.from_pretrained` call. |
-| Fine-tune component's `pip install torch>=2.3` pulls ~4 GiB of NVIDIA CUDA runtime | On CPU-only pods this is wasted download + install time. Install `torch==2.5.1+cpu` from a CPU-only wheel mirror instead: `pip install --index-url https://mirrors.aliyun.com/pypi/simple/ --find-links https://mirrors.aliyun.com/pytorch-wheels/cpu/ torch==2.5.1+cpu`. The `pypi.tuna.tsinghua.edu.cn` mirror does **not** host `+cpu` variants; `download.pytorch.org/whl/cpu` works but is often bandwidth-throttled to under 100 KB/s from mainland-China clusters. |
+| The runtime image tag is not reachable from a worker node | Air-gapped or restricted-egress clusters cannot pull from `docker.io` directly. Mirror `docker.io/alaudadockerhub/finetune-pipeline-runtime-cu126-amd64:v0.1.0` into your internal registry with `skopeo copy` or `crane copy`, then change `RUNTIME_IMAGE` to the mirrored ref and add the corresponding `imagePullSecrets` to the pipeline ServiceAccount. |
 | Pipeline submission fails with `unknown component implementation: comp-exit-handler-1` at the KFP API server | The backend (for example DSPO's Argo-based pipeline stack) does not accept KFP v2 `dsl.ExitHandler` sub-graphs. Replace `with dsl.ExitHandler(cleanup(...)): ev` with a plain `cleanup(...).after(ev)`, and make `cleanup` idempotent (delete by label selector so it works when `evaluate` already deleted the resource on success). |
 | KServe pod crashes with `FileNotFoundError: No such file or directory: /mnt/models/model.safetensors`, even though the file is present on the PVC | The `KServe` container runs as UID 1000 (defined on the `ClusterServingRuntime`), while the `fine_tune` component writes as UID 1001 with the default umask, which produces mode `0660` — group-writable, but not world-readable. Add a `chmod` pass after `save_pretrained` (as the example does): `os.chmod` every directory to `0755` and every file to `0644`. Setting `fsGroup: 1001` on the fine-tune pod is not enough — it changes the mount root's group but does not backfill child files' modes. |
 | `mlflow.exceptions.RestException: RESOURCE_DOES_NOT_EXIST: No Experiment with id=0 exists` inside the `evaluate` component | `start_run(run_id=parent)` attaches to an existing run, but the **nested** `start_run(run_name=...)` needs an experiment context. Call `mlflow.set_experiment(experiment)` **once** at the top of the component, before opening any run. Otherwise MLflow defaults to experiment `0`, which the multi-tenant server refuses. |
 | MLflow `create_model_version` fails with `INVALID_PARAMETER_VALUE: Invalid model version source: '/mnt/…'. To use a local path as a model version source, the run_id request parameter has to be specified and the local path has to be contained within the artifact directory of the run specified by the run_id.` and switching to `mlflow.log_artifacts` then trips `PermissionError: [Errno 13] Permission denied: '/mlflow'` | The Alauda MLflow plugin defaults its artifact root to `/mlflow/artifacts` — a local path on the tracking server pod's `emptyDir`. Client-side `log_artifacts` / `log_model` cannot write there, and a `file://` version source outside a run's artifact dir is rejected. Two options: (a) reconfigure the MLflow deployment for an S3 artifact backend (see the **High Availability And Storage** section of [MLflow Tracking Server](../kubeflow/how_to/mlflow.mdx)), or (b) skip the model registry and coordinate downstream steps via **tags on the parent run** — the pipeline still gets a single MLflow row per run, with `pvc_path`, `final_loss`, `eval_acc` all reachable via `mlflow.get_run(...).data.tags`. |
+
+## Bake a custom image \{#bake-a-custom-image}
+
+The reference image is derived from [`llamafactory0.9-cu126-amd64`](./training-runtimes.mdx) and only adds `mlflow>=3.10`, `kserve>=0.13`, and `kubernetes>=29`. To roll your own — for example to swap the CUDA line, add proprietary data-processing libs, or FIPS-comply the base — write a one-layer `Containerfile`:
+
+```dockerfile
+# syntax=docker/dockerfile:1.7
+ARG BASE_IMAGE=docker.io/alaudadockerhub/llamafactory0.9-cu126-amd64:v0.1.0
+FROM ${BASE_IMAGE}
+
+USER 0
+RUN uv pip install --no-cache-dir \
+        "mlflow>=3.10" \
+        "kubernetes>=29" \
+        "kserve>=0.13" \
+        # add anything your pipeline imports:
+        # "your-private-etl-lib==1.2.3" \
+        ;
+USER 1000
+WORKDIR /workspace
+```
+
+Build with `buildctl` (or `docker buildx build`) against your buildkitd, push to your internal registry, and set `RUNTIME_IMAGE` accordingly. The rest of the pipeline code is unchanged.
+
+If instead your fleet already runs [Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx), you can reuse one of the published `TrainingRuntime` images — [`llamafactory0.9-cu126-amd64:v0.1.0`](./training-runtimes.mdx) already ships torch / HF / trl / mlflow; only `kserve` and `kubernetes` need adding for the `deploy_for_evaluation` + `evaluate` + `cleanup` components. That is exactly what the reference image does.
 
 ## Related guides
 
@@ -577,4 +589,5 @@ client.set_registered_model_alias("qwen3-0.6b-sft", "champion", best.version)
 - [Using the MLflow Python SDK with Authentication and RBAC](../kubeflow/how_to/mlflow-python-sdk.mdx) — how the `MLFLOW_TRACKING_TOKEN` is obtained and refreshed.
 - [Evaluate LLM](../trustyai/lm-eval.mdx) — full `LMEvalJob` reference, including offline / air-gapped mode.
 - [Use Kubeflow Pipelines](../kubeflow/how_to/pipelines.mdx) — Recurring Runs UI and object-storage setup.
+- [Training Runtime Images](./training-runtimes.mdx) — catalog of pre-built framework images (torch, LLaMA-Factory, TrainingHub, MindSpeed-LLM) the reference image is derived from.
 - [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx) — a `TrainJob`-based alternative to the SFT component above.
