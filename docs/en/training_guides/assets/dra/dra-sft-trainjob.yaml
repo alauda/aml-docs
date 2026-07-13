@@ -1,0 +1,17 @@
+# A TrainJob that runs the DRA-sliced LoRA SFT. It only references the runtime —
+# the DRA slice request lives in the TrainingRuntime's Pod spec, so day-to-day
+# submissions stay this small. Add `labels: { kueue.x-k8s.io/queue-name: ... }` to
+# gate it behind a Kueue LocalQueue if you also quota GPU slices.
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  generateName: dra-sft-
+  namespace: kubeflow-admin-cpaas-io
+spec:
+  runtimeRef:
+    apiGroup: trainer.kubeflow.org
+    kind: TrainingRuntime
+    name: dra-mig-sft
+  suspend: false
+  trainer:
+    numNodes: 1

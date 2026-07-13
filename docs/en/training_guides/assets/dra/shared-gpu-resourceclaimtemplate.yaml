@@ -1,0 +1,37 @@
+# Alternative slicing strategy for GPUs that are NOT in MIG mode (older cards, or
+# a GPU you don't want to partition): request a FULL GPU but tell the NVIDIA DRA
+# driver to *share* it across claims by time-slicing. Multiple Pods that each
+# reference this template are placed on the same physical GPU and interleave in
+# time.
+#
+# Trade-off vs. MIG: time-slicing gives you scheduling density with NO memory or
+# fault isolation — every consumer sees the full VRAM and the whole card, and one
+# workload can OOM the others. Use MIG (mig-slice-resourceclaimtemplate.yaml) when
+# you need a guaranteed, isolated slice; use this when you only need to pack
+# several light jobs onto one card.
+#
+# `strategy: MPS` is also supported by the driver for concurrent (rather than
+# round-robin) sharing; swap TimeSlicing -> MPS if your workloads benefit from it.
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: shared-gpu-timeslice
+  namespace: kubeflow-admin-cpaas-io   # must match the namespace where the Pods run
+spec:
+  spec:
+    devices:
+      requests:
+        - name: gpu-slice
+          exactly:
+            deviceClassName: gpu.nvidia.com
+            allocationMode: ExactCount
+            count: 1
+      config:
+        - requests: ["gpu-slice"]
+          opaque:
+            driver: gpu.nvidia.com
+            parameters:
+              apiVersion: resource.nvidia.com/v1beta1
+              kind: GpuConfig
+              sharing:
+                strategy: TimeSlicing
