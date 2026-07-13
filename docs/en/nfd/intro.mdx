@@ -1,0 +1,44 @@
+---
+weight: 10
+---
+
+# Introduction
+
+**Alauda Build of Node Feature Discovery (NFD)** is based on the Kubernetes SIG
+[Node Feature Discovery](https://kubernetes-sigs.github.io/node-feature-discovery/v0.18/)
+project. It detects hardware features and system configuration on Kubernetes
+nodes and publishes the discovered information as node labels and `NodeFeature`
+resources.
+
+NFD provides a shared node-discovery layer for AI workloads and other
+components that select nodes by operating system, architecture, kernel, CPU,
+PCI, or other hardware characteristics.
+
+## Scope
+
+NFD discovers and labels node capabilities. It does not:
+
+- install or manage hardware drivers;
+- expose GPU or NPU resources to Kubernetes;
+- replace a vendor Device Plugin, DRA driver, or accelerator operator.
+
+Install the plugin once in each target cluster that requires these node labels.
+Other Cluster Plugins and workloads can consume NFD labels, while drivers and
+resource-management components remain independently installed and managed.
+
+## Optional GFD extension
+
+The deployment form includes a **gfd Extension** switch, which is disabled by
+default. Enable it only when workloads or other components need additional
+NVIDIA GPU and CUDA-related labels.
+
+The GFD extension adds discovery labels. It does not install the NVIDIA driver
+or replace the NVIDIA GPU Device Plugin.
+
+For platform installation and upgrade instructions, see
+[Install Node Feature Discovery](./install).
+
+## Related information
+
+- [Supported configurations](../learn/supported-configurations-for-2.x)
+- [Upstream Node Feature Discovery documentation](https://kubernetes-sigs.github.io/node-feature-discovery/v0.18/)
