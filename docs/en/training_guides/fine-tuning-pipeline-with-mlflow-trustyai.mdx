@@ -48,7 +48,8 @@ Each daily run adds one row to the MLflow experiment. Because the training and e
 | One GPU node | 1 × NVIDIA GPU with ≥ 16 GiB VRAM is enough for full-precision SFT of Qwen3-0.6B on a small dataset; for a small LoRA run, 8 GiB is enough. |
 | MLflow token `Secret` | A `Secret` named `mlflow-token` with key `token` holding a Dex id token for a service account that has access to the `finetune` MLflow workspace. See [Get a token from the command line](../kubeflow/how_to/mlflow-python-sdk.mdx#get-a-token). |
 | RBAC in the `finetune` namespace | The pipeline ServiceAccount can `get`/`create`/`delete` `inferenceservices.serving.kserve.io` and `lmevaljobs.trustyai.opendatahub.io`. |
-| Egress to Hugging Face (or an offline PVC) | The `evaluate` component's `LMEvalJob` fetches the tokenizer and dataset from Hugging Face — `AutoTokenizer.from_pretrained(...)` runs even when `tokenized_requests` is `False`. On air-gapped clusters, switch the job to offline mode (see [Evaluate LLM](../trustyai/lm-eval.mdx)): pre-populate a PVC with the tokenizer + dataset cache, set `spec.offline.storage.pvcName`, and point the `tokenizer` `modelArgs` at the mounted path. |
+| Training dataset (optional) | The `fine_tune` component defaults to a small **synthetic** in-process corpus — no dataset staging needed for a smoke run. For real workloads, pre-stage a JSONL file on the shared PVC or in seaweedfs / S3 and pass its path as `dataset_path`; see [Using a real dataset](#using-a-real-dataset) below. |
+| Egress to Hugging Face (or an offline PVC) | Two components pull from Hugging Face by default: (a) `fine_tune` downloads the **base model** `Qwen/Qwen3-0.6B` via `AutoModelForCausalLM.from_pretrained(...)`, and (b) the `evaluate` component's `LMEvalJob` fetches the tokenizer and dataset — `AutoTokenizer.from_pretrained(...)` runs even when `tokenized_requests` is `False`. For (a), mirror the base model into the shared PVC once (see [Using a real dataset](#using-a-real-dataset) → base-model note). For (b), switch the eval job to offline mode (see [Evaluate LLM](../trustyai/lm-eval.mdx)): pre-populate a PVC with the tokenizer + dataset cache, set `spec.offline.storage.pvcName`, and point the `tokenizer` `modelArgs` at the mounted path. |
 
 ## Step 1 — Create the MLflow token Secret and the shared PVC
 
@@ -109,16 +110,22 @@ def fine_tune(
     registered_name: str,
     pvc_mount: str,
     run_id: str,
-    dataset_id: str = "tatsu-lab/alpaca",
+    # Empty = generate a tiny synthetic instruction corpus in-process (no
+    # network egress; smoke-shape only, not a meaningful fine-tune). Non-empty
+    # = a local JSONL path (e.g. "/mnt/shared/datasets/alpaca.jsonl") or an
+    # "s3://…" URI to a JSONL file with a `text` column. See the "Using a
+    # real dataset" section for how to prepare the file.
+    dataset_path: str = "",
     num_train_epochs: int = 1,
     learning_rate: float = 2e-4,
     per_device_train_batch_size: int = 2,
     max_samples: int = 512,
 ) -> str:
-    """Full SFT of `base_model` on `dataset_id`. Logs metrics + registers the
-    fine-tuned model. Returns the model version string (an int as str)."""
-    import os, mlflow, mlflow.transformers
-    from datasets import load_dataset
+    """Full SFT of `base_model` on a small synthetic corpus (or a JSONL file
+    at `dataset_path`). Logs metrics + registers the fine-tuned model.
+    Returns the model version as a string."""
+    import operator, os, random, mlflow, mlflow.transformers
+    from datasets import Dataset, load_dataset
     from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
     from trl import SFTTrainer
 
@@ -128,8 +135,31 @@ def fine_tune(
     mlflow.set_experiment(experiment)
     mlflow.transformers.autolog(log_models=False)          # models are logged manually below
 
-    # 2) Data.
-    ds = load_dataset(dataset_id, split=f"train[:{max_samples}]")
+    # 2) Data. Synthetic by default so the pipeline's smoke run needs no
+    # network egress and no dataset pre-staging. Swap in a real dataset by
+    # passing `dataset_path` (JSONL file with a `text` column) — either a
+    # PVC path or an S3 URI. See "Using a real dataset" below.
+    if dataset_path.startswith("s3://"):
+        ds = load_dataset(
+            "json", data_files=dataset_path, split=f"train[:{max_samples}]",
+            # storage_options / credentials come from AWS_* env; see the docs.
+        )
+    elif dataset_path:
+        ds = load_dataset(
+            "json", data_files=dataset_path, split=f"train[:{max_samples}]",
+        )
+    else:
+        rng = random.Random(42)
+        ops = [("+", operator.add), ("-", operator.sub), ("*", operator.mul)]
+        rows = []
+        for _ in range(max_samples):
+            a, b = rng.randint(0, 99), rng.randint(0, 99)
+            sym, op = rng.choice(ops)
+            rows.append({"text":
+                f"### Instruction:\nWhat is {a} {sym} {b}?\n"
+                f"### Response:\nThe answer is {op(a, b)}."
+            })
+        ds = Dataset.from_list(rows)
 
     # 3) Model & tokenizer.
     tokenizer = AutoTokenizer.from_pretrained(base_model)
@@ -370,7 +400,10 @@ def sft_mlflow_trustyai(
     experiment: str = EXPERIMENT,
     base_model: str = BASE_MODEL,
     registered_name: str = REGISTERED_NAME,
-    dataset_id: str = "tatsu-lab/alpaca",
+    # Default = synthetic in-process data (offline smoke). Override with a
+    # JSONL path on the shared PVC or an s3:// URI to fine-tune on a real
+    # dataset — see the "Using a real dataset" section.
+    dataset_path: str = "",
     num_train_epochs: int = 1,
     learning_rate: float = 2e-4,
     max_samples: int = 512,
@@ -380,7 +413,7 @@ def sft_mlflow_trustyai(
         workspace=workspace, experiment=experiment,
         base_model=base_model, registered_name=registered_name,
         pvc_mount=PVC_MOUNT, run_id=dsl.PIPELINE_JOB_ID_PLACEHOLDER,
-        dataset_id=dataset_id, num_train_epochs=num_train_epochs,
+        dataset_path=dataset_path, num_train_epochs=num_train_epochs,
         learning_rate=learning_rate, max_samples=max_samples,
     ).set_accelerator_type("nvidia.com/gpu").set_accelerator_limit(1)
     train.set_memory_limit("32Gi").set_cpu_limit("8")
@@ -422,6 +455,109 @@ python finetune_pipeline.py
 # → pipeline.yaml
 ```
 
+## Using a real dataset on air-gapped clusters \{#using-a-real-dataset}
+
+The `fine_tune` component defaults to a **synthetic** in-process instruction corpus (a few hundred arithmetic Q/A pairs). That keeps the smoke run fully offline — no HuggingFace, no ModelScope, no S3 — but it will not produce a meaningful fine-tune. For real workloads, pre-stage the dataset onto the cluster once, then pass its path as `dataset_path` on every run. The `fine_tune` component accepts either a local JSONL path (simplest) or an `s3://…` URI (shared across many pipelines).
+
+### 1. Download the dataset on a machine with egress
+
+Any machine that can reach Hugging Face — a laptop, a jump-host, a Workbench in a namespace with egress — is fine:
+
+```bash
+pip install huggingface_hub datasets
+huggingface-cli download tatsu-lab/alpaca --repo-type dataset --local-dir ./alpaca-raw
+```
+
+If Hugging Face is blocked, ModelScope mirrors most popular datasets and works from mainland-China networks:
+
+```bash
+pip install modelscope
+modelscope download --dataset AI-ModelScope/alpaca-gpt4-data-en --local_dir ./alpaca-raw
+```
+
+### 2. Convert to a JSONL file with a `text` column
+
+TRL's `SFTTrainer` expects one text field per row. Adapt the raw dataset into the shape the pipeline consumes:
+
+```python
+from datasets import load_dataset
+
+raw = load_dataset("./alpaca-raw")["train"]
+
+def format_alpaca(row):
+    prompt = row["instruction"]
+    if row.get("input"):
+        prompt += "\n\n" + row["input"]
+    return {"text": f"### Instruction:\n{prompt}\n### Response:\n{row['output']}"}
+
+raw.map(format_alpaca).to_json("alpaca.jsonl", orient="records", lines=True)
+```
+
+### 3a. Upload to the shared PVC (simplest)
+
+If your cluster has a jump-pod with the `finetune-shared` PVC mounted, `kubectl cp` the JSONL into it:
+
+```bash
+kubectl -n finetune apply -f - <<'EOF'
+apiVersion: v1
+kind: Pod
+metadata: { name: dataset-uploader, namespace: finetune }
+spec:
+  restartPolicy: Never
+  containers:
+  - name: sh
+    image: busybox
+    command: ["sh", "-c", "mkdir -p /mnt/shared/datasets && sleep 3600"]
+    volumeMounts: [{ name: shared, mountPath: /mnt/shared }]
+  volumes:
+  - name: shared
+    persistentVolumeClaim: { claimName: finetune-shared }
+EOF
+kubectl -n finetune wait --for=condition=Ready pod/dataset-uploader
+kubectl -n finetune cp alpaca.jsonl dataset-uploader:/mnt/shared/datasets/alpaca.jsonl
+kubectl -n finetune delete pod dataset-uploader
+```
+
+Then submit the pipeline with `dataset_path="/mnt/shared/datasets/alpaca.jsonl"` (see Step 3 below).
+
+### 3b. Upload to S3 / seaweedfs (shared across many pipelines)
+
+For teams running many pipelines, host the dataset in the same S3-compatible bucket the MLflow plugin uses for its artifact store — the cluster-internal seaweedfs endpoint is reachable from every pipeline pod, and clients only need `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` env vars.
+
+Upload from a machine that can reach the S3 endpoint (typically a Workbench in the same cluster):
+
+```bash
+aws s3 cp alpaca.jsonl s3://mlops-datasets/alpaca/alpaca.jsonl \
+  --endpoint-url http://seaweedfs.mlops-demo-e2e:8333
+```
+
+(Adjust the endpoint to your seaweedfs / MinIO Service. Use `mc alias set` + `mc cp` for MinIO Client, or `s3cmd`, or Python's `boto3` — any tool that speaks S3 works.)
+
+Then create a Secret with the S3 credentials and inject it into `fine_tune` alongside `mlflow-token`:
+
+```bash
+kubectl -n finetune create secret generic mlflow-s3 \
+  --from-literal=AWS_ACCESS_KEY_ID=<key> \
+  --from-literal=AWS_SECRET_ACCESS_KEY=<secret> \
+  --from-literal=MLFLOW_S3_ENDPOINT_URL=http://seaweedfs.mlops-demo-e2e:8333
+```
+
+Add the following to the pipeline function (right next to the existing `use_secret_as_env` block that mounts the MLflow token):
+
+```python
+kubernetes.use_secret_as_env(train, secret_name="mlflow-s3", secret_key_to_env={
+    "AWS_ACCESS_KEY_ID":       "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY":   "AWS_SECRET_ACCESS_KEY",
+    "MLFLOW_S3_ENDPOINT_URL":  "AWS_ENDPOINT_URL",   # what s3fs / fsspec read
+})
+```
+
+Then submit the pipeline with `dataset_path="s3://mlops-datasets/alpaca/alpaca.jsonl"`. `s3fs` is already in the runtime image, and `load_dataset("json", data_files="s3://…")` uses `fsspec` under the hood — the `AWS_*` env is picked up automatically.
+
+### 4. A note on the base model
+
+`AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-0.6B")` also hits Hugging Face on first run. For a fully air-gapped fine-tune, mirror the model once (same pattern: `huggingface-cli download Qwen/Qwen3-0.6B --local-dir ./qwen3-0.6b`, then copy to the PVC or S3) and set `BASE_MODEL = "/mnt/shared/models/qwen3-0.6b"`. The MLflow model registry then registers the fine-tune under `qwen3-0.6b-sft` as before.
+
 ## Step 3 — Submit a one-off run
 
 Upload `pipeline.yaml` in **Kubeflow Dashboard → Pipelines → Upload Pipeline**, then **Create Run** — or, from a Workbench:
@@ -432,7 +568,12 @@ from kfp.client import Client
 client = Client(host="<MY-KFP-ENDPOINT>")
 run = client.create_run_from_pipeline_package(
     "pipeline.yaml",
-    arguments=dict(num_train_epochs=1, eval_limit="50"),
+    arguments=dict(
+        # Omit for the synthetic-smoke default; set to a JSONL path or an
+        # s3:// URI to fine-tune on a real dataset (see the section above).
+        # dataset_path="/mnt/shared/datasets/alpaca.jsonl",
+        num_train_epochs=1, eval_limit="50",
+    ),
 )
 print("Run:", run.run_id)
 ```
