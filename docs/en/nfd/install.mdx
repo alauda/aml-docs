@@ -29,7 +29,7 @@ For more information, see the following documentation:
 
 <ExternalSiteLink
   name="acp"
-  href="ui/cli_tools/index.html#uploading-cluster-plugins"
+  href="extend/upload_package.html#upload-a-cluster-plugin"
   children="Uploading Cluster Plugins"
 />
 
@@ -74,5 +74,6 @@ and no user configuration migration is required.
 3. Upgrade **Alauda Build of Node Feature Discovery** to `v0.18.3`.
 4. Repeat the installation verification commands.
 
-After the upgrade, verify that the required node identity labels remain present
-and that separately managed driver and Device Plugin images have not changed.
+The NFD upgrade does not change separately managed accelerator driver or Device
+Plugin versions. After the upgrade, verify that the node labels required by
+your workloads remain present.
