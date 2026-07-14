@@ -528,14 +528,36 @@ Then submit the pipeline with `dataset_path="/mnt/shared/datasets/alpaca.jsonl"`
 
 For teams running many pipelines, host the dataset in the same S3-compatible bucket the MLflow plugin uses for its artifact store — the cluster-internal seaweedfs endpoint is reachable from every pipeline pod, and clients only need `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` env vars.
 
-Upload from a machine that can reach the S3 endpoint (typically a Workbench in the same cluster):
+Upload from a machine that can reach the S3 endpoint — typically a Workbench in the same cluster. The Alauda AI Workbench images already ship both `mc` (MinIO Client) and `boto3`, so no extra install is needed.
+
+**With `mc` (interactive / one-liner):**
 
 ```bash
-aws s3 cp alpaca.jsonl s3://mlops-datasets/alpaca/alpaca.jsonl \
-  --endpoint-url http://seaweedfs.mlops-demo-e2e:8333
+mc alias set seaweedfs http://seaweedfs.mlops-demo-e2e:8333 <ACCESS_KEY> <SECRET_KEY>
+mc mb --ignore-existing seaweedfs/mlops-datasets
+mc cp alpaca.jsonl seaweedfs/mlops-datasets/alpaca/alpaca.jsonl
 ```
 
-(Adjust the endpoint to your seaweedfs / MinIO Service. Use `mc alias set` + `mc cp` for MinIO Client, or `s3cmd`, or Python's `boto3` — any tool that speaks S3 works.)
+**With `boto3` (scripted / from a notebook):**
+
+```python
+import boto3
+
+s3 = boto3.client(
+    "s3",
+    endpoint_url="http://seaweedfs.mlops-demo-e2e:8333",
+    aws_access_key_id="<ACCESS_KEY>",
+    aws_secret_access_key="<SECRET_KEY>",
+)
+# Idempotent bucket create.
+try:
+    s3.create_bucket(Bucket="mlops-datasets")
+except s3.exceptions.BucketAlreadyOwnedByYou:
+    pass
+s3.upload_file("alpaca.jsonl", "mlops-datasets", "alpaca/alpaca.jsonl")
+```
+
+(Adjust the endpoint to your seaweedfs / MinIO Service. The credentials come from the MLflow plugin's artifact-store Secret, or from your on-prem S3 provider.)
 
 Then create a Secret with the S3 credentials and inject it into `fine_tune` alongside `mlflow-token`:
 
