@@ -1,0 +1,38 @@
+---
+weight: 10
+---
+
+# Introduction
+
+The **Data Science Pipelines Operator** (DSPO) is a Kubernetes-native operator that deploys and manages **Kubeflow Pipelines (KFP) v2** stacks on Alauda AI. Built on the open-source [OpenDataHub Data Science Pipelines Operator](https://github.com/opendatahub-io/data-science-pipelines-operator), it lets each data-science project run its **own isolated pipeline runtime**, declared through a single `DataSciencePipelinesApplication` (DSPA) Custom Resource — no shared, cluster-wide pipeline service to contend over.
+
+## What it deploys
+
+When you create a `DataSciencePipelinesApplication` in a namespace, the operator reconciles a self-contained KFP v2 stack in that namespace:
+
+- **APIServer** — the Kubeflow Pipelines API server (compile, upload, run, and track pipelines; the target of the `kfp` Python SDK).
+- **Persistence Agent** — syncs run state from the workflow engine back to the API server / database.
+- **Scheduled Workflow controller** — drives recurring runs.
+- **Argo Workflow controller** — executes pipeline DAGs as Argo `Workflows`.
+- **ML Metadata (MLMD)** — stores pipeline/run/artifact lineage, fronted by an Envoy gRPC proxy.
+- **Database + object storage** — either a managed MariaDB and MinIO the operator deploys, or your own external MySQL and S3-compatible store.
+
+## Key concepts
+
+| Concept | Description |
+|---|---|
+| `DataSciencePipelinesApplication` (DSPA) | The namespaced CR that declares one KFP v2 stack. One DSPA = one isolated pipelines runtime. API group `datasciencepipelinesapplications.opendatahub.io/v1`. |
+| Per-namespace isolation | Each project namespace gets its own APIServer, DB, and object storage. Teams don't share a single pipeline service. |
+| External vs. managed backends | `spec.database` / `spec.objectStorage` can point at an **external** MySQL / S3, or be left to the operator to deploy a **managed** MariaDB / MinIO. |
+| External endpoint provider | How the DSPA's APIServer is exposed outside the cluster is pluggable via the operator's `EXTERNAL_ROUTE_PROVIDER` setting (`none`, `virtualservice`). See [Installation](./install.mdx). |
+
+## Mutual exclusion with the shared Kubeflow Pipelines install \{#mutual-exclusion}
+
+DSPO is **mutually exclusive** with the shared, global-scoped Kubeflow Pipelines install produced by the Kubeflow plugin (`kfp-operator`). The operator refuses to reconcile a DSPA on a cluster where that shared install is present (`KUBEFLOW_PIPELINES_GLOBAL_CHECK=enforce`). Choose **one** model per cluster:
+
+- **DSPO** — per-namespace, project-isolated pipeline stacks (this operator).
+- **Kubeflow plugin `kfp-operator`** — a single shared Kubeflow Pipelines instance for the whole cluster.
+
+## When to use it
+
+Use the Data Science Pipelines Operator when you want each project or team to own an independent Kubeflow Pipelines v2 runtime — with its own database, object storage, and access boundary — rather than sharing one cluster-wide pipelines service.

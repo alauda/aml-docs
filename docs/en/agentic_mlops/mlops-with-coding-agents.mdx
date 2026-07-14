@@ -227,7 +227,7 @@ After the job finishes, ask the agent to ingest the training logs, eval outputs,
 
 Useful prompt: "Generate `report.md` for TrainJob `qwen-coder-sft-2026-05-29` in `mlops-demo-ai-test`. Pull metrics from MLflow run `<id>`, training logs from the pod, and eval results from `s3://aml-evals/<run-id>/`. Compare against the previous run `qwen-coder-sft-2026-05-15`. If any section can't be filled in from the available data, mark it `TODO` rather than fabricating numbers."
 
-For experiment tracking and run metadata, [MLflow on Kubeflow](../kubeflow/how_to/mlflow.mdx) is the platform-native option; tell the agent to log there from inside the training code so the report has a real source of truth.
+For experiment tracking and run metadata, [MLflow on Kubeflow](../mlflow/intro.mdx) is the platform-native option; tell the agent to log there from inside the training code so the report has a real source of truth.
 
 ## A daily MLOps loop \{#daily-loop}
 
@@ -266,7 +266,7 @@ Each step is a separate prompt with its own diff to review. The agent is the typ
 - [Fine-tuning LLMs with Training Hub](../training_guides/training-hub-fine-tuning.mdx)
 - [Fine-tuning with Notebooks](../training_guides/fine-tuning-using-notebooks.mdx)
 - [LLM Compressor with Alauda AI](../llm-compressor/how_to/compressor_by_workbench.mdx)
-- [MLflow on Kubeflow](../kubeflow/how_to/mlflow.mdx)
+- [MLflow on Kubeflow](../mlflow/intro.mdx)
 - [Envoy AI Gateway upstream documentation](https://aigateway.envoyproxy.io/)
 - [Envoy Gateway upstream documentation](https://gateway.envoyproxy.io/)
 - [KServe LLMInferenceService](https://kserve.github.io/website/)

@@ -13,13 +13,14 @@ in this guide has been deployed end-to-end on a real cluster and benchmarked, so
 get a known-good deployment manifest, the runtime image that serves it, and the
 throughput you can expect.
 
-The models here were validated on **Huawei Ascend 910B4 NPU** with the community
-`vLLM-Ascend` engine, deployed through Alauda AI's **InferNex** surface — a KServe
-`LLMInferenceService` reconciled by the InferNex-Bridge into a load-aware router
-(hermes-router / EPP) in front of the vLLM-Ascend instances. All were run through the
+The models here were validated on **Huawei Ascend NPUs (910B4 and 910B3)** with the
+community `vLLM-Ascend` engine, deployed through Alauda AI's **InferNex** surface — a
+KServe `LLMInferenceService` reconciled by the InferNex-Bridge into a load-aware router
+(hermes-router / EPP) in front of the vLLM-Ascend instances. Most were run through the
 **same InferNex aggregation surface and the same two benchmark scenarios** (the two
-Qwen models share an identical 2 × TP=4 topology and are directly comparable; the
-larger DeepSeek MoE uses 1 × TP=8). For the runtime model (KServe, ModelCar storage,
+Qwen models share an identical 2 × TP=4 topology and are directly comparable;
+DeepSeek-V4-Flash uses larger topologies, up to a 16-card DP2 × TP=8 cross-node
+aggregation). For the runtime model (KServe, ModelCar storage,
 scheduling) see [Model Deployment & Inference](../model_inference/index.mdx).
 
 ## Validated models
@@ -29,12 +30,19 @@ scheduling) see [Model Deployment & Inference](../model_inference/index.mdx).
 | Qwen3-32B | Qwen3 dense | 32B | BF16 | Ascend 910B4 ×8 | vLLM-Ascend v0.18.0 | [Qwen3-32B](./qwen3-32b.mdx) |
 | Qwen3.6-27B (W8A8) | `qwen3_5` hybrid (GDN + MTP) | 27.78B | W8A8 | Ascend 910B4 ×8 | vLLM-Ascend nightly | [Qwen3.6-27B (W8A8)](./qwen3-6-27b-w8a8.mdx) |
 | DeepSeek-V4-Flash (W4A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W4A8 | Ascend 910B4 ×8 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W4A8)](./deepseek-v4-flash-w4a8.mdx) |
+| DeepSeek-V4-Flash (W8A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W8A8 | Ascend 910B3 ×16 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W8A8)](./deepseek-v4-flash-w8a8.mdx) |
 
-All three were validated on Ascend 910B4 (32 GB/card), driven through KServe
-`LLMInferenceService` with load-aware routing (InferNex-Bridge + hermes-router). The
-two Qwen models run an **8-card aggregation — 2 instances × TP=4**; DeepSeek-V4-Flash
-(~151 GB W4A8) fills all 8 cards as **1 instance × TP=8**, and additionally validated
-the **MaaS gateway (API-key) ingress** next to the internal KServe ingress.
+The two Qwen models and DeepSeek-V4-Flash (W4A8) were validated on Ascend 910B4 (32 GB/card),
+driven through KServe `LLMInferenceService` with load-aware routing (InferNex-Bridge +
+hermes-router). The two Qwen models run an **8-card aggregation — 2 instances × TP=4**;
+DeepSeek-V4-Flash (~151 GB W4A8) fills all 8 cards as **1 instance × TP=8**, and
+additionally validated the **MaaS gateway (API-key) ingress** next to the internal
+KServe ingress.
+
+DeepSeek-V4-Flash (W8A8, ~280 GB) was validated on **Ascend 910B3 (64 GB/card) across
+two nodes = 16 cards** as a single **DP2 × TP=8 cross-node aggregation** with a
+**mooncake cross-rank KV store**, driven through both the internal KServe ingress and
+the product MaaS gateway.
 
 ## Runtime images
 
@@ -42,6 +50,7 @@ the **MaaS gateway (API-key) ingress** next to the internal KServe ingress.
 |---|---|---|---|---|
 | vLLM-Ascend v0.18.0 | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:v0.18.0-openeuler` | Qwen3-32B | Community vLLM for Ascend, V1 engine. Serves standard Qwen3 dense models directly. Match the tag's CANN version to your host NPU driver. |
 | vLLM-Ascend nightly (release-pinned) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-releases-v0.22.1rc-openeuler` | Qwen3.6-27B (W8A8), DeepSeek-V4-Flash (W4A8) | Carries the `qwen3_5` Gated DeltaNet hybrid + MTP **and** the `deepseek_v4` MoE stack — the stock `v0.18.0` cannot load either. Use this **release-pinned** tag, **not** the moving `nightly-main-openeuler` (it drifted to a broken build whose TP workers crash). |
+| vLLM-Ascend nightly-main (dated snapshot) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-main-openeuler-0709` | DeepSeek-V4-Flash (W8A8) | A **later** `nightly-main` snapshot (vLLM 0.23.0) that carries the DP2 cross-node graph + DSA-CP prefix-cache fixes the W8A8 cross-node deployment needs. Pin a **dated** snapshot like this one, not the moving `nightly-main` tag. |
 
 :::tip
 The Ascend CANN images are arm64. Always match the runtime image's CANN version to
@@ -51,9 +60,11 @@ are listed; other engines (MindIE, SGLang, …) were not benchmarked at this siz
 
 ## Benchmark scenarios
 
-Both models were measured with `aiperf` against the same two scenarios, modelled on
+These models were measured with `aiperf` against the same two scenarios, modelled on
 real serving patterns. Output is pinned to **128 tokens** and load is **closed-loop,
-concurrency 4** (4 in-flight requests, fixed). Each scenario ran 240 requests.
+concurrency 4** (4 in-flight requests, fixed); each scenario ran 240 requests.
+DeepSeek-V4-Flash (W8A8) is the exception — it was swept at **concurrency 8 / 16 / 32**
+(480 requests per tier).
 
 | Scenario | What it models | Dataset | Request shape |
 |---|---|---|---|
@@ -61,14 +72,18 @@ concurrency 4** (4 in-flight requests, fixed). Each scenario ran 240 requests.
 | **② Multi-turn dialogue** | Multiple users in a continuing conversation, several requests per session. | 60 independent users × 4 rounds = 240 requests. | Round 1 sends 16k and the model replies 128 tokens; round 2 adds 1k (~17k total); and so on for 4 rounds (16k / 17k / 18k / 19k), averaging **~17.5k** ISL / OSL 128. |
 
 :::note
-Both scenarios run on a **single-node 8-card** deployment (Qwen models: 2 instances ×
-TP=4; DeepSeek-V4-Flash: 1 instance × TP=8). Latency (TTFT / ITL / E2E) is the
-per-instance operating point under steady 2-in-flight load; total throughput (TPS) is
-the aggregate across the instances and scales with the instance count. **TPS is the
-total-token (input + output) caliber**; the decode-only output rate is reported
-separately and is much smaller under these long-input workloads. DeepSeek-V4-Flash
-additionally ran each scenario through the **MaaS gateway (API-key) ingress** as well
-as the internal KServe ingress — see its page.
+The two Qwen models and DeepSeek-V4-Flash (W4A8) run these scenarios on a **single-node
+8-card** deployment (Qwen models: 2 instances × TP=4; DeepSeek-V4-Flash W4A8: 1 instance
+× TP=8). Latency (TTFT / ITL / E2E) is the per-instance operating point under steady
+2-in-flight load; total throughput (TPS) is the aggregate across the instances and
+scales with the instance count. **TPS is the total-token (input + output) caliber**; the
+decode-only output rate is reported separately and is much smaller under these
+long-input workloads.
+
+DeepSeek-V4-Flash (W8A8) instead runs a **16-card DP2 × TP=8 cross-node** deployment and
+is swept at **concurrency 8 / 16 / 32** (480 req/tier), so its numbers are an operating
+envelope reported on its own page. It was driven through both the internal KServe
+ingress and the product **MaaS gateway (API-key) ingress**.
 :::
 
 ## Deploy a validated model
@@ -133,6 +148,14 @@ The three signed images and their digests:
 | `docker.io/alaudadockerhub/modelcar-qwen3-32b:v0.1.0` | `sha256:eccffdb567038196638eb7e1c6bb9572d8bcc7829d11fcdfa17f2c43fbca0c6e` |
 | `docker.io/alaudadockerhub/modelcar-qwen3-6-27b-w8a8:v0.1.0` | `sha256:5eb8841a29a4f3d659f8cef25c7f8b16208b32265db23354dae79c4c04e8ef79` |
 | `docker.io/alaudadockerhub/modelcar-deepseek-v4-flash-w4a8-mtp:v0.1.0` | `sha256:ef57a46726bec9c6505504262beaa55ec6c45d595a1726ab90d594f42606c6be` |
+
+:::note
+DeepSeek-V4-Flash (**W8A8**) is not in this Cosign table — its ModelCar is distributed as
+an **OCI Image Layout tar** (not a signed registry image), so there is no Cosign signature
+to verify. Its integrity is content-addressed instead: the tar's `index.json` carries the
+image digest and every blob under `blobs/sha256/` is verified against its own digest on
+import (`skopeo copy` checks this). See its [page](./deepseek-v4-flash-w8a8.mdx).
+:::
 
 `--insecure-ignore-tlog=true` is required because these were signed with
 `--tlog-upload=false` (no public transparency-log entry); verification relies on the
