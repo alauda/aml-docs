@@ -269,10 +269,26 @@ kubectl -n kube-system get ds nvidia-dra-driver-gpu-kubelet-plugin \
 
 # Label the GPU node so the plugin lands and starts advertising devices:
 kubectl label node <gpu-node> nvidia-device-enable=pgpu-dra
+```
 
-# For MIG slices, the GPU must be in MIG mode. Either let the driver manage it,
-# or enable it out of band (requires the GPU to be idle; may need a node drain):
-#   nvidia-smi -i <gpu> -mig 1
+For **full-GPU / time-sliced** claims that is all you need — the plugin now advertises a `gpu.nvidia.com` device per card. **MIG slices need two more host-level steps**, because this driver does *not* create MIG partitions on demand — it only exposes MIG devices that already exist. With MIG mode on but no instances created, the plugin crash-loops with `invalid CDI Spec: no devices`.
+
+```bash
+# On the GPU node (needs the GPU idle — no CUDA/dcgm client may hold it, or the
+# mode switch stays "pending"; stop other GPU workloads and move dcgm-exporter off first):
+nvidia-smi -i 0 -mig 1                 # enable MIG mode
+nvidia-smi mig -lgip                   # list GPU-instance profiles + their IDs for this card
+nvidia-smi mig -cgi 14,14 -C           # CREATE the instances — e.g. two slices from profile ID 14
+nvidia-smi -L                          # confirm the MIG devices exist
+
+# Then restart the kubelet-plugin Pod so it re-enumerates and publishes MIG ResourceSlices:
+kubectl -n kube-system delete pod -l app.kubernetes.io/name=nvidia-dra-driver-gpu --field-selector spec.nodeName=<gpu-node>
+```
+
+Confirm the profile string your CEL selector must match against the live slices — profile IDs and device names are hardware-specific (e.g. this driver names an A30 slice `1g.6gb`):
+
+```bash
+kubectl get resourceslices -o json | jq -r '.items[].spec.devices[].attributes."gpu.nvidia.com".profile.string' | sort -u
 ```
 
 :::warning
@@ -285,6 +301,9 @@ kubectl label node <gpu-node> nvidia-device-enable=pgpu-dra
 |---|---|
 | Pod stuck `Pending`, event `cannot allocate all claims` | No `ResourceSlice` matches the selector. `kubectl get resourceslices -o yaml` and check the profile/attribute strings; confirm the node is labelled and the kubelet-plugin Pod is `Running`. |
 | `ResourceClaim` stays `pending` (never `allocated`) | The GPU isn't in MIG mode (for `mig.nvidia.com`), or all slices of that profile are already reserved. |
+| kubelet-plugin `CrashLoopBackOff`, log `invalid CDI Spec: no devices` | MIG mode is on but no MIG **instances** were created. Run `nvidia-smi mig -cgi <ids> -C` on the node (see admin section), then restart the plugin Pod. |
+| `nvidia-smi -i 0 -mig 1` reports `pending`, mode never becomes `Enabled` | Another process holds the GPU (a CUDA workload, or `dcgm-exporter`). Stop them / move the monitoring DaemonSet off the node, then retry; a GPU reset (`nvidia-smi -i 0 -r`) or node reboot finalises a stuck toggle. |
+| `TrainingRuntime` rejected: `numProcPerNode ... no such overload` | `numProcPerNode` must be `auto`, `cpu`, `gpu`, or an **unquoted integer** — use `numProcPerNode: 1`, not `"1"`. |
 | `must be no more than ...` / schema errors on apply | API skew — this guide targets `resource.k8s.io/v1` (K8s 1.34 GA). On 1.31–1.33 the group is `v1beta1`/`v1beta2` with a slightly different `requests` shape. |
 | Two GPU resources fight / random CUDA errors | A classic device plugin and the DRA plugin are both managing the card. See the warning above. |
 | Trainer container sees the full 24 GiB, not the slice | You applied the `shared-gpu-timeslice` (full-GPU) template, or MIG mode is off. Use the MIG template on a MIG-mode GPU for a true memory-isolated slice. |

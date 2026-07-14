@@ -24,7 +24,7 @@ spec:
   mlPolicy:
     numNodes: 1
     torch:
-      numProcPerNode: "1"          # one MIG slice == one trainer process
+      numProcPerNode: 1            # one MIG slice == one trainer process (int, not "1")
   template:
     spec:
       replicatedJobs:
