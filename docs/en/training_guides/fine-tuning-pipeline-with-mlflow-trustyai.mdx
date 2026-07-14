@@ -1,0 +1,763 @@
+---
+weight: 57
+---
+
+# Daily Fine-Tuning Pipeline with MLflow Tracking and TrustyAI Evaluation
+
+A complete Kubeflow Pipeline that fine-tunes an LLM (Qwen3-0.6B in this example), tracks the run in [MLflow](../mlflow/index.mdx), registers the resulting model in the **MLflow Model Registry**, deploys it as a KServe `InferenceService`, evaluates it with a [TrustyAI `LMEvalJob`](../trustyai/lm-eval.mdx), writes the evaluation numbers back into the same MLflow experiment, and cleans the temporary serving resources up. The pipeline is then wired to a **KFP Recurring Run** so it fires once a day — giving you a growing history of `train → eval` runs that MLflow's compare view turns into a regression signal.
+
+This guide assembles the pieces already documented individually — [Use Kubeflow Pipelines](../kubeflow/how_to/pipelines.mdx), [Kubeflow Pipeline + MLflow Integration](../mlflow/how_to/pipelines-mlflow-integration.mdx), [Evaluate LLM](../trustyai/lm-eval.mdx) — into one working recipe. Read those first if any step is unfamiliar.
+
+## What the pipeline does
+
+```
+                     ┌───────────────┐
+   Qwen3-0.6B  ─────►│  fine-tune    │──► loss/eval_loss/perplexity ─► MLflow parent run
+      base model     │  (SFTTrainer) │──► fine-tuned model artifacts ─► MLflow Model Registry
+                     └──────┬────────┘        (registered_model_name="qwen3-0.6b-sft")
+                            │
+                            ▼
+                     ┌───────────────┐
+                     │ deploy-for-   │──► KServe InferenceService (temporary)
+                     │ evaluation    │
+                     └──────┬────────┘
+                            │
+                            ▼
+                     ┌───────────────┐
+                     │ evaluate      │──► TrustyAI LMEvalJob (arc_easy, mmlu, …)
+                     │ (LM-Eval)     │──► eval metrics ─► MLflow nested "eval" run
+                     └──────┬────────┘                    + tag on model version
+                            │
+                            ▼
+                     ┌───────────────┐
+                     │  cleanup      │──► delete InferenceService + LMEvalJob
+                     └───────────────┘
+```
+
+Each daily run adds one row to the MLflow experiment. Because the training and evaluation metrics live under the **same parent run**, MLflow's **Compare** and **Chart** views plot day-over-day loss and evaluation accuracy without extra glue code.
+
+## Prerequisites
+
+| Requirement | Details |
+|---|---|
+| Alauda AI 2.5 or later | Kubeflow Pipelines, MLflow (with **Model Registry** artifact store configured), TrustyAI, KServe all installed. |
+| A pre-built pipeline runtime image | The four KFP components below use `docker.io/alaudadockerhub/finetune-pipeline-runtime-cu126-amd64:v0.1.0` (linux/amd64). It bakes in the full CUDA / HF / trl / MLflow / KServe / kubernetes stack so no `pip install` runs at pod start — the same shape works on air-gapped clusters once you mirror the image into your internal registry. See [Bake a custom image](#bake-a-custom-image) below to derive your own, and [Training Runtime Images](./training-runtimes.mdx) for the source Containerfile catalog. |
+| MLflow artifact store | S3-compatible object storage configured in the MLflow plugin. `mlflow.transformers.log_model()` needs this to persist model files that KServe can pull back later. See the **High availability and storage** section of [MLflow install](../mlflow/install.mdx#storage). |
+| A namespace `finetune` with the MLflow label | `mlflow-enabled=true` on the namespace so it appears as a workspace. |
+| Shared PVC `finetune-shared` (RWX) | Used to cache the base model and the fine-tuned checkpoint between components. Any StorageClass that supports RWX (CephFS, NFS, JuiceFS) works. |
+| One GPU node | 1 × NVIDIA GPU with ≥ 16 GiB VRAM is enough for full-precision SFT of Qwen3-0.6B on a small dataset; for a small LoRA run, 8 GiB is enough. |
+| MLflow token `Secret` | A `Secret` named `mlflow-token` with key `token` holding a Dex id token for a service account that has access to the `finetune` MLflow workspace. See [Get a token from the command line](../mlflow/how_to/mlflow-python-sdk.mdx#get-a-token). |
+| RBAC in the `finetune` namespace | The pipeline ServiceAccount can `get`/`create`/`delete` `inferenceservices.serving.kserve.io` and `lmevaljobs.trustyai.opendatahub.io`. |
+| Training dataset (optional) | The `fine_tune` component defaults to a small **synthetic** in-process corpus — no dataset staging needed for a smoke run. For real workloads, pre-stage a JSONL file on the shared PVC or in seaweedfs / S3 and pass its path as `dataset_path`; see [Using a real dataset](#using-a-real-dataset) below. |
+| Egress to Hugging Face (or an offline PVC) | Two components pull from Hugging Face by default: (a) `fine_tune` downloads the **base model** `Qwen/Qwen3-0.6B` via `AutoModelForCausalLM.from_pretrained(...)`, and (b) the `evaluate` component's `LMEvalJob` fetches the tokenizer and dataset — `AutoTokenizer.from_pretrained(...)` runs even when `tokenized_requests` is `False`. For (a), mirror the base model into the shared PVC once (see [Using a real dataset](#using-a-real-dataset) → base-model note). For (b), switch the eval job to offline mode (see [Evaluate LLM](../trustyai/lm-eval.mdx)): pre-populate a PVC with the tokenizer + dataset cache, set `spec.offline.storage.pvcName`, and point the `tokenizer` `modelArgs` at the mounted path. |
+
+## Step 1 — Create the MLflow token Secret and the shared PVC
+
+```bash
+NS=finetune
+
+# 1. Mint a Dex id token (browser-free) — see the SDK guide for ID_TOKEN.
+kubectl -n $NS create secret generic mlflow-token --from-literal=token="$ID_TOKEN"
+
+# 2. Shared PVC used by fine-tune (write) and deploy (read).
+kubectl -n $NS apply -f - <<'EOF'
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: finetune-shared
+spec:
+  accessModes: ["ReadWriteMany"]
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: cephfs   # any RWX-capable StorageClass
+EOF
+```
+
+The pipeline components below assume both objects exist in the namespace the pipeline runs in.
+
+## Step 2 — The pipeline
+
+Save the following as `finetune_pipeline.py`. The pipeline is split into four components so failures are localized and re-runs are cheap; components share state through the PVC and through **MLflow tags on the model version**.
+
+```python
+# finetune_pipeline.py
+from kfp import dsl, compiler, kubernetes
+
+BASE_MODEL      = "Qwen/Qwen3-0.6B"
+REGISTERED_NAME = "qwen3-0.6b-sft"
+WORKSPACE       = "finetune"                       # MLflow workspace (= namespace)
+EXPERIMENT      = "qwen3-0.6b-daily-sft"
+PVC_NAME        = "finetune-shared"
+PVC_MOUNT       = "/mnt/shared"
+
+MLFLOW_URI      = "http://mlflow-tracking-server.kubeflow:5000"
+
+# Pre-built runtime image with torch (CUDA 12.6) + HF + trl + mlflow + kserve
+# + kubernetes baked in. No pip install runs at pod start, so the same tag
+# works on air-gapped clusters once it's mirrored into an internal registry.
+RUNTIME_IMAGE   = "docker.io/alaudadockerhub/finetune-pipeline-runtime-cu126-amd64:v0.1.0"
+
+
+# ---------------------------------------------------------------------------
+# 1. Fine-tune with the HF Trainer, autolog to MLflow, register the model.
+# ---------------------------------------------------------------------------
+@dsl.component(base_image=RUNTIME_IMAGE)
+def fine_tune(
+    workspace: str,
+    experiment: str,
+    base_model: str,
+    registered_name: str,
+    pvc_mount: str,
+    run_id: str,
+    # Empty = generate a tiny synthetic instruction corpus in-process (no
+    # network egress; smoke-shape only, not a meaningful fine-tune). Non-empty
+    # = a local JSONL path (e.g. "/mnt/shared/datasets/alpaca.jsonl") or an
+    # "s3://…" URI to a JSONL file with a `text` column. See the "Using a
+    # real dataset" section for how to prepare the file.
+    dataset_path: str = "",
+    num_train_epochs: int = 1,
+    learning_rate: float = 2e-4,
+    per_device_train_batch_size: int = 2,
+    max_samples: int = 512,
+) -> str:
+    """Full SFT of `base_model` on a small synthetic corpus (or a JSONL file
+    at `dataset_path`). Logs metrics + registers the fine-tuned model.
+    Returns the model version as a string."""
+    import operator, os, random, mlflow, mlflow.transformers
+    from datasets import Dataset, load_dataset
+    from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
+    from trl import SFTTrainer
+
+    # 1) MLflow (auth via MLFLOW_TRACKING_TOKEN injected from the Secret).
+    mlflow.set_tracking_uri(MLFLOW_URI)
+    mlflow.set_workspace(workspace)
+    mlflow.set_experiment(experiment)
+    mlflow.transformers.autolog(log_models=False)          # models are logged manually below
+
+    # 2) Data. Synthetic by default so the pipeline's smoke run needs no
+    # network egress and no dataset pre-staging. Swap in a real dataset by
+    # passing `dataset_path` (JSONL file with a `text` column) — either a
+    # PVC path or an S3 URI. See "Using a real dataset" below.
+    if dataset_path.startswith("s3://"):
+        ds = load_dataset(
+            "json", data_files=dataset_path, split=f"train[:{max_samples}]",
+            # storage_options / credentials come from AWS_* env; see the docs.
+        )
+    elif dataset_path:
+        ds = load_dataset(
+            "json", data_files=dataset_path, split=f"train[:{max_samples}]",
+        )
+    else:
+        rng = random.Random(42)
+        ops = [("+", operator.add), ("-", operator.sub), ("*", operator.mul)]
+        rows = []
+        for _ in range(max_samples):
+            a, b = rng.randint(0, 99), rng.randint(0, 99)
+            sym, op = rng.choice(ops)
+            rows.append({"text":
+                f"### Instruction:\nWhat is {a} {sym} {b}?\n"
+                f"### Response:\nThe answer is {op(a, b)}."
+            })
+        ds = Dataset.from_list(rows)
+
+    # 3) Model & tokenizer.
+    tokenizer = AutoTokenizer.from_pretrained(base_model)
+    model     = AutoModelForCausalLM.from_pretrained(base_model)
+
+    output_dir = f"{pvc_mount}/models/{registered_name}/{run_id}"
+
+    # 4) Train. `report_to="mlflow"` streams loss / eval_loss / lr per step.
+    args = TrainingArguments(
+        output_dir=output_dir,
+        num_train_epochs=num_train_epochs,
+        learning_rate=learning_rate,
+        per_device_train_batch_size=per_device_train_batch_size,
+        logging_steps=10,
+        save_strategy="no",
+        report_to="mlflow",
+        run_name=f"train-{run_id}",
+    )
+    with mlflow.start_run(run_name=f"pipeline-{run_id}") as parent:
+        mlflow.set_tag("pipeline_run_id", run_id)
+        mlflow.set_tag("base_model", base_model)
+        with mlflow.start_run(run_name=f"train-{run_id}", nested=True):
+            # TRL 0.12+ renamed the `tokenizer` kwarg to `processing_class`.
+            trainer = SFTTrainer(model=model, args=args, train_dataset=ds,
+                                 processing_class=tokenizer)
+            trainer.train()
+            trainer.save_model(output_dir)
+
+        # 5) Register the fine-tuned model.
+        # The artifact upload uses the MLflow plugin's artifact store (S3).
+        # KServe then pulls the model back from that S3 URI in the deploy step.
+        # `task="text-generation"` is required because MLflow cannot infer the
+        # task from a locally-loaded (non-Hub) model.
+        mv = mlflow.transformers.log_model(
+            transformers_model={"model": trainer.model, "tokenizer": tokenizer},
+            artifact_path="model",
+            registered_model_name=registered_name,
+            task="text-generation",
+        )
+
+        # 6) Record the PVC path on the model version so downstream steps
+        #    can serve it from the shared PVC without another S3 round-trip.
+        client = mlflow.MlflowClient()
+        version = client.get_latest_versions(registered_name, stages=["None"])[0].version
+        client.set_model_version_tag(registered_name, version, "pvc_path", output_dir)
+        client.set_model_version_tag(registered_name, version, "pipeline_run_id", run_id)
+
+    print(f"registered {registered_name} version {version} @ {output_dir}")
+    return version
+
+
+# ---------------------------------------------------------------------------
+# 2. Deploy the just-registered model as a temporary KServe InferenceService.
+# ---------------------------------------------------------------------------
+@dsl.component(base_image=RUNTIME_IMAGE)
+def deploy_for_evaluation(
+    workspace: str,
+    registered_name: str,
+    model_version: str,
+    pvc_name: str,
+    pvc_mount: str,
+    run_id: str,
+) -> str:
+    """Create an InferenceService that serves the model straight off the PVC.
+    Returns the InferenceService name."""
+    import time, mlflow
+    from kubernetes import client, config
+    from kserve import KServeClient, constants
+    from kserve import (V1beta1InferenceService, V1beta1InferenceServiceSpec,
+                        V1beta1PredictorSpec, V1beta1ModelSpec, V1beta1ModelFormat)
+
+    # Resolve the PVC path from the tag set by fine_tune().
+    mlflow.set_tracking_uri(MLFLOW_URI); mlflow.set_workspace(workspace)
+    tags = mlflow.MlflowClient().get_model_version(registered_name, model_version).tags
+    pvc_path = tags["pvc_path"]
+
+    isvc_name = f"{registered_name}-eval-{run_id[-8:]}"
+    config.load_incluster_config()
+    ns = open("/var/run/secrets/kubernetes.io/serviceaccount/namespace").read().strip()
+
+    isvc = V1beta1InferenceService(
+        api_version=constants.KSERVE_GROUP + "/v1beta1", kind=constants.KSERVE_KIND,
+        metadata=client.V1ObjectMeta(name=isvc_name, namespace=ns, labels={
+            "app.kubernetes.io/part-of": "finetune-pipeline",
+            "pipeline-run-id": run_id,
+        }),
+        spec=V1beta1InferenceServiceSpec(predictor=V1beta1PredictorSpec(
+            model=V1beta1ModelSpec(
+                model_format=V1beta1ModelFormat(name="huggingface"),
+                runtime="kserve-huggingfaceserver",
+                storage_uri=f"pvc://{pvc_name}{pvc_path.removeprefix(pvc_mount)}",
+                resources=client.V1ResourceRequirements(
+                    limits={"nvidia.com/gpu": "1", "memory": "16Gi"},
+                    requests={"nvidia.com/gpu": "1", "memory": "8Gi"},
+                ),
+            ),
+        )),
+    )
+    KServeClient().create(isvc)
+
+    # Wait for READY.
+    deadline = time.time() + 15 * 60
+    while time.time() < deadline:
+        got = KServeClient().get(isvc_name, namespace=ns)
+        cond = {c["type"]: c["status"] for c in (got.get("status", {}).get("conditions") or [])}
+        if cond.get("Ready") == "True":
+            print(f"InferenceService {isvc_name} is Ready")
+            return isvc_name
+        time.sleep(10)
+    raise TimeoutError(f"{isvc_name} did not become Ready in 15 min")
+
+
+# ---------------------------------------------------------------------------
+# 3. Evaluate the InferenceService with a TrustyAI LMEvalJob, log to MLflow.
+# ---------------------------------------------------------------------------
+@dsl.component(base_image=RUNTIME_IMAGE)
+def evaluate(
+    workspace: str,
+    experiment: str,
+    registered_name: str,
+    model_version: str,
+    isvc_name: str,
+    run_id: str,
+    tasks: list = ["arc_easy", "hellaswag"],
+    limit: str = "50",
+) -> dict:
+    """Create an LMEvalJob against the InferenceService, wait for it to
+    Complete, log the metrics into the parent MLflow run + as a nested run,
+    and tag the model version with the primary accuracy."""
+    import json, time, mlflow
+    from kubernetes import client, config
+
+    config.load_incluster_config()
+    ns = open("/var/run/secrets/kubernetes.io/serviceaccount/namespace").read().strip()
+    api = client.CustomObjectsApi()
+
+    job_name = f"eval-{isvc_name}"
+    body = dict(
+        apiVersion="trustyai.opendatahub.io/v1alpha1", kind="LMEvalJob",
+        metadata=dict(name=job_name, labels={"pipeline-run-id": run_id}),
+        spec=dict(
+            model="local-completions",
+            modelArgs=[
+                dict(name="model", value=isvc_name),
+                dict(name="base_url",
+                     value=f"http://{isvc_name}-predictor.{ns}.svc/v1/completions"),
+                dict(name="num_concurrent", value="1"),
+                dict(name="max_retries", value="3"),
+                dict(name="tokenized_requests", value="True"),
+                dict(name="tokenizer", value="Qwen/Qwen3-0.6B"),
+            ],
+            taskList=dict(taskNames=list(tasks)),
+            allowOnline=True, allowCodeExecution=False,
+            batchSize="1", limit=limit, logSamples=False,
+            chatTemplate=dict(enabled=False),
+            outputs=dict(pvcManaged=dict(size="100Mi")),
+            # The ta-lmes-job image runs as UID 65532; a fresh PVC is root-owned,
+            # so the driver's `open(stdout.log)` fails with permission denied
+            # unless fsGroup gives the pod's group write access to the mount.
+            pod=dict(securityContext=dict(fsGroup=65532)),
+        ),
+    )
+    api.create_namespaced_custom_object(
+        "trustyai.opendatahub.io", "v1alpha1", ns, "lmevaljobs", body)
+
+    # Wait for a terminal state. `state` reaches `Complete` on both success
+    # and failure — the reason field is what actually distinguishes them.
+    deadline = time.time() + 60 * 60
+    while time.time() < deadline:
+        got = api.get_namespaced_custom_object(
+            "trustyai.opendatahub.io", "v1alpha1", ns, "lmevaljobs", job_name)
+        status = got.get("status") or {}
+        state, reason = status.get("state"), status.get("reason")
+        if state == "Complete" and reason == "Succeeded":
+            break
+        if state in {"Cancelled", "Failed"} or (state == "Complete" and reason in {"Failed", "Cancelled"}):
+            raise RuntimeError(
+                f"LMEvalJob {job_name} ended: state={state} reason={reason} "
+                f"message={status.get('message')}")
+        time.sleep(20)
+    else:
+        raise TimeoutError(f"LMEvalJob {job_name} did not finish in 1 h")
+
+    results = json.loads(got["status"]["results"])["results"]
+
+    # Log each task's metrics back to MLflow.
+    mlflow.set_tracking_uri(MLFLOW_URI)
+    mlflow.set_workspace(workspace)
+    mlflow.set_experiment(experiment)
+    parent = mlflow.search_runs(filter_string=f"tags.pipeline_run_id = '{run_id}'",
+                                order_by=["attributes.start_time DESC"], max_results=1)
+    parent_run_id = parent.iloc[0]["run_id"]
+
+    flat = {}
+    with mlflow.start_run(run_id=parent_run_id):
+        with mlflow.start_run(run_name=f"eval-{run_id}", nested=True):
+            for task, metrics in results.items():
+                for k, v in metrics.items():
+                    if isinstance(v, (int, float)) and "stderr" not in k:
+                        name = f"{task}/{k.replace(',', '_')}"
+                        mlflow.log_metric(name, float(v))
+                        flat[name] = float(v)
+            mlflow.set_tag("model_version", model_version)
+            mlflow.set_tag("isvc_name", isvc_name)
+
+    # Tag the primary accuracy on the model version so it shows up on the
+    # Model Registry page next to the version number.
+    primary = next((k for k in flat if k.endswith("/acc_none")), None)
+    if primary is not None:
+        mlflow.MlflowClient().set_model_version_tag(
+            registered_name, model_version, "eval_acc", f"{flat[primary]:.4f}")
+    return flat
+
+
+# ---------------------------------------------------------------------------
+# 4. Cleanup: delete the temporary InferenceService and LMEvalJob.
+# ---------------------------------------------------------------------------
+@dsl.component(base_image=RUNTIME_IMAGE)
+def cleanup(isvc_name: str):
+    from kubernetes import client, config
+    config.load_incluster_config()
+    ns = open("/var/run/secrets/kubernetes.io/serviceaccount/namespace").read().strip()
+    api = client.CustomObjectsApi()
+    for gv, plural, name in [
+        ("serving.kserve.io/v1beta1", "inferenceservices", isvc_name),
+        ("trustyai.opendatahub.io/v1alpha1", "lmevaljobs", f"eval-{isvc_name}"),
+    ]:
+        group, version = gv.split("/")
+        try:
+            api.delete_namespaced_custom_object(group, version, ns, plural, name)
+        except Exception as exc:
+            print(f"delete {plural}/{name} skipped: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Pipeline: wire the four components together.
+# ---------------------------------------------------------------------------
+@dsl.pipeline(name="qwen3-sft-mlflow-trustyai",
+              description="Daily SFT + MLflow tracking + TrustyAI evaluation")
+def sft_mlflow_trustyai(
+    workspace: str = WORKSPACE,
+    experiment: str = EXPERIMENT,
+    base_model: str = BASE_MODEL,
+    registered_name: str = REGISTERED_NAME,
+    # Default = synthetic in-process data (offline smoke). Override with a
+    # JSONL path on the shared PVC or an s3:// URI to fine-tune on a real
+    # dataset — see the "Using a real dataset" section.
+    dataset_path: str = "",
+    num_train_epochs: int = 1,
+    learning_rate: float = 2e-4,
+    max_samples: int = 512,
+    eval_limit: str = "50",
+):
+    train = fine_tune(
+        workspace=workspace, experiment=experiment,
+        base_model=base_model, registered_name=registered_name,
+        pvc_mount=PVC_MOUNT, run_id=dsl.PIPELINE_JOB_ID_PLACEHOLDER,
+        dataset_path=dataset_path, num_train_epochs=num_train_epochs,
+        learning_rate=learning_rate, max_samples=max_samples,
+    ).set_accelerator_type("nvidia.com/gpu").set_accelerator_limit(1)
+    train.set_memory_limit("32Gi").set_cpu_limit("8")
+
+    deploy = deploy_for_evaluation(
+        workspace=workspace, registered_name=registered_name,
+        model_version=train.output, pvc_name=PVC_NAME, pvc_mount=PVC_MOUNT,
+        run_id=dsl.PIPELINE_JOB_ID_PLACEHOLDER,
+    )
+
+    ev = evaluate(
+        workspace=workspace, experiment=experiment,
+        registered_name=registered_name, model_version=train.output,
+        isvc_name=deploy.output, run_id=dsl.PIPELINE_JOB_ID_PLACEHOLDER,
+    )
+
+    with dsl.ExitHandler(cleanup(isvc_name=deploy.output)):
+        ev  # cleanup runs whether evaluate() succeeds or not
+
+    # Mount the shared PVC on training + deploy.
+    for task in (train, deploy):
+        kubernetes.mount_pvc(task, pvc_name=PVC_NAME, mount_path=PVC_MOUNT)
+
+    # Inject the Dex id token into every component that talks to MLflow.
+    for task in (train, deploy, ev):
+        kubernetes.use_secret_as_env(
+            task, secret_name="mlflow-token",
+            secret_key_to_env={"token": "MLFLOW_TRACKING_TOKEN"})
+
+
+compiler.Compiler().compile(sft_mlflow_trustyai, "pipeline.yaml")
+```
+
+Compile:
+
+```bash
+pip install "kfp>=2.7" "kfp-kubernetes>=1.3"
+python finetune_pipeline.py
+# → pipeline.yaml
+```
+
+## Using a real dataset on air-gapped clusters \{#using-a-real-dataset}
+
+The `fine_tune` component defaults to a **synthetic** in-process instruction corpus (a few hundred arithmetic Q/A pairs). That keeps the smoke run fully offline — no HuggingFace, no ModelScope, no S3 — but it will not produce a meaningful fine-tune. For real workloads, pre-stage the dataset onto the cluster once, then pass its path as `dataset_path` on every run. The `fine_tune` component accepts either a local JSONL path (simplest) or an `s3://…` URI (shared across many pipelines).
+
+### 1. Download the dataset on a machine with egress
+
+Any machine that can reach Hugging Face — a laptop, a jump-host, a Workbench in a namespace with egress — is fine:
+
+```bash
+pip install huggingface_hub datasets
+huggingface-cli download tatsu-lab/alpaca --repo-type dataset --local-dir ./alpaca-raw
+```
+
+If Hugging Face is blocked, ModelScope mirrors most popular datasets and works from mainland-China networks:
+
+```bash
+pip install modelscope
+modelscope download --dataset AI-ModelScope/alpaca-gpt4-data-en --local_dir ./alpaca-raw
+```
+
+### 2. Convert to a JSONL file with a `text` column
+
+TRL's `SFTTrainer` expects one text field per row. Adapt the raw dataset into the shape the pipeline consumes:
+
+```python
+from datasets import load_dataset
+
+raw = load_dataset("./alpaca-raw")["train"]
+
+def format_alpaca(row):
+    prompt = row["instruction"]
+    if row.get("input"):
+        prompt += "\n\n" + row["input"]
+    return {"text": f"### Instruction:\n{prompt}\n### Response:\n{row['output']}"}
+
+raw.map(format_alpaca).to_json("alpaca.jsonl", orient="records", lines=True)
+```
+
+### 3a. Upload to the shared PVC (simplest)
+
+If your cluster has a jump-pod with the `finetune-shared` PVC mounted, `kubectl cp` the JSONL into it:
+
+```bash
+kubectl -n finetune apply -f - <<'EOF'
+apiVersion: v1
+kind: Pod
+metadata: { name: dataset-uploader, namespace: finetune }
+spec:
+  restartPolicy: Never
+  containers:
+  - name: sh
+    image: busybox
+    command: ["sh", "-c", "mkdir -p /mnt/shared/datasets && sleep 3600"]
+    volumeMounts: [{ name: shared, mountPath: /mnt/shared }]
+  volumes:
+  - name: shared
+    persistentVolumeClaim: { claimName: finetune-shared }
+EOF
+kubectl -n finetune wait --for=condition=Ready pod/dataset-uploader
+kubectl -n finetune cp alpaca.jsonl dataset-uploader:/mnt/shared/datasets/alpaca.jsonl
+kubectl -n finetune delete pod dataset-uploader
+```
+
+Then submit the pipeline with `dataset_path="/mnt/shared/datasets/alpaca.jsonl"` (see Step 3 below).
+
+### 3b. Upload to S3 / seaweedfs (shared across many pipelines)
+
+For teams running many pipelines, host the dataset in the same S3-compatible bucket the MLflow plugin uses for its artifact store — the cluster-internal seaweedfs endpoint is reachable from every pipeline pod, and clients only need `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` env vars.
+
+Upload from a machine that can reach the S3 endpoint — typically a Workbench in the same cluster. The Alauda AI Workbench images already ship both `mc` (MinIO Client) and `boto3`, so no extra install is needed.
+
+**With `mc` (interactive / one-liner):**
+
+```bash
+mc alias set seaweedfs http://seaweedfs.mlops-demo-e2e:8333 <ACCESS_KEY> <SECRET_KEY>
+mc mb --ignore-existing seaweedfs/mlops-datasets
+mc cp alpaca.jsonl seaweedfs/mlops-datasets/alpaca/alpaca.jsonl
+```
+
+**With `boto3` (scripted / from a notebook):**
+
+```python
+import boto3
+
+s3 = boto3.client(
+    "s3",
+    endpoint_url="http://seaweedfs.mlops-demo-e2e:8333",
+    aws_access_key_id="<ACCESS_KEY>",
+    aws_secret_access_key="<SECRET_KEY>",
+)
+# Idempotent bucket create.
+try:
+    s3.create_bucket(Bucket="mlops-datasets")
+except s3.exceptions.BucketAlreadyOwnedByYou:
+    pass
+s3.upload_file("alpaca.jsonl", "mlops-datasets", "alpaca/alpaca.jsonl")
+```
+
+(Adjust the endpoint to your seaweedfs / MinIO Service. The credentials come from the MLflow plugin's artifact-store Secret, or from your on-prem S3 provider.)
+
+Then create a Secret with the S3 credentials and inject it into `fine_tune` alongside `mlflow-token`:
+
+```bash
+kubectl -n finetune create secret generic mlflow-s3 \
+  --from-literal=AWS_ACCESS_KEY_ID=<key> \
+  --from-literal=AWS_SECRET_ACCESS_KEY=<secret> \
+  --from-literal=MLFLOW_S3_ENDPOINT_URL=http://seaweedfs.mlops-demo-e2e:8333
+```
+
+Add the following to the pipeline function (right next to the existing `use_secret_as_env` block that mounts the MLflow token):
+
+```python
+kubernetes.use_secret_as_env(train, secret_name="mlflow-s3", secret_key_to_env={
+    "AWS_ACCESS_KEY_ID":       "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY":   "AWS_SECRET_ACCESS_KEY",
+    "MLFLOW_S3_ENDPOINT_URL":  "AWS_ENDPOINT_URL",   # what s3fs / fsspec read
+})
+```
+
+Then submit the pipeline with `dataset_path="s3://mlops-datasets/alpaca/alpaca.jsonl"`. `s3fs` is already in the runtime image, and `load_dataset("json", data_files="s3://…")` uses `fsspec` under the hood — the `AWS_*` env is picked up automatically.
+
+### 4. A note on the base model
+
+`AutoModelForCausalLM.from_pretrained("Qwen/Qwen3-0.6B")` also hits Hugging Face on first run. For a fully air-gapped fine-tune, mirror the model once (same pattern: `huggingface-cli download Qwen/Qwen3-0.6B --local-dir ./qwen3-0.6b`, then copy to the PVC or S3) and set `BASE_MODEL = "/mnt/shared/models/qwen3-0.6b"`. The MLflow model registry then registers the fine-tune under `qwen3-0.6b-sft` as before.
+
+## Step 3 — Submit a one-off run
+
+Upload `pipeline.yaml` in **Kubeflow Dashboard → Pipelines → Upload Pipeline**, then **Create Run** — or, from a Workbench:
+
+```python
+from kfp.client import Client
+
+client = Client(host="<MY-KFP-ENDPOINT>")
+run = client.create_run_from_pipeline_package(
+    "pipeline.yaml",
+    arguments=dict(
+        # Omit for the synthetic-smoke default; set to a JSONL path or an
+        # s3:// URI to fine-tune on a real dataset (see the section above).
+        # dataset_path="/mnt/shared/datasets/alpaca.jsonl",
+        num_train_epochs=1, eval_limit="50",
+    ),
+)
+print("Run:", run.run_id)
+```
+
+While the run is in progress:
+
+- Open **Alauda AI → Tools → MLFlow** and pick the `finetune` workspace.
+- The `qwen3-0.6b-daily-sft` experiment shows one **parent** run named `pipeline-<pipeline-run-id>`, with two nested runs: `train-<...>` (streamed by the HF Trainer callback) and, later, `eval-<...>` (written by the `evaluate` step).
+- Under **Models**, the `qwen3-0.6b-sft` registered model gains a new version.
+
+## Step 4 — Visualize training metrics in MLflow
+
+1. In the MLflow UI, open the parent run → **Metrics** tab.
+2. Select `loss`, `eval_loss`, and any custom metrics you added (`perplexity`, `learning_rate`, `grad_norm`) → click **Chart**.
+3. To watch the loss curve **live**, set the **Refresh** interval to `10s` on the chart panel — MLflow re-fetches the metric stream as the Trainer writes new steps.
+
+For classification-style objectives where accuracy matters, add a `compute_metrics` callback that returns `{"accuracy": ...}` in your `TrainingArguments`; `report_to="mlflow"` streams whatever `compute_metrics` returns straight into the same chart.
+
+## Step 5 — Schedule it as a daily Recurring Run
+
+KFP has native cron scheduling. Wire the same `pipeline.yaml` to a **Recurring Run** so it fires every day.
+
+### From the UI
+
+1. **Pipelines** → pick `qwen3-sft-mlflow-trustyai` → **Create Run**.
+2. Choose **Recurring Run** as the run type.
+3. **Trigger**: `Cron`, expression `0 2 * * *` (02:00 UTC every day).
+4. **Max concurrent runs**: `1` — the pipeline claims one GPU; overlapping runs will queue.
+5. **Catchup**: `off` — skip missed windows instead of running a backlog on Monday morning.
+6. **Parameters**: `num_train_epochs=1`, `eval_limit=200` for the daily job (higher-signal than the one-off default).
+7. **Start**.
+
+### From the SDK
+
+```python
+from kfp.client import Client
+
+client = Client(host="<MY-KFP-ENDPOINT>")
+
+# One-time: upload the pipeline as a versioned resource.
+uploaded = client.upload_pipeline(
+    "pipeline.yaml", pipeline_name="qwen3-sft-mlflow-trustyai")
+
+# Attach a daily schedule.
+client.create_recurring_run(
+    experiment_id=client.create_experiment("qwen3-daily").experiment_id,
+    job_name="qwen3-sft-daily-02utc",
+    cron_expression="0 0 2 * * *",     # KFP uses 6-field cron (with seconds)
+    max_concurrency=1,
+    no_catchup=True,
+    enabled=True,
+    pipeline_id=uploaded.pipeline_id,
+    version_id=uploaded.pipeline_version_id,
+    params=dict(num_train_epochs=1, eval_limit="200"),
+)
+```
+
+:::warning
+The MLflow token in `Secret/mlflow-token` expires (Dex id tokens live 24 h by default). For a schedule that runs longer than the token lifetime, either mint the token **inside** the `fine_tune` component from service-account credentials and refresh it there (see the [SDK token flow](../mlflow/how_to/mlflow-python-sdk.mdx#get-a-token)), or run a small CronJob that rotates the `mlflow-token` Secret on a schedule slightly shorter than the token TTL.
+:::
+
+## Step 6 — Compare daily evaluation results in MLflow
+
+After a few days of runs the experiment has a row per day. MLflow makes the comparison one click away:
+
+1. In the MLflow UI, open the `qwen3-0.6b-daily-sft` experiment.
+2. In the runs table, **filter** to nested eval runs: `tags.mlflow.runName LIKE 'eval-%'`.
+3. Sort by `attributes.start_time DESC`.
+4. Tick the check-boxes of the runs you want to compare (last 7 days is a good starting point) → click **Compare**.
+5. In the **Chart** tab, plot `arc_easy/acc_none` and `hellaswag/acc_none` **grouped by** `tags.mlflow.runName`. Steady lines mean the fine-tune is stable; a sharp step down usually means the training dataset or the base checkpoint changed.
+6. The **Parallel Coordinates** view groups training hyper-parameters and evaluation metrics so you can eyeball which hyper-parameters correlate with the biggest evaluation gains.
+
+For programmatic comparison — for example, to feed into a Slack alert or a CI gate that fails the pipeline when the accuracy drops more than 2 % day-over-day — use the search API:
+
+```python
+import mlflow, pandas as pd
+
+mlflow.set_tracking_uri("http://mlflow-tracking-server.kubeflow:5000")
+mlflow.set_workspace("finetune")
+
+df = mlflow.search_runs(
+    experiment_names=["qwen3-0.6b-daily-sft"],
+    filter_string="tags.mlflow.runName LIKE 'eval-%'",
+    order_by=["attributes.start_time DESC"],
+    max_results=14,
+)[["run_id", "start_time", "metrics.arc_easy/acc_none",
+   "metrics.hellaswag/acc_none"]]
+
+df.sort_values("start_time")\
+  .assign(delta=lambda d: d["metrics.arc_easy/acc_none"].diff())\
+  .to_string(index=False)
+```
+
+To promote the best-scoring daily version to a downstream serving stack, use the Model Registry aliasing API — the pipeline already tagged each version with `eval_acc`:
+
+```python
+client = mlflow.MlflowClient()
+best = max(client.search_model_versions("name='qwen3-0.6b-sft'"),
+           key=lambda v: float(v.tags.get("eval_acc", "0")))
+client.set_registered_model_alias("qwen3-0.6b-sft", "champion", best.version)
+# Downstream InferenceService references models:/qwen3-0.6b-sft@champion.
+```
+
+## Troubleshooting
+
+| Symptom | Check |
+|---|---|
+| `log_model` fails with `NoCredentialsError` / `Endpoint URL error` | The MLflow artifact store is not configured for S3. See the **High availability and storage** section of [MLflow install](../mlflow/install.mdx#storage) and set the artifact bucket in the MLflow plugin. Then re-run. |
+| `deploy_for_evaluation` never sees `Ready=True` | Check the InferenceService: `kubectl -n finetune describe isvc <name>`. Most often the PVC path in the `pvc_path` tag does not exist, or the KServe HF runtime image is not available on the cluster. |
+| `LMEvalJob` stays in `Scheduled` | The eval job pod is Pending. Verify the pod's node selector and PVC binding: `kubectl -n finetune get pods -l app=<job-name>` and `kubectl describe` the pending pod. |
+| `LMEvalJob` fails to reach the InferenceService | The `base_url` in `modelArgs` must be the `-predictor` Service, not the top-level InferenceService. The example uses `http://<isvc>-predictor.<ns>.svc/v1/completions` — the `-predictor` suffix and the `/v1/completions` path are both required for the OpenAI-compatible endpoint. |
+| `LMEvalJob` ends `state=Complete, reason=Failed, message="open …/output/stdout.log: permission denied"` | The operator-managed outputs PVC is root-owned but the `ta-lmes-job` container runs as UID 65532, so the driver cannot create `stdout.log`. Set `spec.pod.securityContext.fsGroup: 65532` (as the example does) so the mount is group-writable to the pod's supplemental group. |
+| `state=Complete` but the pipeline treats it as success even though the run failed | `state` transitions to `Complete` for **any** terminal outcome; the outcome itself is in `status.reason` (`Succeeded` / `Failed` / `Cancelled`). Check both, as the `evaluate` component above does. |
+| `local-completions` fails with `OSError: We couldn't connect to 'https://huggingface.co' to load this file … it looks like <name> is not the path to a directory containing a file named config.json.` | The lm-evaluation-harness client still calls `AutoTokenizer.from_pretrained(...)` even when `tokenized_requests` is `"False"` — the `tokenizer` `modelArgs` entry must be a repo id that the eval pod can reach, or a **local path** under an offline PVC. On air-gapped clusters, follow the **Optional: offline storage and PVC** section of [Evaluate LLM](../trustyai/lm-eval.mdx) — mount a PVC at `spec.offline.storage.pvcName`, populate it with the tokenizer and the dataset cache, and set `tokenizer` to the mounted path. |
+| Nested MLflow runs are missing on the parent | `set_experiment` was called before `search_runs` resolved the parent — but nothing was ever logged because the parent tag was written from a **different** component's process. Use `set_tag("pipeline_run_id", run_id)` inside the parent run and search by that tag, as the `evaluate` component does. |
+| The Recurring Run fires but the run fails immediately with `401 UNAUTHENTICATED` | The `mlflow-token` Secret expired between the last successful pipeline and today's run. Rotate it (or move the token mint inside the component); see the warning in Step 5. |
+| KFP v2 pods fail with `container has runAsNonRoot and image will run as root` (on the argoexec `init` init-container and the `kfp-launcher` init-container) | The KFP-v2 pod template sets `runAsNonRoot: true` at pod-level but the argoexec / kfp-launcher images do not set a non-root `USER`. On backends that surface this (DSPO's Argo-based pipeline stack), patch the `Workflow` at runtime with a `spec.podSpecPatch` that sets `runAsUser: 1001` at both pod-level and on each init-container (`init` + `kfp-launcher`). |
+| Fine-tune component fails with `PermissionError: [Errno 13] Permission denied: '/mnt/shared/...'` | The shared PVC's root dir was root-owned. Either add `fsGroup: 1001` to the same `podSpecPatch`, or bootstrap the PVC once with a one-shot pod running as root that `chown -R 1001:1001 /mnt`. |
+| Fine-tune component fails with `modelscope_hub.errors.CacheError: [E1022] Failed to create SDK directories: [Errno 13] Permission denied: '/.modelscope'` | The `python:3.12-slim` container leaves `HOME=/`, and ModelScope + Hugging Face default their caches to `~/`. Non-root pods cannot write there. In the fine-tune component, set `MODELSCOPE_CACHE`, `HF_HOME`, and `HOME` to a path on the shared PVC (or `/tmp`) **before** the first `from modelscope import …` / `AutoModel.from_pretrained` call. |
+| The runtime image tag is not reachable from a worker node | Air-gapped or restricted-egress clusters cannot pull from `docker.io` directly. Mirror `docker.io/alaudadockerhub/finetune-pipeline-runtime-cu126-amd64:v0.1.0` into your internal registry with `skopeo copy` or `crane copy`, then change `RUNTIME_IMAGE` to the mirrored ref and add the corresponding `imagePullSecrets` to the pipeline ServiceAccount. |
+| Pipeline submission fails with `unknown component implementation: comp-exit-handler-1` at the KFP API server | The backend (for example DSPO's Argo-based pipeline stack) does not accept KFP v2 `dsl.ExitHandler` sub-graphs. Replace `with dsl.ExitHandler(cleanup(...)): ev` with a plain `cleanup(...).after(ev)`, and make `cleanup` idempotent (delete by label selector so it works when `evaluate` already deleted the resource on success). |
+| KServe pod crashes with `FileNotFoundError: No such file or directory: /mnt/models/model.safetensors`, even though the file is present on the PVC | The `KServe` container runs as UID 1000 (defined on the `ClusterServingRuntime`), while the `fine_tune` component writes as UID 1001 with the default umask, which produces mode `0660` — group-writable, but not world-readable. Add a `chmod` pass after `save_pretrained` (as the example does): `os.chmod` every directory to `0755` and every file to `0644`. Setting `fsGroup: 1001` on the fine-tune pod is not enough — it changes the mount root's group but does not backfill child files' modes. |
+| `mlflow.exceptions.RestException: RESOURCE_DOES_NOT_EXIST: No Experiment with id=0 exists` inside the `evaluate` component | `start_run(run_id=parent)` attaches to an existing run, but the **nested** `start_run(run_name=...)` needs an experiment context. Call `mlflow.set_experiment(experiment)` **once** at the top of the component, before opening any run. Otherwise MLflow defaults to experiment `0`, which the multi-tenant server refuses. |
+| MLflow `create_model_version` fails with `INVALID_PARAMETER_VALUE: Invalid model version source: '/mnt/…'. To use a local path as a model version source, the run_id request parameter has to be specified and the local path has to be contained within the artifact directory of the run specified by the run_id.` and switching to `mlflow.log_artifacts` then trips `PermissionError: [Errno 13] Permission denied: '/mlflow'` | The Alauda MLflow plugin defaults its artifact root to `/mlflow/artifacts` — a local path on the tracking server pod's `emptyDir`. Client-side `log_artifacts` / `log_model` cannot write there, and a `file://` version source outside a run's artifact dir is rejected. Two options: (a) reconfigure the MLflow deployment for an S3 artifact backend (see the **High availability and storage** section of [MLflow install](../mlflow/install.mdx#storage)), or (b) skip the model registry and coordinate downstream steps via **tags on the parent run** — the pipeline still gets a single MLflow row per run, with `pvc_path`, `final_loss`, `eval_acc` all reachable via `mlflow.get_run(...).data.tags`. |
+| `TypeError: SFTTrainer.__init__() got an unexpected keyword argument 'tokenizer'` | TRL 0.12+ removed the `tokenizer` keyword — pass the tokenizer as `processing_class=tokenizer` instead. The reference runtime image ships a post-0.12 TRL (transitively via LLaMA-Factory 0.9.4). The example above uses `processing_class=`; older forks that still pass `tokenizer=` need the same rename. |
+| `mlflow.transformers.log_model` fails with `MlflowException: The task could not be inferred from the model. If you are saving a custom local model that is not available in the Hugging Face hub, please provide the 'task' argument to the log_model or save_model function.` | MLflow can infer the pipeline task from a Hub model but not from a locally-loaded (path-mirrored) one — the fine-tune pod's `trainer.model` is the latter after `AutoModelForCausalLM.from_pretrained("/mnt/shared/models/…")`. Pass `task="text-generation"` (or the appropriate task string for other model types) to `log_model`. |
+| MLflow client-side calls fail with `UNAUTHENTICATED: Authentication with the Kubernetes API failed. The provided token may be invalid or expired.` | The mlflow-tracking-server's `oauth2-proxy` sidecar is not forwarding bearer tokens — the plugin does not expose this in its config surface and the flag has to be patched onto the Deployment. Add `OAUTH2_PROXY_SKIP_JWT_BEARER_TOKENS=true` to the `oauth2-proxy` container's env, wait for rollout, then re-run. Note that the mlflow-plugin controller reconciles the Deployment and may revert this env; re-apply after any operator upgrade or manual re-install. |
+
+## Bake a custom image \{#bake-a-custom-image}
+
+The reference image is derived from [`llamafactory0.9-cu126-amd64`](./training-runtimes.mdx) and only adds `mlflow>=3.10`, `kserve>=0.13`, and `kubernetes>=29`. To roll your own — for example to swap the CUDA line, add proprietary data-processing libs, or FIPS-comply the base — write a one-layer `Containerfile`:
+
+```dockerfile
+# syntax=docker/dockerfile:1.7
+ARG BASE_IMAGE=docker.io/alaudadockerhub/llamafactory0.9-cu126-amd64:v0.1.0
+FROM ${BASE_IMAGE}
+
+USER 0
+RUN uv pip install --no-cache-dir \
+        "mlflow>=3.10" \
+        "kubernetes>=29" \
+        "kserve>=0.13" \
+        # add anything your pipeline imports:
+        # "your-private-etl-lib==1.2.3" \
+        ;
+USER 1000
+WORKDIR /workspace
+```
+
+Build with `buildctl` (or `docker buildx build`) against your buildkitd, push to your internal registry, and set `RUNTIME_IMAGE` accordingly. The rest of the pipeline code is unchanged.
+
+If instead your fleet already runs [Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx), you can reuse one of the published `TrainingRuntime` images — [`llamafactory0.9-cu126-amd64:v0.1.0`](./training-runtimes.mdx) already ships torch / HF / trl / mlflow; only `kserve` and `kubernetes` need adding for the `deploy_for_evaluation` + `evaluate` + `cleanup` components. That is exactly what the reference image does.
+
+## Related guides
+
+- [Kubeflow Pipeline + MLflow Integration](../mlflow/how_to/pipelines-mlflow-integration.mdx) — the smaller primer this guide extends.
+- [Using the MLflow Python SDK with Authentication and RBAC](../mlflow/how_to/mlflow-python-sdk.mdx) — how the `MLFLOW_TRACKING_TOKEN` is obtained and refreshed.
+- [Evaluate LLM](../trustyai/lm-eval.mdx) — full `LMEvalJob` reference, including offline / air-gapped mode.
+- [Use Kubeflow Pipelines](../kubeflow/how_to/pipelines.mdx) — Recurring Runs UI and object-storage setup.
+- [Training Runtime Images](./training-runtimes.mdx) — catalog of pre-built framework images (torch, LLaMA-Factory, TrainingHub, MindSpeed-LLM) the reference image is derived from.
+- [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx) — a `TrainJob`-based alternative to the SFT component above.
