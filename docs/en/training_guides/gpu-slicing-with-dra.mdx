@@ -6,7 +6,7 @@ weight: 37
 
 The classic device-plugin model hands out **whole GPUs**: a Pod asks for `nvidia.com/gpu: 1` and gets an entire card, even for a LoRA fine-tune that never touches more than a few GiB. On a 24 GB A30 that is up to 20× the memory the job needs, sitting idle.
 
-[Dynamic Resource Allocation (DRA)](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/) — a `resource.k8s.io/v1` API that reached **GA in Kubernetes 1.34** — lets a Pod request a *slice* of a GPU instead. With the [NVIDIA DRA driver](https://github.com/NVIDIA/k8s-dra-driver-gpu) that slice can be:
+[Dynamic Resource Allocation (DRA)](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/) — a `resource.k8s.io/v1` API that reached **GA in Kubernetes 1.34** — lets a Pod request a *slice* of a GPU instead. With the **Alauda Build of NVIDIA DRA Driver for GPUs** that slice can be:
 
 - a **MIG partition** — a hardware-isolated fraction of the card (its own SMs and VRAM, enforced by the GPU), or
 - a **time-sliced / MPS-shared** full GPU — several Pods packed onto one card with no memory isolation.
@@ -30,8 +30,8 @@ DRA doesn't replace your scheduler or Kueue — it changes *how the device is de
 | Requirement | Details |
 |---|---|
 | Kubernetes 1.34+ | `resource.k8s.io/v1` served — check with `kubectl api-resources --api-group=resource.k8s.io` |
-| NVIDIA DRA driver | [`k8s-dra-driver-gpu`](https://github.com/NVIDIA/k8s-dra-driver-gpu) installed and its kubelet-plugin **advertising `ResourceSlice`s** on the GPU node (see [Enabling the DRA driver](#enabling-the-dra-driver-admin)) |
-| MIG-capable GPU in MIG mode | For MIG slices: A30 / A100 / H100 / H200 with MIG **mode enabled**. GPUs without MIG can still use the [time-slicing path](#no-mig-share-a-full-gpu-by-time-slicing) |
+| Alauda Build of NVIDIA DRA Driver for GPUs | Installed on the cluster, with its kubelet-plugin **advertising `ResourceSlice`s** on the GPU node (see [Prepare the GPU node and DRA driver](#enabling-the-dra-driver-admin)) |
+| MIG-capable GPU with profiles created | For MIG slices: A30 / A100 / H100 / H200 with MIG **mode enabled and MIG instances created** (see [Prepare MIG profiles on the node](#prepare-mig-profiles-on-the-node)). GPUs without MIG can still use the [time-slicing path](#no-mig-share-a-full-gpu-by-time-slicing) |
 | Kubeflow Trainer v2 | `trainer.kubeflow.org` API group (see [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2)). The DRA plumbing is identical for KFP, Volcano, or plain Jobs — see [Wiring the same claim elsewhere](#wiring-the-same-claim-into-other-orchestrators) |
 | `kubectl` access | Permission to manage `resourceclaimtemplates` in your namespace and read `deviceclasses` / `resourceslices` (cluster-scoped) |
 
@@ -55,7 +55,7 @@ DRA doesn't replace your scheduler or Kueue — it changes *how the device is de
   └────────────────────┘
 ```
 
-- **`DeviceClass`** (created by the driver) names a *kind* of device and a base selector. This cluster's NVIDIA driver ships `gpu.nvidia.com` (full GPUs) and `mig.nvidia.com` (MIG slices).
+- **`DeviceClass`** (created by the driver) names a *kind* of device and a base selector. The **Alauda Build of NVIDIA DRA Driver for GPUs** ships `gpu.nvidia.com` (full GPUs) and `mig.nvidia.com` (MIG slices).
 - **`ResourceClaimTemplate`** (you) says "give each Pod one device from this class, matching this CEL selector". The scheduler stamps out a per-Pod `ResourceClaim` from it.
 - The **Pod** references the template in `spec.resourceClaims`, and the **container** opts in with `resources.claims`. No `nvidia.com/*` limit is used at all.
 
@@ -74,7 +74,7 @@ kubectl get resourceslices
 # <node>-gpu.nvidia.com-...  192.168.143.59    gpu.nvidia.com   ...
 ```
 
-If `get resourceslices` is empty, the driver is installed but not advertising devices on any node — jump to [Enabling the DRA driver](#enabling-the-dra-driver-admin) before continuing.
+If `get resourceslices` is empty, the driver is installed but not advertising devices on any node — jump to [Prepare the GPU node and DRA driver](#enabling-the-dra-driver-admin) before continuing.
 
 Inspect the advertised devices to learn the exact attribute keys and values your CEL selectors can match on — **do not assume the profile strings; read them from your cluster**:
 
@@ -257,9 +257,9 @@ The [smoke Pod](https://github.com/alauda/aml-docs/tree/master/docs/en/training_
 
 The bundled script trains a synthetic model so the slice can be validated offline. To fine-tune a real model on the slice, keep the two DRA hooks and swap the container for a real recipe — for example the LlamaFactory runtime from [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2), with its `dataset-initializer` / `model-initializer` steps downloading a base model and dataset onto a shared PVC. The only change to that runtime is deleting the `nvidia.com/gpualloc` / `gpucores` / `gpumem` limits and adding `spec.resourceClaims` + `resources.claims`. Size the MIG profile to the model (a 0.6B LoRA fits `1g.6gb`; a 7B QLoRA wants `2g.12gb`+).
 
-## Enabling the DRA driver (admin) \{#enabling-the-dra-driver-admin}
+## Prepare the GPU node and DRA driver (admin) \{#enabling-the-dra-driver-admin}
 
-The NVIDIA DRA driver installs a controller plus a kubelet-plugin `DaemonSet` gated on a node label. Until a GPU node carries that label, the plugin publishes **no `ResourceSlice`s** and DRA Pods stay `Pending`.
+The **Alauda Build of NVIDIA DRA Driver for GPUs** installs a controller plus a kubelet-plugin `DaemonSet` gated on a node label. Until a GPU node carries that label, the plugin publishes **no `ResourceSlice`s** and DRA Pods stay `Pending`.
 
 ```bash
 # The kubelet-plugin DaemonSet is scheduled by a node label (check its nodeSelector):
@@ -271,24 +271,54 @@ kubectl -n kube-system get ds nvidia-dra-driver-gpu-kubelet-plugin \
 kubectl label node <gpu-node> nvidia-device-enable=pgpu-dra
 ```
 
-For **full-GPU / time-sliced** claims that is all you need — the plugin now advertises a `gpu.nvidia.com` device per card. **MIG slices need two more host-level steps**, because this driver does *not* create MIG partitions on demand — it only exposes MIG devices that already exist. With MIG mode on but no instances created, the plugin crash-loops with `invalid CDI Spec: no devices`.
+For **full-GPU / time-sliced** claims that is all you need — the plugin now advertises a `gpu.nvidia.com` device per card, and you can skip ahead to [Smoke-test a slice](#step-2--smoke-test-a-slice). MIG slices need the extra preparation below.
+
+### Prepare MIG profiles on the node \{#prepare-mig-profiles-on-the-node}
+
+**MIG slices must exist on the card before the driver can hand them out.** The Alauda Build of NVIDIA DRA Driver for GPUs does *not* create MIG partitions on demand — it only exposes MIG devices that already exist. With MIG mode enabled but no instances created, the kubelet-plugin crash-loops with `invalid CDI Spec: no devices`. So an admin creates the MIG profiles **once per GPU node** (all `nvidia-smi` commands run on the node's host — through a privileged Pod or SSH):
 
 ```bash
-# On the GPU node (needs the GPU idle — no CUDA/dcgm client may hold it, or the
-# mode switch stays "pending"; stop other GPU workloads and move dcgm-exporter off first):
-nvidia-smi -i 0 -mig 1                 # enable MIG mode
-nvidia-smi mig -lgip                   # list GPU-instance profiles + their IDs for this card
-nvidia-smi mig -cgi 14,14 -C           # CREATE the instances — e.g. two slices from profile ID 14
-nvidia-smi -L                          # confirm the MIG devices exist
+# 0. The GPU must be IDLE. MIG-mode changes reset GPU state and are refused while any
+#    CUDA workload or monitoring client (e.g. dcgm-exporter) holds the card. Stop GPU
+#    workloads and move dcgm-exporter off this node first.
 
-# Then restart the kubelet-plugin Pod so it re-enumerates and publishes MIG ResourceSlices:
-kubectl -n kube-system delete pod -l app.kubernetes.io/name=nvidia-dra-driver-gpu --field-selector spec.nodeName=<gpu-node>
+# 1. Enable MIG mode on the GPU (index 0 here) and confirm it took effect.
+nvidia-smi -i 0 -mig 1
+nvidia-smi -i 0 --query-gpu=mig.mode.current,mig.mode.pending --format=csv
+#    If mode stays "pending", a client is still attached — free it, then finalise with
+#    a GPU reset (`nvidia-smi -i 0 -r`) or a node reboot.
+
+# 2. List the GPU-instance profiles this card supports, with their IDs and how many fit.
+nvidia-smi mig -lgip
+#   GPU  Name          ID   Free/Total   Memory
+#     0  MIG 1g.6gb    19    4/4         ~6 GiB     <- four small slices
+#     0  MIG 2g.12gb   14    2/2         ~12 GiB
+#     0  MIG 4g.24gb    0    1/1         ~24 GiB    <- whole card as a single MIG device
+
+# 3. CREATE the GPU instances and their compute instances (-C). Repeat a profile ID to
+#    make several slices of it. This carves the card into FOUR 1g slices (ID 19 x4):
+nvidia-smi mig -cgi 19,19,19,19 -C
+#    ...or two medium slices:  nvidia-smi mig -cgi 14,14 -C
+
+# 4. Confirm the MIG devices now exist.
+nvidia-smi -L
+nvidia-smi mig -lgi          # list the created GPU instances
 ```
 
-Confirm the profile string your CEL selector must match against the live slices — profile IDs and device names are hardware-specific (e.g. this driver names an A30 slice `1g.6gb`):
+:::warning
+Profile **IDs, names, and per-instance memory are hardware-specific**, and the name shown by `nvidia-smi mig -lgip` can differ from the `profile` attribute the driver publishes — for example, an A30 GPU-instance profile listed as `2g.6gb` is exposed to DRA as `1g.6gb`. **Never hardcode from this example.** Read your card's real profiles in step 2, then (below) read the published `profile` string and match your `ResourceClaimTemplate`'s CEL selector to *that*.
+:::
+
+MIG instances created with `nvidia-smi mig -cgi` do **not** always survive a GPU or node reset. Re-create them after a reboot, or automate creation with the driver's MIG-config tooling / a boot-time unit.
+
+Finally, restart the kubelet-plugin Pod so it re-enumerates the card and publishes the MIG `ResourceSlice`s, then read back the exact `profile` strings your CEL selector must match:
 
 ```bash
-kubectl get resourceslices -o json | jq -r '.items[].spec.devices[].attributes."gpu.nvidia.com".profile.string' | sort -u
+kubectl -n kube-system delete pod -l app.kubernetes.io/name=nvidia-dra-driver-gpu --field-selector spec.nodeName=<gpu-node>
+
+kubectl get resourceslices -o json \
+  | jq -r '.items[].spec.devices[].attributes."gpu.nvidia.com".profile.string' | sort -u
+# 1g.6gb          <- use this exact string in mig-slice-resourceclaimtemplate.yaml
 ```
 
 :::warning
