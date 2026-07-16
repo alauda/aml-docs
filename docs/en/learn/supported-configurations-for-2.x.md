@@ -22,7 +22,7 @@ This page lists the currently maintained Alauda AI versions in the component mat
 | Alauda Build of DCGM-Exporter                | Cluster Plugin | v4.2.3-413-1                       | v4.2.3-413-1                     |
 | Alauda Build of HAMi                         | Cluster Plugin | v2.8.1                             | v2.8.3                           |
 | Alauda Build of HAMi-WebUI                   | Cluster Plugin | v1.10.0                            | v1.10.0                          |
-| Alauda Build of Node Feature Discovery       | Cluster Plugin | v0.17.4                            | v0.17.4                          |
+| Alauda Build of Node Feature Discovery       | Cluster Plugin | v0.18.3                            | v0.17.4                          |
 | Alauda Build of Kueue                        | Cluster Plugin | v0.17.0                            | v0.17.0                          |
 | Alauda Build of LeaderWorkerSet              | Cluster Plugin | v0.8.0-1                           | v0.8.0-1                         |
 | Alauda Build of JobSet (1)                   | Operator       | -                                  | v0.12.0                          |
@@ -63,7 +63,7 @@ This page lists the currently maintained Alauda AI versions in the component mat
 | Alauda Build of NPU Operator (3)             | Cluster Plugin | v1.1.3                             | v1.2.4                           |
 | Alauda Build of HAMi                         | Cluster Plugin | v2.8.1                             | v2.8.3                           |
 | Alauda Build of HAMi-WebUI                   | Cluster Plugin | v1.10.0                            | v1.10.0                          |
-| Alauda Build of Node Feature Discovery       | Cluster Plugin | v0.17.4                            | v0.17.4                          |
+| Alauda Build of Node Feature Discovery       | Cluster Plugin | v0.18.3                            | v0.17.4                          |
 | Alauda Build of Kueue                        | Cluster Plugin | v0.17.0                            | v0.17.0                          |
 | Alauda Build of LeaderWorkerSet              | Cluster Plugin | v0.8.0-1                           | v0.8.0-1                         |
 | Alauda Build of JobSet (1)                   | Operator       | -                                  | v0.12.0                          |
