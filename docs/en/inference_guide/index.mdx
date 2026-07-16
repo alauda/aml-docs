@@ -19,8 +19,8 @@ KServe `LLMInferenceService` reconciled by the InferNex-Bridge into a load-aware
 (hermes-router / EPP) in front of the vLLM-Ascend instances. Most were run through the
 **same InferNex aggregation surface and the same two benchmark scenarios** (the two
 Qwen models share an identical 2 × TP=4 topology and are directly comparable;
-DeepSeek-V4-Flash uses larger topologies, up to a 16-card DP2 × TP=8 cross-node
-aggregation). For the runtime model (KServe, ModelCar storage,
+DeepSeek-V4-Flash and MiniMax-M2.5 use larger MoE topologies, up to a 16-card
+DP2 × TP=8 cross-node aggregation). For the runtime model (KServe, ModelCar storage,
 scheduling) see [Model Deployment & Inference](../model_inference/index.mdx).
 
 ## Validated models
@@ -31,6 +31,7 @@ scheduling) see [Model Deployment & Inference](../model_inference/index.mdx).
 | Qwen3.6-27B (W8A8) | `qwen3_5` hybrid (GDN + MTP) | 27.78B | W8A8 | Ascend 910B4 ×8 | vLLM-Ascend nightly | [Qwen3.6-27B (W8A8)](./qwen3-6-27b-w8a8.mdx) |
 | DeepSeek-V4-Flash (W4A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W4A8 | Ascend 910B4 ×8 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W4A8)](./deepseek-v4-flash-w4a8.mdx) |
 | DeepSeek-V4-Flash (W8A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W8A8 | Ascend 910B3 ×16 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W8A8)](./deepseek-v4-flash-w8a8.mdx) |
+| MiniMax-M2.5 (W8A8) | `minimax_m2` MoE (full-attn, 256-expert) | 230B-A10B | W8A8 (QuaRot) | Ascend 910B3 ×16 | vLLM-Ascend v0.23.0 | [MiniMax-M2.5 (W8A8)](./minimax-m2.5-w8a8.mdx) |
 
 The two Qwen models and DeepSeek-V4-Flash (W4A8) were validated on Ascend 910B4 (32 GB/card),
 driven through KServe `LLMInferenceService` with load-aware routing (InferNex-Bridge +
@@ -44,6 +45,13 @@ two nodes = 16 cards** as a single **DP2 × TP=8 cross-node aggregation** with a
 **mooncake cross-rank KV store**, driven through both the internal KServe ingress and
 the product MaaS gateway.
 
+MiniMax-M2.5 (W8A8, ~230 GB, 230B-A10B) was validated on the **same Ascend 910B3
+16-card DP2 × TP=8 cross-node aggregation**, but as a **plain `agg` baseline** — no
+mooncake store and no speculative decoding. Because this model is "fast" (~10B activated
++ full attention + W8A8), both add-ons were measured to *lose*, so the production config
+keeps only the decode graph + local prefix cache. It was additionally validated as a
+**real coding agent** (OpenCode / Pi) through the product MaaS gateway.
+
 ## Runtime images
 
 | Engine | Device | Image (validated tag) | Used by | Notes |
@@ -51,6 +59,7 @@ the product MaaS gateway.
 | vLLM-Ascend v0.18.0 | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:v0.18.0-openeuler` | Qwen3-32B | Community vLLM for Ascend, V1 engine. Serves standard Qwen3 dense models directly. Match the tag's CANN version to your host NPU driver. |
 | vLLM-Ascend nightly (release-pinned) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-releases-v0.22.1rc-openeuler` | Qwen3.6-27B (W8A8), DeepSeek-V4-Flash (W4A8) | Carries the `qwen3_5` Gated DeltaNet hybrid + MTP **and** the `deepseek_v4` MoE stack — the stock `v0.18.0` cannot load either. Use this **release-pinned** tag, **not** the moving `nightly-main-openeuler` (it drifted to a broken build whose TP workers crash). |
 | vLLM-Ascend nightly-main (dated snapshot) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-main-openeuler-0709` | DeepSeek-V4-Flash (W8A8) | A **later** `nightly-main` snapshot (vLLM 0.23.0) that carries the DP2 cross-node graph + DSA-CP prefix-cache fixes the W8A8 cross-node deployment needs. Pin a **dated** snapshot like this one, not the moving `nightly-main` tag. |
+| vLLM-Ascend v0.23.0 (release-pinned) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:v0.23.0-openeuler` | MiniMax-M2.5 (W8A8) | The **release-pinned** `nightly-releases-v0.23.0-openeuler` build (vLLM 0.23.0), carrying the `minimax_m2` MoE stack + tool-call/reasoning parsers **and** vLLM #11505 (streaming tool-call arguments held until the closing `</parameter>`). Prefer this dated **release** tag over the moving `nightly-main`. |
 
 :::tip
 The Ascend CANN images are arm64. Always match the runtime image's CANN version to
@@ -63,8 +72,8 @@ are listed; other engines (MindIE, SGLang, …) were not benchmarked at this siz
 These models were measured with `aiperf` against the same two scenarios, modelled on
 real serving patterns. Output is pinned to **128 tokens** and load is **closed-loop,
 concurrency 4** (4 in-flight requests, fixed); each scenario ran 240 requests.
-DeepSeek-V4-Flash (W8A8) is the exception — it was swept at **concurrency 8 / 16 / 32**
-(480 requests per tier).
+DeepSeek-V4-Flash (W8A8) and MiniMax-M2.5 (W8A8) are the exceptions — they were swept at
+**concurrency 8 / 16 / 32** (480 requests per tier).
 
 | Scenario | What it models | Dataset | Request shape |
 |---|---|---|---|
@@ -80,10 +89,11 @@ scales with the instance count. **TPS is the total-token (input + output) calibe
 decode-only output rate is reported separately and is much smaller under these
 long-input workloads.
 
-DeepSeek-V4-Flash (W8A8) instead runs a **16-card DP2 × TP=8 cross-node** deployment and
-is swept at **concurrency 8 / 16 / 32** (480 req/tier), so its numbers are an operating
-envelope reported on its own page. It was driven through both the internal KServe
-ingress and the product **MaaS gateway (API-key) ingress**.
+DeepSeek-V4-Flash (W8A8) and MiniMax-M2.5 (W8A8) instead run a **16-card DP2 × TP=8
+cross-node** deployment and are swept at **concurrency 8 / 16 / 32** (480 req/tier), so
+their numbers are an operating envelope reported on each model's own page. Both were
+driven through both the internal KServe ingress and the product **MaaS gateway (API-key)
+ingress**.
 :::
 
 ## Deploy a validated model
@@ -150,11 +160,13 @@ The three signed images and their digests:
 | `docker.io/alaudadockerhub/modelcar-deepseek-v4-flash-w4a8-mtp:v0.1.0` | `sha256:ef57a46726bec9c6505504262beaa55ec6c45d595a1726ab90d594f42606c6be` |
 
 :::note
-DeepSeek-V4-Flash (**W8A8**) is not in this Cosign table — its ModelCar is distributed as
-an **OCI Image Layout tar** (not a signed registry image), so there is no Cosign signature
-to verify. Its integrity is content-addressed instead: the tar's `index.json` carries the
-image digest and every blob under `blobs/sha256/` is verified against its own digest on
-import (`skopeo copy` checks this). See its [page](./deepseek-v4-flash-w8a8.mdx).
+DeepSeek-V4-Flash (**W8A8**) and MiniMax-M2.5 (**W8A8**) are not in this Cosign table —
+their ModelCars are distributed as **OCI Image Layout tars** (not signed registry images),
+so there is no Cosign signature to verify. Integrity is content-addressed instead: each
+tar's `index.json` carries the image digest and every blob under `blobs/sha256/` is
+verified against its own digest on import (`skopeo copy` checks this). See the
+[DeepSeek-V4-Flash (W8A8)](./deepseek-v4-flash-w8a8.mdx) and
+[MiniMax-M2.5 (W8A8)](./minimax-m2.5-w8a8.mdx) pages.
 :::
 
 `--insecure-ignore-tlog=true` is required because these were signed with

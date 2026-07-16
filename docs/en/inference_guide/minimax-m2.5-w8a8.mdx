@@ -1,0 +1,260 @@
+---
+weight: 50
+i18n:
+  title:
+    en: MiniMax-M2.5 (W8A8)
+    zh: MiniMax-M2.5 (W8A8)
+---
+
+# MiniMax-M2.5 (W8A8)
+
+`minimax_m2`-architecture model (`MiniMaxM2ForCausalLM`) — a 256-expert MoE (8 experts
+per token, **no** shared expert) with **62 layers of full attention** (GQA 48/8 heads,
+head_dim 128 — a plain full-attention model, **not** a hybrid-KV / sliding-window one)
+and a native MTP head, served as **W8A8** (`W8A8_DYNAMIC`, QuaRot int8 attention +
+expert, no KV quant; ~230 GB weights, 71 shards, 62 layers). It is **230B total with
+~10B activated per token**. The ~230 GB weights fit a single 8 × 64 GB node, but it was
+validated on **Ascend 910B3 (64 GB/card) across two nodes = 16 cards** as a single
+aggregated **DP2 × TP=8 + EP16** service — apples-to-apples with the DeepSeek-V4-Flash
+16-card topology, with DP2 roughly doubling prefill throughput on the prefill-heavy
+benchmark. It runs the vLLM-Ascend **v0.23.0** release engine through Alauda AI's
+InferNex surface, and both benchmark scenarios were driven through the **MaaS gateway
+(API-key) ingress** as a concurrency sweep (8 / 16 / 32).
+
+Unlike DeepSeek-V4-Flash (W8A8), MiniMax-M2.5 is served as a **plain aggregation with
+no acceleration add-ons** — no mooncake KV store and no speculative decoding. That is
+the deliberate production config: because this model is "fast" (~10B activated + full
+attention + W8A8), both add-ons were measured to *lose* (see [Deployment spec](#deployment-spec)).
+
+## Model identity
+
+| Field | Value |
+|---|---|
+| Publisher | MiniMax |
+| Architecture | `minimax_m2` (`MiniMaxM2ForCausalLM`) — 256-expert MoE (8 experts/token, no shared expert) + 62 layers **full attention** (GQA 48/8, head_dim 128; not hybrid-KV) + native MTP head; **230B total / ~10B activated** |
+| Quantization | W8A8 (`W8A8_DYNAMIC`, **QuaRot**; int8 attention + expert, no KV quant; ~230 GB weights, 71 shards, 62 layers); MIT license |
+| Context / vocab | 196,608 (~192k, `max_position_embeddings`, rope_theta 5e6) / 200,064 |
+| Model source (W8A8) | https://www.modelscope.cn/models/Eco-Tech/MiniMax-M2.5-w8a8-QuaRot |
+| ModelCar (OCI Image Layout tar) | `http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/MiniMax-M2.5-w8a8-QuaRot.oci.tar` |
+
+:::note
+**The built-in MTP head is not usable on these weights.** The config declares
+`use_mtp: true` / `num_mtp_modules: 3`, but the QuaRot-quantized checkpoint ships **no
+MTP tensors** (the 143,967-tensor state dict stops at layer 61), so
+`--speculative-config method=mtp` cannot start. MiniMax's only working speculative path
+is **eagle3** (a separate draft model), and eagle3 was measured **out of the production
+config** for this model — see [Deployment spec](#deployment-spec).
+:::
+
+:::note
+The W8A8 ModelCar is distributed as an **OCI Image Layout tar** on the internal package
+store (link above), not a public Docker Hub image. The benchmark itself was run with the
+weights staged on a **node-local PV/PVC per node**; that is the path the manifest below
+mounts. The ModelCar is the same weights repackaged, for cross-environment distribution
+— import it into your own registry once and repoint `model.uri` (see the **Deploy**
+section). Because this ModelCar is **>200 GB**, an `oci://` storageInitializer pull needs
+extra ephemeral-disk handling.
+:::
+
+## Validated hardware × stack
+
+| Platform | Engine | Version / config | Status |
+|---|---|---|---|
+| Ascend 910B3 64 GB × 16, 2 nodes (1 instance, DP2 × TP=8 + EP16) | vLLM-Ascend | `v0.23.0-openeuler` (vLLM 0.23.0, release-pinned) | ✅ closed-loop, 2-scenario **concurrency sweep (8/16/32)**, 480 req/tier, 0 error; **plain agg baseline** (no spec decode, no mooncake); + real coding-agent validation (OpenCode / Pi), all via MaaS gateway |
+
+:::note
+The `v0.23.0-openeuler` release engine carries the full `minimax_m2` stack (model +
+`minimax_m2` tool-call / reasoning parsers) **and** vLLM #11505, which holds streaming
+tool-call arguments until the closing `</parameter>` so no trailing-tag fragment is
+spliced into a command argument. It was chosen over the earlier `nightly-main-0709`
+snapshot for that parser fix (validated over 3,123 tool executions with 0 tail
+pollution); the tradeoff is a small decode regression vs 0709 — see
+[Benchmark results](#benchmark-results).
+:::
+
+## Model configuration
+
+| Parameter | Value |
+|---|---|
+| Tensor parallelism (`tensor-parallel-size`) | 8 |
+| Data parallelism (`data-parallel-size`) | 2 (1 rank per node, cross-node) |
+| Replicas (instances) | 1 aggregated service (leader + worker = 16 cards) |
+| Expert parallelism (`enable-expert-parallel`) | on (EP16) |
+| `max-model-len` | 196608 (agent long-context; benchmark scenarios ≤ ~17.5k) |
+| `max-num-batched-tokens` | 16384 |
+| `max-num-seqs` | 32 |
+| `gpu-memory-utilization` | 0.85 (official value — long ctx, deliberately not maxed) |
+| Quantization | `ascend` (W8A8_DYNAMIC / QuaRot) |
+| Speculative decoding | **none** (built-in MTP absent in the QuaRot weights; eagle3 measured out — see below) |
+| Decode graph | `FULL_DECODE_ONLY` (ITL ~34 ms vs eager's ~300 ms) |
+| Prefix caching | enabled, **local** (~62.6 % hit on the real agent trace; 91.8–95.5 % Prompt-Token hit in the agent window) |
+| Tool calling / reasoning | `--tool-call-parser minimax_m2` + `--enable-auto-tool-choice` + `--reasoning-parser minimax_m2` |
+| Notable env | `VLLM_ASCEND_ENABLE_FLASHCOMM1=1`. **Do not** set `enable_fused_mc2` — it is "A3-recommended, not applicable to A2", and 910B3 is A2-class. |
+
+## Deployment spec \{#deployment-spec}
+
+Served as **`agg`** — a single DP2 × TP=8 aggregation with **no** mooncake KV store and
+**no** speculative decoding. The router stays `random` and the cache-indexer is **off**:
+a single aggregated endpoint needs no global KV index or KV-cache-aware routing (matching
+the GLM-5.2 / Qwen3-32B aggregation paradigm). What is a net win — and what this config
+keeps — is the `FULL_DECODE_ONLY` decode graph plus the engine's **local prefix cache**.
+
+| Component | `agg` |
+|---|:--:|
+| hermes-router (EPP) | ✅ started (single leader endpoint, `random` no-op) |
+| Routing strategy | `random` |
+| mooncake KV store | — (measured out; see below) |
+| Speculative decoding (eagle3 / MTP) | — (measured out; see below) |
+| cache-indexer / KV-cache-aware routing | — (not needed for a single aggregated endpoint) |
+| Decode graph + local prefix cache | ✅ (the net-win acceleration this config keeps) |
+
+:::note
+**Why no speculative decoding and no KV store — both were measured to lose on this
+model.** Because MiniMax-M2.5 is "fast" (only ~10B activated + full attention + W8A8),
+each add-on hurts:
+
+- **eagle3 (speculative decoding) — out, on two independent lines of evidence.** ① Batch
+  throughput is a net loss: scenario ① at concurrency 32 decodes **377 tok/s with eagle3
+  vs 631 tok/s baseline** (the more speculative tokens, the worse). ② A **real 27k-prefill
+  agent request returns HTTP 500** (the engine stays up but every such request fails),
+  while baseline serves the identical request with 0 error. Mechanism: speculation trades
+  compute for latency — a net win only when decode is memory-bandwidth bound (single
+  stream), a net loss once compute saturates at batch; W8A8 base × full-precision eagle
+  draft also mismatch, giving only ~44 % pos-0 acceptance (0.56 accepted per draft). The
+  built-in MTP head is unusable (no MTP tensors in the quantized weights).
+- **mooncake KV store — not worth it.** Even with a fully-warmed store (~91 % merged
+  prefix hit) it is a net loss: scenario ② throughput at concurrency 16 / 32 is **−14 % /
+  −13 %** with TTFT worse across the board. MiniMax prefill is so fast that re-fetching KV
+  over the network is ≥ recomputing it locally — the opposite of DeepSeek, where slow
+  prefill makes the store a clear win. On the real agent trace the **local** prefix cache
+  already covers 62.6 %, and the store adds only ~3.6 % on top.
+:::
+
+## Deploy
+
+Self-contained InferNex manifest (engine inlined in the `LLMInferenceService` leader +
+worker templates + hermes-router preset, DP2 × TP=8 across two nodes, plain `agg`
+baseline):
+
+| Spec | File |
+|---|---|
+| agg, DP2 × TP=8 | [`minimax-m2.5-w8a8-agg-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/inference_guide/assets/minimax-m2.5-w8a8/minimax-m2.5-w8a8-agg-llmisvc.yaml) |
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/inference_guide/assets/minimax-m2.5-w8a8
+
+# 1. Stage the ~230 GB weights on a node-local directory on BOTH nodes (byte-identical),
+#    then edit the manifest: set the namespace, pin the two hostPath PVs to your node
+#    hostnames (<node-0> / <node-1>) and weights path, and set the image tag (match your
+#    CANN / host driver). Then apply — the engine mounts the on-node weights at /mnt/models
+#    (the storageInitializer is off, so there is no 230 GB pull).
+kubectl apply -f $base/minimax-m2.5-w8a8-agg-llmisvc.yaml
+
+#    Cross-environment alternative — import the OCI ModelCar tar into your own registry
+#    once (skopeo does the multi-arch amd64+arm64 push in one go), then set the manifest
+#    model.uri to oci://<your-registry>/modelcar-minimax-m2.5-w8a8-quarot:v0.1.0:
+#      curl -sO http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/MiniMax-M2.5-w8a8-QuaRot.oci.tar
+#      skopeo copy --all \
+#        oci-archive:MiniMax-M2.5-w8a8-QuaRot.oci.tar:v0.1.0 \
+#        docker://<your-registry>/modelcar-minimax-m2.5-w8a8-quarot:v0.1.0
+#    (This ModelCar is >200 GB — keep storageInitializer.enabled:false and add an init
+#    container that extracts the pulled layout to tmpfs.)
+
+# Internal KServe ingress (no auth):
+curl -s http://<gateway>/<namespace>/minimax-m25-w8a8-agg/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"minimax-m2.5-w8a8","messages":[{"role":"user","content":"hello"}]}'
+
+# Product MaaS gateway (OpenAI-compatible, API-key auth + token rate limiting):
+curl -s http://<maas-gateway>/v1/chat/completions \
+  -H "Authorization: Bearer $MAAS_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"minimax-m2.5-w8a8","messages":[{"role":"user","content":"hello"}]}'
+```
+
+## Benchmark results \{#benchmark-results}
+
+Closed-loop `aiperf 0.7.0`, **DP2 × TP=8 (16 × 910B3 64 GB)**, driven through the product
+**MaaS gateway**, on the production **`v0.23.0-openeuler`** engine. Concurrency sweep
+**8 / 16 / 32**, 480 requests per tier (all tiers 0 error / 0 mismatch). TTFT / E2E in s,
+ITL in ms; decode = output-only tok/s (measured), TPS = total tokens/s (input + output,
+computed; prefill-dominated). Output is pinned to 128 tokens.
+
+**Scenario ① — fixed-length system-prompt reuse (ISL ~8k / OSL 128)**
+
+| Concurrency | TTFT avg (s) | ITL avg (ms) | E2E avg (s) | Decode (tok/s) | TPS (in+out) |
+|--:|--:|--:|--:|--:|--:|
+| 8  | 1.17 | 33.5 | 5.4 | 189 | 12,004 |
+| 16 | 1.35 | 36.2 | 5.9 | 344 | 21,967 |
+| 32 | 1.44 | 45.6 | 7.2 | 564 | **36,012** |
+
+**Scenario ② — multi-turn dialogue, long context (ISL ~17.5k / OSL 128)**
+
+| Concurrency | TTFT avg (s) | ITL avg (ms) | E2E avg (s) | Decode (tok/s) | TPS (in+out) |
+|--:|--:|--:|--:|--:|--:|
+| 8  | 2.95 | 44.0 | 8.5  | 120 | 17,001 |
+| 16 | 3.81 | 56.7 | 11.0 | 186 | 26,225 |
+| 32 | 5.42 | 87.9 | 16.6 | 247 | **34,906** |
+
+:::note
+**Engine choice — `v0.23.0` vs the earlier `nightly-main-0709`.** Re-tested at the same
+hardware / config / caliber, `v0.23.0` shows a **small decode regression** vs 0709
+(decode throughput **−3…11 %**, ITL **+5…18 %**, growing with concurrency; e.g. scenario
+① conc 32 decode 631 → 564 tok/s), while **TTFT (prefill) is flat or better**. The
+regression is accepted in exchange for a **release-pinned** (non-drifting) tag, a unified
+`minimax_m2` parser, and the #11505 streaming-tool-call fix. The 0709 image is kept on the
+nodes as a fallback for delivery cases that are decode-throughput sensitive.
+:::
+
+**Config decisions — eagle3 and mooncake both lose (measured on the baseline)**
+
+| Config (scenario · conc) | Baseline | eagle3 | mooncake store |
+|---|--:|--:|--:|
+| S① conc 32 — decode (tok/s) | **631** | 377 (1-tok) / 300 (3-tok) | — |
+| S① conc 32 — ITL (ms) | **39.5** | 75.7 / 97.7 | — |
+| S② conc 16 — TPS (in+out) | **27,792** | — | 23,902 (**−14 %**) |
+| S② conc 32 — TPS (in+out) | **37,458** | — | 32,421 (**−13 %**) |
+| Real 27k-prefill agent request | 0 error | **HTTP 500** | — |
+
+→ The plain `agg` **baseline wins on every axis**; both acceleration layers backfire on
+this fast model. (The eagle3 / mooncake A/B runs were done on the earlier 0709 baseline,
+before the `v0.23.0` re-test; the decision holds under both engines.)
+
+:::note
+**How to read these.** Every tier completed 480/480 with zero errors and zero output
+mismatches. As concurrency rises, **system throughput (decode / TPS) climbs** (sub-linear,
+saturating) while tail latency (TTFT / ITL / E2E) also climbs — the queueing cost of more
+in-flight requests. TPS is the **total-token (input + output)** caliber and is
+prefill-dominated (ISL 8k / 17.5k, OSL 128); the decode-only output rate is the separate
+"Decode" column.
+
+These numbers are **not directly comparable** to the other models in this guide: it is a
+concurrency sweep (not the fixed concurrency-4 run the Qwen models use), on **910B3 64 GB**
+cards, with a **16-card DP2 × TP=8** topology. Treat them as the operating envelope of
+this specific large-MoE deployment, not a cross-model ranking.
+:::
+
+## Real coding-agent validation
+
+Beyond the synthetic aiperf sweep, MiniMax-M2.5 was driven as a **real coding agent**
+through the MaaS gateway. The **Envoy AI Gateway v0.6.0** passes the vLLM Chat Completions
+stream through OpenAI→OpenAI unchanged, so the `minimax_m2` parser's streaming
+`reasoning_content` and structured tool calls reach the client intact. Two agents
+(**OpenCode 1.17.18** and **Pi 0.80.6**) ran the same fixed 14-task Terminal-Bench set at
+concurrency **1 / 8 / 32** (14 / 14 / 42 runs each), scored by an objective verifier.
+
+| Agent | Passed (conc 1 / 8 / 32) | Peak correct-task throughput |
+|---|---|--:|
+| OpenCode 1.17.18 | 6 / 14 · 4 / 14 · 14 / 42 | 24.65 tasks/hr |
+| **Pi 0.80.6** | 7 / 14 · 8 / 14 · 18 / 42 | **34.98 tasks/hr** |
+
+- **The old `</parameter>` command-tail pollution is fixed:** across 3,123 real tool
+  executions, no execution argument contained a closing tag fragment (the reason the
+  engine is pinned to `v0.23.0` / #11505).
+- **The link is fast and not saturated at conc 32:** 0 waiting requests, KV-cache peak
+  14.6 %, 16-card AICore avg/p95 17.2 % / 34 %, vLLM 0 error / abort / preemption — so
+  32 is a validated lower bound, not a capacity ceiling.
+- **Residual parser risk remains on complex chains:** OpenCode mis-parsed raw tool XML as
+  text/reasoning in **10 / 70** trials; Pi merged adjacent tool boundaries in **2 / 70**.
+  The verdict is therefore **usable for POC, not yet claimed production-stable**, and Pi
+  is the stronger of the two agents on this model.
