@@ -36,6 +36,14 @@ If your use case requires `Knative` functionality, which enables advanced featur
 You can download the app named 'Alauda AI' and 'Knative Operator' from the Marketplace on the Customer Portal website.
 :::
 
+## Prerequisites
+
+Install the following dependent components on the target cluster before installing Alauda AI. They provide the authentication, metadata storage, and cache services required by [Model as a Service (MaaS)](../maas/intro.mdx):
+
+- **Authorino Operator**
+- **PostgreSQL**
+- **Alauda Cache Service for Redis OSS**
+
 ## Uploading \{#uploading}
 
 We need to upload both `Alauda AI` and `Knative Operator` to the cluster where Alauda AI is to be used.

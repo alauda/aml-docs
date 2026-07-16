@@ -1,0 +1,31 @@
+---
+weight: 10
+---
+
+# Introduction
+
+Model as a Service (MaaS) provides a managed model-serving gateway for Alauda AI. It gives administrators a central place to publish models, manage access, configure token quotas, and monitor usage, while application developers call subscribed models through API keys.
+
+MaaS is based on **Alauda Build of Envoy Gateway** and **Alauda Build of Envoy AI Gateway**. Envoy Gateway provides the Kubernetes Gateway API data-plane foundation, while Envoy AI Gateway adds model-aware routing and OpenAI-compatible inference traffic handling. MaaS uses **Authorino** for authentication.
+
+## Model Sources
+
+MaaS can publish inference services created with **llm-d**. An `LLMInferenceService` can be added to MaaS as a managed model and then referenced by subscriptions.
+
+Administrators can also connect external model services. These external services are managed as model sources in MaaS and can be referenced by subscriptions in the same way as platform-hosted models.
+
+## Administrator Experience
+
+In the **Administrator** view, MaaS provides a dedicated management entry. Administrators can create subscriptions and control which users are allowed to use them.
+
+Each subscription can bind multiple models. For every model in a subscription, administrators can configure multiple token limits with different time ranges, allowing quota policies such as short-term burst limits and longer-term monthly limits.
+
+The MaaS management view also provides traffic dashboards for subscriptions. Administrators can inspect metrics such as request count, token usage, and response latency.
+
+MaaS provides usage reports. Administrators can view how much each user consumed by day or by month.
+
+## User Experience
+
+Users access MaaS through **My Subscriptions**. In each subscription assigned to them, users can create, revoke, and delete API keys.
+
+Users can also view their own usage, including request and token consumption, so they can track how their applications consume subscribed model services.
