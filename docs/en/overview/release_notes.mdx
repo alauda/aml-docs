@@ -18,12 +18,12 @@ Administrators can bind multiple models to each subscription, configure token li
 **AI 2.7.0** does not support upgrade from AI 2.6.x or earlier versions. Existing environment migration is outside the scope of this Fast release and requires a later LTS release with a dedicated upgrade guide.
 
 
-Fixed Issues
+### Fixed Issues
 
 - When injecting SecurityContext into the inference service Pod, KServe interferes with the configuration of the sidecar injected by Knative Serving, causing the Pod to fail to run due to configuration conflicts.
 - Since model-catalog-ui prioritizes the "email" as the username when extracting a username from a token, if the user's email does not match their username, it may extract an incorrect username, which affects the relevant permission checks.
 
-Known Issues
+### Known Issues
 
 - When using VictoriaMetrics for monitoring data collection of inference services operating in Serverless mode, there is a known issue where the inference services cannot scale down to zero.
 - Because the name of the WorkspaceKind resource in a Workbench chart includes ".Release.Revision", when the chart is deployed multiple times, multiple instances of the same WorkspaceKind resource may be deployed due to the incrementing of ".Release.Revision".
