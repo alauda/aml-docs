@@ -1,71 +1,31 @@
 # Release Notes
 
-## AI 2.6.0
+## AI 2.7.0
 
 ### **New and Optimized Features**
 
-#### **Single-Cluster Application Architecture**
+#### **Model as a Service (MaaS)**
 
-**Alauda AI** is changed to a single-cluster application deployment model. The former `aml-global` component is no longer delivered, and the Alauda AI product entry is configured from **Administrator** > **Platform Settings** > **Platform Parameters** > **Integrated Product Configuration**.
+This release adds **Model as a Service (MaaS)**, a managed model-serving gateway based on Alauda Build of Envoy Gateway and Alauda Build of Envoy AI Gateway. MaaS uses Authorino for authentication and lets administrators publish `LLMInferenceService` inference services and external model services through subscriptions.
 
-This release is a Fast release and supports only fresh installation. Upgrade from earlier Alauda AI versions is not supported in this release.
+Administrators can bind multiple models to each subscription, configure token limits for different time ranges, assign subscriptions to specified users, and view subscription traffic dashboards and usage reports. Users can access **My Subscriptions** to create, revoke, and delete API keys and view their own usage.
 
-#### **Header and Navigation Simplification**
-
-**Header and navigation** are simplified for the new single-cluster experience. The logo and product name are provided by the platform solution configuration. Project and cluster switching are removed, and users switch only the active namespace in the Alauda AI console.
-
-Maintenance status, license status, and the help entry are no longer displayed in the header. Language package configuration is moved to backend solution configuration.
-
-#### **Authentication Integration**
-
-**Authentication** is integrated with `oauth2-proxy` for login and logout flows. Alauda AI also supports configuring an independent OIDC provider and an independent access entry.
-
-#### **Namespace Management**
-
-**Namespace management** is enhanced in the administration view. Administrators can create namespaces from Alauda AI, import existing namespaces, and add members to a namespace as owners, editors, or viewers.
-
-Namespace owners can manage namespace settings from **User View**, except for resource quota settings.
-
-#### **Namespace Permission Model**
-
-**Namespace-scoped user permissions** replace the former platform roles `aml-namespace-editor`, `owner`, and `viewer`. Configure namespace members and their owner, editor, or viewer permissions from namespace member management instead of relying on the old platform roles.
-
-#### **Monitoring**
-
-**Monitoring** data on the overview page is provided by backend integration with Prometheus. Alauda AI also introduces Perses-based monitoring dashboards.
-
-#### **NPU Operator Integration**
-
-**Alauda Build of NPU Operator** is upgraded to v1.2.4 and can be deployed and managed by the AML Operator. This release adds adaptation for Ascend 910B and immutable OS environments.
-
-### **Deprecated Features**
-
-The former platform roles `aml-namespace-editor`, `owner`, and `viewer` are deprecated and are no longer used by the Alauda AI permission model.
 
 ### **Breaking Changes**
 
 #### **Fresh Installation Only**
 
-**AI 2.6.0** does not support upgrade from AI 2.5.x or earlier versions. Existing environment migration is outside the scope of this Fast release and requires a later LTS release with a dedicated upgrade guide.
+**AI 2.7.0** does not support upgrade from AI 2.6.x or earlier versions. Existing environment migration is outside the scope of this Fast release and requires a later LTS release with a dedicated upgrade guide.
 
-#### **Product Entry Configuration**
-
-**`aml-global` is removed**. Register the Alauda AI product entry through **Administrator** > **Platform Settings** > **Platform Parameters** > **Integrated Product Configuration**.
-
-#### **Navigation Changes**
-
-**Project and cluster switching** are removed from the header. Use namespace switching to change the working context.
-
-#### **Permission Model Changes**
-
-**The old platform roles** `aml-namespace-editor`, `owner`, and `viewer` no longer apply. Configure user permissions from namespace user permission management.
-
-#### **Logout Flow Changes**
-
-**Login and logout** are handled through `oauth2-proxy`. The login page appearance may differ from earlier versions.
 
 Fixed Issues
-{/* release-notes-for-bugs?template=fixed&project=AI */}
+
+- When injecting SecurityContext into the inference service Pod, KServe interferes with the configuration of the sidecar injected by Knative Serving, causing the Pod to fail to run due to configuration conflicts.
+- Since model-catalog-ui prioritizes the "email" as the username when extracting a username from a token, if the user's email does not match their username, it may extract an incorrect username, which affects the relevant permission checks.
 
 Known Issues
-{/* release-notes-for-bugs?template=unfixed&project=AI */}
+
+- When using VictoriaMetrics for monitoring data collection of inference services operating in Serverless mode, there is a known issue where the inference services cannot scale down to zero.
+- Because the name of the WorkspaceKind resource in a Workbench chart includes ".Release.Revision", when the chart is deployed multiple times, multiple instances of the same WorkspaceKind resource may be deployed due to the incrementing of ".Release.Revision".
+- Because the HAMi scheduler component shares the same image as kube-scheduler, it may incorrectly identify the kube-scheduler image registry in the imported cluster, failing to pull the image and thus causing startup failures.
+
