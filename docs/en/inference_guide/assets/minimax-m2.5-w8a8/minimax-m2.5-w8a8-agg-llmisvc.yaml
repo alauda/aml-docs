@@ -1,0 +1,459 @@
+# MiniMax-M2.5 (W8A8) — plain `agg` aggregation on Alauda AI's InferNex surface:
+# KServe `LLMInferenceService` + InferNex-Bridge + hermes-router, DP2 × TP=8 across
+# TWO nodes (16 cards). This is the EXACT shape deployed and benchmarked on
+# 2 × 8 × Ascend 910B3 (64 GB/card).
+#
+# MiniMax-M2.5 is the `minimax_m2` architecture (`MiniMaxM2ForCausalLM`): a 256-expert
+# MoE (8 experts/token, NO shared expert) with 62 layers of **full attention** (GQA
+# 48/8 heads, head_dim 128 — NOT a hybrid-KV / sliding-window model) and a native MTP
+# head, served here as W8A8 (`W8A8_DYNAMIC`, QuaRot int8 attn+expert, no KV quant;
+# ~230 GB weights, 71 shards, 62 layers). 230B total / ~10B activated per token. At
+# ~230 GB the weights fit a single 8 × 64 GB node, but this variant runs a single
+# aggregated service spanning TWO 64 GB nodes as **DP2 × TP=8 + EP16** — apples-to-apples
+# with the DeepSeek-V4-Flash 16-card topology, and DP2 roughly doubles prefill throughput
+# on the prefill-heavy benchmark. ~230 GB / 16 ≈ 14.4 GB/card leaves ~40 GB/card for KV +
+# activations. It is a SINGLE service with replicas=1: the two DP ranks are the leader
+# (rank 0) and worker (rank 1) of one LeaderWorkerSet, NOT two independent replicas.
+#
+# >>> This is a PLAIN aggregation (`agg`): NO mooncake KV store and NO speculative
+# >>> decoding. That is the DELIBERATE PRODUCTION CONFIG for this model, not a first cut:
+# >>>   • MiniMax-M2.5 is "fast" (only ~10B activated + full attention + W8A8), so BOTH
+# >>>     acceleration layers backfire and were measured out:
+# >>>       - eagle3 speculative decoding: net LOSS at batch (S1 conc32 decode 377 vs
+# >>>         baseline 631 tok/s) AND a real 27k-prefill agent request returns HTTP 500
+# >>>         (baseline serves the same request with 0 error). The model's built-in MTP
+# >>>         head is unusable — the QuaRot weights ship no MTP tensors (only up to layer 61).
+# >>>       - mooncake KV store: net LOSS even with a fully-warmed store (~91% merged
+# >>>         prefix hit). MiniMax prefill is so fast that re-fetching KV over the network
+# >>>         is >= recomputing it locally, so TTFT rises and throughput is flat/down. The
+# >>>         opposite of DeepSeek, where slow prefill makes the store a clear win.
+# >>>   • What IS a net win — and all this config keeps — is the FULL_DECODE_ONLY decode
+# >>>     graph plus the engine's LOCAL prefix cache (~62.6% hit on the real agent trace).
+#
+# Model source: ModelScope `Eco-Tech/MiniMax-M2.5-w8a8-QuaRot` (71 shards, ~230 GB),
+# also repackaged as an Alauda ModelCar in OCI Image Layout format (multi-arch amd64+arm64):
+#   http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/MiniMax-M2.5-w8a8-QuaRot.oci.tar
+# The benchmark itself staged the weights on a **node-local PV/PVC per node** (this file),
+# which is what the manifest below mounts. The OCI ModelCar is the cross-environment
+# distribution path: import it into your own registry once, then point model.uri at
+# oci://… — see the page and the ALT note near model.uri below. NOTE: this ModelCar is
+# >200 GB, so an `oci://` storageInitializer pull needs extra ephemeral space handling
+# (disable the storageInitializer and extract to tmpfs) — the node-local PV/PVC path
+# below is the validated one.
+#
+# Router = hermes-router (EPP) with the `random` picker and cache-indexer OFF: a single
+# aggregated endpoint needs no global KV index / KV-cache-aware routing — this matches the
+# GLM-5.2 / Qwen3-32B aggregation paradigm (router stays random, no indexer). Here the
+# mooncake store is ALSO disabled (see the config decision above).
+#
+# Engine params (from vLLM-Ascend's `MiniMax-M2.md` §5.1 A2 + the QuaRot test config,
+# adapted to DP2 × TP=8): `--quantization ascend` + `--trust-remote-code` +
+# `--enable-expert-parallel` + `--tool-call-parser minimax_m2` + `--reasoning-parser
+# minimax_m2` (one parser covers both agent structured reasoning AND aiperf timing on
+# v0.23.0) + `--compilation-config FULL_DECODE_ONLY` + `--async-scheduling` +
+# `--gpu-memory-utilization 0.85` (official value; long ctx, do not max out) +
+# `--max-num-batched-tokens 16384` + `--max-num-seqs 32` + `--max-model-len 196608`;
+# env `VLLM_ASCEND_ENABLE_FLASHCOMM1=1`.
+#   ⚠️ Do NOT set `enable_fused_mc2`: the vendor guide marks it "A3-recommended, not
+#   applicable to A2", and 910B3 is an A2-class part.
+#
+# Image: quay.io/ascend/vllm-ascend:v0.23.0-openeuler (vLLM 0.23.0, the release-pinned
+# `nightly-releases-v0.23.0-openeuler` build). Chosen over the older nightly-main-0709
+# snapshot because the v0.23.0 release branch carries vLLM #11505 — streaming tool-call
+# arguments are held until the closing `</parameter>` so no trailing-tag fragment is
+# spliced into a command argument (validated over 3,123 tool executions, 0 tail pollution).
+# The tradeoff: a small decode regression vs 0709 (decode throughput -3…11% / ITL +5…18%,
+# growing with concurrency; TTFT flat or better). Match the tag's CANN version to your
+# host NPU driver; both nodes must have the image locally.
+#
+# Ingress: benchmarked through the product **MaaS gateway** (OpenAI-compatible, API-key
+# auth, Envoy AI Gateway v0.6.0 OpenAI→OpenAI passthrough) as well as the internal KServe
+# ingress — see the page for both curl forms.
+#
+# Before applying: set the namespace `demo`, stage the ~230 GB weights on a node-local
+# directory on BOTH nodes and pin the two hostPath PVs to those node hostnames (replace
+# <node-0> / <node-1> and the weights path below), and make sure both nodes can pull the
+# engine + hermes-router images (air-gapped nodes need them pre-loaded).
+# =============================================================================
+---
+# Weights are staged on each node's LOCAL disk (~230 GB per node) and exposed to the
+# engine as a `pvc://` mount via a hostPath PV+PVC pinned to that node — this is the
+# validated path (no 230 GB storageInitializer pull). Leader reads the node-0 copy.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: minimax-n0
+  labels: { model: minimax-m25-w8a8, node: "node-0" }
+spec:
+  capacity: { storage: 300Gi }
+  accessModes: [ReadOnlyMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  hostPath: { path: /home/minimax-m25-w8a8, type: Directory }   # <— node-local weights dir
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - { key: kubernetes.io/hostname, operator: In, values: ["<node-0>"] }
+---
+# Worker reads the node-1 copy (byte-identical to node-0).
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: minimax-n1
+  labels: { model: minimax-m25-w8a8, node: "node-1" }
+spec:
+  capacity: { storage: 300Gi }
+  accessModes: [ReadOnlyMany]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  hostPath: { path: /home/minimax-m25-w8a8, type: Directory }   # <— node-local weights dir
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - { key: kubernetes.io/hostname, operator: In, values: ["<node-1>"] }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minimax-n0
+  namespace: demo
+spec:
+  accessModes: [ReadOnlyMany]
+  storageClassName: ""
+  volumeName: minimax-n0
+  resources: { requests: { storage: 300Gi } }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minimax-n1
+  namespace: demo
+spec:
+  accessModes: [ReadOnlyMany]
+  storageClassName: ""
+  volumeName: minimax-n1
+  resources: { requests: { storage: 300Gi } }
+---
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceService
+metadata:
+  name: minimax-m25-w8a8-agg
+  namespace: demo
+  labels:
+    infernex.io/runtime: "true"          # triggers InferNex-Bridge reconcile
+  annotations:
+    # agg (baseline): mooncake is disabled together with cache-indexer/pd-orchestrator/
+    # eagle-eye. A single aggregated endpoint needs no cross-rank KV store, no global KV
+    # index and no KV-cache-aware routing — matches the qwen3-32b-agg-base / GLM paradigm
+    # (random routing, no indexer). The store is out on purpose (see the header).
+    infernex.io/disabled-components: "mooncake,cache-indexer,pd-orchestrator,eagle-eye"
+spec:
+  model:
+    name: minimax-m2.5-w8a8            # == --served-model-name == MaaS modelName == client -m
+    # Weights are the node-local copies exposed by the hostPath PV+PVC above, mounted at
+    # /mnt/models; the storageInitializer is OFF (weights are already on-node). `uri` is a
+    # required CRD placeholder here.
+    #   ALT (cross-environment): import the OCI ModelCar tar into your own registry once —
+    #     skopeo copy --all \
+    #       oci-archive:MiniMax-M2.5-w8a8-QuaRot.oci.tar:v0.1.0 \
+    #       docker://<your-registry>/modelcar-minimax-m2.5-w8a8-quarot:v0.1.0
+    #   then set `uri: oci://<your-registry>/modelcar-minimax-m2.5-w8a8-quarot:v0.1.0`.
+    #   Because this ModelCar is >200 GB, keep `storageInitializer.enabled: false` and add
+    #   an init container that extracts the pulled layout to tmpfs (a plain storageInitializer
+    #   pull needs ~2× the weight size in ephemeral disk).
+    uri: pvc://minimax-n0/
+  replicas: 1                          # ONE aggregated service (leader + worker below) = 16 cards
+  parallelism:
+    data: 2                            # DP2 across the two nodes
+    dataLocal: 1                       # 1 DP rank per node
+  storageInitializer:
+    enabled: false                     # weights already staged on-node (pvc:// hostPath)
+  # ===== router: hermes-router (EPP), random-picker. DP2 has one leader endpoint, so
+  #       random is effectively a no-op, but the structure is kept for consistency. =====
+  router:
+    gateway: {}
+    route: {}
+    scheduler:
+      pool:
+        spec:
+          endpointPickerRef:
+            failureMode: FailOpen
+            group: ""
+            kind: Service
+            name: minimax-m25-w8a8-agg-epp-service
+            port:
+              number: 9002
+          selector:
+            matchLabels:
+              app.kubernetes.io/name: minimax-m25-w8a8-agg
+              app.kubernetes.io/part-of: llminferenceservice
+              kserve.io/component: workload
+              leaderworkerset.sigs.k8s.io/worker-index: "0"   # target the DP leader (rank 0)
+          targetPorts:
+          - number: 8000
+      template:
+        containers:
+        - args:
+          - --pool-name
+          - minimax-m25-w8a8-agg-inference-pool
+          - --pool-namespace
+          - demo
+          - --pool-group
+          - inference.networking.k8s.io
+          - --zap-encoder
+          - json
+          - --v
+          - "1"
+          - --tracing
+          - "false"
+          - --metrics-endpoint-auth
+          - "false"
+          - --config-text
+          - |-
+            apiVersion: inference.networking.x-k8s.io/v1alpha1
+            kind: EndpointPickerConfig
+            plugins:
+            - type: metrics-data-source
+              parameters: { scheme: "http", path: "/metrics", insecureSkipVerify: true }
+            - type: core-metrics-extractor
+            - type: random-picker
+            schedulingProfiles:
+            - name: default
+              plugins:
+              - pluginRef: random-picker
+          image: build-harbor.alauda.cn/3rdparty/openfuyao/hermes-router:26.6.0-rc.3
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            grpc: { port: 9003, service: liveness }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: main
+          ports:
+          - { containerPort: 9002, name: grpc, protocol: TCP }
+          - { containerPort: 9003, name: grpc-health, protocol: TCP }
+          - { containerPort: 9090, name: metrics, protocol: TCP }
+          readinessProbe:
+            failureThreshold: 3
+            grpc: { port: 9003, service: readiness }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            limits: { memory: 4Gi }
+            requests: { cpu: "1", memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile: { type: RuntimeDefault }
+          startupProbe:
+            failureThreshold: 30
+            grpc: { port: 9003, service: liveness }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+          - { mountPath: /etc/ssl/certs, name: tls-certs, readOnly: true }
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        serviceAccountName: minimax-m25-w8a8-agg-epp-sa
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: tls-certs
+          secret:
+            secretName: '{{ ChildName .ObjectMeta.Name `-kserve-self-signed-certs` }}'
+  # ===== leader (DP rank 0, node 0, mounts the node-0 weights PVC) =====
+  template:
+    containers:
+    - args:
+      - |
+        set +e   # a fresh-start getent lookup can transiently fail; set -e would crash bash immediately
+        source /usr/local/Ascend/ascend-toolkit/set_env.sh 2>/dev/null || true
+        source /usr/local/Ascend/nnal/atb/set_env.sh 2>/dev/null || true
+        for _i in $(seq 1 60); do DP_ADDR=$(getent hosts "${LWS_LEADER_ADDRESS}" 2>/dev/null | awk '{print $1}' | head -1); [ -n "${DP_ADDR:-}" ] && break; echo "[minimax] waiting LWS_LEADER_ADDRESS dns ($_i)"; sleep 2; done
+        DP_ADDR=${DP_ADDR:-${LWS_LEADER_ADDRESS}}
+        echo "[minimax-leader] HCCL_IF_IP=${HCCL_IF_IP} DP_ADDR=${DP_ADDR} devices=$(ls /dev/davinci* 2>/dev/null | tr '\n' ' ')"
+        exec vllm serve /mnt/models \
+          --host 0.0.0.0 --port 8000 \
+          --served-model-name minimax-m2.5-w8a8 \
+          --seed 1024 \
+          --trust-remote-code \
+          --api-server-count 1 \
+          --data-parallel-size 2 \
+          --data-parallel-size-local 1 \
+          --data-parallel-address ${DP_ADDR} \
+          --data-parallel-rpc-port 13389 \
+          --tensor-parallel-size 8 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --enable-auto-tool-choice \
+          --tool-call-parser minimax_m2 \
+          --reasoning-parser minimax_m2 \
+          --max-model-len 196608 \
+          --max-num-batched-tokens 16384 \
+          --max-num-seqs 32 \
+          --gpu-memory-utilization 0.85 \
+          --model-loader-extra-config '{"enable_multithread_load":"true","num_threads":128}' \
+          --async-scheduling \
+          --compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY"}' \
+          --additional-config '{"enable_cpu_binding":true}'
+      command: ["/bin/bash", "-c"]
+      env:
+      - { name: HOME, value: /home }
+      - { name: VLLM_LOGGING_LEVEL, value: INFO }
+      - { name: HF_HUB_OFFLINE, value: "1" }
+      - { name: HCCL_OP_EXPANSION_MODE, value: AIV }
+      - { name: HCCL_BUFFSIZE, value: "512" }
+      - { name: VLLM_ASCEND_ENABLE_FLASHCOMM1, value: "1" }   # vendor minimax default; TP comm optimization (Reduce-Scatter + All-Gather)
+      - name: HCCL_IF_IP
+        valueFrom: { fieldRef: { fieldPath: status.podIP } }
+      - { name: GLOO_SOCKET_IFNAME, value: eth0 }
+      - { name: TP_SOCKET_IFNAME, value: eth0 }
+      - { name: HCCL_SOCKET_IFNAME, value: eth0 }
+      - { name: VLLM_RPC_TIMEOUT, value: "360000" }
+      - { name: VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS, value: "3000" }
+      - { name: HCCL_EXEC_TIMEOUT, value: "200" }
+      - { name: HCCL_CONNECT_TIMEOUT, value: "120" }
+      - { name: OMP_PROC_BIND, value: "false" }
+      - { name: OMP_NUM_THREADS, value: "1" }
+      - { name: PYTORCH_NPU_ALLOC_CONF, value: expandable_segments:True }
+      - { name: ACL_OP_INIT_MODE, value: "1" }
+      - { name: TASK_QUEUE_ENABLE, value: "1" }
+      - { name: CPU_AFFINITY_CONF, value: "1" }
+      - { name: VLLM_ENGINE_READY_TIMEOUT_S, value: "1200" }
+      - { name: HCCL_INTRA_ROCE_ENABLE, value: "1" }   # cross-pod EP all-to-all over NIC RoCE (DP2 × TP8 EP16, cross-node)
+      image: quay.io/ascend/vllm-ascend:v0.23.0-openeuler
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        failureThreshold: 8
+        httpGet: { path: /health, port: http }
+        periodSeconds: 15
+        timeoutSeconds: 10
+      name: main
+      ports:
+      - { containerPort: 8000, name: http, protocol: TCP }
+      readinessProbe:
+        failureThreshold: 3
+        httpGet: { path: /health, port: http }
+        periodSeconds: 10
+      resources:
+        limits: { cpu: "48", huawei.com/Ascend910: "8", memory: 480Gi }
+        requests: { cpu: "16", huawei.com/Ascend910: "8", memory: 96Gi }
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsGroup: 0
+        runAsNonRoot: false
+        runAsUser: 0
+        seccompProfile: { type: RuntimeDefault }
+      startupProbe:
+        failureThreshold: 160     # ~230 GB from a node-local mount + cross-node handshake + first graph compile: budget ~80 min
+        httpGet: { path: /health, port: http }
+        periodSeconds: 30
+      volumeMounts:
+      - { mountPath: /mnt/models, name: model, readOnly: true }
+      - { mountPath: /dev/shm, name: shm }
+    hostIPC: true
+    tolerations:
+    - operator: Exists
+    volumes:
+    - name: model
+      persistentVolumeClaim: { claimName: minimax-n0 }   # node-0 weights (leader)
+    - name: shm
+      emptyDir: { medium: Memory, sizeLimit: 32Gi }
+  # ===== worker (DP rank 1, node 1, mounts the node-1 weights PVC) =====
+  worker:
+    containers:
+    - args:
+      - |
+        set +e
+        source /usr/local/Ascend/ascend-toolkit/set_env.sh 2>/dev/null || true
+        source /usr/local/Ascend/nnal/atb/set_env.sh 2>/dev/null || true
+        for _i in $(seq 1 60); do DP_ADDR=$(getent hosts "${LWS_LEADER_ADDRESS}" 2>/dev/null | awk '{print $1}' | head -1); [ -n "${DP_ADDR:-}" ] && break; echo "[minimax] waiting LWS_LEADER_ADDRESS dns ($_i)"; sleep 2; done
+        DP_ADDR=${DP_ADDR:-${LWS_LEADER_ADDRESS}}
+        echo "[minimax-worker] HCCL_IF_IP=${HCCL_IF_IP} DP_ADDR=${DP_ADDR} devices=$(ls /dev/davinci* 2>/dev/null | tr '\n' ' ')"
+        exec vllm serve /mnt/models \
+          --host 0.0.0.0 --port 8000 \
+          --headless \
+          --served-model-name minimax-m2.5-w8a8 \
+          --seed 1024 \
+          --trust-remote-code \
+          --data-parallel-size 2 \
+          --data-parallel-size-local 1 \
+          --data-parallel-start-rank 1 \
+          --data-parallel-address ${DP_ADDR} \
+          --data-parallel-rpc-port 13389 \
+          --tensor-parallel-size 8 \
+          --enable-expert-parallel \
+          --quantization ascend \
+          --enable-auto-tool-choice \
+          --tool-call-parser minimax_m2 \
+          --reasoning-parser minimax_m2 \
+          --max-model-len 196608 \
+          --max-num-batched-tokens 16384 \
+          --max-num-seqs 32 \
+          --gpu-memory-utilization 0.85 \
+          --model-loader-extra-config '{"enable_multithread_load":"true","num_threads":128}' \
+          --async-scheduling \
+          --compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY"}' \
+          --additional-config '{"enable_cpu_binding":true}'
+      command: ["/bin/bash", "-c"]
+      env:
+      - { name: HOME, value: /home }
+      - { name: VLLM_LOGGING_LEVEL, value: INFO }
+      - { name: HF_HUB_OFFLINE, value: "1" }
+      - { name: HCCL_OP_EXPANSION_MODE, value: AIV }
+      - { name: HCCL_BUFFSIZE, value: "512" }
+      - { name: VLLM_ASCEND_ENABLE_FLASHCOMM1, value: "1" }
+      - name: HCCL_IF_IP
+        valueFrom: { fieldRef: { fieldPath: status.podIP } }
+      - { name: GLOO_SOCKET_IFNAME, value: eth0 }
+      - { name: TP_SOCKET_IFNAME, value: eth0 }
+      - { name: HCCL_SOCKET_IFNAME, value: eth0 }
+      - { name: VLLM_RPC_TIMEOUT, value: "360000" }
+      - { name: VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS, value: "3000" }
+      - { name: HCCL_EXEC_TIMEOUT, value: "200" }
+      - { name: HCCL_CONNECT_TIMEOUT, value: "120" }
+      - { name: OMP_PROC_BIND, value: "false" }
+      - { name: OMP_NUM_THREADS, value: "1" }
+      - { name: PYTORCH_NPU_ALLOC_CONF, value: expandable_segments:True }
+      - { name: ACL_OP_INIT_MODE, value: "1" }
+      - { name: TASK_QUEUE_ENABLE, value: "1" }
+      - { name: CPU_AFFINITY_CONF, value: "1" }
+      - { name: VLLM_ENGINE_READY_TIMEOUT_S, value: "1200" }
+      - { name: HCCL_INTRA_ROCE_ENABLE, value: "1" }
+      image: quay.io/ascend/vllm-ascend:v0.23.0-openeuler
+      imagePullPolicy: IfNotPresent
+      livenessProbe:
+        exec: { command: ["bash", "-c", "pgrep -f 'vllm serve' >/dev/null"] }
+        failureThreshold: 6
+        periodSeconds: 30
+        timeoutSeconds: 10
+      name: main
+      ports:
+      - { containerPort: 13389, name: dp-rpc, protocol: TCP }
+      resources:
+        limits: { cpu: "48", huawei.com/Ascend910: "8", memory: 480Gi }
+        requests: { cpu: "16", huawei.com/Ascend910: "8", memory: 96Gi }
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsGroup: 0
+        runAsNonRoot: false
+        runAsUser: 0
+        seccompProfile: { type: RuntimeDefault }
+      startupProbe:
+        exec: { command: ["bash", "-c", "pgrep -f 'vllm serve' >/dev/null"] }
+        failureThreshold: 160
+        periodSeconds: 30
+      volumeMounts:
+      - { mountPath: /mnt/models, name: model, readOnly: true }
+      - { mountPath: /dev/shm, name: shm }
+    hostIPC: true
+    tolerations:
+    - operator: Exists
+    volumes:
+    - name: model
+      persistentVolumeClaim: { claimName: minimax-n1 }   # node-1 weights (worker)
+    - name: shm
+      emptyDir: { medium: Memory, sizeLimit: 32Gi }
