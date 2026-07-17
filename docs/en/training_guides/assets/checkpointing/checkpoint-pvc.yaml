@@ -1,0 +1,28 @@
+# Durable checkpoint storage for a TrainJob.
+#
+# Access mode:
+#   numNodes: 1   -> ReadWriteOnce is enough. A network-attached RWO volume
+#                    (Ceph RBD, EBS, ...) detaches from the old node and
+#                    re-attaches wherever the restarted pod lands, so a resume
+#                    on a different node works. RWO means "one node at a time",
+#                    not "one node forever".
+#   numNodes: > 1 -> ReadWriteMany is required: every trainer pod mounts this
+#                    PVC at the same time. Use CephFS / NFS / any RWX class.
+#
+# Do NOT use a hostPath or a local-storage class for checkpoints: a pod that
+# restarts onto another node will silently start from scratch.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: train-ckpt
+  namespace: <your-namespace>
+spec:
+  # Edit to your cluster's class. `kubectl get storageclass` to list them.
+  # For numNodes > 1 this must be an RWX-capable class.
+  storageClassName: ceph-rbd
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      # Size for: (checkpoint size x save_total_limit) + headroom.
+      # A full-weight 7B checkpoint with optimizer state is ~80Gi *each*.
+      storage: 20Gi
