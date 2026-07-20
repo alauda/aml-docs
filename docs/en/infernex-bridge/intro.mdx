@@ -9,10 +9,12 @@ weight: 10
 **Alauda Build of InferNex Bridge** is based on the [openFuyao InferNex](https://gitcode.com/openFuyao/InferNex) project.
 InferNex Bridge connects KServe `LLMInferenceService` workloads with the InferNex inference acceleration stack, and also provides native `InferNexService` APIs for environments that do not use KServe.
 
-The operator installs the InferNex Bridge controller, admission webhooks, RBAC, and the following custom resources:
+The operator installs the InferNex Bridge controller, admission webhooks, RBAC, and the following primary product APIs:
 
 - **InferNexService**: A managed LLM inference service that can deploy inference engines, Hermes Router, Mooncake KV cache, cache-indexer, PD-Orchestrator, Eagle-Eye, and related resources.
 - **InferNexServiceConfig**: A reusable configuration template referenced by `InferNexService` through `spec.baseRefs`.
+
+The OLM bundle also installs the `Tidal`, `ElasticScaler`, and `ResourceScalingGroup` CRDs used by the managed elastic orchestration components.
 
 ## Deployment Modes
 
@@ -40,7 +42,7 @@ Create an `InferNexService` that references one or more `InferNexServiceConfig` 
 - **Mooncake KV cache**: Deploy Mooncake KV cache and cache-indexer components for KV cache reuse and coordination.
 - **Intelligent gateway routing**: Integrate Hermes Router and Gateway API resources for model-aware request routing.
 - **Elastic orchestration**: Use PD-Orchestrator components such as Elastic-Scaler, Tidal, and ResourceScalingGroup when the inference engine replica fields are left for the scaler to manage.
-- **Hardware observability**: Integrate Eagle-Eye hardware monitor and diagnosis components when the required observability dependencies are installed.
+- **Optional hardware observability**: Enable Eagle-Eye hardware monitoring, hardware diagnosis, and network performance collection after NATS and the required monitoring dependencies are ready. EagleEye is disabled by default in the Alauda OLM templates and does not affect the core inference path when disabled.
 
 For installation on the platform, see [Install InferNex Bridge](./install).
 
