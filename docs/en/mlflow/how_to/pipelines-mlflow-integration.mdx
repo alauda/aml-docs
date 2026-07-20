@@ -9,9 +9,9 @@ This guide shows how Kubeflow Pipelines (KFP) components log parameters, metrics
 ## Scope
 
 - Alauda AI 2.5 and later.
-- Kubeflow Pipelines and **MLflow Operator v3.13.0** are installed, and an `MLflow` custom resource is running.
+- Kubeflow Pipelines and the **MLflow Operator** are installed, and an `MLflow` custom resource is running.
 - The MLflow workspace is a namespace labelled `mlflow-enabled=true`.
-- For the bearer-token method, keep the v3.13.0 default `spec.auth.oauth.skipJwtBearerTokens: true` — see [Verify the token method](./mlflow-python-sdk.mdx#platform-setup) in the SDK guide. No global-auth change is needed, and the cookie method needs no setup at all.
+- For the bearer-token method, keep the default `spec.auth.oauth.skipJwtBearerTokens: true` — see [Verify the token method](./mlflow-python-sdk.mdx#platform-setup) in the SDK guide. No global-auth change is needed, and the cookie method needs no setup at all.
 
 ## Prerequisites
 
@@ -172,7 +172,7 @@ Each metric belongs to a `mlflow.start_run()` block. If a component has multiple
 
 ### Artifact storage for production
 
-Logging model artifacts requires durable object storage. MLflow Operator v3.13.0 supports proxied S3-compatible storage, so pipeline components can upload through the tracking server without receiving S3 credentials. Configure `artifacts.s3` before logging artifacts or registering models (see [MLflow installation → High availability and storage](../install.mdx#storage)).
+Proxied S3-compatible storage lets pipeline components upload through the tracking server without receiving S3 credentials. Configure `artifacts.s3` before logging artifacts or registering models (see [MLflow installation → High availability and storage](../install.mdx#storage)).
 
 ## Troubleshooting
 

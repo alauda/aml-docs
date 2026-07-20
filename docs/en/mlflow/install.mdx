@@ -4,7 +4,7 @@ weight: 20
 
 # Installation
 
-MLflow v3.13.0 is delivered as an **OLM Operator** (the *MLflow Operator*) and installed from the platform **OperatorHub**. Installing the tracking server is a two-step flow: install the operator, then create one `MLflow` custom resource that reconciles the tracking-server stack.
+MLflow is delivered as an **OLM Operator** (the *MLflow Operator*) and installed from the platform **OperatorHub**. Installing the tracking server is a two-step flow: install the operator, then create one `MLflow` custom resource that reconciles the tracking-server stack.
 
 ## Prerequisites
 
@@ -17,7 +17,7 @@ MLflow v3.13.0 is delivered as an **OLM Operator** (the *MLflow Operator*) and i
   ```
 
   Use a highly available PostgreSQL service for production (see [High availability and storage](#storage)).
-- **For production artifact storage, an existing S3-compatible bucket** in SeaweedFS, MinIO, Ceph RGW, or AWS S3. The v3.13.0 operator can proxy artifact access so clients do not need object-storage credentials. The in-pod filesystem default is suitable only for smoke tests.
+- **For production artifact storage, an existing S3-compatible bucket** in SeaweedFS, MinIO, Ceph RGW, or AWS S3. The operator can proxy artifact access so clients do not need object-storage credentials. The in-pod filesystem default is suitable only for smoke tests.
 - The platform **OAuth / OIDC provider** (provided by Alauda AI) — the OAuth proxy in front of the tracking server uses it for single sign-on.
 - **For multi-tenancy, the default workspace namespace must already exist and carry the label `mlflow-enabled=true` _before_ the tracking server first starts.** Otherwise the server crash-loops with `Workspace '<name>' not found in the Kubernetes cluster`.
 
@@ -153,7 +153,7 @@ Then open **Alauda AI → Tools → MLFlow**. The run owner and visible workspac
 ## High availability and storage \{#storage}
 
 - **Database.** MLflow stores all experiment/run/registry metadata in the external PostgreSQL you configured. Use a highly available PostgreSQL service for production; the tracking server itself is stateless with respect to metadata.
-- **Artifacts.** The default `artifacts.defaultArtifactRoot: /mlflow/artifacts` is an `emptyDir` local to the tracking-server pod. It is not durable, and external clients cannot use the server-local path reliably. For production, enable `artifacts.s3` before users log artifacts or register models. With the default `proxied: true`, the tracking server stores the S3 credentials and clients upload through the authenticated MLflow endpoint.
+- **Artifacts.** The default `artifacts.defaultArtifactRoot: /mlflow/artifacts` is an `emptyDir` local to the tracking-server pod. It is not durable, and external clients cannot use the server-local path reliably. Starting with v3.13.0, enable `artifacts.s3` for production before users log artifacts or register models. With the default `proxied: true`, the tracking server stores the S3 credentials and clients upload through the authenticated MLflow endpoint.
 - **Replicas.** The default deployment is single-replica. It is not a multi-replica high-availability deployment unless your release notes state otherwise.
 
 Create the referenced credentials Secret in the tracking-server namespace before applying the `MLflow` resource:
@@ -168,13 +168,13 @@ The bucket must already exist. Leave `endpointUrl` empty for AWS S3. For S3-comp
 
 ## Bearer-token clients \{#bearer-tokens}
 
-MLflow Operator v3.13.0 enables `spec.auth.oauth.skipJwtBearerTokens: true` by default, allowing the **MLflow Python SDK** to authenticate with a Dex **id token** through `MLFLOW_TRACKING_TOKEN`. If an existing installation overrides the OAuth settings, verify that this field remains enabled. See [Verify the token method](./how_to/mlflow-python-sdk.mdx#platform-setup) in the SDK guide. The browser session-cookie method also remains available.
+Starting with v3.13.0, the operator enables `spec.auth.oauth.skipJwtBearerTokens: true` by default, allowing the **MLflow Python SDK** to authenticate with a Dex **id token** through `MLFLOW_TRACKING_TOKEN`. If an existing installation overrides the OAuth settings, verify that this field remains enabled. See [Verify the token method](./how_to/mlflow-python-sdk.mdx#platform-setup) in the SDK guide. The browser session-cookie method also remains available.
 
-## Upgrade from v3.10.x
+## Upgrade from v3.10.x to v3.13.0
 
-MLflow Operator v3.13.0 supports upgrading from the v3.10.x operator line through the `stable` OLM channel. Before approving the upgrade, back up the PostgreSQL backend database and the S3 artifact bucket. The MLflow 3.10 to 3.13 backend-store schema migration runs automatically when the tracking server starts.
+The `stable` OLM channel supports this upgrade. Before approving it, back up the PostgreSQL backend database and the S3 artifact bucket. The backend-store schema migration runs automatically when the tracking server starts.
 
-After the upgrade, keep `spec.auth.kubernetes.authorizationMode: user_identity_token` and `spec.auth.oauth.skipJwtBearerTokens: true`. These are the v3.13.0 defaults and preserve the documented Dex bearer-token flow.
+After the upgrade, keep `spec.auth.kubernetes.authorizationMode: user_identity_token` and `spec.auth.oauth.skipJwtBearerTokens: true`. These defaults preserve the documented Dex bearer-token flow.
 
 ## Troubleshooting
 

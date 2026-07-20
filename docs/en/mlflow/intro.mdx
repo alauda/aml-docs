@@ -6,8 +6,6 @@ weight: 10
 
 The **MLflow Operator** deploys and manages a multi-tenant **MLflow Tracking Server** on Alauda AI. Built on open-source [MLflow](https://mlflow.org), it gives data-science and ML teams a shared experiment-tracking and model-registry service that is integrated with the platform's single sign-on and Kubernetes RBAC — so each team only sees and manages its own runs, experiments, and registered models.
 
-This documentation describes **MLflow Operator v3.13.0**, which includes the MLflow 3.13.0 application, `mlflow-integration` 1.4.0, and S3-compatible artifact storage.
-
 MLflow is delivered as an **OLM Helm-based operator**. Installing the operator from the platform **OperatorHub** and creating a single `MLflow` custom resource stands up the tracking server, exposes it through the platform ingress, and adds an **MLFlow** entry to the **Alauda AI → Tools** menu.
 
 ## What it deploys

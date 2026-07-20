@@ -4,7 +4,7 @@ weight: 15
 
 # Install Workbench
 
-Workbench v0.2.0 is delivered as an **OLM Helm operator**. Install the operator from **OperatorHub**, then create a `Workbench` custom resource that deploys and manages `workspace-controller` and the built-in JupyterLab and code-server `WorkspaceKind` resources.
+Starting with v0.2.0, Workbench is delivered as an **OLM Helm operator**. Install the operator from **OperatorHub**, then create a `Workbench` custom resource that deploys and manages `workspace-controller` and the built-in JupyterLab and code-server `WorkspaceKind` resources.
 
 ## Prerequisites
 
@@ -12,11 +12,11 @@ Workbench v0.2.0 is delivered as an **OLM Helm operator**. Install the operator 
 - Operator Lifecycle Manager (OLM) is available through the platform.
 - cert-manager is installed for the workspace-controller webhook certificate.
 - The separate `aml-skipper` component is installed for Workbench routing.
-- **Optional:** ASM (Istio) is required only for the Elyra Kubeflow Pipelines run-URL redirect. Workbench v0.2.0 disables Istio integration by default and can install without Istio CRDs.
+- **Optional:** ASM (Istio) is required only for the Elyra Kubeflow Pipelines run-URL redirect. Istio integration is disabled by default, so Workbench can install without Istio CRDs.
 
 ## Upload the operator
 
-Download the **Alauda AI Workbench Operator v0.2.0** bundle from the <Term name="company" /> Customer Portal / Marketplace. If it is not already available in OperatorHub, publish the downloaded bundle to the platform repository:
+Download the **Alauda AI Workbench Operator** bundle from the <Term name="company" /> Customer Portal / Marketplace. If it is not already available in OperatorHub, publish the downloaded bundle to the platform repository:
 
 ```bash
 violet push \

@@ -4,9 +4,9 @@ weight: 16
 
 # Upgrade
 
-## Migrating from the Workbench Cluster Plugin to v0.2.0
+## Migrating from the Workbench Cluster Plugin
 
-Workbench v0.2.0 changes its delivery form from a Cluster Plugin to an OLM Helm operator. There is **no in-place upgrade** between these forms.
+Starting with v0.2.0, Workbench is delivered as an OLM Helm operator instead of a Cluster Plugin. There is **no in-place upgrade** between these forms.
 
 1. Back up the existing Workbench resources:
 
@@ -15,10 +15,10 @@ Workbench v0.2.0 changes its delivery form from a Cluster Plugin to an OLM Helm 
    ```
 
 2. In **Administrator** > **Marketplace** > **Cluster Plugins**, uninstall the earlier **Workbench** cluster plugin. Preserve user PVCs, retained `WorkspaceKind` resources, and the `aml-workbench-config` `ConfigMap`; the operator adopts or reapplies these resources.
-3. Install **Alauda AI Workbench Operator v0.2.0** and create a `Workbench` custom resource as described in [Install Workbench](../installation/workbench.mdx).
+3. Install the **Alauda AI Workbench Operator** and create a `Workbench` custom resource as described in [Install Workbench](../installation/workbench.mdx).
 4. Verify the existing Workspaces and their PVCs are still present, then create and connect to a test Workbench.
 
-If the previous installation relied on the Elyra KFP run-URL redirect, set `spec.global.istio.enabled: true` in the `Workbench` custom resource. In v0.2.0, Istio integration is optional and disabled by default.
+If the previous installation relied on the Elyra KFP run-URL redirect, set `spec.global.istio.enabled: true` in the `Workbench` custom resource. Istio integration is optional and disabled by default.
 
 ## Migrating from Kubeflow Notebook
 
