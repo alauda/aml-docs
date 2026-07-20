@@ -10,13 +10,14 @@ MLflow is delivered as an **OLM Operator** (the *MLflow Operator*) and installed
 
 - **Alauda AI** installed on the target cluster. The operator and its images ship both `linux/amd64` and `linux/arm64`.
 - Operator Lifecycle Manager (OLM) available on the target cluster (provided by the platform).
-- **A PostgreSQL database** reachable from the cluster, holding a database named `mlflow` for MLflow metadata. Have the host, port, username, and password ready, and create the database before you install:
+- **A PostgreSQL 12 or later database** reachable from the cluster, holding a database named `mlflow` for MLflow metadata. Have the host, port, username, and password ready, and create the database before you install:
 
   ```sql
   CREATE DATABASE mlflow;
   ```
 
   Use a highly available PostgreSQL service for production (see [High availability and storage](#storage)).
+- **For production artifact storage, an existing S3-compatible bucket** in SeaweedFS, MinIO, Ceph RGW, or AWS S3. The operator can proxy artifact access so clients do not need object-storage credentials. The in-pod filesystem default is suitable only for smoke tests.
 - The platform **OAuth / OIDC provider** (provided by Alauda AI) — the OAuth proxy in front of the tracking server uses it for single sign-on.
 - **For multi-tenancy, the default workspace namespace must already exist and carry the label `mlflow-enabled=true` _before_ the tracking server first starts.** Otherwise the server crash-loops with `Workspace '<name>' not found in the Kubernetes cluster`.
 
@@ -49,7 +50,7 @@ In the **Administrator** view:
 2. At the top of the console, from the **Cluster** dropdown, select the destination cluster.
 3. Search for and select **MLflow Operator**, then click **Install**.
 4. Leave **Channel** unchanged (`stable`).
-5. Check that the **Version** matches the release you want to install (e.g. `v3.10.2`).
+5. Check that the **Version** is `v3.13.0`.
 6. Leave **Installation Location** unchanged — it defaults to the `mlflow-operator` namespace.
 7. Choose an **Upgrade Strategy** (`Manual` is recommended for production).
 8. Click **Install**.
@@ -101,6 +102,16 @@ spec:
   # Run-artifact location (see High availability and storage below).
   artifacts:
     defaultArtifactRoot: /mlflow/artifacts
+    # Recommended for production. The bucket and Secret must already exist.
+    s3:
+      enabled: true
+      endpointUrl: https://object-storage.example.com
+      bucket: mlflow
+      prefix: production
+      existingSecret: mlflow-s3-credentials
+      accessKeyIdKey: AWS_ACCESS_KEY_ID
+      secretAccessKeyKey: AWS_SECRET_ACCESS_KEY
+      proxied: true
 ```
 
 Save as `mlflow.yaml` and apply:
@@ -119,7 +130,7 @@ On current versions the operator resolves cluster-specific values — the ingres
 2. From the **Cluster** dropdown at the top, select the target cluster.
 3. Open the installed **MLflow Operator**.
 4. Switch to the **All instances** tab and click **Create** (choose **MLflow** if prompted).
-5. Fill in the form, or switch to **YAML** view and paste the manifest from Method A. Set the PostgreSQL connection and, for multi-tenancy, the `defaultWorkspace` and label selector.
+5. Fill in the form, or switch to **YAML** view and paste the manifest from Method A. Set the PostgreSQL connection, the multi-tenancy workspace fields, and the S3 artifact-storage fields for production.
 6. Click **Create**.
 
 ## Verification
@@ -142,17 +153,34 @@ Then open **Alauda AI → Tools → MLFlow**. The run owner and visible workspac
 ## High availability and storage \{#storage}
 
 - **Database.** MLflow stores all experiment/run/registry metadata in the external PostgreSQL you configured. Use a highly available PostgreSQL service for production; the tracking server itself is stateless with respect to metadata.
-- **Artifacts.** The default `artifacts.defaultArtifactRoot: /mlflow/artifacts` is **local to the tracking-server pod** (an `emptyDir`) and is intended for development and testing only — it is not durable, and clients that upload large artifacts can hit pod disk limits. For production, configure an S3-compatible object store as the artifact root before users store experiment artifacts.
+- **Artifacts.** The default `artifacts.defaultArtifactRoot: /mlflow/artifacts` is an `emptyDir` local to the tracking-server pod. It is not durable, and external clients cannot use the server-local path reliably. Starting with v3.13.0, enable `artifacts.s3` for production before users log artifacts or register models. With the default `proxied: true`, the tracking server stores the S3 credentials and clients upload through the authenticated MLflow endpoint.
 - **Replicas.** The default deployment is single-replica. It is not a multi-replica high-availability deployment unless your release notes state otherwise.
 
-## Enable bearer-token clients (optional) \{#bearer-tokens}
+Create the referenced credentials Secret in the tracking-server namespace before applying the `MLflow` resource:
 
-By default the OAuth proxy accepts the browser session cookie. To let the **MLflow Python SDK** authenticate with a Dex **id token** (`MLFLOW_TRACKING_TOKEN`), the proxy must be configured to accept JWT bearer tokens (`--skip-jwt-bearer-tokens` / `OAUTH2_PROXY_SKIP_JWT_BEARER_TOKENS=true`). See [Platform setup for the token method](./how_to/mlflow-python-sdk.mdx#platform-setup) in the SDK guide. The cookie method needs no change.
+```bash
+kubectl -n kubeflow create secret generic mlflow-s3-credentials \
+  --from-literal=AWS_ACCESS_KEY_ID='<access-key>' \
+  --from-literal=AWS_SECRET_ACCESS_KEY='<secret-key>'
+```
+
+The bucket must already exist. Leave `endpointUrl` empty for AWS S3. For S3-compatible services, set it to the service endpoint. You can also set `region`, `ignoreTls`, and `prefix` under `artifacts.s3` when required.
+
+## Bearer-token clients \{#bearer-tokens}
+
+Starting with v3.13.0, the operator enables `spec.auth.oauth.skipJwtBearerTokens: true` by default, allowing the **MLflow Python SDK** to authenticate with a Dex **id token** through `MLFLOW_TRACKING_TOKEN`. If an existing installation overrides the OAuth settings, verify that this field remains enabled. See [Verify the token method](./how_to/mlflow-python-sdk.mdx#platform-setup) in the SDK guide. The browser session-cookie method also remains available.
+
+## Upgrade from v3.10.x to v3.13.0
+
+The `stable` OLM channel supports this upgrade. Before approving it, back up the PostgreSQL backend database and the S3 artifact bucket. The backend-store schema migration runs automatically when the tracking server starts.
+
+After the upgrade, keep `spec.auth.kubernetes.authorizationMode: user_identity_token` and `spec.auth.oauth.skipJwtBearerTokens: true`. These defaults preserve the documented Dex bearer-token flow.
 
 ## Troubleshooting
 
 - If the **MLFlow** Tools-menu entry is missing, verify that the `aml-mlflow-menu-config` `ConfigMap` exists in the tracking-server namespace and has the label `aml.cpaas.io/centralMenuItem: "true"`.
 - If the server does not start and the pod logs `Workspace '<name>' not found`, the `defaultWorkspace` namespace does not exist or is not labelled `mlflow-enabled=true`. Create and label it, then restart the pod.
 - If the server does not start for another reason, verify PostgreSQL connectivity, that the `mlflow` database exists, and that the credentials in `spec.pg*` are correct.
+- If artifact uploads or model registration fail, verify that `artifacts.s3.enabled` is `true`, the bucket exists, and the referenced credentials Secret and key names are correct.
 - If a workspace is not visible, verify that its namespace matches the configured `workspaceLabelSelector`.
 - If requests are denied (`403 PERMISSION_DENIED`), check the user's Kubernetes `RoleBinding` in the workspace namespace — see [Workspaces and access control](./how_to/workspaces.mdx).

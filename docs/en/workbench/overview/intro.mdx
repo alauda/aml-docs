@@ -8,6 +8,8 @@ weight: 10
 
 Workbench manages web IDE instances like Jupyter Notebooks, code-server, or RStudio. AI/ML developers and data scientists can use cluster resources (like GPUs) and connect to in-cluster services to create general ML jobs and pipelines.
 
+Workbench is installed as an **OLM Helm operator**. A `Workbench` custom resource (`workbench.alauda.io/v1alpha1`) deploys and manages `workspace-controller` and the built-in IDE templates.
+
 Workbench uses "Kubeflow Notebook 2.0" as its backend to create cloud IDE containers. If you are familiar with "Kubeflow Notebook", it's easy to start using Workbench.
 
 Some key features include:

@@ -4,17 +4,84 @@ weight: 15
 
 # Install Workbench
 
+Starting with v0.2.0, Workbench is delivered as an **OLM Helm operator**. Install the operator from **OperatorHub**, then create a `Workbench` custom resource that deploys and manages `workspace-controller` and the built-in JupyterLab and code-server `WorkspaceKind` resources.
+
 ## Prerequisites
 
-Before installing Workbench, make sure ASM (Istio) is deployed in the business cluster where Workbench will run. Workbench creates an Istio `EnvoyFilter` for Elyra and Kubeflow Pipelines run URL redirection, so the Istio CRDs must exist before the Workbench cluster plugin is installed.
+- Alauda AI is installed on the target cluster.
+- Operator Lifecycle Manager (OLM) is available through the platform.
+- cert-manager is installed for the workspace-controller webhook certificate.
+- The separate `aml-skipper` component is installed for Workbench routing.
+- **Optional:** ASM (Istio) is required only for the Elyra Kubeflow Pipelines run-URL redirect. Istio integration is disabled by default, so Workbench can install without Istio CRDs.
 
-## Installing Alauda AI Workbench Cluster Plugin
+## Upload the operator
+
+Download the **Alauda AI Workbench Operator** bundle from the <Term name="company" /> Customer Portal / Marketplace. If it is not already available in OperatorHub, publish the downloaded bundle to the platform repository:
+
+```bash
+violet push \
+  --platform-address=<platform-access-address> \
+  --platform-username=<platform-admin> \
+  --platform-password=<platform-admin-password> \
+  <workbench-operator-bundle-package>
+```
+
+## Install the Workbench operator
 
 ### Procedure
 
 1. Go to the **Administrator** page.
-2. Click **Marketplace** > **Cluster Plugins** to enter the **Cluster Plugins** list page.
-3. Find the **Workbench** cluster plugin, click **Install**, and navigate to the **Workbench Plugin Install** page.
+2. Click **Marketplace** > **OperatorHub**.
+3. From the **Cluster** dropdown, select the business cluster where Workbench will run.
+4. Find **Alauda AI Workbench Operator** and click **Install**.
+5. Keep the `stable` channel and verify that the version is `v0.2.0`.
+6. Leave the installation location at its default and choose an upgrade strategy.
+7. Click **Install** and wait for the ClusterServiceVersion (CSV) status to become `Succeeded`.
+
+## Create a Workbench instance
+
+The operator does not deploy `workspace-controller` until you create a `Workbench` custom resource.
+
+1. Open the installed **Alauda AI Workbench Operator**.
+2. Select the **All instances** tab and click **Create**.
+3. Keep **Enable Istio integration** disabled unless the cluster runs ASM and you need Elyra-generated KFP run URLs to redirect through the Kubeflow Istio ingress gateway.
+4. Click **Create**.
+
+You can create the same resource with `kubectl`:
+
+```yaml
+apiVersion: workbench.alauda.io/v1alpha1
+kind: Workbench
+metadata:
+  name: workbench
+spec:
+  global:
+    istio:
+      enabled: false
+```
+
+Save the manifest as `workbench.yaml`, then apply it:
+
+```bash
+kubectl apply -f workbench.yaml
+```
+
+The operator reads the cluster name, ingress class, and image registry from the `kube-public/global-info` `ConfigMap`. You normally do not need to set those values in the `Workbench` resource.
+
+## Verification
+
+```bash
+# The Workbench custom resource exists.
+kubectl get workbench -A
+
+# The workspace-controller operand is available.
+kubectl -n kubeflow get deploy workspace-controller-controller-manager
+
+# Built-in IDE templates are registered.
+kubectl get workspacekind
+```
+
+After the deployment is ready, confirm that **Workbench** appears in Alauda AI and that you can open the Workbench list.
 
 ## Feature Gate Configuration
 
@@ -28,4 +95,3 @@ Access the feature gates at `{platform-access-address}/console-platform/feature-
 
 1. Find the gate list with the display name of your target which is `ai-workbench`.
 2. Turn On the switch button of it.
-

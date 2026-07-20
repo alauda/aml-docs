@@ -9,9 +9,9 @@ This guide shows how Kubeflow Pipelines (KFP) components log parameters, metrics
 ## Scope
 
 - Alauda AI 2.5 and later.
-- Kubeflow Pipelines and the MLflow cluster plugin are installed.
+- Kubeflow Pipelines and the **MLflow Operator** are installed, and an `MLflow` custom resource is running.
 - The MLflow workspace is a namespace labelled `mlflow-enabled=true`.
-- For the bearer-token method, the MLflow OAuth proxy must accept Dex id tokens (`--skip-jwt-bearer-tokens`) — see [Platform setup](./mlflow-python-sdk.mdx#platform-setup) in the SDK guide. No global-auth change is needed, and the cookie method needs no setup at all.
+- For the bearer-token method, keep the default `spec.auth.oauth.skipJwtBearerTokens: true` — see [Verify the token method](./mlflow-python-sdk.mdx#platform-setup) in the SDK guide. No global-auth change is needed, and the cookie method needs no setup at all.
 
 ## Prerequisites
 
@@ -38,7 +38,7 @@ from kfp import dsl, compiler
 from kfp import kubernetes
 
 
-@dsl.component(base_image="python:3.11-slim", packages_to_install=["mlflow>=3.10"])
+@dsl.component(base_image="python:3.11-slim", packages_to_install=["mlflow==3.13.0"])
 def train_model(
     workspace: str,
     model_name: str,
@@ -172,13 +172,13 @@ Each metric belongs to a `mlflow.start_run()` block. If a component has multiple
 
 ### Artifact storage for production
 
-Logging large model artifacts requires durable object storage. Configure S3-compatible storage in the MLflow settings (see [MLflow installation → High availability and storage](../install.mdx#storage)) so artifact uploads do not hit pod disk limits.
+Proxied S3-compatible storage lets pipeline components upload through the tracking server without receiving S3 credentials. Configure `artifacts.s3` before logging artifacts or registering models (see [MLflow installation → High availability and storage](../install.mdx#storage)).
 
 ## Troubleshooting
 
 | Symptom | Check |
 |---------|-------|
-| Component fails with an HTML/redirect (`302`) response | The OAuth proxy rejected the token. Confirm the proxy has `--skip-jwt-bearer-tokens` and `MLFLOW_TRACKING_TOKEN` is a valid Dex id token (see the [SDK guide](./mlflow-python-sdk.mdx)). |
+| Component fails with an HTML/redirect (`302`) response | The OAuth proxy rejected the token. Confirm `spec.auth.oauth.skipJwtBearerTokens` is `true` and `MLFLOW_TRACKING_TOKEN` is a valid Dex id token (see the [SDK guide](./mlflow-python-sdk.mdx)). |
 | `401 UNAUTHENTICATED` | `MLFLOW_TRACKING_TOKEN` is unset, empty, or expired — refresh the `mlflow-token` Secret. |
 | `403 PERMISSION_DENIED` | The token's user lacks access to the workspace namespace. Grant access to the MLflow workspace (see [Workspaces and access control](./workspaces.mdx)); no ServiceAccount is involved. |
 | Run shows up under the wrong owner / workspace | The owner is the token's identity; the workspace is `set_workspace()` (else the server default). Check both. |
