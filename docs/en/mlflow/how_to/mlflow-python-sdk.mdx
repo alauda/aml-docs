@@ -8,7 +8,7 @@ On Alauda AI the [MLflow Tracking Server](../intro.mdx) runs behind single sign-
 
 There are two browser-free ways to present your identity; pick one:
 
-- **Bearer token (recommended).** Obtain a Dex **id token** from the CLI or Python and pass it as `MLFLOW_TRACKING_TOKEN`; renew it with the refresh token. Needs one platform setting ([below](#platform-setup)).
+- **Bearer token (recommended).** Obtain a Dex **id token** from the CLI or Python and pass it as `MLFLOW_TRACKING_TOKEN`; renew it with the refresh token. MLflow Operator v3.13.0 enables this method by default ([verify the setting below](#platform-setup)).
 - **Session cookie (no platform changes).** Drive the proxy's own login to obtain its `_oauth2_proxy` cookie and attach it to requests. Works on any install as-is ([below](#cookie-method)).
 
 ## How authentication works
@@ -22,23 +22,24 @@ The client always goes through the OAuth proxy — never connect to the MLflow c
 
 ## Prerequisites
 
-- `mlflow` **3.10 or later** (`pip install "mlflow>=3.10"`). Workspace selection (`mlflow.set_workspace`) is a 3.10+ feature. The Python token helper also uses `requests` and `cryptography`.
+- `mlflow` **3.13.0** (`pip install "mlflow==3.13.0"`), matching the client version validated with MLflow Operator v3.13.0. Workspace selection (`mlflow.set_workspace`) is available in this release. The Python token helper also uses `requests` and `cryptography`.
 - A platform **username and password** that can access the target workspace (see [Workspaces and access control](./workspaces.mdx)). This is an ordinary platform login — **not** a Kubernetes ServiceAccount — and a normal user account works. For shared or automated use (pipelines, headless jobs), prefer a **dedicated, non-personal account** over an individual's login, since the credentials/token are stored in a `Secret` and every run is recorded under whoever you authenticate as.
 - The platform's **OAuth client id and secret** — the client the MLflow proxy uses (from your administrator). On Alauda this is the platform auth client, e.g. `alauda-auth`; its secret lives in a Kubernetes `Secret` (e.g. `cpaas-oidc-secret`).
 
-## Platform setup for the token method (administrator, one-time) \{#platform-setup}
+## Verify the token method (administrator) \{#platform-setup}
 
-The bearer-token method needs the MLflow OAuth proxy to accept Dex id tokens. Add `--skip-jwt-bearer-tokens=true` to the **MLflow plugin** — this is the MLflow proxy on the workload cluster, **not** the platform's global auth server:
+MLflow Operator v3.13.0 configures the workload-cluster OAuth proxy to accept Dex id tokens by default. Verify the `MLflow` custom resource keeps this setting enabled:
 
 ```yaml
-# MLflow plugin values
-auth:
-  oauth:
-    extraArgs:
-      - --skip-jwt-bearer-tokens=true
+apiVersion: mlflow.alauda.io/v1alpha1
+kind: MLflow
+spec:
+  auth:
+    oauth:
+      skipJwtBearerTokens: true
 ```
 
-No Dex or global-auth change is required: the login below uses the `authorization_code` grant the platform client already allows. The **cookie method** needs no setting at all — skip this section if you use it.
+This is the MLflow proxy on the workload cluster, **not** the platform's global auth server. No Dex or global-auth change is required: the login below uses the `authorization_code` grant the platform client already allows. If you upgraded from an older release or replaced the default OAuth configuration, restore `skipJwtBearerTokens: true`. The **cookie method** needs no setting at all.
 
 ## Get a token from the command line (browser-free) \{#get-a-token}
 
@@ -160,7 +161,7 @@ Promote the registered version to **Staging** or **Production** from the MLflow 
 
 ## Alternative: session cookie (no platform changes) \{#cookie-method}
 
-If you cannot enable `--skip-jwt-bearer-tokens`, drive the proxy's own login flow to obtain its `_oauth2_proxy` cookie and attach it to requests — this works on any install unchanged. The proxy starts the OAuth flow for you (its own PKCE and `redirect_uri`); you just replay that through the same scripted login and hand the code back to the proxy callback:
+If you cannot enable `spec.auth.oauth.skipJwtBearerTokens`, drive the proxy's own login flow to obtain its `_oauth2_proxy` cookie and attach it to requests — this works on any install unchanged. The proxy starts the OAuth flow for you (its own PKCE and `redirect_uri`); you just replay that through the same scripted login and hand the code back to the proxy callback:
 
 ```bash
 PLATFORM=https://<platform>; CLUSTER=<cluster>
@@ -211,8 +212,8 @@ You can also copy the `_oauth2_proxy` cookie from a browser session (DevTools �
 | `/dex/api/v1/authorize` returns `PKCE code_challenge is required` | The client enforces PKCE. Send `code_challenge` and `code_challenge_method=S256` (the helper does this). |
 | Local login returns a captcha challenge / `CaptchaError` | Too many recent failed logins triggered the retry-captcha. Wait, fix the credentials, then retry — a clean first login needs no captcha. |
 | `/dex/token` returns `invalid_grant` | The auth code or PKCE verifier is stale or reused. Re-run the flow from the start (`authorize` → login → token); codes are single-use. |
-| Call returns HTML or a redirect (`302` to the login page) | **Token method:** the proxy rejected the bearer token — confirm `--skip-jwt-bearer-tokens` is enabled and the token is a valid Dex id token (`aud` = the proxy's client). **Cookie method:** the `_oauth2_proxy` cookie is missing or expired. |
+| Call returns HTML or a redirect (`302` to the login page) | **Token method:** the proxy rejected the bearer token — confirm `spec.auth.oauth.skipJwtBearerTokens` is `true` and the token is a valid Dex id token (`aud` = the proxy's client). **Cookie method:** the `_oauth2_proxy` cookie is missing or expired. |
 | `Invalid … character(s) in header value: 'Bearer …\n'` | The token has trailing whitespace. Set `MLFLOW_TRACKING_TOKEN` to the `.strip()`-ed value. |
-| `Failed to query /api/3.0/mlflow/server-info`, often with `SSLCertVerificationError: self-signed certificate` | The proxy **rejected** your credential and returned a `302` to the login page; the SDK then follows that redirect to the platform's self-signed HTTPS endpoint and fails TLS. Fix the credential, not the TLS: for the **token method** confirm `--skip-jwt-bearer-tokens` is enabled and the token is valid; for the **cookie method** re-mint the cookie. Only if you *intentionally* use the external `https://<platform>/…` route, also set `MLFLOW_TRACKING_INSECURE_TLS=true` (or point `REQUESTS_CA_BUNDLE` at the platform CA). |
+| `Failed to query /api/3.0/mlflow/server-info`, often with `SSLCertVerificationError: self-signed certificate` | The proxy **rejected** your credential and returned a `302` to the login page; the SDK then follows that redirect to the platform's self-signed HTTPS endpoint and fails TLS. Fix the credential, not the TLS: for the **token method** confirm `spec.auth.oauth.skipJwtBearerTokens` is `true` and the token is valid; for the **cookie method** re-mint the cookie. Only if you *intentionally* use the external `https://<platform>/…` route, also set `MLFLOW_TRACKING_INSECURE_TLS=true` (or point `REQUESTS_CA_BUNDLE` at the platform CA). |
 | `403 PERMISSION_DENIED` | Your account lacks access to the workspace namespace. Request access to the workspace (see [Workspaces and access control](./workspaces.mdx)); no ServiceAccount is involved. |
 | Run shows the wrong owner or workspace | The owner is your authenticated identity; the workspace is `set_workspace()` / `MLFLOW_WORKSPACE` (else the server default). Check both. |
