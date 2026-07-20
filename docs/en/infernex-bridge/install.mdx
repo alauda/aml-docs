@@ -40,10 +40,38 @@ The Alauda Build of InferNex Bridge OLM bundle installs the two product APIs and
 
 The following CRDs are not installed by this OLM bundle. Install them separately according to the requirement shown below:
 
-| CRD                                         | When Required                                                     | How to Install                                                                                   |
-| ------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `leaderworkersets.leaderworkerset.x-k8s.io` | InferNex Bridge controller and multi-node inference workloads     | Install [Alauda Build of LeaderWorkerSet](../lws/install.mdx) before installing InferNex Bridge. |
-| `rolebasedgroups.workloads.x-k8s.io`        | ResourceScalingGroup targets that explicitly use `RoleBasedGroup` | Install the corresponding workload controller or platform package before using this target type. |
+| CRD                                         | Source Project                                             | When Required                                                     | How to Install                                                                                                                                   |
+| ------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `leaderworkersets.leaderworkerset.x-k8s.io` | [Alauda Build of LeaderWorkerSet](../lws/index.mdx)        | InferNex Bridge controller and multi-node inference workloads     | Follow the [LeaderWorkerSet installation guide](../lws/install.mdx) before installing InferNex Bridge.                                           |
+| `rolebasedgroups.workloads.x-k8s.io`        | [RoleBasedGroup (RBG)](https://github.com/sgl-project/rbg) | ResourceScalingGroup targets that explicitly use `RoleBasedGroup` | Install from the upstream [RBG v0.7.0 release manifest](https://raw.githubusercontent.com/sgl-project/rbg/v0.7.0/deploy/kubectl/manifests.yaml). |
+
+The `rolebasedgroups.workloads.x-k8s.io` CRD is provided by the upstream [RoleBasedGroup (RBG) project](https://github.com/sgl-project/rbg). It is a conditional dependency and is not required for Deployment or LeaderWorkerSet targets. To install the upstream RBG v0.7.0 controller and CRDs, use the versioned release manifest:
+
+```bash
+kubectl apply --server-side -f \
+  https://raw.githubusercontent.com/sgl-project/rbg/v0.7.0/deploy/kubectl/manifests.yaml
+
+kubectl wait deployment/rbgs-controller-manager \
+  --namespace rbgs-system \
+  --for=condition=Available \
+  --timeout=5m
+
+kubectl get crd rolebasedgroups.workloads.x-k8s.io \
+  -o jsonpath='{range .spec.versions[?(@.name=="v1alpha2")]}{.name}{" served="}{.served}{" storage="}{.storage}{"\n"}{end}'
+```
+
+The expected result is `v1alpha2 served=true storage=true`. The manifest uses
+`docker.io/rolebasedgroup/rbgs-controller:v0.7.0-888ade7`, which provides an
+arm64 image. For a disconnected cluster, mirror this image to a registry
+accessible from the cluster and update the manifest image reference before
+applying it.
+
+See the upstream [RBG releases](https://github.com/sgl-project/rbg/releases) when selecting a different version.
+
+Enabling the managed Tidal, ElasticScaler, or ResourceScalingGroup components
+deploys their controller workloads. Scaling policy resources such as `Tidal`
+and `ElasticScaler` must still be created separately by the user or platform
+workflow.
 
 ### Runtime Templates and Images
 
@@ -133,26 +161,33 @@ kubectl edit imagewhitelist -n cpaas-system infernex-bridge
 
 The workload specification may continue to show the community source image.
 The rewrite is successful only when the actual Pod `imageID` points to the
-target registry, for example:
+target registry. A package-owned component and the package-external runtime
+should resolve as follows:
 
 ```text
-<target-registry>/3rdparty/openfuyao/ascend/vllm-ascend@sha256:...
+cache-indexer=<target-registry>/3rdparty/openfuyao/cache-indexer@sha256:...
+main=<target-registry>/3rdparty/openfuyao/ascend/vllm-ascend@sha256:...
 ```
 
-Verify the imported image architecture and the runtime image ID:
+Verify the imported image architecture and inspect the workload image IDs:
 
 ```bash
 export TARGET_REGISTRY='<target-registry-host:port>'
 export INFERENCE_NAMESPACE='<inference-service-namespace>'
-export POD_NAME='<pod-name>'
 
 crane config --platform=linux/arm64 \
   "${TARGET_REGISTRY}/3rdparty/openfuyao/ascend/vllm-ascend:v0.18.0" |
   python3 -c 'import json, sys; data=json.load(sys.stdin); assert data.get("architecture") == "arm64", data; print("arm64 image verified")'
 
-kubectl get pod -n "${INFERENCE_NAMESPACE}" "${POD_NAME}" \
-  -o jsonpath='{range .status.containerStatuses[*]}{.name}{"="}{.imageID}{"\n"}{end}'
+kubectl get pods -n "${INFERENCE_NAMESPACE}" \
+  -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{range .status.initContainerStatuses[*]}  init:{.name}{"="}{.imageID}{"\n"}{end}{range .status.containerStatuses[*]}  {.name}{"="}{.imageID}{"\n"}{end}{end}'
 ```
+
+#### Prepare the Model
+
+Model artifacts are not included in the InferNex Bridge operator package. Use
+the Alauda AI model catalog to prepare a ModelCar when OCI model storage is
+selected. See [Model Storage](../model_inference/model_management/functions/model_storage.mdx).
 
 :::info
 The Alauda OLM bundle registers the InferNex Bridge admission webhook for the KServe `LLMInferenceService` API versions used by the release examples, including `serving.kserve.io/v1alpha2`. The webhook is used for admission-time compatibility patches when `infernex.io/runtime: "true"` is set on a KServe `LLMInferenceService`; it does not create or reconcile the `LLMInferenceService` resource itself.
@@ -209,7 +244,7 @@ Expected workloads include the EagleEye hardware diagnosis Deployment, hardware 
 
 ## Upload Operator \{#upload-operator}
 
-Download the arm64 installation package
+Obtain the arm64 installation package from your Alauda product delivery channel:
 `infernex-bridge.alpha.arm64.v26.6.0.tgz`.
 
 Use the `violet` command to publish it to the platform repository:
