@@ -55,228 +55,103 @@ The model-serving image `hub.oepkgs.net/openfuyao/ascend/vllm-ascend:v0.18.0` is
 
 #### Configure ImageWhiteList
 
-Before running the following commands, confirm that the operator package images have been synchronized to the target registry and that the external `vllm-ascend` image exists at:
-
-```text
-<target-registry>/3rdparty/openfuyao/ascend/vllm-ascend:v0.18.0
-```
-
 The platform creates an operator-managed `ImageWhiteList` when the InferNex Bridge package is uploaded. Do not create or delete this object manually. Operator-managed ImageWhiteList objects are reconciled by `olm-registry` and may be recreated after deletion.
 
-Set `TARGET_REGISTRY` to the registry used by the target cluster. If the generated object has a different name, find it with `kubectl get imagewhitelist -A` and change `IWL_NAME`.
+Before creating an inference service, verify that the generated object contains
+the required source image references and source-to-target rewrite rules. Keep
+unrelated entries that are already present.
 
-Copy the complete command block to back up the generated object and merge all required InferNex Bridge source-to-target mappings without removing unrelated rules:
+The following table shows the expected repository mappings. Each rule preserves
+the original image tag.
 
-```bash
-export TARGET_REGISTRY='<target-registry-host:port>'
-export IWL_NAMESPACE='cpaas-system'
-export IWL_NAME='infernex-bridge'
+| Source repository                                                  | Target repository under `<target-registry>`                 |
+| ------------------------------------------------------------------ | ----------------------------------------------------------- |
+| `cr.openfuyao.cn/openfuyao/cache-indexer`                          | `3rdparty/openfuyao/cache-indexer`                          |
+| `cr.openfuyao.cn/openfuyao/proxy-server`                           | `3rdparty/openfuyao/proxy-server`                           |
+| `cr.openfuyao.cn/openfuyao/hermes-router`                          | `3rdparty/openfuyao/hermes-router`                          |
+| `cr.openfuyao.cn/openfuyao/hermes-router-tokenizer`                | `3rdparty/openfuyao/hermes-router-tokenizer`                |
+| `cr.openfuyao.cn/openfuyao/hermes-router-prediction`               | `3rdparty/openfuyao/hermes-router-prediction`               |
+| `hub.oepkgs.net/openfuyao/redis`                                   | `3rdparty/openfuyao/redis`                                  |
+| `cr.openfuyao.cn/openfuyao/tidal`                                  | `3rdparty/openfuyao/tidal`                                  |
+| `cr.openfuyao.cn/openfuyao/resource-scaling-group`                 | `3rdparty/openfuyao/resource-scaling-group`                 |
+| `cr.openfuyao.cn/openfuyao/elastic-scaler`                         | `3rdparty/openfuyao/elastic-scaler`                         |
+| `cr.openfuyao.cn/openfuyao/eagle-eye-hardware-monitor`             | `3rdparty/openfuyao/eagle-eye-hardware-monitor`             |
+| `cr.openfuyao.cn/openfuyao/eagle-eye-hardware-diagnosis`           | `3rdparty/openfuyao/eagle-eye-hardware-diagnosis`           |
+| `cr.openfuyao.cn/openfuyao/eagle-eye-network-performance-exporter` | `3rdparty/openfuyao/eagle-eye-network-performance-exporter` |
+| `hub.oepkgs.net/openfuyao/alpine/kubectl`                          | `3rdparty/openfuyao/alpine/kubectl`                         |
+| `hub.oepkgs.net/openfuyao/ascend/vllm-ascend`                      | `3rdparty/openfuyao/ascend/vllm-ascend`                     |
 
-set -euo pipefail
-
-BACKUP_FILE="${PWD}/imagewhitelist-${IWL_NAME}-$(date +%Y%m%d%H%M%S).json"
-PATCH_FILE="$(mktemp)"
-
-kubectl get imagewhitelist -n "${IWL_NAMESPACE}" "${IWL_NAME}" -o json >"${BACKUP_FILE}" || {
-  echo "Generated ImageWhiteList ${IWL_NAMESPACE}/${IWL_NAME} was not found." >&2
-  echo "Available ImageWhiteList objects:" >&2
-  kubectl get imagewhitelist -A >&2
-  exit 1
-}
-
-CURRENT_FILE="$(mktemp)"
-kubectl get imagewhitelist -n "${IWL_NAMESPACE}" "${IWL_NAME}" -o json >"${CURRENT_FILE}"
-
-python3 - "${CURRENT_FILE}" "${PATCH_FILE}" "${TARGET_REGISTRY}" <<'PY'
-import json
-import re
-import sys
-
-backup_path, patch_path, target_registry = sys.argv[1:]
-target_registry = target_registry.rstrip("/")
-
-with open(backup_path) as f:
-    current = json.load(f)
-
-# source repository, target repository, release tag
-mappings = [
-    ("cr.openfuyao.cn/openfuyao/cache-indexer", "3rdparty/openfuyao/cache-indexer", "26.6.0"),
-    ("cr.openfuyao.cn/openfuyao/proxy-server", "3rdparty/openfuyao/proxy-server", "26.6.0"),
-    ("cr.openfuyao.cn/openfuyao/hermes-router", "3rdparty/openfuyao/hermes-router", "26.6.0"),
-    ("cr.openfuyao.cn/openfuyao/hermes-router-tokenizer", "3rdparty/openfuyao/hermes-router-tokenizer", "26.6.0"),
-    ("cr.openfuyao.cn/openfuyao/hermes-router-prediction", "3rdparty/openfuyao/hermes-router-prediction", "26.6.0"),
-    ("hub.oepkgs.net/openfuyao/redis", "3rdparty/openfuyao/redis", "8.6.1"),
-    ("cr.openfuyao.cn/openfuyao/tidal", "3rdparty/openfuyao/tidal", "26.6.0"),
-    ("cr.openfuyao.cn/openfuyao/resource-scaling-group", "3rdparty/openfuyao/resource-scaling-group", "26.6.0"),
-    ("cr.openfuyao.cn/openfuyao/elastic-scaler", "3rdparty/openfuyao/elastic-scaler", "26.6.0"),
-    ("cr.openfuyao.cn/openfuyao/eagle-eye-hardware-monitor", "3rdparty/openfuyao/eagle-eye-hardware-monitor", "26.6.0"),
-    ("cr.openfuyao.cn/openfuyao/eagle-eye-hardware-diagnosis", "3rdparty/openfuyao/eagle-eye-hardware-diagnosis", "26.6.0"),
-    ("cr.openfuyao.cn/openfuyao/eagle-eye-network-performance-exporter", "3rdparty/openfuyao/eagle-eye-network-performance-exporter", "26.6.0"),
-    ("hub.oepkgs.net/openfuyao/alpine/kubectl", "3rdparty/openfuyao/alpine/kubectl", "1.34.2"),
-    ("hub.oepkgs.net/openfuyao/ascend/vllm-ascend", "3rdparty/openfuyao/ascend/vllm-ascend", "v0.18.0"),
-]
-
-repo_list = list(current.get("spec", {}).get("repoList", []))
-rewrite_rules = list(current.get("spec", {}).get("rewriteRules", []))
-known_repos = set(repo_list)
-# Package relatedImages are already represented in the generated repoList.
-# Only the package-external runtime image must be added manually.
-external_source_refs = {
-    "hub.oepkgs.net/openfuyao/ascend/vllm-ascend:v0.18.0",
-}
-rule_indexes = {
-    rule.get("regexp"): index
-    for index, rule in enumerate(rewrite_rules)
-    if rule.get("regexp")
-}
-
-for source, target, tag in mappings:
-    source_ref = f"{source}:{tag}"
-    if source_ref in external_source_refs and source_ref not in known_repos:
-        repo_list.append(source_ref)
-        known_repos.add(source_ref)
-
-    regexp = f"^{re.escape(source)}:(.*)$"
-    rule = {
-        "regexp": regexp,
-        "replacement": f"{target_registry}/{target}:${{1}}",
-    }
-    if regexp in rule_indexes:
-        rewrite_rules[rule_indexes[regexp]] = rule
-    else:
-        rule_indexes[regexp] = len(rewrite_rules)
-        rewrite_rules.append(rule)
-
-with open(patch_path, "w") as f:
-    json.dump(
-        {"spec": {"repoList": repo_list, "rewriteRules": rewrite_rules}},
-        f,
-        separators=(",", ":"),
-    )
-PY
-
-kubectl patch imagewhitelist -n "${IWL_NAMESPACE}" "${IWL_NAME}" \
-  --type=merge --patch-file="${PATCH_FILE}"
-
-rm -f "${CURRENT_FILE}" "${PATCH_FILE}"
-echo "ImageWhiteList updated. Backup: ${BACKUP_FILE}"
-echo "Wait for the rules to propagate to cluster nodes before creating inference workloads."
-```
-
-The command preserves unrelated `repoList` and `rewriteRules` entries and updates an existing InferNex Bridge rule when `TARGET_REGISTRY` changes. The package-external `vllm-ascend` source reference is added explicitly because it is not part of the operator `relatedImages`.
-
-Do not add a custom BusyBox rewrite rule. For operator `relatedImages`, the platform `_default` rule handles the BusyBox short name and Docker Hub normalization. A custom `^busybox:` rule can override the platform rule and leave the Pod pointing to `docker.io/busybox`, which fails in an offline cluster.
-
-Wait for ImageWhiteList propagation, then verify one explicit InferNex Bridge rule and the platform BusyBox default rule with lightweight source-reference Pods. The test succeeds only when both actual runtime `imageID` values point to `TARGET_REGISTRY`:
-
-```bash
-export TARGET_REGISTRY='<target-registry-host:port>'
-export PROBE_NAMESPACE='infernex-image-rewrite-probe'
-export PROPAGATION_WAIT_SECONDS='30'
-
-set -euo pipefail
-trap 'kubectl delete namespace "${PROBE_NAMESPACE}" --ignore-not-found --wait=true >/dev/null 2>&1 || true' EXIT
-
-sleep "${PROPAGATION_WAIT_SECONDS}"
-kubectl delete namespace "${PROBE_NAMESPACE}" --ignore-not-found --wait=true >/dev/null 2>&1 || true
-kubectl create namespace "${PROBE_NAMESPACE}"
-
-kubectl run cache-indexer-source-probe -n "${PROBE_NAMESPACE}" \
-  --image=cr.openfuyao.cn/openfuyao/cache-indexer:26.6.0 \
-  --image-pull-policy=Always --restart=Never --command -- /bin/sh -c 'sleep 120'
-
-kubectl run busybox-source-probe -n "${PROBE_NAMESPACE}" \
-  --image=busybox:1.36.1 \
-  --image-pull-policy=Always --restart=Never --command -- /bin/sh -c 'sleep 120'
-
-for attempt in $(seq 1 60); do
-  CACHE_IMAGE_ID="$(kubectl get pod -n "${PROBE_NAMESPACE}" cache-indexer-source-probe \
-    -o jsonpath='{.status.containerStatuses[0].imageID}' 2>/dev/null || true)"
-  BUSYBOX_IMAGE_ID="$(kubectl get pod -n "${PROBE_NAMESPACE}" busybox-source-probe \
-    -o jsonpath='{.status.containerStatuses[0].imageID}' 2>/dev/null || true)"
-  if [[ "${CACHE_IMAGE_ID}" == *"${TARGET_REGISTRY}/"* && \
-        "${BUSYBOX_IMAGE_ID}" == *"${TARGET_REGISTRY}/"* ]]; then
-    break
-  fi
-  sleep 2
-done
-
-echo "cache-indexer imageID=${CACHE_IMAGE_ID}"
-echo "busybox imageID=${BUSYBOX_IMAGE_ID}"
-[[ "${CACHE_IMAGE_ID}" == *"${TARGET_REGISTRY}/"* ]]
-[[ "${BUSYBOX_IMAGE_ID}" == *"${TARGET_REGISTRY}/"* ]]
-
-kubectl delete namespace "${PROBE_NAMESPACE}" --wait=true
-echo "ImageWhiteList rewrite verification passed."
-```
-
-Verify that the external runtime image has an arm64 image configuration in the target registry before starting NPU tests:
-
-```bash
-export TARGET_REGISTRY='<target-registry-host:port>'
-export VLLM_IMAGE="${TARGET_REGISTRY}/3rdparty/openfuyao/ascend/vllm-ascend:v0.18.0"
-
-crane config --platform=linux/arm64 "${VLLM_IMAGE}" |
-  python3 -c 'import json, sys; config=json.load(sys.stdin); assert config.get("architecture") == "arm64", config; print("vllm-ascend arm64 image verified")'
-```
-
-#### Prepare the ModelCar Image
-
-ModelCar images are model artifacts used by the inference workload and are not
-included in the InferNex Bridge operator package. Copy the selected ModelCar to
-the target registry and verify that it can run on arm64 nodes:
-
-```bash
-export SOURCE_MODELCAR_IMAGE='<source-registry>/<project>/<modelcar>:<tag>'
-export TARGET_MODELCAR_IMAGE='<target-registry>/<project>/<modelcar>:<tag>'
-
-skopeo copy --all \
-  "docker://${SOURCE_MODELCAR_IMAGE}" \
-  "docker://${TARGET_MODELCAR_IMAGE}"
-
-crane config --platform=linux/arm64 "${TARGET_MODELCAR_IMAGE}" |
-  python3 -c 'import json, sys; config=json.load(sys.stdin); assert config.get("architecture") == "arm64", config; print("ModelCar arm64 image verified")'
-```
-
-Use the target image in the inference service model URI:
+The relevant part of the final object should look like this. The complete object
+contains additional package images and platform-managed entries.
 
 ```yaml
+apiVersion: app.alauda.io/v1alpha1
+kind: ImageWhiteList
+metadata:
+  name: infernex-bridge
+  namespace: cpaas-system
 spec:
-  model:
-    uri: oci://<target-registry>/<project>/<modelcar>:<tag>
+  repoList:
+    - cr.openfuyao.cn/openfuyao/cache-indexer:26.6.0
+    - hub.oepkgs.net/openfuyao/ascend/vllm-ascend:v0.18.0
+    - busybox:1.36.1
+    - docker.io/library/busybox:1.36.1
+  rewriteRules:
+    - regexp: ^cr\.openfuyao\.cn/openfuyao/cache\-indexer:(.*)$
+      replacement: <target-registry>/3rdparty/openfuyao/cache-indexer:${1}
+    - regexp: ^hub\.oepkgs\.net/openfuyao/ascend/vllm\-ascend:(.*)$
+      replacement: <target-registry>/3rdparty/openfuyao/ascend/vllm-ascend:${1}
 ```
 
-After the workload starts, verify the actual ModelCar container image ID. The
-name may be `modelcar`, `modelcar-init`, or `modelcar-copy`, depending on the
-deployment entry point:
+The `vllm-ascend` entry must be added explicitly because the image is not part
+of the operator `relatedImages`. Import the arm64 image into the target registry
+before creating inference workloads. For example:
 
 ```bash
-kubectl get pod -n <inference-service-namespace> <pod-name> -o json |
-  python3 -c 'import json, sys; pod=json.load(sys.stdin); statuses=pod.get("status", {}).get("initContainerStatuses", []) + pod.get("status", {}).get("containerStatuses", []); print("\n".join("{}={}".format(item["name"], item.get("imageID", "")) for item in statuses if "modelcar" in item["name"].lower()))'
+export TARGET_REGISTRY='<target-registry-host:port>'
+
+skopeo copy --all \
+  docker://hub.oepkgs.net/openfuyao/ascend/vllm-ascend:v0.18.0 \
+  "docker://${TARGET_REGISTRY}/3rdparty/openfuyao/ascend/vllm-ascend:v0.18.0"
 ```
 
-To roll back the mappings, restore the original `spec` from the backup path printed by the configuration command. Do not delete the operator-managed ImageWhiteList:
+For BusyBox, retain both `busybox:1.36.1` and
+`docker.io/library/busybox:1.36.1` in `repoList`, but do not add a custom
+BusyBox rewrite rule. The platform `_default` rule handles the short name and
+Docker Hub normalization.
+
+You can back up and edit the operator-managed object with these commands. If
+the object has a different name, locate it with
+`kubectl get imagewhitelist -A`.
 
 ```bash
-export IWL_NAMESPACE='cpaas-system'
-export IWL_NAME='infernex-bridge'
-export BACKUP_FILE='<path-printed-by-the-configuration-command>'
+kubectl get imagewhitelist -n cpaas-system infernex-bridge -o yaml \
+  > imagewhitelist-infernex-bridge-backup.yaml
 
-python3 - "${BACKUP_FILE}" > /tmp/infernex-imagewhitelist-restore.json <<'PY'
-import json
-import sys
+kubectl edit imagewhitelist -n cpaas-system infernex-bridge
+```
 
-with open(sys.argv[1]) as f:
-    original = json.load(f)
+The workload specification may continue to show the community source image.
+The rewrite is successful only when the actual Pod `imageID` points to the
+target registry, for example:
 
-print(json.dumps([
-    {"op": "replace", "path": "/spec", "value": original["spec"]},
-], separators=(",", ":")))
-PY
+```text
+<target-registry>/3rdparty/openfuyao/ascend/vllm-ascend@sha256:...
+```
 
-kubectl patch imagewhitelist -n "${IWL_NAMESPACE}" "${IWL_NAME}" \
-  --type=json --patch-file=/tmp/infernex-imagewhitelist-restore.json
-rm -f /tmp/infernex-imagewhitelist-restore.json
+Verify the imported image architecture and the runtime image ID:
+
+```bash
+export TARGET_REGISTRY='<target-registry-host:port>'
+export INFERENCE_NAMESPACE='<inference-service-namespace>'
+export POD_NAME='<pod-name>'
+
+crane config --platform=linux/arm64 \
+  "${TARGET_REGISTRY}/3rdparty/openfuyao/ascend/vllm-ascend:v0.18.0" |
+  python3 -c 'import json, sys; data=json.load(sys.stdin); assert data.get("architecture") == "arm64", data; print("arm64 image verified")'
+
+kubectl get pod -n "${INFERENCE_NAMESPACE}" "${POD_NAME}" \
+  -o jsonpath='{range .status.containerStatuses[*]}{.name}{"="}{.imageID}{"\n"}{end}'
 ```
 
 :::info
