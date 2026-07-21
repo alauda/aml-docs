@@ -1,0 +1,332 @@
+---
+weight: 20
+---
+
+# Install InferNex Bridge
+
+This guide covers **Alauda Build of InferNex Bridge v26.6.0**, published in the
+OLM `alpha` channel for arm64 clusters.
+
+## Prerequisites
+
+Before installing **Alauda Build of InferNex Bridge**, ensure the target cluster has the required platform and inference dependencies.
+
+### Required Dependencies
+
+| Dependency                      | Type            | Description                                                                                                                                                                                    |
+| ------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kubernetes cluster              | Platform        | A running cluster with administrator access.                                                                                                                                                   |
+| KServe                          | Operator        | Required when using the KServe `LLMInferenceService` entry point. The declared upstream compatibility range is KServe v0.17.0-v0.19.0. Alauda Build of KServe v0.16.1 has also been validated. |
+| Envoy Gateway and Gateway API   | Operator / CRDs | Required when exposing inference services through Gateway API resources.                                                                                                                       |
+| Gateway API Inference Extension | CRDs            | Required for `InferencePool` based intelligent routing.                                                                                                                                        |
+| Alauda Build of LeaderWorkerSet | Cluster Plugin  | Install it before InferNex Bridge. The controller watches `LeaderWorkerSet` resources and uses them for multi-node inference workloads.                                                        |
+| Inference runtime prerequisites | Runtime         | Prepare NPU nodes, model storage, runtime templates, runtime images, and network access required by the selected inference engine.                                                             |
+
+:::info
+`InferNexService` mode does not require users to install the InferNex main chart first. The operator installs the InferNex Bridge control plane; service templates, inference runtime images, model files, and feature-specific prerequisite CRDs must be prepared separately before deploying inference services.
+:::
+
+### CRDs Installed by This Operator
+
+The Alauda Build of InferNex Bridge OLM bundle installs the two product APIs and three CRDs used by its managed elastic orchestration components:
+
+| CRD                                               | Installed by this operator |
+| ------------------------------------------------- | -------------------------- |
+| `infernexservices.infernex.infernex.io`           | Yes                        |
+| `infernexserviceconfigs.infernex.infernex.io`     | Yes                        |
+| `resourcescalinggroups.autoscaling.openfuyao.com` | Yes                        |
+| `elasticscalers.elasticscaler.io`                 | Yes                        |
+| `tidals.tidal.io`                                 | Yes                        |
+
+The following CRDs are not installed by this OLM bundle. Install them separately according to the requirement shown below:
+
+| CRD                                         | Source Project                                             | When Required                                                     | How to Install                                                                                                                                   |
+| ------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `leaderworkersets.leaderworkerset.x-k8s.io` | [Alauda Build of LeaderWorkerSet](../lws/index.mdx)        | InferNex Bridge controller and multi-node inference workloads     | Follow the [LeaderWorkerSet installation guide](../lws/install.mdx) before installing InferNex Bridge.                                           |
+| `rolebasedgroups.workloads.x-k8s.io`        | [RoleBasedGroup (RBG)](https://github.com/sgl-project/rbg) | ResourceScalingGroup targets that explicitly use `RoleBasedGroup` | Install from the upstream [RBG v0.7.0 release manifest](https://raw.githubusercontent.com/sgl-project/rbg/v0.7.0/deploy/kubectl/manifests.yaml). |
+
+The `rolebasedgroups.workloads.x-k8s.io` CRD is provided by the upstream [RoleBasedGroup (RBG) project](https://github.com/sgl-project/rbg). It is a conditional dependency and is not required for Deployment or LeaderWorkerSet targets. To install the upstream RBG v0.7.0 controller and CRDs, use the versioned release manifest:
+
+```bash
+kubectl apply --server-side -f \
+  https://raw.githubusercontent.com/sgl-project/rbg/v0.7.0/deploy/kubectl/manifests.yaml
+
+kubectl wait deployment/rbgs-controller-manager \
+  --namespace rbgs-system \
+  --for=condition=Available \
+  --timeout=5m
+
+kubectl get crd rolebasedgroups.workloads.x-k8s.io \
+  -o jsonpath='{range .spec.versions[?(@.name=="v1alpha2")]}{.name}{" served="}{.served}{" storage="}{.storage}{"\n"}{end}'
+```
+
+The expected result is `v1alpha2 served=true storage=true`. The manifest uses
+`docker.io/rolebasedgroup/rbgs-controller:v0.7.0-888ade7`, which provides an
+arm64 image. For a disconnected cluster, mirror this image to a registry
+accessible from the cluster and update the manifest image reference before
+applying it.
+
+See the upstream [RBG releases](https://github.com/sgl-project/rbg/releases) when selecting a different version.
+
+Enabling the managed Tidal, ElasticScaler, or ResourceScalingGroup components
+deploys their controller workloads. Scaling policy resources such as `Tidal`
+and `ElasticScaler` must still be created separately by the user or platform
+workflow.
+
+### Runtime Templates and Images
+
+:::warning
+The operator package synchronizes its declared `relatedImages`, but the OLM runtime templates retain their community source references. Before creating an inference service, configure the platform image allowlist and rewrite rules so those source references resolve to the synchronized images in the target cluster registry.
+
+The model-serving image `hub.oepkgs.net/openfuyao/ascend/vllm-ascend:v0.18.0` is not included in the operator `relatedImages`. Before deploying an NPU inference service, obtain the arm64 image, upload or mirror it to the target registry, and add an image rewrite rule for the complete source reference. Verify the resolved Pod `imageID`; the source reference remaining in the workload specification does not indicate a rewrite failure.
+:::
+
+#### Configure ImageWhiteList
+
+The platform creates an operator-managed `ImageWhiteList` when the InferNex Bridge package is uploaded. Do not create or delete this object manually. Operator-managed ImageWhiteList objects are reconciled by `olm-registry` and may be recreated after deletion.
+
+Before creating an inference service, verify that the generated object contains
+the required source image references and source-to-target rewrite rules. Keep
+unrelated entries that are already present.
+
+The following table shows the expected repository mappings. Each rule preserves
+the original image tag.
+
+| Source repository                                                  | Target repository under `<target-registry>`                 |
+| ------------------------------------------------------------------ | ----------------------------------------------------------- |
+| `cr.openfuyao.cn/openfuyao/cache-indexer`                          | `3rdparty/openfuyao/cache-indexer`                          |
+| `cr.openfuyao.cn/openfuyao/proxy-server`                           | `3rdparty/openfuyao/proxy-server`                           |
+| `cr.openfuyao.cn/openfuyao/hermes-router`                          | `3rdparty/openfuyao/hermes-router`                          |
+| `cr.openfuyao.cn/openfuyao/hermes-router-tokenizer`                | `3rdparty/openfuyao/hermes-router-tokenizer`                |
+| `cr.openfuyao.cn/openfuyao/hermes-router-prediction`               | `3rdparty/openfuyao/hermes-router-prediction`               |
+| `hub.oepkgs.net/openfuyao/redis`                                   | `3rdparty/openfuyao/redis`                                  |
+| `cr.openfuyao.cn/openfuyao/tidal`                                  | `3rdparty/openfuyao/tidal`                                  |
+| `cr.openfuyao.cn/openfuyao/resource-scaling-group`                 | `3rdparty/openfuyao/resource-scaling-group`                 |
+| `cr.openfuyao.cn/openfuyao/elastic-scaler`                         | `3rdparty/openfuyao/elastic-scaler`                         |
+| `cr.openfuyao.cn/openfuyao/eagle-eye-hardware-monitor`             | `3rdparty/openfuyao/eagle-eye-hardware-monitor`             |
+| `cr.openfuyao.cn/openfuyao/eagle-eye-hardware-diagnosis`           | `3rdparty/openfuyao/eagle-eye-hardware-diagnosis`           |
+| `cr.openfuyao.cn/openfuyao/eagle-eye-network-performance-exporter` | `3rdparty/openfuyao/eagle-eye-network-performance-exporter` |
+| `hub.oepkgs.net/openfuyao/alpine/kubectl`                          | `3rdparty/openfuyao/alpine/kubectl`                         |
+| `hub.oepkgs.net/openfuyao/ascend/vllm-ascend`                      | `3rdparty/openfuyao/ascend/vllm-ascend`                     |
+
+The relevant part of the final object should look like this. The complete object
+contains additional package images and platform-managed entries.
+
+```yaml
+apiVersion: app.alauda.io/v1alpha1
+kind: ImageWhiteList
+metadata:
+  name: infernex-bridge
+  namespace: cpaas-system
+spec:
+  repoList:
+    - cr.openfuyao.cn/openfuyao/cache-indexer:26.6.0
+    - hub.oepkgs.net/openfuyao/ascend/vllm-ascend:v0.18.0
+    - busybox:1.36.1
+    - docker.io/library/busybox:1.36.1
+  rewriteRules:
+    - regexp: ^cr\.openfuyao\.cn/openfuyao/cache\-indexer:(.*)$
+      replacement: <target-registry>/3rdparty/openfuyao/cache-indexer:${1}
+    - regexp: ^hub\.oepkgs\.net/openfuyao/ascend/vllm\-ascend:(.*)$
+      replacement: <target-registry>/3rdparty/openfuyao/ascend/vllm-ascend:${1}
+```
+
+The `vllm-ascend` entry must be added explicitly because the image is not part
+of the operator `relatedImages`. Import the arm64 image into the target registry
+before creating inference workloads. For example:
+
+```bash
+export TARGET_REGISTRY='<target-registry-host:port>'
+
+skopeo copy --all \
+  docker://hub.oepkgs.net/openfuyao/ascend/vllm-ascend:v0.18.0 \
+  "docker://${TARGET_REGISTRY}/3rdparty/openfuyao/ascend/vllm-ascend:v0.18.0"
+```
+
+For BusyBox, retain both `busybox:1.36.1` and
+`docker.io/library/busybox:1.36.1` in `repoList`, but do not add a custom
+BusyBox rewrite rule. The platform `_default` rule handles the short name and
+Docker Hub normalization.
+
+You can back up and edit the operator-managed object with these commands. If
+the object has a different name, locate it with
+`kubectl get imagewhitelist -A`.
+
+```bash
+kubectl get imagewhitelist -n cpaas-system infernex-bridge -o yaml \
+  > imagewhitelist-infernex-bridge-backup.yaml
+
+kubectl edit imagewhitelist -n cpaas-system infernex-bridge
+```
+
+The workload specification may continue to show the community source image.
+The rewrite is successful only when the actual Pod `imageID` points to the
+target registry. A package-owned component and the package-external runtime
+should resolve as follows:
+
+```text
+cache-indexer=<target-registry>/3rdparty/openfuyao/cache-indexer@sha256:...
+main=<target-registry>/3rdparty/openfuyao/ascend/vllm-ascend@sha256:...
+```
+
+Verify the imported image architecture and inspect the workload image IDs:
+
+```bash
+export TARGET_REGISTRY='<target-registry-host:port>'
+export INFERENCE_NAMESPACE='<inference-service-namespace>'
+
+crane config --platform=linux/arm64 \
+  "${TARGET_REGISTRY}/3rdparty/openfuyao/ascend/vllm-ascend:v0.18.0" |
+  python3 -c 'import json, sys; data=json.load(sys.stdin); assert data.get("architecture") == "arm64", data; print("arm64 image verified")'
+
+kubectl get pods -n "${INFERENCE_NAMESPACE}" \
+  -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{range .status.initContainerStatuses[*]}  init:{.name}{"="}{.imageID}{"\n"}{end}{range .status.containerStatuses[*]}  {.name}{"="}{.imageID}{"\n"}{end}{end}'
+```
+
+#### Prepare the Model
+
+Model artifacts are not included in the InferNex Bridge operator package. Use
+the Alauda AI model catalog to prepare a ModelCar when OCI model storage is
+selected. See [Model Storage](../model_inference/model_management/functions/model_storage.mdx).
+
+:::info
+The Alauda OLM bundle registers the InferNex Bridge admission webhook for the KServe `LLMInferenceService` API versions used by the release examples, including `serving.kserve.io/v1alpha2`. The webhook is used for admission-time compatibility patches when `infernex.io/runtime: "true"` is set on a KServe `LLMInferenceService`; it does not create or reconcile the `LLMInferenceService` resource itself.
+:::
+
+### Optional Dependencies
+
+| Dependency            | Required For | Description                                                                                                                                            |
+| --------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| NATS                  | Eagle-Eye    | Required when enabling Eagle-Eye hardware monitoring, diagnosis, or network performance collection. The Service must be reachable as `nats.nats:4222`. |
+| kube-prometheus-stack | Eagle-Eye    | Required when platform monitoring must scrape and display Eagle-Eye metrics.                                                                           |
+
+### Optional EagleEye Observability
+
+EagleEye is disabled by default in the Alauda OLM templates. Disabling EagleEye does not affect the inference engine, aggregate or prefill-decode deployment modes, Mooncake, cache-indexer, or PD-Orchestrator. It disables only the following optional observability workloads:
+
+| Component                    | Function                                                              |
+| ---------------------------- | --------------------------------------------------------------------- |
+| Hardware Monitor             | Runs on accelerator nodes and collects hardware status information.   |
+| Hardware Diagnosis           | Provides hardware diagnosis processing and diagnostic logs.           |
+| Network Performance Exporter | Collects network performance data and exposes metrics on port `8222`. |
+
+Before enabling EagleEye, verify that NATS has a ready Service and endpoint:
+
+```bash
+kubectl get service -n nats nats
+kubectl get endpointslice -n nats -l kubernetes.io/service-name=nats
+```
+
+The EagleEye init containers connect to `nats.nats:4222`. If this endpoint is unavailable, the enabled EagleEye Pods remain in the init phase.
+
+Enable EagleEye explicitly in an `InferNexService` or a referenced `InferNexServiceConfig`:
+
+```yaml
+spec:
+  components:
+    eagleEye:
+      hardwareMonitor:
+        enabled: true
+      hardwareDiagnosis:
+        enabled: true
+      networkPerformanceExporter:
+        enabled: true
+```
+
+After applying the resource, verify the optional workloads in the inference service namespace:
+
+```bash
+kubectl get deployment,daemonset,service -n <inference-service-namespace> \
+  -l infernex.io/owner=<infernex-service-name>
+```
+
+Expected workloads include the EagleEye hardware diagnosis Deployment, hardware monitor DaemonSet, and network performance exporter DaemonSet. If EagleEye is not required, keep all three child switches set to `false`.
+
+## Upload Operator \{#upload-operator}
+
+Obtain the arm64 installation package from your Alauda product delivery channel:
+`infernex-bridge.alpha.arm64.v26.6.0.tgz`.
+
+Use the `violet` command to publish it to the platform repository:
+
+```bash
+violet push --platform-address=<platform-access-address> --platform-username=<platform-admin> --platform-password=<platform-admin-password> infernex-bridge.alpha.arm64.v26.6.0.tgz
+```
+
+## Install Operator
+
+In **Administrator** view:
+
+1. Click **Marketplace / OperatorHub**.
+2. At the top of the console, from the **Cluster** dropdown list, select the destination cluster where you want to install the InferNex Bridge Operator.
+3. Search for and select **Alauda Build of InferNex Bridge**, then click **Install**.
+4. Select the `alpha` **Channel**.
+5. Select version `v26.6.0`.
+6. Leave **Installation Location** unchanged, it should be `infernex-system` by default.
+7. Select **Manual** for **Upgrade Strategy**.
+8. Click **Install**.
+
+### Verification
+
+Confirm that the **Alauda Build of InferNex Bridge** tile shows one of the following states:
+
+- `Installing`: installation is in progress; wait for this to change to `Installed`.
+- `Installed`: installation is complete.
+
+Verify that the operator controller and webhooks are running:
+
+```bash
+kubectl get pods -n infernex-system
+kubectl get crd \
+  infernexservices.infernex.infernex.io \
+  infernexserviceconfigs.infernex.infernex.io \
+  resourcescalinggroups.autoscaling.openfuyao.com \
+  elasticscalers.elasticscaler.io \
+  tidals.tidal.io
+
+kubectl get mutatingwebhookconfiguration -o json |
+  python3 -c 'import json, sys; data=json.load(sys.stdin); versions={version for item in data["items"] for webhook in item.get("webhooks", []) for rule in webhook.get("rules", []) if "llminferenceservices" in rule.get("resources", []) for version in rule.get("apiVersions", [])}; assert "v1alpha2" in versions, versions; print("LLMInferenceService webhook versions:", sorted(versions))'
+```
+
+The controller pod should be `Running`, all five bundled CRDs should be established, and the `LLMInferenceService` mutating webhook should include `v1alpha2`.
+
+## Community Examples
+
+For community-maintained examples, see [InferNex Bridge v26.6.0 examples](https://gitcode.com/openFuyao/InferNex/tree/v26.6.0/component/InferNex-Bridge/config/examples).
+
+## Upgrading Alauda Build of InferNex Bridge
+
+1. Back up the existing custom resources:
+
+   ```bash
+   kubectl get infernexservice,infernexserviceconfig -A -o yaml > infernex-bridge-backup.yaml
+   ```
+
+2. Upload the new version of the **Alauda Build of InferNex Bridge** operator package using the `violet` tool.
+3. Go to the `Administrator` -> `Marketplace` -> `OperatorHub` page, find **Alauda Build of InferNex Bridge**, review the target version, and click **Confirm** to apply it.
+
+### Verification
+
+After upgrading, confirm that the **Alauda Build of InferNex Bridge** tile shows `Installed` and verify the controller and CRD status:
+
+```bash
+kubectl get pods -n infernex-system
+kubectl get crd \
+  infernexservices.infernex.infernex.io \
+  infernexserviceconfigs.infernex.infernex.io \
+  resourcescalinggroups.autoscaling.openfuyao.com \
+  elasticscalers.elasticscaler.io \
+  tidals.tidal.io
+```
+
+### Rollback
+
+Use a previous package only when its CRDs are compatible with the custom
+resources already stored in the cluster. In OperatorHub, select the previous
+available version and confirm the manual upgrade action. If the previous version
+is not available, upload its installation package with `violet` first.
+
+After rollback, verify the controller, CRDs, inference services, runtime image
+IDs, and one representative inference request. Do not delete the five bundled
+CRDs while custom resources still exist; deleting them also deletes the stored
+custom resources.

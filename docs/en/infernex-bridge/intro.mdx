@@ -1,0 +1,66 @@
+---
+weight: 10
+---
+
+# Introduction
+
+## InferNex Bridge
+
+**Alauda Build of InferNex Bridge** is based on the [openFuyao InferNex](https://gitcode.com/openFuyao/InferNex) project.
+InferNex Bridge connects KServe `LLMInferenceService` workloads with the InferNex inference acceleration stack, and also provides native `InferNexService` APIs for environments that do not use KServe.
+
+The operator installs the InferNex Bridge controller, admission webhooks, RBAC, and the following primary product APIs:
+
+- **InferNexService**: A managed LLM inference service that can deploy inference engines, Hermes Router, Mooncake KV cache, cache-indexer, PD-Orchestrator, Eagle-Eye, and related resources.
+- **InferNexServiceConfig**: A reusable configuration template referenced by `InferNexService` through `spec.baseRefs`.
+
+The OLM bundle also installs the `Tidal`, `ElasticScaler`, and `ResourceScalingGroup` CRDs used by the managed elastic orchestration components.
+
+## Deployment Modes
+
+InferNex Bridge supports two deployment entry points. Choose one entry point for each inference service and do not deploy the same service through both paths.
+
+InferNex Bridge currently supports NPU inference workloads only.
+
+### KServe LLMInferenceService
+
+Use this mode when KServe is already installed and you want to keep the KServe `LLMInferenceService` workflow.
+
+Add the `infernex.io/runtime: "true"` label to an `LLMInferenceService`. KServe continues to reconcile the inference engine, Hermes Router, Gateway, `HTTPRoute`, and `InferencePool`; InferNex Bridge reconciles the InferNex enhancement components such as Mooncake KV cache, cache-indexer, PD-Orchestrator, Eagle-Eye, and KServe runtime compatibility patches.
+
+### InferNexService
+
+Use this mode when you want InferNex Bridge to manage the full inference service without using KServe as the entry point.
+
+Create an `InferNexService` that references one or more `InferNexServiceConfig` templates. InferNex Bridge reconciles the inference engine, Hermes Router, enhancement components, and, when intelligent gateway routing is enabled, Gateway API resources.
+
+## Inference Engine Topologies
+
+The inference engine topology is independent of the deployment entry point. Select the topology in the inference service or its referenced runtime configuration:
+
+| Topology            | Behavior                                                                                                                                                    | Typical Use                                                                   |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Aggregate           | The same engine workload handles prefill and decode. Mooncake and cache-indexer can still be enabled for KV cache reuse.                                    | A simpler deployment that does not require separate prefill and decode roles. |
+| Prefill-decode (PD) | Prefill and decode run as separate workloads. Proxy-server coordinates the two roles, and Mooncake can transfer KV cache data between them when configured. | Independent scaling and tuning of the prefill and decode roles.               |
+
+## Capabilities
+
+- **KServe compatibility**: Use the existing KServe `LLMInferenceService` workflow and opt in to InferNex acceleration with the `infernex.io/runtime: "true"` label.
+- **Native InferNex APIs**: Deploy inference services directly with `InferNexService` and reusable `InferNexServiceConfig` templates.
+- **Prefill-decode disaggregation**: Run P/D inference patterns with proxy-server coordination for prefill and decode workloads.
+- **Mooncake KV cache**: Deploy Mooncake KV cache and cache-indexer components for KV cache reuse and coordination.
+- **Intelligent gateway routing**: Integrate Hermes Router and Gateway API resources for model-aware request routing.
+- **Elastic orchestration**: Use PD-Orchestrator components such as Elastic-Scaler, Tidal, and ResourceScalingGroup when the inference engine replica fields are left for the scaler to manage.
+- **Optional hardware observability**: Enable Eagle-Eye hardware monitoring, hardware diagnosis, and network performance collection after NATS and the required monitoring dependencies are ready. EagleEye is disabled by default in the Alauda OLM templates and does not affect the core inference path when disabled.
+
+For installation on the platform, see [Install InferNex Bridge](./install).
+
+## Documentation
+
+InferNex Bridge upstream documentation and key dependencies:
+
+- **InferNex Bridge User Guide**: [https://gitcode.com/openFuyao/sig-ai-inference/blob/main/docs/zh/ai_inference_infernex/user_guide/ai_inference_infernex_bridge.md](https://gitcode.com/openFuyao/sig-ai-inference/blob/main/docs/zh/ai_inference_infernex/user_guide/ai_inference_infernex_bridge.md) — Upstream user guide covering deployment modes, prerequisites, and usage examples.
+- **InferNex Source**: [https://gitcode.com/openFuyao/InferNex](https://gitcode.com/openFuyao/InferNex) — Source code, charts, examples, and release tags.
+- **InferNex Bridge Technical Specification**: [https://gitcode.com/openFuyao/InferNex/blob/v26.6.0/component/InferNex-Bridge/docs/InferNex-Bridge-Technical-Specification.md](https://gitcode.com/openFuyao/InferNex/blob/v26.6.0/component/InferNex-Bridge/docs/InferNex-Bridge-Technical-Specification.md) — Architecture, ownership boundaries, webhook behavior, and routing contracts for this release.
+- **KServe Documentation**: [https://kserve.github.io/website/](https://kserve.github.io/website/) — KServe concepts and `LLMInferenceService` documentation.
+- **Gateway API Inference Extension**: [https://gateway-api-inference-extension.sigs.k8s.io/](https://gateway-api-inference-extension.sigs.k8s.io/) — Inference-aware Gateway API resources used by model routing.
