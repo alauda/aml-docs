@@ -12,7 +12,7 @@ MLflow is delivered as an **OLM Helm-based operator**. Installing the operator f
 
 When you create an `MLflow` custom resource, the operator reconciles one MLflow stack in the configured namespace (`kubeflow` by default):
 
-- **MLflow Tracking Server** — the experiment-tracking API and web UI: log parameters, metrics, and artifacts; browse runs; and manage the model registry (the target of the `mlflow` Python SDK).
+- **MLflow Tracking Server** — the experiment-tracking API and web UI: log parameters, metrics, artifacts, and AI-agent traces; browse runs and traces; and manage the model registry (the target of the `mlflow` Python SDK).
 - **OAuth proxy** (`oauth2-proxy`) — authenticates every request against the platform OIDC provider before it reaches MLflow. Clients always go through the proxy; they never connect to the MLflow container port directly.
 - **Kubernetes auth plugin** — inside the tracking server, reads the caller's identity from the forwarded token, records each run under that user, and authorizes the request against Kubernetes RBAC.
 - **Tools-menu entry and ingress route** — a `ConfigMap` that adds **MLFlow** to the Alauda AI **Tools** menu, plus an ingress route on the platform load balancer.
@@ -40,4 +40,4 @@ Workspace membership and permissions are therefore managed with ordinary Kuberne
 
 ## When to use it
 
-Use the MLflow Operator when teams need a shared, SSO-protected experiment-tracking and model-registry service where each team's runs and models are isolated by namespace and governed by Kubernetes RBAC — rather than an unauthenticated, single-tenant MLflow server.
+Use the MLflow Operator when teams need a shared, SSO-protected experiment-tracking, [AI-agent tracing](./how_to/agent-tracing.mdx), and model-registry service where each team's runs and models are isolated by namespace and governed by Kubernetes RBAC — rather than an unauthenticated, single-tenant MLflow server.
