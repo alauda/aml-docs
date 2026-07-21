@@ -1,0 +1,161 @@
+# A checkpoint-aware TrainingRuntime for Kubeflow Trainer v2.
+#
+# The three pieces that make a TrainJob resumable:
+#   1. `ckpt` volume  -> checkpoints outlive the pod (see checkpoint-pvc.yaml).
+#   2. save_strategy/save_steps -> checkpoints are written often enough that a
+#      restart loses a bounded amount of work.
+#   3. resume_from_checkpoint -> every start after the first picks up the
+#      newest checkpoint instead of starting over.
+#
+# Plus two restart knobs so a failure is retried at all:
+#   - failurePolicy.maxRestarts -> JobSet recreates the trainer pods.
+#   - terminationGracePeriodSeconds -> the trainer can flush a final
+#     checkpoint on SIGTERM before SIGKILL.
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainingRuntime
+metadata:
+  name: checkpoint-runtime
+  namespace: <your-namespace>
+  labels:
+    trainer.kubeflow.org/framework: torch
+spec:
+  mlPolicy:
+    numNodes: 1
+    torch:
+      numProcPerNode: auto
+  template:
+    spec:
+      failurePolicy:
+        # Recreate the trainer pods up to 3 times before declaring the
+        # TrainJob failed. Each recreated pod resumes from the last checkpoint.
+        maxRestarts: 3
+      replicatedJobs:
+        - name: node
+          template:
+            metadata:
+              labels:
+                # REQUIRED. Without this label the controller does not treat
+                # this replicatedJob as the trainer step, and every
+                # `spec.trainer.*` field on the TrainJob (env, resourcesPerNode,
+                # image, command, numNodes) is silently ignored.
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              # 0 = don't let the Job retry the pod itself; let the JobSet
+              # failurePolicy above own restarts, so restarts are counted and
+              # capped in one place.
+              backoffLimit: 0
+              template:
+                spec:
+                  # Give the trainer room to flush a final checkpoint on SIGTERM.
+                  terminationGracePeriodSeconds: 60
+                  imagePullSecrets:
+                    - name: harbor-mlops-regcred
+                  securityContext:
+                    runAsNonRoot: true
+                    runAsUser: 65534
+                    runAsGroup: 65534
+                    fsGroup: 65534
+                  volumes:
+                    - name: ckpt
+                      persistentVolumeClaim:
+                        claimName: train-ckpt
+                    - name: workspace
+                      emptyDir: {}
+                    - name: dshm
+                      emptyDir:
+                        medium: Memory
+                        sizeLimit: 2Gi
+                  containers:
+                    - name: node
+                      image: docker.io/alaudadockerhub/torch2.6-cu126-amd64:v0.1.0
+                      env:
+                        - { name: PYTHONUNBUFFERED, value: "1" }
+                        - { name: HF_HOME, value: /workspace/hf_cache }
+                        # Defaults; override per-run via TrainJob spec.trainer.env.
+                        - { name: CKPT_DIR, value: /mnt/ckpt/run }
+                        - { name: SAVE_STEPS, value: "50" }
+                        - { name: NUM_TRAIN_EPOCHS, value: "3" }
+                      volumeMounts:
+                        - { name: ckpt, mountPath: /mnt/ckpt }
+                        - { name: workspace, mountPath: /workspace }
+                        - { name: dshm, mountPath: /dev/shm }
+                      securityContext:
+                        allowPrivilegeEscalation: false
+                        capabilities:
+                          drop: ["ALL"]
+                        seccompProfile:
+                          type: RuntimeDefault
+                      resources:
+                        requests:
+                          cpu: "1"
+                          memory: 4Gi
+                        limits:
+                          cpu: "4"
+                          memory: 16Gi
+                          nvidia.com/gpu: 1
+                      command: [bash, -ec]
+                      args:
+                        - |
+                          python - <<'PY'
+                          import glob, os, signal
+                          from transformers import Trainer, TrainerCallback, TrainingArguments
+
+                          ckpt_dir = os.environ["CKPT_DIR"]
+                          os.makedirs(ckpt_dir, exist_ok=True)
+
+                          # 1. Resume: pick the newest checkpoint-N on the PVC.
+                          #    Sort numerically -- a lexical sort puts checkpoint-9
+                          #    after checkpoint-100 and silently rewinds the run.
+                          ckpts = sorted(
+                              glob.glob(f"{ckpt_dir}/checkpoint-*"),
+                              key=lambda p: int(p.rsplit("-", 1)[1]),
+                          )
+                          resume = ckpts[-1] if ckpts else None
+                          print(f"[checkpoint] resuming from {resume}" if resume
+                                else "[checkpoint] no prior checkpoint, starting fresh",
+                                flush=True)
+
+                          # 2. On SIGTERM (preemption, eviction, suspend), save at the
+                          #    next step boundary and stop cleanly. A callback is the
+                          #    supported hook -- do not call trainer.save_model() from
+                          #    the signal handler itself, it is not re-entrant.
+                          class FlushOnSigterm(TrainerCallback):
+                              stopping = False
+
+                              def on_step_end(self, args, state, control, **kwargs):
+                                  if FlushOnSigterm.stopping:
+                                      control.should_save = True
+                                      control.should_training_stop = True
+                                  return control
+
+                          def _on_sigterm(*_):
+                              print("[checkpoint] SIGTERM: flushing at next step", flush=True)
+                              FlushOnSigterm.stopping = True
+
+                          signal.signal(signal.SIGTERM, _on_sigterm)
+
+                          # 3. Save often enough that a restart is cheap.
+                          args = TrainingArguments(
+                              output_dir=ckpt_dir,
+                              save_strategy="steps",
+                              save_steps=int(os.environ["SAVE_STEPS"]),
+                              save_total_limit=2,      # bound PVC growth
+                              num_train_epochs=float(os.environ["NUM_TRAIN_EPOCHS"]),
+                              report_to=[],
+                          )
+
+                          # --- replace with your model / dataset / collator ---
+                          model, train_dataset = ..., ...
+
+                          trainer = Trainer(
+                              model=model,
+                              args=args,
+                              train_dataset=train_dataset,
+                              callbacks=[FlushOnSigterm()],
+                          )
+
+                          # Passing None here is what makes the *first* run start clean.
+                          trainer.train(resume_from_checkpoint=resume)
+                          trainer.save_model(f"{ckpt_dir}/final")
+                          print("[checkpoint] done", flush=True)
+                          PY

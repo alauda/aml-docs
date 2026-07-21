@@ -1,0 +1,280 @@
+---
+weight: 33
+---
+
+# Checkpointing and Resuming TrainJobs
+
+A fine-tune that runs for six hours will eventually meet a node reboot, an evicted pod, a preemption, or an OOM at hour five. Without checkpoints, every one of those events costs you the whole run.
+
+Kubeflow Trainer v2 has **no checkpoint API of its own**. Nothing in the `TrainJob` or `TrainingRuntime` spec writes, finds, or restores a checkpoint. The split is:
+
+| Trainer v2 / JobSet gives you | Your training script must do |
+|---|---|
+| Storage that outlives the pod (a PVC you mount) | Write checkpoints into it periodically |
+| Restarting the pod after a failure (`failurePolicy.maxRestarts`) | Detect the newest checkpoint on start and resume from it |
+| Pausing and resuming on demand (`spec.suspend`) | Exit cleanly on SIGTERM, flushing a final checkpoint |
+
+Get either column wrong and the failure mode is the same and silent: the job restarts, finds nothing, and cheerfully trains from step 0 again.
+
+This guide covers the mechanics. For the specific case of *deliberately* preempting training to give an `InferenceService` its GPU back, see [Preemptible TrainJobs with Kueue](./preemptible-trainjobs-with-kueue.mdx), which builds on everything here.
+
+## Prerequisites
+
+| Requirement | Details |
+|---|---|
+| Kubeflow Trainer v2 | `trainer.kubeflow.org/v1alpha1`; see [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2) |
+| A PVC and a storage class | `kubectl get storageclass`. See [Pick storage that outlives the pod](#pick-storage-that-outlives-the-pod) for access modes |
+| A training runtime image | Any image from the [runtime catalog](./training-runtimes) |
+| `kubectl` access | Permission to manage `trainjobs`, `trainingruntimes`, and `persistentvolumeclaims` in your namespace |
+
+## What a checkpoint has to contain
+
+"Resume" is not "reload the weights". A checkpoint that only holds model weights restarts your optimizer from zero — momentum buffers, the learning-rate schedule position, and the step counter are all lost, and the loss curve visibly kinks where it resumed.
+
+A resumable checkpoint holds:
+
+- **Model weights**
+- **Optimizer state** — Adam's moment estimates. Typically ~2x the model size in fp32, and usually the largest part of the checkpoint.
+- **LR scheduler state** — so the schedule continues rather than re-warming.
+- **Step / epoch counter** — where to pick up.
+- **RNG state and data-loader position** — so the resumed run doesn't re-see the same samples in the same order.
+
+HuggingFace Trainer's `checkpoint-N/` directories already contain all of this. If you are hand-rolling a loop, saving only `model.state_dict()` is the most common way to get a "resume" that quietly damages the run.
+
+## Pick storage that outlives the pod \{#pick-storage-that-outlives-the-pod}
+
+The checkpoint directory must be on a PVC. An `emptyDir` dies with the pod, and a `hostPath` or local-storage class strands the checkpoint on a node the restarted pod may never land on again.
+
+The access mode depends only on how many trainer pods write at once:
+
+| `numNodes` | Access mode | Why |
+|---|---|---|
+| `1` | `ReadWriteOnce` is enough | One pod mounts it at a time |
+| `> 1` | `ReadWriteMany` is required | Every trainer pod mounts the same PVC simultaneously |
+
+:::note
+`ReadWriteOnce` means "one **node** at a time", not "one node forever". A network-attached RWO volume (Ceph RBD, EBS, and similar) detaches from the old node and re-attaches wherever the restarted pod is scheduled, so a single-node run resumes correctly even when it comes back on a different node. Only *concurrent* multi-pod access needs RWX.
+
+This does not hold for `local-storage` / `topolvm` / `hostPath`, which are physically pinned to one node.
+:::
+
+Apply the PVC ([`checkpoint-pvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/assets/checkpointing/checkpoint-pvc.yaml)):
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/training_guides/assets/checkpointing
+NS=my-namespace   # edit to your namespace
+
+curl -fsSL $base/checkpoint-pvc.yaml | sed "s/<your-namespace>/$NS/" | kubectl apply -f -
+```
+
+Size it for `checkpoint size x save_total_limit`, plus headroom. Full-weight checkpoints are bigger than people expect — a 7B model with optimizer state is roughly 80 GiB *per checkpoint*. LoRA/QLoRA adapters are a few MB, so the same PVC can keep far more of them.
+
+## Make the runtime checkpoint-aware
+
+[`checkpoint-trainingruntime.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/assets/checkpointing/checkpoint-trainingruntime.yaml) is a runnable `TrainingRuntime` with the whole pattern wired up. The load-bearing parts:
+
+```yaml
+spec:
+  template:
+    spec:
+      failurePolicy:
+        maxRestarts: 3                        # recreate trainer pods on failure
+      replicatedJobs:
+        - name: node
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer   # see warning below
+            spec:
+              backoffLimit: 0                 # let failurePolicy own restarts
+              template:
+                spec:
+                  terminationGracePeriodSeconds: 60   # room to flush on SIGTERM
+                  volumes:
+                    - name: ckpt
+                      persistentVolumeClaim: { claimName: train-ckpt }
+                  containers:
+                    - name: node
+                      env:
+                        - { name: CKPT_DIR, value: /mnt/ckpt/run }
+                      volumeMounts:
+                        - { mountPath: /mnt/ckpt, name: ckpt }
+```
+
+And the two lines in the script that actually do the resuming:
+
+```python
+# Sort numerically: a lexical sort puts checkpoint-9 after checkpoint-100
+# and silently rewinds your run by 91 steps.
+ckpts = sorted(glob.glob(f"{ckpt_dir}/checkpoint-*"),
+               key=lambda p: int(p.rsplit("-", 1)[1]))
+resume = ckpts[-1] if ckpts else None    # None on the first run = start clean
+
+trainer.train(resume_from_checkpoint=resume)
+```
+
+That auto-detect is what makes one manifest work for both the first submission and every restart after it. Hardcoding `resume_from_checkpoint=True` fails the first run (no checkpoint exists yet); hardcoding a path pins you to one checkpoint forever.
+
+:::warning
+The `trainer.kubeflow.org/trainjob-ancestor-step: trainer` label on the trainer `replicatedJob` is **required**. Without it the controller does not recognise that replicatedJob as the trainer step, and every `spec.trainer.*` field on your TrainJob — `env`, `resourcesPerNode`, `image`, `command`, `numNodes` — is dropped **silently**: no error, no event, no warning. The TrainJob runs with the runtime's defaults instead, so a job you thought you gave a GPU and a `CKPT_DIR` runs without either.
+
+Verify the overrides landed rather than trusting them:
+
+```bash
+kubectl -n "$NS" get pod <trainer-pod> \
+  -o jsonpath='{.spec.containers[0].env}{"\n"}{.spec.containers[0].resources}{"\n"}'
+```
+:::
+
+Apply the runtime:
+
+```bash
+curl -fsSL $base/checkpoint-trainingruntime.yaml | sed "s/<your-namespace>/$NS/" | kubectl apply -f -
+```
+
+## Submit a resumable TrainJob
+
+[`trainjob-resume.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/training_guides/assets/checkpointing/trainjob-resume.yaml) mounts the checkpoint PVC through `podTemplateOverrides`, so one shared runtime can serve many runs that each checkpoint somewhere different:
+
+```yaml
+spec:
+  trainer:
+    env:
+      - { name: CKPT_DIR, value: /mnt/ckpt/sft-run-1 }   # per-run directory
+  podTemplateOverrides:
+    - targetJobs:
+        - name: node
+      spec:
+        volumes:
+          - name: ckpt
+            persistentVolumeClaim: { claimName: train-ckpt }
+        containers:
+          - name: node
+            volumeMounts:
+              - { name: ckpt, mountPath: /mnt/ckpt }
+```
+
+```bash
+curl -fsSL $base/trainjob-resume.yaml | sed "s/<your-namespace>/$NS/" | kubectl create -f -
+```
+
+:::note
+`podTemplateOverrides` can add **volumes, volumeMounts, nodeSelector, tolerations, and affinity**, but it may **not** set `env` on the trainer or initializer containers — the validating webhook rejects the TrainJob outright:
+
+```text
+admission webhook "validator.trainjob.trainer.kubeflow.org" denied the request:
+spec.podTemplateOverrides: must not have envs for the dataset-initializer,
+model-initializer, node containers
+```
+
+Environment variables go in `spec.trainer.env` instead.
+:::
+
+## How each interruption resumes
+
+### A crash or a node failure
+
+Two independent layers restart a failed trainer, and a checkpoint-aware script resumes correctly under both:
+
+```text
+  trainer exits non-zero
+        │
+        ├─ restartPolicy: OnFailure ──► kubelet restarts the container
+        │                                in place, same pod, same node
+        │
+        └─ backoffLimit: 0 ──► Job fails ──► JobSet failurePolicy.maxRestarts
+                                              recreates the pod (possibly on
+                                              another node), PVC re-attaches
+```
+
+Either way the new process runs the same auto-detect and picks up the newest `checkpoint-N`. Watch `restarts` climb on the JobSet:
+
+```bash
+kubectl -n "$NS" get jobset <trainjob-name> -o jsonpath='{.status.restarts}{"\n"}'
+```
+
+Once `maxRestarts` is exhausted the TrainJob goes `Failed` — so set it high enough to absorb transient node churn, but not so high that a genuinely broken script loops forever.
+
+### A preemption
+
+Kueue evicts the Workload and Trainer v2 recreates the JobSet once quota frees up; the trainer resumes from the PVC. The cohort/quota setup is a topic of its own — see [Preemptible TrainJobs with Kueue](./preemptible-trainjobs-with-kueue.mdx).
+
+### A deliberate pause
+
+`spec.suspend` stops a run without losing it — useful to hand a GPU to something urgent for an hour:
+
+```bash
+# Pause: pods are terminated, the TrainJob object stays.
+kubectl -n "$NS" patch trainjob sft-resumable --type=merge -p '{"spec":{"suspend":true}}'
+
+# Resume: a new pod starts and picks up the newest checkpoint.
+kubectl -n "$NS" patch trainjob sft-resumable --type=merge -p '{"spec":{"suspend":false}}'
+```
+
+The resumed pod is a **new** pod with a new name, and may land on a different node. Its first log line should be your `[checkpoint] resuming from ...`.
+
+:::note
+`activeDeadlineSeconds` restarts its countdown when a suspended TrainJob resumes — the job gets the full deadline again after each pause, rather than being measured from creation.
+:::
+
+## Per-framework knobs
+
+Every HuggingFace-Trainer-based stack exposes the same three knobs, so the pattern above transfers unchanged:
+
+| Stack | Save cadence | Resume | Notes |
+|---|---|---|---|
+| HuggingFace `Trainer` | `save_strategy="steps"`, `save_steps=N`, `save_total_limit=2` | `trainer.train(resume_from_checkpoint=path)` | `checkpoint-N/` holds model + optimizer + scheduler + RNG |
+| LlamaFactory | `save_steps` in the YAML config | automatic — it calls `get_last_checkpoint(output_dir)` for you | Wraps HF Trainer. `overwrite_output_dir: true` **skips** that auto-detect, so the run silently starts fresh — leave it off for resumable runs |
+| `training_hub` | `checkpoint_at_epoch: true` | `accelerate_full_state_at_epoch: true` | Only the full-state option is resumable; see [Fine-tuning with Training Hub](./training-hub-fine-tuning) |
+| MindSpeed / Megatron (NPU) | `--save-interval` | automatic from `latest_checkpointed_iteration.txt` | Checkpoint layout is tied to TP/PP degree — see [Ascend NPU guide](./fine-tune-and-pretrain-llms-on-ascend-npu) |
+| Hand-rolled PyTorch | your own `torch.save` | your own `torch.load` | Save optimizer + scheduler + step, not just weights |
+
+Pick `save_steps` from the interruption you can tolerate: the work at risk is at most `save_steps x seconds_per_step`. At 5 s/step, `save_steps: 100` risks ~8 minutes. Saving too often is its own tax — a full-weight checkpoint can take tens of seconds of stalled GPU, so on a stable cluster err large and on a preemptible queue err small. Always pair it with `save_total_limit` so the PVC does not grow without bound.
+
+## Multi-node runs
+
+With `numNodes: > 1` the PVC must be RWX, and two things change:
+
+- **Only rank 0 should write** the checkpoint for standard data-parallel training, or every rank races to write the same path. HF Trainer already handles this; a hand-rolled loop must guard with `if rank == 0`.
+- **All ranks must resume from the same checkpoint.** Ranks that disagree diverge silently rather than crashing.
+
+For sharded strategies (FSDP, DeepSpeed ZeRO), each rank owns a slice of the weights and optimizer state, and gathering it all onto rank 0 is often impossible for large models. That is what [`torch.distributed.checkpoint`](https://docs.pytorch.org/docs/stable/distributed.checkpoint.html) is for: every rank writes its own shard in parallel, and the result can be re-loaded at a **different world size** — so a run checkpointed on 8 GPUs can resume on 4. A checkpoint saved as one gathered file cannot be resharded this way.
+
+## Verify it actually resumes
+
+Do not wait for a real outage to find out. Run this drill once per new runtime:
+
+```bash
+# 1. Submit, and wait for a first checkpoint to appear on the PVC.
+kubectl -n "$NS" exec <trainer-pod> -- ls /mnt/ckpt/sft-run-1
+
+# 2. Force an interruption.
+kubectl -n "$NS" patch trainjob sft-resumable --type=merge -p '{"spec":{"suspend":true}}'
+kubectl -n "$NS" patch trainjob sft-resumable --type=merge -p '{"spec":{"suspend":false}}'
+
+# 3. The new pod's first lines must say it resumed -- not that it started fresh.
+kubectl -n "$NS" logs <new-trainer-pod> | head -3
+```
+
+```text
+[checkpoint] resuming from /mnt/ckpt/sft-run-1/checkpoint-150
+```
+
+If step 3 instead prints `no prior checkpoint, starting fresh`, the resume is broken — and it would have been broken during a real preemption too.
+
+:::note
+Grepping the trainer's logs for HF Trainer's own "Saving model checkpoint to" line is unreliable: the tqdm progress bar overwrites it. Check for `checkpoint-*` directories on the PVC instead, which is what the log line above does.
+:::
+
+## Troubleshooting
+
+| Symptom | Cause |
+|---|---|
+| Restarted job trains from step 0 | Checkpoint dir is on an `emptyDir`, or `CKPT_DIR` differs between runs, or the auto-detect glob found nothing |
+| Resumes from a much older checkpoint | Lexical sort of `checkpoint-*` (`checkpoint-9` sorts after `checkpoint-100`) — sort numerically |
+| `spec.trainer.env` / `resourcesPerNode` ignored, no error | Missing `trainer.kubeflow.org/trainjob-ancestor-step: trainer` label on the runtime's trainer replicatedJob |
+| TrainJob rejected: `must not have envs for the ... node containers` | `env` set under `podTemplateOverrides`; move it to `spec.trainer.env` |
+| Loss curve kinks upward on resume | Checkpoint has weights but no optimizer/scheduler state |
+| Pod `Pending` on resume, volume won't attach | RWO PVC still attached to the old node, or `numNodes > 1` against a non-RWX class |
+| PVC full mid-run | `save_total_limit` unset |
+| Final checkpoint missing after preemption | `terminationGracePeriodSeconds` too short to flush |
