@@ -1,0 +1,210 @@
+---
+weight: 40
+---
+
+# Trace AI agents with MLflow
+
+MLflow Tracing records the steps an AI agent takes, including model requests and responses, chain and tool calls, retrieval steps, latency, token usage, and errors. On Alauda AI, traces are stored in the selected MLflow experiment and protected by the same workspace authentication and Kubernetes RBAC as runs and models.
+
+This guide shows the recommended tracing path for:
+
+- Python agents built with [LangChain](https://python.langchain.com/).
+- Applications that call [Llama Stack, now OGX](https://github.com/ogx-ai/ogx), through its OpenAI-compatible API.
+- OGX servers or other applications that already emit OpenTelemetry traces.
+
+## Prerequisites
+
+- An MLflow tracking server and a workspace you can access. See [Workspaces and access control](./workspaces.mdx).
+- A Dex id token in `MLFLOW_TRACKING_TOKEN`. Follow [Using the MLflow Python SDK with Authentication and RBAC](./mlflow-python-sdk.mdx#get-a-token) to obtain and renew one.
+- An experiment for the traces. Creating or writing traces requires `create` and `update` permission on the workspace's `experiments` resource.
+- Network access from the agent to the MLflow tracking server and its model endpoint.
+
+Set the common MLflow connection variables before starting the agent:
+
+```bash
+export MLFLOW_TRACKING_URI=http://mlflow-tracking-server.kubeflow:5000
+export MLFLOW_TRACKING_TOKEN='<dex-id-token>'
+export MLFLOW_WORKSPACE=team-a
+```
+
+The URI above is the in-cluster Service, fronted by the OAuth proxy. For a client outside the cluster, use `https://<platform>/clusters/<cluster>/mlflow` instead.
+
+:::warning
+Traces can contain prompts, responses, retrieved content, and tool arguments or results. Do not send secrets or sensitive personal data unless your organization permits storing that data in MLflow.
+:::
+
+## Trace a LangChain agent
+
+MLflow's LangChain integration automatically creates spans for the agent, nested chains, model requests, retrieval, and tool calls. It supports synchronous, asynchronous, batch, and streaming LangChain invocations.
+
+Install the agent dependencies:
+
+```bash
+pip install "mlflow[genai]" langchain langchain-openai
+```
+
+The following example uses a tool-calling agent and an OpenAI-compatible model endpoint. Set `MODEL_BASE_URL`, `MODEL_API_KEY`, and `MODEL_ID` for the model service available in your environment.
+
+```python
+import os
+
+import mlflow
+from langchain.agents import create_agent
+from langchain.tools import tool
+from langchain_openai import ChatOpenAI
+
+
+mlflow.set_experiment("agent-tracing")
+mlflow.langchain.autolog()
+
+
+@tool
+def get_weather(city: str) -> str:
+    """Return the current weather for a city."""
+    # Replace this example result with a call to your weather service.
+    return f"The weather in {city} is sunny and 24 C."
+
+
+model = ChatOpenAI(
+    model=os.environ["MODEL_ID"],
+    base_url=os.environ["MODEL_BASE_URL"],
+    api_key=os.environ["MODEL_API_KEY"],
+)
+
+agent = create_agent(
+    model=model,
+    tools=[get_weather],
+    system_prompt="You are a concise travel assistant.",
+)
+
+result = agent.invoke(
+    {"messages": [{"role": "user", "content": "Should I take a coat to Taipei today?"}]}
+)
+print(result["messages"][-1].content)
+```
+
+Call `mlflow.langchain.autolog()` once during application startup, before invoking the agent. Existing LangChain application code does not otherwise need to change.
+
+## Trace an OGX application
+
+OGX provides an OpenAI-compatible Chat Completions and Responses API. For a Python application that calls OGX, MLflow's OpenAI integration is the simplest option and fully traces Responses API calls.
+
+Install the client dependencies:
+
+```bash
+pip install "mlflow[genai]" openai
+```
+
+Point the OpenAI client at the OGX API. The `@mlflow.trace` wrapper groups all model and tool activity performed by `run_agent` under one parent span; `mlflow.openai.autolog()` creates the nested spans for each OGX request.
+
+```python
+import os
+
+import mlflow
+from openai import OpenAI
+
+
+mlflow.set_experiment("ogx-agent-tracing")
+mlflow.openai.autolog()
+
+client = OpenAI(
+    base_url=os.environ.get(
+        "OGX_BASE_URL",
+        "http://<ogx-service>.<namespace>.svc.cluster.local:8321/v1",
+    ),
+    api_key=os.environ.get("OGX_API_KEY", "not-used"),
+)
+
+
+@mlflow.trace(name="ogx-agent")
+def run_agent(question: str) -> str:
+    response = client.responses.create(
+        model=os.environ["OGX_MODEL_ID"],
+        input=question,
+    )
+    return response.output_text
+
+
+print(run_agent("Give me a two-step plan for testing a Kubernetes operator."))
+```
+
+Every call made inside a multi-step agent loop is nested under the `ogx-agent` trace. When the request uses function tools, MLflow also records the tool definitions and the model's tool-call response.
+
+## Export OGX OpenTelemetry traces
+
+Use OpenTelemetry when you want to trace the OGX server itself, instrument a non-Python application, or route telemetry through a collector. MLflow accepts traces over **OTLP/HTTP** at `/v1/traces`; it does not accept OTLP/gRPC ingestion.
+
+First, get the numeric experiment ID:
+
+```python
+import mlflow
+
+experiment = mlflow.set_experiment("ogx-server-tracing")
+print(experiment.experiment_id)
+```
+
+Configure an OpenTelemetry Collector to receive traces from OGX and forward them to Alauda MLflow:
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+
+exporters:
+  otlphttp/mlflow:
+    traces_endpoint: http://mlflow-tracking-server.kubeflow:5000/v1/traces
+    headers:
+      Authorization: "Bearer ${env:MLFLOW_TRACKING_TOKEN}"
+      X-MLflow-Experiment-Id: "${env:MLFLOW_EXPERIMENT_ID}"
+      X-MLFLOW-WORKSPACE: "${env:MLFLOW_WORKSPACE}"
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/mlflow]
+```
+
+Start the collector with `MLFLOW_TRACKING_TOKEN`, `MLFLOW_EXPERIMENT_ID`, and `MLFLOW_WORKSPACE` in its environment. Then configure OGX to send OTLP/HTTP traces to the collector:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+
+opentelemetry-instrument \
+  --traces_exporter otlp \
+  --metrics_exporter none \
+  --service_name ogx-server \
+  -- \
+  ogx run starter
+```
+
+OGX uses OpenTelemetry auto-instrumentation for server and supported SDK activity. MLflow's OTLP endpoint ingests traces only; route metrics to a metrics backend separately.
+
+:::note
+Do not enable MLflow autologging and a separate OpenTelemetry exporter for the same calls unless you deliberately configure them to share one tracer provider. Independent exporters can create duplicate traces. For OGX Responses API client calls, prefer `mlflow.openai.autolog()` because OpenTelemetry auto-instrumentation may not capture all Responses API operations.
+:::
+
+## View the traces
+
+1. Open **Alauda AI → Tools → MLFlow**.
+2. Select the same workspace and experiment configured by the application or collector.
+3. Open the experiment's **Traces** tab.
+4. Select a trace to inspect its span hierarchy, inputs and outputs, latency, token usage, tool calls, and errors.
+
+## Troubleshooting
+
+| Symptom | Check |
+|---|---|
+| A request redirects to the login page or returns `401` | Confirm `MLFLOW_TRACKING_TOKEN` contains a current Dex id token and the MLflow OAuth proxy accepts bearer tokens. See [Verify the token method](./mlflow-python-sdk.mdx#platform-setup). |
+| `403 PERMISSION_DENIED` | The authenticated user needs access to the workspace and `create`/`update` permission on its `experiments` resource. |
+| No traces appear | Confirm the application and UI use the same tracking URI, workspace, experiment, and time range. Also ensure autologging is enabled before the agent is invoked. |
+| OTLP export returns `400` or `403` | Confirm the exporter uses OTLP/HTTP and sends `Authorization`, `X-MLflow-Experiment-Id`, and `X-MLFLOW-WORKSPACE` headers. |
+| The same request appears twice | Disable either MLflow autologging or the independent OpenTelemetry exporter for that request path. |
+| OGX Responses API calls are missing from OpenTelemetry traces | Trace the client with `mlflow.openai.autolog()`, which supports the Responses API. |
