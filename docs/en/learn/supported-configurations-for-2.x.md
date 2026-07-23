@@ -55,7 +55,7 @@ This page lists the currently maintained Alauda AI versions in the component mat
 | Alauda AI Essentials (5)                     | Cluster Plugin | v2.3.0                             | Removed                          |
 | Alauda AI                                    | Operator       | v2.3.0                             | v2.7.0                           |
 | Alauda AI Workbench                          | Cluster Plugin | v0.1.7                             | v0.1.8                           |
-| Alauda Build of KServe                       | Operator       | v0.16.0                            | v0.16.1                          |
+| Alauda Build of KServe                       | Operator       | v0.16.0                            | v0.16.2                          |
 | Alauda Build of KubeRay Operator             | Cluster Plugin | v1.6.0                             | v1.6.0                           |
 | Alauda Build of NVIDIA GPU Device Plugin     | Cluster Plugin | v0.18.4                            | v0.18.4                          |
 | Alauda Build of NVIDIA DRA Driver for GPUs   | Cluster Plugin | v25.8.1                            | v25.8.1                          |
@@ -71,11 +71,11 @@ This page lists the currently maintained Alauda AI versions in the component mat
 | MLFlow                                       | Cluster Plugin | v3.1.5                             | v3.10.0                          |
 | Kubeflow Base                                | Cluster Plugin | v1.10.14-1                         | v1.11.0                          |
 | Kubeflow Trainer v2 (1)                      | Cluster Plugin | v1.10.13                           | v1.11.0                          |
-| Kubeflow Model Registry                      | Operator       | v1.10.13                           | v0.3.8                           |
+| Alauda Build of Kubeflow Model Registry      | Operator       | v1.10.13                           | v0.3.8-2                         |
 | Alauda build of Llama Stack                  | Operator       | v0.8.0                             | v0.9.0                           |
 | Label Studio                                 | Helm Charts    | v1.21.0-2                          | v1.21.0-2                        |
 | Alauda build of Envoy AI Gateway             | Cluster Plugin | v0.4.1                             | -                                |
-| Alauda build of Envoy AI Gateway             | Operator       | -                                  | v0.4.3                           |
+| Alauda build of Envoy AI Gateway             | Operator       | -                                  | v0.6.4-1                         |
 | Dify                                         | Helm Charts    | v1.11.4                            | v1.11.4                          |
 | Langflow                                     | Helm Charts    | v1.6.4-1                           | v1.6.4-1                         |
 | Evidently                                    | Helm Charts    | v0.7.14-1                          | v0.7.14-1                        |
