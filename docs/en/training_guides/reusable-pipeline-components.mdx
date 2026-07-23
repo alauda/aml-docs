@@ -22,7 +22,11 @@ pipeline DAG.
 The current pipeline runtime and several Kubeflow Pipelines service images are
 available for `linux/amd64` only. The DSPO manager can install on an arm64
 cluster, but a `DataSciencePipelinesApplication` cannot become ready there.
-Run these pipelines on x86 worker nodes.
+Run these pipelines on x86 worker nodes. If a later release supplies arm64
+manifests for the complete runtime image set, follow the [arm64 deployment
+instructions](./kfp-execution-and-storage.mdx#arm64-deployment); DSPO does not
+deploy the optional metadata writer, while `kfp-operator` requires
+`kfpMetadataWriter.enabled: false`.
 :::
 
 ## Prerequisites \{#prerequisites\}

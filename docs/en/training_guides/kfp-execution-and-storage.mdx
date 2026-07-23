@@ -144,6 +144,61 @@ The final output contains one `PASS` line for each mechanism. An administrator
 can independently confirm persistence by listing the run prefix in the KFP
 artifact bucket after the pods finish.
 
+## Deploy on an arm64 cluster \{#arm64-deployment\}
+
+An arm64 deployment must have an arm64 manifest for every image in the selected
+release. Disabling the optional KFP metadata writer removes one amd64-only image;
+it does not make other amd64-only images runnable. Check the release image list
+before creating the operator instance.
+
+### `kfp-operator`
+
+When the selected KFP release supports arm64, install `kfp-operator` normally
+from OperatorHub and set the optional metadata writer to `false` in the
+`KubeflowPipelines` custom resource:
+
+```yaml
+apiVersion: operator.alauda.io/v1
+kind: KubeflowPipelines
+metadata:
+  name: kubeflowpipelines
+spec:
+  global:
+    images:
+      kfpMetadataWriter:
+        enabled: false
+```
+
+Keep the remaining `spec.global.images` values from the release sample. The
+`support_arm` image field only controls packaging/image relocation; it does not
+disable the Deployment. Verify that the writer is absent after reconciliation:
+
+```bash
+kubectl -n kubeflow get deployment metadata-writer
+# Error from server (NotFound) is expected
+```
+
+### Data Science Pipelines Operator (DSPO)
+
+DSPO's supported V2 reconciler does not deploy `kfp-metadata-writer` at all.
+Create the DSPA with the normal V2 settings and do not add an MLMD writer field:
+
+```yaml
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: sample
+  namespace: data-science-project
+spec:
+  dspVersion: v2
+  mlmd:
+    deploy: true
+```
+
+Verify the namespace contains MLMD gRPC/Envoy resources but no
+`metadata-writer` Deployment. DSPO and `kfp-operator` are mutually exclusive;
+choose one installation model per cluster.
+
 ## Platform compatibility and database backends
 
 The following results apply to the Alauda builds aligned with KFP 2.16.1:
@@ -157,6 +212,10 @@ On arm64, the current `kfp-metadata-envoy`, persistence agent, scheduled
 workflow controller, API server, and pipelines-components images do not contain
 an arm64 manifest. The DSPO manager being `Ready` therefore does not establish
 that a pipeline service is usable.
+
+The arm64 instructions above only address the optional metadata writer. They do
+not override this image compatibility requirement; use a release whose complete
+runtime image set has arm64 manifests before attempting a DSPA or KFP deployment.
 
 Both operators currently expose only MySQL connection settings. DSPO performs
 its external database health check with the MySQL driver and renders
