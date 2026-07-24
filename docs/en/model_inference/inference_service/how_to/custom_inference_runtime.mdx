@@ -503,7 +503,17 @@ spec:
           fi
 
 
-          # 3. launch vllm server
+          # 3. initialize Ascend toolkit environment
+
+          if [[ -f "/usr/local/Ascend/ascend-toolkit/set_env.sh" ]]; then
+              source /usr/local/Ascend/ascend-toolkit/set_env.sh
+          else
+              echo "ascend-toolkit package is incomplete please check it."
+              exit 1
+          fi
+
+
+          # 4. launch vllm server
 
           python3 -m vllm.entrypoints.openai.api_server \
 
