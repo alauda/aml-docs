@@ -4,26 +4,28 @@ weight: 59
 
 # Kubeflow Pipelines Execution and Storage Behavior
 
-Kubeflow Pipelines 2.16.1 installed by the Data Science Pipelines Operator
-(DSPO) supports task caching, `dsl.ParallelFor`, typed KFP artifacts, and
-S3-compatible artifact persistence on x86 clusters. These mechanisms are KFP
-features; DSPO configures the API server, workflow controller, cache server,
-and artifact store that implement them.
+Kubeflow Pipelines 2.16.1 installed by Alauda `kfp-operator` v26.3.1 or the
+Data Science Pipelines Operator (DSPO) v2.15.2 supports task caching,
+`dsl.ParallelFor`, typed KFP artifacts, and S3-compatible artifact persistence
+on amd64 and arm64 clusters. These mechanisms are KFP features; the operator
+configures the API server, workflow controller, cache server, and artifact
+store that implement them.
 
 ## Feature summary
 
-| Mechanism | DSPO on x86 | Behavior |
+| Mechanism | KFP 2.16.1 | Behavior |
 |---|---|---|
 | Task caching | Supported | An identical task execution can be reused and is reported as `SKIPPED` in the repeated run. |
 | `dsl.ParallelFor` | Supported | Each loop item becomes a separate task; `parallelism` limits concurrent iterations. |
 | Typed artifacts | Supported | `dsl.Output[dsl.Dataset]` and `dsl.Input[dsl.Dataset]` create an explicit producer-to-consumer dependency. |
 | Artifact persistence | Supported | The launcher uploads artifact files and metadata to the configured S3-compatible store and downloads them for consumers. |
 
-The verification pipeline linked below produced one `Dataset`, read it from
-three `ParallelFor` tasks, and then submitted the identical pipeline again. All
-three consumers succeeded, and four executor tasks in the second run were
-reported as `SKIPPED` because their cached results were reused. The dataset
-object remained present in S3 after the workflow pods completed.
+The verification pipeline linked below was run with DSPO on an x86 cluster. It
+produced one `Dataset`, read it from three `ParallelFor` tasks, and then
+submitted the identical pipeline again. All three consumers succeeded, and
+four executor tasks in the second run were reported as `SKIPPED` because their
+cached results were reused. The dataset object remained present in S3 after
+the workflow pods completed.
 
 :::note
 The managed AutoGluon pipelines intentionally disable caching for their main
@@ -146,16 +148,16 @@ artifact bucket after the pods finish.
 
 ## Deploy on an arm64 cluster \{#arm64-deployment\}
 
-An arm64 deployment must have an arm64 manifest for every image in the selected
-release. Disabling the optional KFP metadata writer removes one amd64-only image;
-it does not make other amd64-only images runnable. Check the release image list
-before creating the operator instance.
+The Alauda KFP 2.16.1 releases package the pipeline service and runtime images
+for both `linux/amd64` and `linux/arm64`. The optional
+`kfp-metadata-writer` image remains amd64-only. DSPO does not deploy this
+component; Alauda `kfp-operator` must disable it on arm64.
 
 ### `kfp-operator`
 
-When the selected KFP release supports arm64, install `kfp-operator` normally
-from OperatorHub and set the optional metadata writer to `false` in the
-`KubeflowPipelines` custom resource:
+With Alauda `kfp-operator` v26.3.1, install the operator normally from
+OperatorHub and set the optional metadata writer to `false` in the
+`KubeflowPipelines` custom resource before reconciliation:
 
 ```yaml
 apiVersion: operator.alauda.io/v1
@@ -180,8 +182,9 @@ kubectl -n kubeflow get deployment metadata-writer
 
 ### Data Science Pipelines Operator (DSPO)
 
-DSPO's supported V2 reconciler does not deploy `kfp-metadata-writer` at all.
-Create the DSPA with the normal V2 settings and do not add an MLMD writer field:
+The V2 reconciler in DSPO v2.15.2 does not deploy `kfp-metadata-writer`. No
+arm64 override is required. Create the DSPA with the normal V2 settings and do
+not add an MLMD writer field:
 
 ```yaml
 apiVersion: datasciencepipelinesapplications.opendatahub.io/v1
@@ -203,19 +206,14 @@ choose one installation model per cluster.
 
 The following results apply to the Alauda builds aligned with KFP 2.16.1:
 
-| Installation | x86 | arm64 | MySQL | PostgreSQL |
+| Installation | amd64 | arm64 | MySQL | PostgreSQL |
 |---|---|---|---|---|
-| DSPO 2.15.1 | Operator and DSPA verified; smoke and mechanism tests pass | Operator manager starts, but DSPA operands cannot start | Supported | Not supported |
-| `kfp-operator` 26.3.0 | Operator and managed KFP installation supported | Not supported in the current image set | Supported | Not supported |
+| DSPO v2.15.2 | Supported; smoke and mechanism tests pass | Supported; DSPA readiness and KFP v2 SDK smoke pass | Supported | Not supported |
+| Alauda `kfp-operator` v26.3.1 | Supported | Supported when `kfpMetadataWriter.enabled` is `false`; KFP API and Argo workflow execution verified | Supported | Not supported |
 
-On arm64, the current `kfp-metadata-envoy`, persistence agent, scheduled
-workflow controller, API server, and pipelines-components images do not contain
-an arm64 manifest. The DSPO manager being `Ready` therefore does not establish
-that a pipeline service is usable.
-
-The arm64 instructions above only address the optional metadata writer. They do
-not override this image compatibility requirement; use a release whose complete
-runtime image set has arm64 manifests before attempting a DSPA or KFP deployment.
+All required runtime images in these releases have amd64 and arm64 manifests,
+except `kfp-metadata-writer`. Disabling that component is required only for an
+arm64 Alauda `kfp-operator` installation; it is not part of a DSPO deployment.
 
 Both operators currently expose only MySQL connection settings. DSPO performs
 its external database health check with the MySQL driver and renders

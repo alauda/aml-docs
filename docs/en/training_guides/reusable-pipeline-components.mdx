@@ -4,10 +4,11 @@ weight: 58
 
 # Use Reusable Kubeflow Pipeline Components
 
-Alauda AI packages reusable components from the mirrored
+The next Alauda AI release packages reusable components from the mirrored
 [`pipelines-components`](https://gitlab-ce.alauda.cn/aml/pipelines-components)
-project with Kubeflow Pipelines 2.16.1. A Kubeflow Pipelines installation
-preloads two beta AutoGluon pipelines:
+project for Kubeflow Pipelines 2.16.1. This KFP version will be delivered by
+Alauda `kfp-operator` v26.3.1 and DSPO v2.15.2. Either installation preloads
+two beta AutoGluon pipelines:
 
 | Pipeline | Use it for | Input data |
 |---|---|---|
@@ -18,22 +19,20 @@ The managed pipelines are the shortest path to a complete training run. You can
 also clone the mirror and import individual components when you need a custom
 pipeline DAG.
 
-:::warning
-The current pipeline runtime and several Kubeflow Pipelines service images are
-available for `linux/amd64` only. The DSPO manager can install on an arm64
-cluster, but a `DataSciencePipelinesApplication` cannot become ready there.
-Run these pipelines on x86 worker nodes. If a later release supplies arm64
-manifests for the complete runtime image set, follow the [arm64 deployment
-instructions](./kfp-execution-and-storage.mdx#arm64-deployment); DSPO does not
-deploy the optional metadata writer, while `kfp-operator` requires
-`kfpMetadataWriter.enabled: false`.
+:::note
+The KFP 2.16.1 service and reusable-component images support `linux/amd64` and
+`linux/arm64`. DSPO needs no additional setting on arm64 because it does not
+deploy the optional, amd64-only metadata writer. For Alauda `kfp-operator`, set
+`kfpMetadataWriter.enabled: false`. See the [arm64 deployment
+instructions](./kfp-execution-and-storage.mdx#arm64-deployment).
 :::
 
 ## Prerequisites \{#prerequisites\}
 
 | Requirement | Details |
 |---|---|
-| Kubeflow Pipelines 2.16.1 | Installed by either DSPO or `kfp-operator`. Do not install both operators on the same cluster. |
+| Kubeflow Pipelines 2.16.1 | Will be included in the next Alauda AI release with either Alauda `kfp-operator` v26.3.1 or DSPO v2.15.2. Install only one pipeline operator on a cluster. |
+| Supported architecture | `linux/amd64` or `linux/arm64`. On arm64, follow the operator-specific configuration linked above. |
 | S3-compatible input storage | The data loader reads its input object directly from S3. |
 | S3 credentials Secret | Create it in the namespace where the pipeline run executes. |
 | Workspace storage | The managed pipelines request a 12 GiB `ReadWriteOnce` workspace PVC. The installation must configure a usable default storage class. |
@@ -145,7 +144,7 @@ from kfp_components.components.data_processing.automl.tabular_data_loader import
     automl_data_loader,
 )
 
-AUTOML_IMAGE = "<registry>/mlops/kubeflow/odh-automl:odh-stable-20260720"
+AUTOML_IMAGE = "<registry>/mlops/kubeflow/odh-automl:v1.11.0.post.1"
 
 
 @dsl.pipeline(
