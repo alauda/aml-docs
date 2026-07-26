@@ -14,7 +14,7 @@
 #
 # Model source: ModelScope `Eco-Tech/DeepSeek-V4-Flash-w8a8-mtp` (70 shards, ~280 GB),
 # repackaged as an Alauda ModelCar in OCI Image Layout format (multi-arch amd64+arm64):
-#   http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/DeepSeek-V4-Flash-w8a8-mtp.oci.tar
+#   http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/DeepSeek-V4-Flash-w8a8-mtp/DeepSeek-V4-Flash-w8a8-mtp.oci.tar
 # The cluster pulls an OCI *image*, not the tar, so import the archive into your own
 # registry once (skopeo does the multi-arch push in one shot), then point model.uri at it:
 #   skopeo copy --all \
