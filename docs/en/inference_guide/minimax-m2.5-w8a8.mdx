@@ -35,7 +35,7 @@ attention + W8A8), both add-ons were measured to *lose* (see [Deployment spec](#
 | Quantization | W8A8 (`W8A8_DYNAMIC`, **QuaRot**; int8 attention + expert, no KV quant; ~230 GB weights, 71 shards, 62 layers); MIT license |
 | Context / vocab | 196,608 (~192k, `max_position_embeddings`, rope_theta 5e6) / 200,064 |
 | Model source (W8A8) | https://www.modelscope.cn/models/Eco-Tech/MiniMax-M2.5-w8a8-QuaRot |
-| ModelCar (OCI Image Layout tar) | `http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/MiniMax-M2.5-w8a8-QuaRot.oci.tar` |
+| ModelCar (OCI Image Layout tar) | `http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/MiniMax-M2.5-w8a8-QuaRot/MiniMax-M2.5-w8a8-QuaRot.oci.tar` |
 
 :::note
 **The built-in MTP head is not usable on these weights.** The config declares
@@ -153,7 +153,7 @@ kubectl apply -f $base/minimax-m2.5-w8a8-agg-llmisvc.yaml
 #    Cross-environment alternative — import the OCI ModelCar tar into your own registry
 #    once (skopeo does the multi-arch amd64+arm64 push in one go), then set the manifest
 #    model.uri to oci://<your-registry>/modelcar-minimax-m2.5-w8a8-quarot:v0.1.0:
-#      curl -sO http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/MiniMax-M2.5-w8a8-QuaRot.oci.tar
+#      curl -sO http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/MiniMax-M2.5-w8a8-QuaRot/MiniMax-M2.5-w8a8-QuaRot.oci.tar
 #      skopeo copy --all \
 #        oci-archive:MiniMax-M2.5-w8a8-QuaRot.oci.tar:v0.1.0 \
 #        docker://<your-registry>/modelcar-minimax-m2.5-w8a8-quarot:v0.1.0
