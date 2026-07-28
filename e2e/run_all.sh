@@ -41,6 +41,19 @@ CASES=(
   # (A30) is reserved by the persistent inference workload and no slice frees up;
   # the orchestrator controls A30 capacity. Same build-harbor image as C13.
   "C14:GPU:cases/c14_traininghub_cpt.sh"
+  # C15 — QLoRA (4-bit NF4 + LoRA) on Ascend NPU using transformers + peft +
+  # torch_npu + the community bitsandbytes-npu-beta fork (SlightwindSec).
+  # Self-contained (synthetic Qwen2 + chat JSONL). Opt-in via NPU_NAMESPACE +
+  # NPU_RESOURCE_NAME. SKIPs (rc=77) if NPU slice is unschedulable, no PyPI
+  # egress to install bitsandbytes-npu-beta, or the fork wheel is incompatible
+  # with the workbench's CANN / torch_npu combination.
+  "C15:NPU:cases/c15_qlora_npu.sh"
+  # C16 — continued pre-training (CPT) on Ascend NPU using transformers.Trainer
+  # on torch_npu (no MindSpeed-LLM, no HF↔MCore conversion). Self-contained
+  # (synthetic Qwen2 + raw-text corpus). Opt-in via NPU_NAMESPACE +
+  # NPU_RESOURCE_NAME. SKIPs (rc=77) if NPU slice is unschedulable or the
+  # in-Pod NPU sanity check fails.
+  "C16:NPU:cases/c16_cpt_npu.sh"
 )
 
 want=( "$@" )
