@@ -1,0 +1,79 @@
+---
+weight: 20
+---
+
+# Install Node Feature Discovery
+
+## Supported configurations
+
+The `v0.18.3` Cluster Plugin package is published for:
+
+| Requirement               | Supported value                    |
+| ------------------------- | ---------------------------------- |
+| Alauda AI                 | v2.3 Stable                        |
+| Alauda Container Platform | v4.0.x, v4.1.x, v4.2.x, and v4.3.x |
+| Architecture              | x86_64 (amd64) and ARM64 (arm64)   |
+
+## Download the Cluster Plugin
+
+:::info
+
+The **Alauda Build of Node Feature Discovery** Cluster Plugin can be retrieved
+from Customer Portal. Contact Customer Support for more information.
+
+:::
+
+## Upload the Cluster Plugin
+
+For more information, see the following documentation:
+
+<ExternalSiteLink
+  name="acp"
+  href="extend/upload_package.html#upload-a-cluster-plugin"
+  children="Uploading Cluster Plugins"
+/>
+
+## Install the Cluster Plugin
+
+1. Go to **Administrator** > **Marketplace** > **Cluster Plugins**.
+2. Switch to the target cluster and deploy **Alauda Build of Node
+   Feature Discovery**.
+3. Keep **gfd Extension** disabled unless NVIDIA GPU or CUDA-related discovery
+   labels are required.
+4. Wait until the plugin status is **Installed**.
+
+## Verify the installation
+
+Verify that the NFD master, worker, and garbage collector workloads are ready:
+
+```bash
+kubectl -n kube-system get deployment node-feature-discovery-master node-feature-discovery-gc
+kubectl -n kube-system get daemonset node-feature-discovery-worker
+```
+
+Verify that NFD is publishing discovered features:
+
+```bash
+kubectl get nodefeatures.nfd.k8s-sigs.io --all-namespaces
+kubectl get node <node-name> --show-labels
+```
+
+The target node should contain labels with the
+`feature.node.kubernetes.io/` prefix. If the GFD extension is enabled, the node
+can also contain NVIDIA GPU or CUDA-related discovery labels.
+
+## Upgrade to v0.18.3
+
+Version `v0.18.3` updates the upstream NFD base and provides Alauda
+multi-architecture images. The existing optional GFD integration is preserved,
+and no user configuration migration is required.
+
+1. Upload the `v0.18.3` plugin package.
+2. Go to **Administrator** > **Clusters** > **Target Cluster** > **Functional
+   Components**.
+3. Upgrade **Alauda Build of Node Feature Discovery** to `v0.18.3`.
+4. Repeat the installation verification commands.
+
+The NFD upgrade does not change separately managed accelerator driver or Device
+Plugin versions. After the upgrade, verify that the node labels required by
+your workloads remain present.
