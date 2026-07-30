@@ -1,0 +1,212 @@
+---
+weight: 58
+---
+
+# Use Reusable Kubeflow Pipeline Components
+
+The next Alauda AI release packages reusable components from the mirrored
+[`pipelines-components`](https://gitlab-ce.alauda.cn/aml/pipelines-components)
+project for Kubeflow Pipelines 2.16.1. This KFP version will be delivered by
+Alauda `kfp-operator` v26.3.1 and DSPO v2.15.2. Either installation preloads
+two beta AutoGluon pipelines:
+
+| Pipeline | Use it for | Input data |
+|---|---|---|
+| `autogluon-tabular-training-pipeline` | Regression, binary classification, and multiclass classification | CSV with a target column |
+| `autogluon-timeseries-training-pipeline` | Forecasting one or more time series | CSV or Parquet with ID, timestamp, and numeric target columns |
+
+The managed pipelines are the shortest path to a complete training run. You can
+also clone the mirror and import individual components when you need a custom
+pipeline DAG.
+
+:::note
+The KFP 2.16.1 service and reusable-component images support `linux/amd64` and
+`linux/arm64`. DSPO needs no additional setting on arm64 because it does not
+deploy the optional, amd64-only metadata writer. For Alauda `kfp-operator`, set
+`kfpMetadataWriter.enabled: false`. See the [arm64 deployment
+instructions](./kfp-execution-and-storage.mdx#arm64-deployment).
+:::
+
+## Prerequisites \{#prerequisites\}
+
+| Requirement | Details |
+|---|---|
+| Kubeflow Pipelines 2.16.1 | Will be included in the next Alauda AI release with either Alauda `kfp-operator` v26.3.1 or DSPO v2.15.2. Install only one pipeline operator on a cluster. |
+| Supported architecture | `linux/amd64` or `linux/arm64`. On arm64, follow the operator-specific configuration linked above. |
+| S3-compatible input storage | The data loader reads its input object directly from S3. |
+| S3 credentials Secret | Create it in the namespace where the pipeline run executes. |
+| Workspace storage | The managed pipelines request a 12 GiB `ReadWriteOnce` workspace PVC. The installation must configure a usable default storage class. |
+| Compute | The data loader requests 2 CPU and 8 GiB. Training with `preset=speed` requests 4 CPU and 16 GiB; `preset=balanced` requests 8 CPU and 32 GiB. |
+
+The input bucket can differ from the object store configured as the KFP artifact
+store. The Secret below authenticates the data loader to the input bucket; KFP
+supplies artifact-store credentials to its launcher separately.
+
+## Create the input-storage Secret
+
+Create the Secret in the pipeline run namespace:
+
+```bash
+NS=my-pipeline-namespace
+
+kubectl -n "$NS" create secret generic pipeline-input-s3 \
+  --from-literal=AWS_ACCESS_KEY_ID='<access-key>' \
+  --from-literal=AWS_SECRET_ACCESS_KEY='<secret-key>' \
+  --from-literal=AWS_S3_ENDPOINT='https://s3.example.com' \
+  --from-literal=AWS_DEFAULT_REGION='us-east-1'
+```
+
+Keep the URI scheme in `AWS_S3_ENDPOINT`. The component passes this value to
+the S3 client as its endpoint URL.
+
+Upload the training file to the bucket before starting the run. For example,
+the following tabular input has two features and a regression label:
+
+```csv
+feature_a,feature_b,price
+1.0,2.0,10.5
+2.0,3.0,20.5
+3.0,4.0,30.5
+```
+
+Tabular data must contain at least 100 valid rows after duplicate rows, invalid
+labels, and other unusable values are removed.
+
+## Run a managed tabular pipeline
+
+1. Open **Kubeflow Pipelines** and select **Pipelines**.
+2. Search for `autogluon-tabular-training-pipeline` and select its latest version.
+3. Select **Create run**, choose the namespace containing the Secret, and set the inputs:
+
+| Input | Example | Description |
+|---|---|---|
+| `train_data_secret_name` | `pipeline-input-s3` | S3 credentials Secret |
+| `train_data_bucket_name` | `training-data` | Input bucket |
+| `train_data_file_key` | `tabular/housing.csv` | CSV object key |
+| `label_column` | `price` | Target column |
+| `task_type` | `regression` | `regression`, `binary`, or `multiclass` |
+| `top_n` | `3` | Number of models to retain, from 1 through 10 |
+| `positive_class` | empty | Optional positive label for binary classification |
+| `eval_metric` | empty | Empty selects `r2` for regression and `accuracy` for classification |
+| `preset` | `speed` | `speed` or the larger `balanced` resource tier |
+
+4. Start the run and follow the data-loader and model-training tasks in the run graph.
+
+The pipeline samples and splits the source data, trains and ranks AutoGluon
+models, and refits the best `top_n` models. Training splits are shared through
+the run's workspace PVC. The test split, leaderboard, model predictors,
+metrics, and generated inference notebooks are KFP artifacts persisted in the
+configured artifact store.
+
+## Run a managed time-series pipeline
+
+Select `autogluon-timeseries-training-pipeline` and provide the common storage
+inputs described above. Its time-series-specific inputs are:
+
+| Input | Example | Description |
+|---|---|---|
+| `target` | `sales` | Numeric value to forecast |
+| `id_column` | `product_id` | Identifies each independent series |
+| `timestamp_column` | `date` | Parseable observation timestamp |
+| `known_covariates_names` | `["is_holiday", "promo"]` | Optional columns known for the forecast horizon |
+| `prediction_length` | `14` | Number of time steps to forecast |
+| `top_n` | `3` | Number of models to retain |
+| `eval_metric` | `mean_absolute_scaled_error` | AutoGluon time-series ranking metric |
+| `preset` | `speed` | `speed` or `balanced` |
+
+The loader deduplicates ID/timestamp pairs and performs a temporal split for
+each series. It writes the working train splits to the workspace PVC and the
+test split and trained models to the artifact store.
+
+## Compose a custom pipeline from the mirror
+
+The `kfp-components` package is not published to PyPI. Clone the Alauda mirror
+and install it in a Python 3.11 or later virtual environment. Pin the SDK to the
+version shipped by Alauda AI:
+
+```bash
+git clone https://gitlab-ce.alauda.cn/aml/pipelines-components.git
+cd pipelines-components
+
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install 'kfp==2.16.1' 'kfp-kubernetes==2.16.1'
+python -m pip install --no-deps -e .
+```
+
+This example imports the tabular data loader and uses it in a smaller custom
+pipeline. Replace the image with the AutoML runtime mirrored into your cluster:
+
+```python
+from kfp import compiler, dsl, kubernetes
+from kfp_components.components.data_processing.automl.tabular_data_loader import (
+    automl_data_loader,
+)
+
+AUTOML_IMAGE = "<registry>/mlops/kubeflow/odh-automl:v1.11.0.post.1"
+
+
+@dsl.pipeline(
+    name="custom-tabular-loader",
+    pipeline_config=dsl.PipelineConfig(
+        workspace=dsl.WorkspaceConfig(
+            size="12Gi",
+            kubernetes=dsl.KubernetesWorkspaceConfig(
+                pvcSpecPatch={"accessModes": ["ReadWriteOnce"]}
+            ),
+        )
+    ),
+)
+def custom_tabular_loader(
+    secret_name: str,
+    bucket: str,
+    object_key: str,
+    label: str,
+    task_type: str = "regression",
+):
+    loader = automl_data_loader(
+        bucket_name=bucket,
+        file_key=object_key,
+        workspace_path=dsl.WORKSPACE_PATH_PLACEHOLDER,
+        label_column=label,
+        task_type=task_type,
+    )
+    loader.set_container_image(AUTOML_IMAGE)
+    kubernetes.use_secret_as_env(
+        loader,
+        secret_name=secret_name,
+        secret_key_to_env={
+            "AWS_ACCESS_KEY_ID": "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY": "AWS_SECRET_ACCESS_KEY",
+            "AWS_S3_ENDPOINT": "AWS_S3_ENDPOINT",
+            "AWS_DEFAULT_REGION": "AWS_DEFAULT_REGION",
+        },
+    )
+
+
+compiler.Compiler().compile(
+    pipeline_func=custom_tabular_loader,
+    package_path="custom-tabular-loader.yaml",
+)
+```
+
+Upload `custom-tabular-loader.yaml` from the Kubeflow Pipelines UI, or submit
+it with the KFP SDK. Review the component's `README.md`, `metadata.yaml`, and
+tests in the mirror before using another asset; the repository contains alpha
+and beta assets with different external-service requirements.
+
+## Troubleshooting
+
+- **Secret not found:** Secrets are namespace-scoped. Create the input Secret
+  in the same namespace as the run.
+- **Workspace PVC remains Pending:** Configure a default storage class that
+  supports `ReadWriteOnce`, or ask the platform administrator to configure the
+  KFP workspace storage class.
+- **Run remains Pending:** Compare available cluster resources with the CPU and
+  memory requests in [Prerequisites](#prerequisites). Start with `preset=speed`.
+- **Input object cannot be read:** Check the endpoint scheme, bucket and object
+  key, credentials, region, network policy, and the S3 server certificate.
+- **Artifacts are missing after pods finish:** The pipeline input Secret does
+  not configure KFP persistence. Check the KFP installation's artifact-store
+  endpoint and credentials with the platform administrator.
