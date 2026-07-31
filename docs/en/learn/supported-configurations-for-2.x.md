@@ -28,9 +28,10 @@ This page lists the currently maintained Alauda AI versions in the component mat
 | Alauda Build of JobSet (1)                   | Operator       | -                                  | v0.12.0                          |
 | Volcano                                      | Cluster Plugin | v1.12.4                            | v1.12.4                          |
 | MLFlow                                       | Cluster Plugin | v3.1.5                             | v3.10.0                          |
-| Kubeflow Base                                | Cluster Plugin | v1.10.14-1                         | v1.11.0                          |
-| Kubeflow Pipelines (2)                       | Cluster Plugin | v1.10.13                           | v1.11.0                          |
-| Kubeflow Trainer v2 (1)                      | Cluster Plugin | v1.10.13                           | v1.11.0                          |
+| Kubeflow Base                                | Operator       | v1.10.14-1                         | v26.3.2                          |
+| Kubeflow Pipelines                           | Operator       | v1.10.13                           | v26.3.2                          |
+| Kubeflow Trainer v2 (1)                      | Operator       | v1.10.13                           | v26.3.2                          |
+| Data Science Pipeline Operator               | Operator       | v2.15.1                            | v2.15.1                          |
 | Alauda Build of Kubeflow Model Registry      | Operator       | v1.10.13                           | v0.3.8-2                         |
 | Alauda Build of Llama Stack                  | Operator       | v0.8.0                             | v0.9.0                           |
 | Label Studio                                 | Helm Charts    | v1.21.0-2                          | v1.21.0-2                        |
@@ -69,9 +70,10 @@ This page lists the currently maintained Alauda AI versions in the component mat
 | Alauda Build of JobSet (1)                   | Operator       | -                                  | v0.12.0                          |
 | Volcano                                      | Cluster Plugin | v1.12.4                            | v1.12.4                          |
 | MLFlow                                       | Cluster Plugin | v3.1.5                             | v3.10.0                          |
-| Kubeflow Base                                | Cluster Plugin | v1.10.14-1                         | v1.11.0                          |
-| Kubeflow Pipelines (2)                       | Cluster Plugin | v1.10.13                           | v1.11.0                          |
-| Kubeflow Trainer v2 (1)                      | Cluster Plugin | v1.10.13                           | v1.11.0                          |
+| Kubeflow Base                                | Operator       | v1.10.14-1                         | v26.3.2                          |
+| Kubeflow Pipelines                           | Operator       | v1.10.13                           | v26.3.2                          |
+| Kubeflow Trainer v2 (1)                      | Operator       | v1.10.13                           | v26.3.2                          |
+| Data Science Pipeline Operator               | Operator       | v2.15.1                            | v2.15.1                          |
 | Alauda Build of Kubeflow Model Registry      | Operator       | v1.10.13                           | v0.3.8-2                         |
 | Alauda build of Llama Stack                  | Operator       | v0.8.0                             | v0.9.0                           |
 | Label Studio                                 | Helm Charts    | v1.21.0-2                          | v1.21.0-2                        |
