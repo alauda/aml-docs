@@ -1,0 +1,300 @@
+---
+weight: 20
+---
+
+# Install Dify
+
+This guide installs Dify on **Alauda Container Platform** using the **Dify Operator** (a helm-based OLM operator). Follow the steps in order — each one depends on the previous.
+
+For what Dify is and the components it deploys, see [Introduction](./overview/intro).
+
+## At a Glance
+
+| You need | Why |
+|---|---|
+| The Dify operator package (`.tgz`) | Pushed via `violet` so the operator appears in OperatorHub |
+| External **PostgreSQL 12+** | Dify's main database (only PostgreSQL is supported) |
+| External **Redis 6+** (standalone or Sentinel) | Cache + Celery broker; Cluster mode is **not** supported |
+| External **pgvector** *(optional)* | Vector store for RAG; disable if not using RAG |
+| **RWX PVC** *or* **S3-compatible storage** | Shared, writable storage for API + Plugin Daemon |
+| An **access method** for browsers | One of: NodePort/Service, single domain, or two domains. Domains and TLS certs are registered through ACP **Network Management**. See [Step 4](#access-method) |
+| **In-cluster proxies** *(restricted-network only)* | A Marketplace reverse proxy + a PyPI mirror so plugins install offline |
+
+## Step 1 — Publish the Operator Package
+
+Download the Dify operator package (e.g. `dify-operator.alpha.ALL.v<version>.tgz`) from Customer Support / Portal, then push it to the platform repository so it appears in **Marketplace / OperatorHub**:
+
+```bash
+violet push \
+  --platform-address=<platform-access-address> \
+  --platform-username=<platform-admin> \
+  --platform-password=<platform-admin-password> \
+  dify-operator.alpha.ALL.v<version>.tgz
+```
+
+## Step 2 — Install the Dify Operator
+
+In **Administrator** view of Alauda Container Platform:
+
+1. Open **Marketplace** / **OperatorHub** and select the target cluster.
+2. Search for **Dify**, click **Install**, and keep defaults unless you need a non-default namespace.
+3. Wait for the tile to show **Installed**.
+
+## Step 3 — Prepare External Dependencies
+
+### PostgreSQL (required)
+
+Use **PostgreSQL 12+**. The simplest path is the PostgreSQL operator in **Data Services**: create a cluster, then create an empty database for Dify (e.g. `dify`). Record the host, port, username and password.
+
+### Redis (required — standalone or Sentinel)
+
+Use **Redis 6.0+**. Create via **Data Services**.
+
+- **Standalone:** create with **Redis Sentinel** architecture, switch to **YAML**, set `spec.arch: standalone`, and create. Use the `rfr-<instance>-read-write` Service as the Redis host.
+- **Sentinel (HA):** keep the Sentinel architecture; use the Sentinel Service endpoints + master name in [Step 6](#create-the-instance).
+
+### pgvector — vector store *(optional, for RAG)*
+
+Only **pgvector** is supported. Use a PostgreSQL instance with the `pgvector` extension installed. It can share the main DB host (different database name) or be a dedicated host. Skip if you don't use RAG.
+
+### Storage — RWX PVC or S3
+
+The API, Worker, Worker-Beat and Plugin Daemon need shared writable storage:
+
+- a **ReadWriteMany (RWX)** StorageClass shared across the workloads, **or**
+- an **S3-compatible** object store (MinIO, AWS S3, OBS, etc.) — recommended when no RWX class is available.
+
+Record the StorageClass name, or the S3 endpoint + region + bucket + access keys.
+
+## Step 4 — Decide and Set Up the Access Method \{#access-method}
+
+Dify is browser-facing and has **two surfaces**, so the Dify instance has two URL fields:
+
+- **Console URL** — the builder UI used by admins / app creators (build apps, configure models, manage knowledge bases).
+- **App URL** — the published apps that end users open (chat / agent pages like `/chat/<code>`).
+
+Both URLs must match how users actually reach Dify, otherwise the frontend cannot load. Pick one of the three options below — each says what you need to prepare and how the two URLs are filled.
+
+| Option | When to use | What to prepare | Console URL / App URL |
+|---|---|---|---|
+| **A. NodePort / Service IP** | Dev / internal; no domain | Nothing | Both set to `http://<node-ip>:<nodeport>` (one address used for both) |
+| **B. Single domain** | One hostname for both surfaces | 1 ACP Certificate + 1 ACP Domain; Envoy Gateway + a `Gateway` resource | Both set to `https://<host>` |
+| **C. Two domains** | Production — separate admin vs end-user access (different DNS / cert / network exposure) | 1 ACP Certificate (can cover both, e.g. wildcard) + 2 ACP Domains; Envoy Gateway + a `Gateway` resource | Console URL = `https://<console-host>`, App URL = `https://<app-host>` |
+
+For **Option A** there is nothing to set up here — go to Step 5. For **Options B and C**, set up the Gateway as follows.
+
+### Set Up the Gateway (Option B or C only)
+
+Three sub-steps: register the domain (with its cert) in ACP → install Envoy Gateway → create a `Gateway` resource that references the cert Secret.
+
+#### 1. Register the domain in ACP
+
+In **Administrator** view, go to **Network Management** → **Domain Names** → **Create Domain Name**, and fill the form:
+
+| Field | Value |
+|---|---|
+| **Type** | Domain (specific hostname) or Wildcard Domain (`*.example.com`) |
+| **Domain** | The hostname, e.g. `dify-console.example.com` |
+| **Allocate Cluster** | Target cluster + project (or all projects) |
+| **Certificate** | Paste **Public Key** (`tls.crt`) and **Private Key** (`tls.key`) directly into the form — ACP creates the bound TLS Secret automatically |
+
+ACP creates:
+
+- a `Domain` custom resource on the global cluster (`apiVersion: crd.alauda.io/v2`, cluster-scoped, with `cluster.cpaas.io/name` / `project.cpaas.io/name` labels);
+- a `kubernetes.io/tls` Secret in the **`cpaas-system`** namespace named **`<domain>-<random>`** (e.g. `dify-console.example.com-xfd8x`); the Domain's `cpaas.io/secret-ref` annotation records this name.
+
+You can find the Secret name from the Domain detail page. Full UI reference: <ExternalSiteLink name="acp" href="/networking/functions/configure_domain.mdx" children="Configure Domain" />.
+
+Then **resolve DNS** for the hostname to the cluster's load balancer address.
+
+Repeat for the second hostname under Option C (two domains). One certificate that covers both hosts (e.g. a wildcard) can be reused — paste the same cert in both Domain forms, or use **Network Management** → **Certificates** to import the cert once and select it during domain creation (see <ExternalSiteLink name="acp" href="/networking/functions/configure_certificate.mdx" children="Creating Certificates" />).
+
+#### 2. Install Envoy Gateway
+
+ACP includes the **Alauda Build of Envoy Gateway** operator. If it isn't installed yet, install it from **Marketplace / OperatorHub** — see <ExternalSiteLink name="acp" href="/networking/operators/envoy_gateway_operator.mdx" children="install_envoy_gateway_operator" />.
+
+#### 3. Create the `Gateway` resource
+
+Reference the cert Secret(s) from sub-step 1. Because those Secrets live in **`cpaas-system`** and a Gateway listener's `certificateRefs` only resolves Secrets in the Gateway's own namespace by default, you have two equivalent options:
+
+- **Simpler — put the Gateway in `cpaas-system`** so it can name the Secrets directly.
+- **Cross-namespace — keep the Gateway in its own namespace** and add a `ReferenceGrant` in `cpaas-system` allowing your Gateway namespace to reference Secrets there.
+
+**Option a — Gateway in `cpaas-system`:**
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: dify
+  namespace: cpaas-system                 # co-located with the cert Secrets
+spec:
+  gatewayClassName: <envoy-gateway-class> # the GatewayClass exposed by Envoy Gateway
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.example.com"           # cover all hostnames registered in sub-step 1
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - {name: <secret-name-from-ACP-domain>}   # from the Domain detail page
+      allowedRoutes:
+        namespaces:
+          from: All
+```
+
+**Option b — Gateway in another namespace, with `ReferenceGrant`:**
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: dify
+  namespace: <gateway-namespace>
+spec:
+  gatewayClassName: <envoy-gateway-class>
+  listeners:
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.example.com"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - {namespace: cpaas-system, name: <secret-name-from-ACP-domain>}
+      allowedRoutes:
+        namespaces:
+          from: All
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: dify-tls
+  namespace: cpaas-system                 # grant lives in the Secret's namespace
+spec:
+  from:
+    - {group: gateway.networking.k8s.io, kind: Gateway, namespace: <gateway-namespace>}
+  to:
+    - {group: "", kind: Secret}            # could also restrict by name
+```
+
+For Option C with two different hosts on the same Gateway, add a second listener (each listener can point at its own `hostname` and `certificateRefs`).
+
+## Step 5 — Provide Plugin-Install Proxies *(restricted network only)*
+
+Skip this step on clusters with public internet. Otherwise prepare two HTTP-reachable proxies (deploy them however you like — Nginx, an existing API gateway, devpi, etc.):
+
+- **Marketplace reverse proxy** — proxies to `https://marketplace.dify.ai`, **preserving the `Host: marketplace.dify.ai` header**. Note its Service URL.
+- **PyPI mirror** — serves a PyPI simple index (e.g. proxies `https://mirrors.aliyun.com/pypi/simple/`, or any PyPI cache). Note its Service URL.
+
+:::warning
+The Marketplace proxy URL **must be an FQDN** (e.g. `http://dify-marketplace-proxy.<ns>.svc.cluster.local`) — Dify's internal SSRF proxy (squid) cannot resolve short in-cluster names.
+:::
+
+## Step 6 — Create the Dify Instance \{#create-the-instance}
+
+### Create the connection secrets
+
+```bash
+# DB / Redis / pgvector passwords are read from key `password`
+kubectl create secret generic dify-db       --from-literal=password='<db-password>'
+kubectl create secret generic dify-redis    --from-literal=password='<redis-password>'    # omit if Redis has no auth
+kubectl create secret generic dify-pgvector --from-literal=password='<pgvector-password>'
+# S3 only — keys must be `accessKey` / `secretKey`
+kubectl create secret generic dify-s3 --from-literal=accessKey='<ak>' --from-literal=secretKey='<sk>'
+```
+
+### Fill in the form
+
+In **OperatorHub** → **Installed Operators**, select **Dify**, click **Create Dify**, and fill the form. The fields are grouped:
+
+- **Access** — set **Console URL** and **App URL** per the option chosen in Step 4 (same value for both in Options A and B; two different hostnames in Option C). Include the scheme (`http://` for NodePort, `https://` for Gateway).
+- **Database** — host, port, username (default `postgres`), database name, and the **DB Secret** (`dify-db`). Toggle **SSL** if your PostgreSQL requires it.
+- **Redis** — choose **Standalone** or **Sentinel**.
+  - *Standalone:* host, port, **Redis Secret** (leave empty if no auth).
+  - *Sentinel:* comma-separated `host:port` list, **Master name**, **Redis Secret**, and **Sentinel Secret** if Sentinel itself requires auth.
+- **Vector store (pgvector)** — toggle **Enable**. When enabled: host, port, username, database name, **Vector Secret**.
+- **Storage** — choose **PVC** or **S3**.
+  - *PVC:* the RWX StorageClass and size.
+  - *S3:* endpoint, region, **API bucket**, **Plugin bucket**, **S3 Secret** (`dify-s3`), and **Path-style addressing** (turn ON for MinIO and most S3-compatible endpoints; OFF for AWS).
+- **HTTP Route** — *only when using a Gateway (Option B or C).* Set **Gateway name**, **Gateway namespace**, optional **Section name** (listener), and **Hostnames** (must be covered by the Gateway listener).
+- **Advanced → Plugin proxy** — *only on restricted-network clusters.* Set **Marketplace** ON and fill **Marketplace URL** with the proxy from Step 5 (must be an FQDN). Fill **PIP Mirror URL**. Turn on **Ignore uv lock** (otherwise `uv sync --frozen` bypasses the mirror). Raise **Plugin init timeout** (e.g. `1200`s) for slow mirrors. Turn OFF **Verify plugin signature** if you serve repackaged plugins.
+
+The same settings as a YAML reference (for the form's YAML view):
+
+```yaml
+consoleUrl: https://dify-console.example.com
+appUrl:     https://dify-app.example.com
+
+database:
+  host: <postgres-host>
+  port: 5432
+  username: postgres
+  name: dify
+  secret: dify-db
+  sslEnabled: false
+
+redis:
+  mode: standalone               # standalone | sentinel
+  host: <redis-host>
+  port: 6379
+  secret: dify-redis             # omit if no auth
+  cacheDB: 0
+  brokerDB: 1
+
+vectorStore:
+  enabled: true                  # set false to disable RAG
+  host: <pgvector-host>
+  port: 5432
+  username: postgres
+  name: dify_vector
+  secret: dify-pgvector
+
+storage:
+  type: PVC                      # PVC | S3
+  storageClass: <rwx-storage-class>
+  size: 20Gi
+
+httpRoute:                       # Option B / C only
+  gatewayName: dify
+  gatewayNamespace: <gateway-namespace>
+  hostnames:
+    - dify-console.example.com
+    - dify-app.example.com
+
+proxy:                           # restricted network only
+  marketplace: true
+  marketplaceURL: http://dify-marketplace-proxy.<ns>.svc.cluster.local
+  pipMirrorUrl:   http://dify-pip-proxy.<ns>.svc.cluster.local/pypi/simple/
+  ignoreUvLock: true
+  pluginInitTimeout: 1200
+  verifyPluginSignature: false
+```
+
+## Step 7 — Sign In
+
+1. Wait until the Dify instance reports its workloads `Ready`.
+2. Open **Console URL** in a browser; Dify prompts for **initial admin setup** (email + password) on first sign-in.
+3. After signing in, create additional users from the console.
+4. Visit **App URL** to confirm published-app access (publish a quick test app from the console to verify).
+
+## Reference: Dify Instance Fields
+
+| Field | Form group | Purpose |
+|---|---|---|
+| `consoleUrl` | Access | Browser URL for the builder UI |
+| `appUrl` | Access | Browser URL for published apps |
+| `database.{host, port, username, name, secret, sslEnabled}` | Database | External PostgreSQL connection. `secret` holds key `password`. |
+| `redis.{mode, host, port, sentinels, masterName, secret, sentinelSecret, cacheDB, brokerDB, sslEnabled}` | Redis | `mode = standalone` or `sentinel` |
+| `vectorStore.{enabled, host, port, username, name, secret}` | Vector store | pgvector |
+| `storage.{type, storageClass, size, endpoint, apiBucket, pluginBucket, s3Secret, region, s3PathStyle}` | Storage | `type = PVC` or `S3` |
+| `httpRoute.{gatewayName, gatewayNamespace, sectionName, hostnames}` | HTTP Route | Gateway API exposure; omit for NodePort |
+| `proxy.{marketplace, marketplaceURL, pipMirrorUrl, ignoreUvLock, pluginInitTimeout, verifyPluginSignature}` | Advanced — Plugin proxy | Restricted-network plugin install |
+
+Secret key conventions:
+
+| Secret field | Key(s) the Secret must contain |
+|---|---|
+| `database.secret` / `redis.secret` / `redis.sentinelSecret` / `vectorStore.secret` | `password` |
+| `storage.s3Secret` | `accessKey`, `secretKey` |

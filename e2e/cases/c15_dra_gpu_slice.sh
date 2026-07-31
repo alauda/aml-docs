@@ -19,7 +19,7 @@ source "${HERE}/../lib.sh"
 require_env GPU_NAMESPACE "namespace for GPU e2e resources"
 NS="${GPU_NAMESPACE}"
 MODE="${DRA_SLICE_MODE:-mig}"
-ASSETS="${E2E_ROOT}/../docs/en/training_guides/assets/dra"
+ASSETS="${E2E_ROOT}/../docs/en/training_pipelines/training_guides/assets/dra"
 
 case "${MODE}" in
   mig)    RCT_FILE="mig-slice-resourceclaimtemplate.yaml";    RCT_NAME="mig-1g-6gb";           DEVCLASS="mig.nvidia.com" ;;
