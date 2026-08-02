@@ -1,0 +1,114 @@
+---
+weight: 50
+i18n:
+  title:
+    en: Gemma-4-31B-it
+    zh: Gemma-4-31B-it
+---
+
+# Gemma-4-31B-it
+
+`Gemma4ForConditionalGeneration` is a dense multimodal model. This validation covers
+its text-generation serving path: the text backbone has 60 layers, hidden size 5,376,
+32 attention heads / 16 KV heads, a 262,144-token vocabulary, and a native 262,144-token
+context window. The validated deployment is **P4+D4**: one 4-card Prefill engine and one
+4-card Decode engine, coordinated by KServe `LLMInferenceService` and the InferNex
+Bridge. It is an **8 × Ascend 910B3 64 GB** composite service, not a 4-card replica.
+
+## Model identity
+
+| Field | Value |
+|---|---|
+| Publisher / model | Google / `google/gemma-4-31B-it` |
+| Architecture | `gemma4` / `Gemma4ForConditionalGeneration`; dense multimodal model, validated here for text generation |
+| Text backbone | 60 layers; hidden size 5,376; 32 attention heads / 16 KV heads |
+| Context / vocabulary | 262,144 / 262,144 |
+| Precision | BF16 |
+
+## Validated hardware × stack
+
+| Platform | Engine | Version / configuration | Status |
+|---|---|---|---|
+| Ascend 910B3 64 GB × 8 across 2 nodes | vLLM-Ascend | `quay.io/ascend/vllm-ascend:nightly-main-openeuler-0721` (vLLM 0.25.1, CANN 9.0.1) | P4+D4 closed-loop AIPerf validation |
+
+:::note
+This is a dated `nightly-main` snapshot, retained because it is the exact image used by
+the validated deployment. It is not a claim that the tag is the newest vLLM-Ascend build.
+:::
+
+## Model configuration
+
+| Component | Setting |
+|---|---|
+| Prefill | TP=4 on one 910B3 node; `max-num-batched-tokens=8192`; eager execution |
+| Decode | TP=4 on the second node; `max-num-batched-tokens=128`; `FULL_DECODE_ONLY` graph capture |
+| P/D handoff | `MooncakeConnectorV1`, Ascend Direct KV transfer, TP4/TP4 contract |
+| Capacity guardrail | `max-num-seqs=96` on both engines; `gpu-memory-utilization=0.9` |
+| Prefix cache | disabled in the engine; the workload uses explicit P/D KV transfer |
+| Tool calls | `--enable-auto-tool-choice --tool-call-parser gemma4` |
+
+## Why P4+D4
+
+The earlier aggregated TP4 deployment and P4+D4 are different resource envelopes. The
+aggregate service uses four NPUs and mixes long Prefill work with Decode; P4+D4 uses eight
+NPUs and removes Prefill dynamic steps from the Decode process. In the earlier capacity
+study, aggregate TP4 reached only 2.554 completed RPS on the 512/256 chatbot workload at
+target rate 3 over 900 seconds, with `Running=104` and `Waiting=294` at the end. P4+D4 is
+therefore the production candidate, but its throughput must never be presented as a
+four-card aggregate result.
+
+## Deploy
+
+The deployment spec is a self-contained KServe `LLMInferenceService` template with a
+TP4 Decode template, a TP4 Prefill template, InferNex router/scheduler, `InferencePool`,
+and the external route.
+
+| Spec | File |
+|---|---|
+| P4+D4, KServe + InferNex Bridge | [`gemma4-31b-it-pd-p4d4-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets/gemma4-31b-it/gemma4-31b-it-pd-p4d4-llmisvc.yaml) |
+
+Before applying it, set the namespace, the two node names, the model PVCs, and registry
+references for your cluster. The manifest assumes the P/D pair has equal TP size and that
+the two engines can use Ascend Direct transport.
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/assets/gemma4-31b-it
+kubectl apply -f $base/gemma4-31b-it-pd-p4d4-llmisvc.yaml
+
+# Internal KServe ingress (no MaaS API key):
+curl -s http://<gateway>/<namespace>/gemma4-31b-it-pd/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"google/gemma-4-31B-it","messages":[{"role":"user","content":"hello"}]}'
+```
+
+## Benchmark results
+
+Closed-loop `aiperf 0.7.0`, driven directly through the P/D proxy. The fixed workload is
+an 8k-token prompt with 128 generated tokens; it has 120 unique prompts, each reused four
+times, for 480 requests per concurrency tier. The sweep uses concurrency 8 / 16 / 32,
+with a warmup equal to each tier's concurrency. TTFT / E2E are seconds, ITL is ms, Decode
+is output-only token throughput, and TPS is input-plus-output token throughput.
+
+| Metric | Concurrency 8 | Concurrency 16 | Concurrency 32 |
+|---|---:|---:|---:|
+| Successful / error requests | 480 / 0 | 480 / 0 | 480 / 0 |
+| Server-counted ISL / OSL (tokens) | 8,013 / 128 | 8,013 / 128 | 8,013 / 128 |
+| TTFT avg / p90 / p99 (s) | 4.023 / 4.278 / 4.504 | 11.642 / 12.165 / 12.405 | 26.458 / 27.856 / 28.046 |
+| ITL avg / p90 / p99 (ms) | 29.11 / 30.40 / 32.07 | 29.10 / 30.69 / 32.28 | 29.09 / 30.68 / 32.16 |
+| E2E avg / p90 / p99 (s) | 7.720 / 8.044 / 8.477 | 15.338 / 15.898 / 16.409 | 30.153 / 31.554 / 32.088 |
+| Decode throughput (output tokens/s) | 131.66 | 131.52 | 131.64 |
+| Request throughput (requests/s) | 1.03 | 1.03 | 1.03 |
+| TPS (input + output tokens/s) | 8,373.74 | 8,365.16 | 8,372.31 |
+
+All three tiers completed 480 requests with zero errors. Throughput and ITL are flat from
+concurrency 8 onward, while TTFT grows with concurrency. For this 8k-input workload, the
+P4+D4 service is therefore Prefill-capacity-bound at about 1.03 requests/s; concurrency
+above 8 primarily adds queueing rather than throughput.
+
+:::note
+The benchmark is intentionally sent to the P/D proxy instead of MaaS: at measurement time
+the cluster's MaaS backend still selected the old aggregated TP4 service. This preserves a
+single, unambiguous P4+D4 topology for the published figures. Server metrics and GPU
+telemetry were disabled because AIPerf 0.7.0 cannot parse this vLLM metrics histogram;
+the published values come from the completed request records and CSV export.
+:::

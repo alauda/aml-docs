@@ -33,6 +33,7 @@ scheduling) see [Deploy](../../deploy/index.mdx).
 | DeepSeek-V4-Flash (W4A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W4A8 | Ascend 910B4 ×8 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W4A8)](./deepseek-v4-flash-w4a8.mdx) |
 | DeepSeek-V4-Flash (W8A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W8A8 | Ascend 910B3 ×16 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W8A8)](./deepseek-v4-flash-w8a8.mdx) |
 | MiniMax-M2.5 (W8A8) | `minimax_m2` MoE (full-attn, 256-expert) | 230B-A10B | W8A8 (QuaRot) | Ascend 910B3 ×16 | vLLM-Ascend v0.23.0 | [MiniMax-M2.5 (W8A8)](./minimax-m2.5-w8a8.mdx) |
+| Gemma-4-31B-it | `gemma4` dense multimodal | 31B | BF16 | Ascend 910B3 ×8 | vLLM-Ascend nightly-main (0721) | [Gemma-4-31B-it](./gemma4-31b-it.mdx) |
 
 The two Qwen models and DeepSeek-V4-Flash (W4A8) were validated on Ascend 910B4 (32 GB/card),
 driven through KServe `LLMInferenceService` with load-aware routing (InferNex-Bridge +
@@ -53,6 +54,11 @@ mooncake store and no speculative decoding. Because this model is "fast" (~10B a
 keeps only the decode graph + local prefix cache. It was additionally validated as a
 **real coding agent** (OpenCode / Pi) through the product MaaS gateway.
 
+Gemma-4-31B-it is a dense BF16 model validated as a **P4+D4 composite service** across
+two 910B3 nodes: TP4 Prefill and TP4 Decode exchange KV through Ascend Direct transport.
+It uses eight NPUs in total; its figures are an operating envelope for that P/D service,
+not a comparison with a four-card aggregated replica.
+
 ## Runtime images
 
 | Engine | Device | Image (validated tag) | Used by | Notes |
@@ -61,6 +67,7 @@ keeps only the decode graph + local prefix cache. It was additionally validated 
 | vLLM-Ascend nightly (release-pinned) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-releases-v0.22.1rc-openeuler` | Qwen3.6-27B (W8A8), DeepSeek-V4-Flash (W4A8) | Carries the `qwen3_5` Gated DeltaNet hybrid + MTP **and** the `deepseek_v4` MoE stack — the stock `v0.18.0` cannot load either. Use this **release-pinned** tag, **not** the moving `nightly-main-openeuler` (it drifted to a broken build whose TP workers crash). |
 | vLLM-Ascend nightly-main (dated snapshot) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-main-openeuler-0709` | DeepSeek-V4-Flash (W8A8) | A **later** `nightly-main` snapshot (vLLM 0.23.0) that carries the DP2 cross-node graph + DSA-CP prefix-cache fixes the W8A8 cross-node deployment needs. Pin a **dated** snapshot like this one, not the moving `nightly-main` tag. |
 | vLLM-Ascend v0.23.0 (release-pinned) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:v0.23.0-openeuler` | MiniMax-M2.5 (W8A8) | The **release-pinned** `nightly-releases-v0.23.0-openeuler` build (vLLM 0.23.0), carrying the `minimax_m2` MoE stack + tool-call/reasoning parsers **and** vLLM #11505 (streaming tool-call arguments held until the closing `</parameter>`). Prefer this dated **release** tag over the moving `nightly-main`. |
+| vLLM-Ascend nightly-main (dated snapshot) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-main-openeuler-0721` | Gemma-4-31B-it | vLLM 0.25.1 / CANN 9.0.1 snapshot used by the validated P4+D4 service. Keep this exact image for the known-good Gemma baseline; it is not a current-version recommendation. |
 
 :::tip
 The Ascend CANN images are arm64. Always match the runtime image's CANN version to
@@ -75,6 +82,9 @@ real serving patterns. Output is pinned to **128 tokens** and load is **closed-l
 concurrency 4** (4 in-flight requests, fixed); each scenario ran 240 requests.
 DeepSeek-V4-Flash (W8A8) and MiniMax-M2.5 (W8A8) are the exceptions — they were swept at
 **concurrency 8 / 16 / 32** (480 requests per tier).
+Gemma-4-31B-it uses the same 8k / 128 scenario and concurrency sweep, but is sent
+directly to its P4+D4 proxy because the MaaS backend was still attached to the older
+aggregate service at measurement time.
 
 | Scenario | What it models | Dataset | Request shape |
 |---|---|---|---|
