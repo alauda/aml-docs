@@ -45,6 +45,7 @@ the validated deployment. It is not a claim that the tag is the newest vLLM-Asce
 | P/D handoff | `MooncakeConnectorV1`, Ascend Direct KV transfer, TP4/TP4 contract |
 | Capacity guardrail | `max-num-seqs=96` on both engines; `gpu-memory-utilization=0.9` |
 | Prefix cache | disabled in the engine; the workload uses explicit P/D KV transfer |
+| Scheduler | one fixed P/D pair; metrics-based P/D scoring without a tokenizer sidecar |
 | Tool calls | `--enable-auto-tool-choice --tool-call-parser gemma4` |
 
 ## Why P4+D4
@@ -83,27 +84,32 @@ curl -s http://<gateway>/<namespace>/gemma4-31b-it-pd/v1/chat/completions \
 
 ## Benchmark results
 
-Closed-loop `aiperf 0.7.0`, driven directly through the P/D proxy. The fixed workload is
-an 8k-token prompt with 128 generated tokens; it has 120 unique prompts, each reused four
-times, for 480 requests per concurrency tier. The sweep uses concurrency 8 / 16 / 32,
-with a warmup equal to each tier's concurrency. TTFT / E2E are seconds, ITL is ms, Decode
-is output-only token throughput, and TPS is input-plus-output token throughput.
+Closed-loop `aiperf 0.7.0`, driven directly through the P/D proxy. Both scenarios run
+480 requests per concurrency tier at concurrency 8 / 16 / 32, with warmup equal to the
+tier's concurrency. TTFT / E2E are seconds, ITL is ms, Decode is output-only token
+throughput, and TPS is input-plus-output token throughput.
 
-| Metric | Concurrency 8 | Concurrency 16 | Concurrency 32 |
-|---|---:|---:|---:|
-| Successful / error requests | 480 / 0 | 480 / 0 | 480 / 0 |
-| Server-counted ISL / OSL (tokens) | 8,013 / 128 | 8,013 / 128 | 8,013 / 128 |
-| TTFT avg / p90 / p99 (s) | 4.023 / 4.278 / 4.504 | 11.642 / 12.165 / 12.405 | 26.458 / 27.856 / 28.046 |
-| ITL avg / p90 / p99 (ms) | 29.11 / 30.40 / 32.07 | 29.10 / 30.69 / 32.28 | 29.09 / 30.68 / 32.16 |
-| E2E avg / p90 / p99 (s) | 7.720 / 8.044 / 8.477 | 15.338 / 15.898 / 16.409 | 30.153 / 31.554 / 32.088 |
-| Decode throughput (output tokens/s) | 131.66 | 131.52 | 131.64 |
-| Request throughput (requests/s) | 1.03 | 1.03 | 1.03 |
-| TPS (input + output tokens/s) | 8,373.74 | 8,365.16 | 8,372.31 |
+**Scenario ① — fixed-length system-prompt reuse (ISL 8,013 / OSL 128)**
 
-All three tiers completed 480 requests with zero errors. Throughput and ITL are flat from
-concurrency 8 onward, while TTFT grows with concurrency. For this 8k-input workload, the
-P4+D4 service is therefore Prefill-capacity-bound at about 1.03 requests/s; concurrency
-above 8 primarily adds queueing rather than throughput.
+| Concurrency | TTFT avg (s) | ITL avg (ms) | E2E avg (s) | Decode (tok/s) | Requests/s | TPS (in+out) |
+|--:|--:|--:|--:|--:|--:|--:|
+| 8 | 4.023 | 29.11 | 7.720 | 131.66 | 1.03 | 8,373.74 |
+| 16 | 11.642 | 29.10 | 15.338 | 131.52 | 1.03 | 8,365.16 |
+| 32 | 26.458 | 29.09 | 30.153 | 131.64 | 1.03 | 8,372.31 |
+
+**Scenario ② — multi-turn dialogue (average ISL 17,933 / OSL 128)**
+
+| Concurrency | TTFT avg (s) | ITL avg (ms) | E2E avg (s) | Decode (tok/s) | Requests/s | TPS (in+out) |
+|--:|--:|--:|--:|--:|--:|--:|
+| 8 | 14.377 | 28.55 | 18.003 | 56.44 | 0.44 | 7,963.44 |
+| 16 | 32.026 | 28.56 | 35.654 | 56.48 | 0.44 | 7,970.08 |
+| 32 | 66.372 | 28.54 | 69.996 | 56.49 | 0.44 | 7,970.40 |
+
+Every tier completed 480 requests with zero errors. Throughput and ITL are flat from
+concurrency 8 onward in both scenarios, while TTFT grows with concurrency. The service
+is Prefill-capacity-bound at roughly 8k input-dominated tokens/s: increasing average ISL
+from 8,013 to 17,933 lowers request throughput from 1.03 to 0.44 requests/s, while total
+token throughput changes by only about 5%. Decode ITL remains stable near 29 ms.
 
 :::note
 The benchmark is intentionally sent to the P/D proxy instead of MaaS: at measurement time
@@ -111,4 +117,11 @@ the cluster's MaaS backend still selected the old aggregated TP4 service. This p
 single, unambiguous P4+D4 topology for the published figures. Server metrics and GPU
 telemetry were disabled because AIPerf 0.7.0 cannot parse this vLLM metrics histogram;
 the published values come from the completed request records and CSV export.
+
+The delivered scheduler intentionally omits the tokenizer plugin. This topology has only
+one fixed Prefill/Decode pair and no prefix-cache producer, so tokenization adds no routing
+choice. The tested Hermes Router `26.6.0-rc.3` imposes a 5-second tokenizer initialization
+deadline, while this Gemma tokenizer took 17.59 seconds to cold-load. A future multi-pair,
+prefix-aware deployment should first use a router build with a configurable initialization
+deadline of at least 30 seconds, then restore the tokenizer plugin.
 :::

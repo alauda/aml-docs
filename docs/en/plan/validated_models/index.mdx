@@ -82,9 +82,9 @@ real serving patterns. Output is pinned to **128 tokens** and load is **closed-l
 concurrency 4** (4 in-flight requests, fixed); each scenario ran 240 requests.
 DeepSeek-V4-Flash (W8A8) and MiniMax-M2.5 (W8A8) are the exceptions — they were swept at
 **concurrency 8 / 16 / 32** (480 requests per tier).
-Gemma-4-31B-it uses the same 8k / 128 scenario and concurrency sweep, but is sent
-directly to its P4+D4 proxy because the MaaS backend was still attached to the older
-aggregate service at measurement time.
+Gemma-4-31B-it uses both scenarios and the same concurrency sweep, but is sent directly
+to its P4+D4 proxy because the MaaS backend was still attached to the older aggregate
+service at measurement time.
 
 | Scenario | What it models | Dataset | Request shape |
 |---|---|---|---|
