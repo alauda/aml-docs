@@ -13,9 +13,9 @@ This workflow uses KFP v2. Each notebook node is executed as a containerized pip
 Before you start, make sure the following platform prerequisites are ready:
 
 - Alauda AI Workbench is installed and you can create or open a JupyterLab workbench. For workbench creation steps, see [Create Workbench](./create_workbench.mdx).
-- Kubeflow Base (`kfbase`) and Kubeflow Pipelines (`kfp`) are deployed. For deployment steps, see [Install Kubeflow Plugins](../../kubeflow/install.mdx).
-- Your namespace is visible in Kubeflow. If the namespace does not appear after you log in to Kubeflow, follow the namespace binding instructions in [Install Kubeflow Plugins](../../kubeflow/install.mdx).
-- KFP object storage is configured. For the namespace-side `kfp-launcher` configuration, see [Use Kubeflow Pipelines](../../kubeflow/how_to/pipelines.mdx).
+- Kubeflow Base (`kfbase`) and Kubeflow Pipelines (`kfp`) are deployed. For deployment steps, see [Install Kubeflow Plugins](../../training_pipelines/kubeflow/install.mdx).
+- Your namespace is visible in Kubeflow. If the namespace does not appear after you log in to Kubeflow, follow the namespace binding instructions in [Install Kubeflow Plugins](../../training_pipelines/kubeflow/install.mdx).
+- KFP object storage is configured. For the namespace-side `kfp-launcher` configuration, see [Use Kubeflow Pipelines](../../training_pipelines/kubeflow/how_to/pipelines.mdx).
 - You use a JupyterLab workbench image that includes Elyra and the KFP SDK 2.x, for example the **Standard Data Science** Jupyter image listed in [Create Workbench](./create_workbench.mdx).
 - Elyra runtime metadata is mounted into the workbench. The runtime configuration tells Elyra how to submit to KFP, and the runtime image metadata tells Elyra which image each pipeline node can run with.
 
@@ -27,8 +27,8 @@ The code-server workbench image does not provide the Elyra visual pipeline edito
 
 Before using Elyra, ask your platform administrator to confirm that the workbench namespace is ready for KFP v2 runs:
 
-- The namespace is visible in Kubeflow and is bound to the user. See [Install Kubeflow Plugins](../../kubeflow/install.mdx).
-- KFP is configured to store artifacts in object storage. See [Use Kubeflow Pipelines](../../kubeflow/how_to/pipelines.mdx).
+- The namespace is visible in Kubeflow and is bound to the user. See [Install Kubeflow Plugins](../../training_pipelines/kubeflow/install.mdx).
+- KFP is configured to store artifacts in object storage. See [Use Kubeflow Pipelines](../../training_pipelines/kubeflow/how_to/pipelines.mdx).
 
 This guide does not repeat the KFP installation and object-storage manifests. It focuses on the Elyra configuration inside JupyterLab.
 
@@ -385,7 +385,7 @@ For KFP v2, it is normal to see driver and implementation pods for a run. The us
 
 ### The namespace is not visible in Kubeflow
 
-The namespace must be associated with a Kubeflow `Profile` and the user must be bound to the namespace. Follow the namespace binding steps in [Install Kubeflow Plugins](../../kubeflow/install.mdx).
+The namespace must be associated with a Kubeflow `Profile` and the user must be bound to the namespace. Follow the namespace binding steps in [Install Kubeflow Plugins](../../training_pipelines/kubeflow/install.mdx).
 
 ### Elyra does not show a KFP runtime configuration
 
