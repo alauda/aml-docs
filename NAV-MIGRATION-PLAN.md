@@ -482,3 +482,19 @@ Develop > Pipelines：它们讲的是 KFP 本身的能力与行为，不是训�
 - 相对链接、GitHub raw/tree URL、3 个 e2e 脚本的 assets 路径已同步重写，校验 0 处失效链接、
   0 个目录缺 index.mdx、每个目录的 weight 均为 10 步长无重复。
 - §4.3 中"分组级 index.mdx"的清单已被本节取代。
+
+### 8.4 逐篇内容复核后的修正
+
+按"每篇文章的内容 vs 它的位置"复核 §8 结果后修正的 5 项：
+
+| # | 问题 | 处理 |
+|---|---|---|
+| 1 | doom 的路由是 `**/*.md{,x}`，但 §8 的 weight 重排只扫了 `.mdx`，把 `plan/supported_configurations.md`（weight 10）和 `train/guides/kubeflow-trainer-quick-start.md`（weight 10）撞了 | Plan 恢复 20/30/40，Training Guides 恢复 20…100。这两个目录"10 的空缺"本来就是那个 `.md` 页 |
+| 2 | `develop/pipelines/tekton.mdx` 正文讲的是"用 Kueue 的配额管住 Tekton PipelineRun"，标题 *Integrate with Alauda DevOps Pipelines* 让它看起来像 KFP 页 | 改名 *Schedule Alauda DevOps Pipelines with Kueue*，与同源的 `kueue_scheduling.mdx` 对齐 |
+| 3 | Kubeflow Notebooks 是 Workbench 的**替代品**（`notebooks.mdx` 自己就这么写），放进 Workbench 模块等于说它是用 Workbench 的方法 | 拆出平级分组 `develop/kubeflow_notebooks/`（Notebooks、Volumes、Tensorboards），index 说明二者关系与 Kubeflow operator 前置 |
+| 5 | `upload_models_using_notebook.mdx` 是"往模型仓库传模型"的任务（入链 Deploy 3 + Train 3 + Develop 0），被按"用了 notebook"归到 Workbench | 移到 `deploy/model_management/`，排在 Model Repository 之后 |
+| 9 | 两个 index 的 H1 与导航标签不符：Validated Models → `# Inference Guide`，Device Options → `# Device Management` | H1 与标签对齐，并修正一处引用旧名的链接文字 |
+
+仍待决策（本轮未改）：`volumes-kserve.mdx` 后半段其实是 KServe 模型部署，与标题不符，建议拆页；
+`deploy/overview/` 的 Introduction 是 Model Management 与 Inference Service 两篇 intro 的逐字拼接，
+`monitor/overview/` 同形——场景化导航里章节 index 即 Overview，这两个 Overview 模块建议删除。

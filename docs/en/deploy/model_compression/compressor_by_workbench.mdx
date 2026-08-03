@@ -23,7 +23,7 @@ If this image is not available in your environment, refer to the linked article 
 
 ### Create a Model Repository and Upload Models
 
-Refer to [Upload Models Using Notebook](../../develop/workbench/upload_models_using_notebook.mdx) for detailed steps on creating a model repository and uploading your model files. The example notebooks in this guide use the [TinyLlama-1.1B-Chat-v1.0](https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0) model.
+Refer to [Upload Models Using Notebook](../model_management/upload_models_using_notebook.mdx) for detailed steps on creating a model repository and uploading your model files. The example notebooks in this guide use the [TinyLlama-1.1B-Chat-v1.0](https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0) model.
 
 ```python title=data-free-compressor.ipynb
 from llmcompressor.modifiers.quantization import QuantizationModifier
@@ -180,7 +180,7 @@ Download the appropriate example notebook for your use case: the **calibration c
 
 ### Upload the Compressed Model to the Repository
 
-Once compression is complete, upload the compressed model back to the model repository. See [Upload Models Using Notebook](../../develop/workbench/upload_models_using_notebook.mdx) for detailed steps on uploading model files to the model repository.
+Once compression is complete, upload the compressed model back to the model repository. See [Upload Models Using Notebook](../model_management/upload_models_using_notebook.mdx) for detailed steps on uploading model files to the model repository.
 
 ```python
 model_dir = "./" + model_id.split("/")[-1] + "-W4A16" #[!code callout]
