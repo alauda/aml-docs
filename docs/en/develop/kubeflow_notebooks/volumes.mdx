@@ -36,43 +36,6 @@ To use a volume in a Notebook Server:
 3. Click **Attach Existing Volume** and select your volume.
 4. Specify the **Mount Path** (e.g., `/home/jovyan/data`).
 
-## Use Kubeflow KServe Endpoints
+## Next
 
-The KServe Endpoints UI allows you to deploy, manage, and monitor inference services for your machine learning models directly from the Kubeflow dashboard.
-
-### Access the Endpoints UI
-
-1. Click **KServe Endpoints** in the central dashboard sidebar.
-2. Select your namespace at the top of the page.
-3. You will see a list of deployed InferenceServices with their status and URLs.
-
-### Deploy a New Model
-
-1. **New Endpoint**:
-   Click **New Endpoint**.
-2. **InferneceService YAML**:
-   - Provide the YAML definition for your InferenceService. You can use the sample YAML below as a template.
-3. **Deploy**:
-   Click **Create**.
-
-   ```yaml
-   apiVersion: serving.kserve.io/v1beta1
-   kind: InferenceService
-   metadata:
-     name: my-model
-     namespace: my-namespace
-   spec:
-     predictor:
-       model:
-         modelFormat:
-           name: "transformers"
-         runtime: aml-vllm-0.9.2-cuda-12.6
-         storageUri: "hf://model-repo/model-name"
-   ```
-
-### Monitor and Test
-
-After deployment, wait for the status to become **Ready**.
-- **Inspect**: Click on the model name to see YAML details, logs.
-- **Get URL**: Copy the provided endpoint URL (e.g., `http://model-name.namespace.svc.cluster.local/v1/models/model-name:predict` or external URL).
-- **Test**: Use `curl` or a Python client to send a prediction request.
+To serve a model stored on one of these volumes from the same dashboard, see [Deploy Inference Services from the Kubeflow Dashboard](../../deploy/inference_service/guides/kubeflow_kserve_endpoints.mdx).

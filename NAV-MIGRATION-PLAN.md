@@ -17,19 +17,19 @@
 | # | 章节 | 目录 | 页数 | 含组件 |
 |---|---|---|---|---|
 | 1 | Overview 概述 | `overview/` | 5 | — |
-| 2 | Plan 规划与选型 | `plan/` | 11 | — |
+| 2 | Plan 规划与选型 | `plan/` | 12 | — |
 | 3 | Install 安装 | `installation/` | 6 | — |
 | 4 | Upgrade 升级与卸载 | `upgrade/` | 5 | — |
 | 5 | Administer 平台管理 | `administer/` | 13 | — |
 | 6 | Develop 开发 | `develop/` | 56 | data_science_pipelines, feast, kubeflow, kuberay, label_studio, mlflow, spark_operator |
-| 7 | Train 训练与调优 | `train/` | 29 | jobset, kueue, volcano |
-| 8 | Deploy 部署与推理 | `deploy/` | 49 | envoy_ai_gateway, infernex_bridge, kserve, lws |
+| 7 | Train 训练与调优 | `train/` | 30 | jobset, kueue, volcano |
+| 8 | Deploy 部署与推理 | `deploy/` | 48 | envoy_ai_gateway, infernex_bridge, kserve, lws |
 | 9 | Build AI Applications 构建 AI 应用 | `ai_applications/` | 23 | dify, kagenti, llama_stack, mcp_lifecycle_operator |
 | 10 | Evaluate & Safety 评测与安全 | `evaluate_safety/` | 9 | trustyai |
-| 11 | Monitor 监控与运维 | `monitor/` | 14 | — |
+| 11 | Monitor 监控与运维 | `monitor/` | 11 | — |
 | 12 | API Reference | `apis/` | 13 | — |
 
-合计 234 页。
+合计 232 页（含 2 篇 `.md`：`plan/supported_configurations.md`、`train/guides/kubeflow-trainer-quick-start.md`，doom 的路由 `**/*.md{,x}` 一并收录）。
 
 ## 3. 逐文件迁移表
 
@@ -498,3 +498,29 @@ Develop > Pipelines：它们讲的是 KFP 本身的能力与行为，不是训�
 仍待决策（本轮未改）：`volumes-kserve.mdx` 后半段其实是 KServe 模型部署，与标题不符，建议拆页；
 `deploy/overview/` 的 Introduction 是 Model Management 与 Inference Service 两篇 intro 的逐字拼接，
 `monitor/overview/` 同形——场景化导航里章节 index 即 Overview，这两个 Overview 模块建议删除。
+
+### 8.5 拆页与删除 Overview 模块
+
+**`volumes-kserve.mdx` 拆页。** 该页前半是 Kubeflow Volumes（建卷、管卷、挂到 Notebook），
+后半 4 节是从 Kubeflow 面板的 KServe Endpoints UI **部署模型**，导航标签 *Use Kubeflow Volumes*
+完全盖住了后半段。拆为：
+
+- `develop/kubeflow_notebooks/volumes.mdx` —— 只留卷相关内容，末尾指向下一页；
+- `deploy/inference_service/guides/kubeflow_kserve_endpoints.mdx` —— *Deploy Inference Services
+  from the Kubeflow Dashboard*，补齐 Introduction / Prerequisites / Verification，
+  并说明它创建的是与 CLI、Alauda AI 控制台**同一个** `InferenceService` 对象，只是入口不同。
+  排在 Guides 的 CLI 创建页之后。
+
+**删除 `deploy/overview/` 与 `monitor/overview/`。** 场景化导航里章节 index.mdx 就是 Overview，
+再挂一个 Overview 模块是旧模块模板的残留，且内容是重复的：
+
+| 页面 | 与谁重复 |
+|---|---|
+| `deploy/overview/intro.mdx` | 正文 = `model_management/intro.mdx` + `inference_service/intro.mdx` 逐字拼接 |
+| `deploy/overview/features.mdx` | `model_repository.mdx` 与 `inference_service.mdx` 的 Advantages / Core Features 的弱化版 |
+| `monitor/overview/intro.mdx` | `monitor/index.mdx` 章节导语 |
+| `monitor/overview/features.mdx` | `logging.mdx` 的 Core Features 与 `resource_monitoring.mdx` 的 Main Features 的弱化版 |
+
+唯一不重复的一条是 `monitor/overview/intro.mdx` 里的「Hami GPU 面板需 1.4+」，已移入
+`resource_monitoring/intro.mdx` 的 Usage Limitations 并补上指向 Hami 页的链接；
+Monitor 章节导语补了一句全生命周期可观测性的表述。两个 Overview 模块无任何入链。
