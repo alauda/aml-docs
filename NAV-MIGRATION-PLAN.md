@@ -524,3 +524,22 @@ Develop > Pipelines：它们讲的是 KFP 本身的能力与行为，不是训�
 唯一不重复的一条是 `monitor/overview/intro.mdx` 里的「Hami GPU 面板需 1.4+」，已移入
 `resource_monitoring/intro.mdx` 的 Usage Limitations 并补上指向 Hami 页的链接；
 Monitor 章节导语补了一句全生命周期可观测性的表述。两个 Overview 模块无任何入链。
+
+### 8.6 TrustyAI Service：标签按能力命名 + 部署部分归位
+
+`monitor/bias_drift.mdx` 的位置本身成立——它接线上流量、跑定时任务、出口是 Prometheus 面板，
+与同章的 Logging、Resource Monitoring 同属"服务跑起来之后持续看"，而 LM-Eval 是一次性评测。
+但有两处不一致：
+
+1. **导航标签用的是产品名**（`TrustyAI Service (TAS)`），同级兄弟却按能力命名（Logging & Tracing、
+   Resource Monitoring）。改为 **Bias and Drift Monitoring**（与文件名 `bias_drift.mdx` 一致），
+   产品全称保留在正文首段。
+2. **页面前 40% 是组件部署**（Prerequisites → Deploy TrustyAIService → DATABASE / PVC → Verify），
+   而 TrustyAI 组件页在 Evaluate & Safety。这半截切给
+   `evaluate_safety/components/trustyai/deploy_tas.mdx`（*Deploy TrustyAI Service*，weight 30），
+   Monitor 页只留 Access the TAS API、数据摄取、drift / bias 指标与 Prometheus 部分，
+   Prerequisites 改为指向新页。
+
+两页互链，`components/trustyai/{intro,install}.mdx` 与 Monitor 章节导语的引用同步更新。
+组件仍留在 Evaluate & Safety：TrustyAI operator 的 4 个消费方里 3 个（LM-Eval、FMS Guardrails、
+NeMo Guardrails）在该章。

@@ -1,11 +1,12 @@
 ---
 weight: 30
 ---
-# TrustyAI Service (TAS)
+
+# Bias and Drift Monitoring
 
 ## Overview
 
-TrustyAI Service (TAS) collects model inference data (request inputs and response outputs), persists it, and organizes it into datasets for analysis, including drift detection and bias evaluation against reference and live traffic.
+**TrustyAI Service (TAS)** collects model inference data (request inputs and response outputs), persists it, and organizes it into datasets for analysis, including drift detection and bias evaluation against reference and live traffic.
 
 Key capabilities:
 
@@ -16,145 +17,11 @@ Key capabilities:
 - Run drift detection (for example KS test, mean shift) against a reference subset and current production data.
 - Run bias metrics (for example SPD and DIR) on protected attributes and outcomes.
 
-This page covers deploying the `TrustyAIService`, ingesting reference data via `POST /data/upload` and live inference via `POST /consumer/kserve/v2`, registering drift and bias metrics through the HTTP API, and exposing time series to Prometheus for monitoring dashboards.
+This page covers ingesting reference data via `POST /data/upload` and live inference via `POST /consumer/kserve/v2`, registering drift and bias metrics through the HTTP API, and exposing time series to Prometheus for monitoring dashboards.
 
 ## Prerequisites
 
-- TrustyAI Operator installed (see [Install TrustyAI](../evaluate_safety/components/trustyai/install)).
-- If `storage.format: DATABASE` is used, a MySQL 8.x database is required.
-- If `storage.format: PVC` is used, ensure the cluster has a working default `StorageClass` (backed by a CSI driver) for dynamic volume provisioning, so the operator-created PVC can be bound.
-
-## Deploy TrustyAIService
-
-Choose **one** storage layout: **DATABASE** (MySQL) or **PVC** (local file storage on a volume). The following two subsections are **alternatives**, not steps in a single flow.
-
-### DATABASE mode
-
-**MySQL credentials Secret**
-
-Create a secret that contains the keys required for the TAS deployment when using `storage.format: DATABASE`:
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: <tas-name>-db-credentials
-  namespace: <your-namespace>
-type: Opaque
-stringData:
-  databaseKind: mysql
-  databaseUsername: <username>
-  databasePassword: <password>
-  databaseService: <mysql-service-name>
-  databasePort: "3306"
-  databaseName: <db-name>
-  # Database schema generation strategy used by TrustyAI when connecting to the database.
-  # It controls what TAS does to the database schema (tables) during startup:
-  # - none: do not manage schema
-  # - create: create schema from scratch
-  # - drop-and-create: drop existing schema, then create
-  # - drop: drop existing schema
-  # - update: update schema to match the expected model
-  # - validate: only validate that the schema matches the expected model
-  #
-  # Default: update
-  databaseGeneration: update
-```
-
-Notes:
-
-- The MySQL schema (database) referred to by `databaseName` must be created in advance. TAS does not create the database itself.
-- The database must be reachable from the TAS pod.
-- `databaseGeneration` controls how schema changes are handled when TAS starts.
-
-**TrustyAIService CR**
-
-Example:
-
-```yaml
-apiVersion: trustyai.opendatahub.io/v1
-kind: TrustyAIService
-metadata:
-  name: <tas-name>
-  namespace: <your-namespace>
-  annotations:
-    trustyai.cpaas.io/monitor-enable: "true"
-    trustyai.cpaas.io/monitor-interval: "30s"
-    trustyai.cpaas.io/monitor-metric-regex: "^trustyai_.*"
-spec:
-  storage:
-    format: DATABASE
-    databaseConfigurations: <tas-name>-db-credentials
-  metrics:
-    schedule: "5s"
-    batchSize: 5000
-  replicas: 1
-```
-
-In `DATABASE` mode, `storage.databaseConfigurations` must be set to the name of the MySQL credentials Secret created above in the same namespace as the `TrustyAIService`.
-
-`metadata.annotations` are optional and are used to let the operator create a `ServiceMonitor` for Prometheus scraping (so the platform can automatically collect monitoring data).
-
-- When `trustyai.cpaas.io/monitor-enable: "true"` is set, the operator generates a `ServiceMonitor`.
-- `trustyai.cpaas.io/monitor-interval` and `trustyai.cpaas.io/monitor-metric-regex` are optional; when not provided, the operator uses default values.
-
-`trustyai.cpaas.io/monitor-interval` controls how frequently Prometheus scrapes TAS metrics (default: `30s`).
-`trustyai.cpaas.io/monitor-metric-regex` controls which metric names are kept after scraping (default: `^trustyai_.*`).
-
-`spec.metrics` fields:
-
-- `schedule` (required): how often TAS runs the metric computation (for example, every `5s`). The value is a duration string.
-- `batchSize` (optional): how many inference records TAS includes in each metric computation run (a larger value uses more data per run). If not set, the operator uses a default value of `5000`.
-
-### PVC mode
-
-Use this path when `storage.format` is **PVC** (no MySQL Secret). Example:
-
-```yaml
-apiVersion: trustyai.opendatahub.io/v1
-kind: TrustyAIService
-metadata:
-  name: <tas-name>
-  namespace: <your-namespace>
-spec:
-  storage:
-    format: PVC
-    folder: /inputs
-    size: 1Gi
-  data:
-    filename: data.csv
-    format: CSV
-  metrics:
-    schedule: "5s"
-    batchSize: 5000
-  replicas: 1
-```
-
-In `PVC` mode:
-
-- `storage.folder`: the path inside the mounted PVC where TAS stores and reads its data.
-- `storage.size`: the requested PVC capacity (for example, `1Gi`).
-- The operator creates a PVC named `<tas-name>-pvc` automatically in the same namespace as the `TrustyAIService`. Since the PVC uses the cluster default `StorageClass` (no explicit `storageClassName` is set), the cluster should provide a working default `StorageClass` (otherwise the PVC may stay in `Pending`).
-
-When the `TrustyAIService` manifest for the chosen mode is ready, apply it (the same command applies to `DATABASE` or `PVC` YAML):
-
-```bash
-kubectl apply -f <trustyai-service>.yaml -n <your-namespace>
-```
-
-## Verify deployment readiness
-
-```bash
-kubectl get trustyaiservices -n <your-namespace> <tas-name>
-```
-
-The expected `status.phase` should be `Ready`.
-
-Also check the pods:
-
-```bash
-kubectl get pods -n <your-namespace> -l app.kubernetes.io/instance=<tas-name>
-```
+- A `TrustyAIService` in `Ready` state in the namespace of the model you want to monitor. See [Deploy TrustyAI Service](../evaluate_safety/components/trustyai/deploy_tas.mdx).
 
 ## Access the TAS API
 
