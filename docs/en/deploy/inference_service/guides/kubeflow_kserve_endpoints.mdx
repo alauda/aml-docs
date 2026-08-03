@@ -1,0 +1,55 @@
+---
+weight: 20
+---
+
+# Deploy Inference Services from the Kubeflow Dashboard
+
+## Introduction
+
+The **KServe Endpoints** page in the Kubeflow central dashboard deploys, manages, and monitors inference services without leaving Kubeflow. It creates the same `serving.kserve.io/v1beta1` `InferenceService` object as [Create Inference Service using CLI](./create_inference_service_cli.mdx) and as the Alauda AI console, so a service created here is visible to all three.
+
+Use this page when your team already works in the Kubeflow dashboard. For the platform's own deployment experience — model repository integration, inference service templates, and batch operations — see [Managing Inference Services](../inference_service.mdx).
+
+## Prerequisites
+
+- The [Kubeflow operators](../../../develop/components/kubeflow/install.mdx) are installed, and you can reach the Kubeflow central dashboard.
+- [Alauda Build of KServe](../../components/kserve/install.mdx) is installed.
+- The model is reachable at a `storageUri` the cluster can read. See [Model Storage](../../model_management/model_storage.mdx) for the supported storage types.
+
+## Access the Endpoints UI
+
+1. Click **KServe Endpoints** in the central dashboard sidebar.
+2. Select your namespace at the top of the page.
+3. You will see a list of deployed InferenceServices with their status and URLs.
+
+## Deploy a New Model
+
+1. **New Endpoint**:
+   Click **New Endpoint**.
+2. **InferenceService YAML**:
+   - Provide the YAML definition for your InferenceService. You can use the sample YAML below as a template.
+3. **Deploy**:
+   Click **Create**.
+
+   ```yaml
+   apiVersion: serving.kserve.io/v1beta1
+   kind: InferenceService
+   metadata:
+     name: my-model
+     namespace: my-namespace
+   spec:
+     predictor:
+       model:
+         modelFormat:
+           name: "transformers"
+         runtime: aml-vllm-0.9.2-cuda-12.6
+         storageUri: "hf://model-repo/model-name"
+   ```
+
+## Verification
+
+After deployment, wait for the status to become **Ready**.
+
+- **Inspect**: Click on the model name to see YAML details and logs.
+- **Get URL**: Copy the provided endpoint URL (e.g., `http://model-name.namespace.svc.cluster.local/v1/models/model-name:predict` or the external URL).
+- **Test**: Use `curl` or a Python client to send a prediction request.

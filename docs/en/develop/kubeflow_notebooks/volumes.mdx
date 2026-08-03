@@ -1,0 +1,41 @@
+---
+weight: 20
+---
+
+# Use Kubeflow Volumes
+
+Volumes in Kubeflow are managed as Kubernetes Persistent Volume Claims (PVCs). They provide persistent storage for your data, workspaces, and models, independent of the lifecycle of your Notebook servers or other workloads.
+
+## Create a Volume
+
+1. **Access the Dashboard**:
+   Click **Volumes** in the Kubeflow central dashboard sidebar.
+2. **New Volume**:
+   Click **New Volume**.
+3. **Configure**:
+   - **Name**: Enter a unique name for the volume.
+   - **Storage Class**: Select the Storage Class (e.g., topolvm, nfs) if multiple are available.
+   - **Size**: Specify the size of the volume in `Gi` (e.g., `10`).
+   - **Access Mode**:
+     - **ReadWriteOnce (RWO)**: Mounted by a single node (Common for block storage).
+     - **ReadWriteMany (RWX)**: Mounted by many nodes (Common for NFS/File storage).
+4. **Create**:
+   Click **Create**. The volume status will change to **Bound** once provisioned.
+
+## Manage Volumes
+
+- **Open PVC Viewer**: Click the "Folder" icon next to a volume to create a temporary Pod that mounts the volume and opens a file browser. This allows you to view/upload/download files directly to the volume. Click "Close" to delete the temporary Pod when done.
+- **Delete**: Click the delete icon (trash can) next to a volume to remove it. **Note**: This permanently deletes the data.
+- **Filter**: Filter volumes by name, status, or storage class using the search bar.
+
+## Use a Volume in Notebooks
+
+To use a volume in a Notebook Server:
+1. When creating a **New Notebook**, create a standard **Workspace Volume** (mounted at `/home/jovyan`) or...
+2. Scroll to **Data Volumes** to attach additional existing volumes.
+3. Click **Attach Existing Volume** and select your volume.
+4. Specify the **Mount Path** (e.g., `/home/jovyan/data`).
+
+## Next
+
+To serve a model stored on one of these volumes from the same dashboard, see [Deploy Inference Services from the Kubeflow Dashboard](../../deploy/inference_service/guides/kubeflow_kserve_endpoints.mdx).

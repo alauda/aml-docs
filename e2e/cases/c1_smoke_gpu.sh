@@ -9,7 +9,7 @@ source "${HERE}/../lib.sh"
 
 require_env GPU_NAMESPACE "namespace for GPU e2e resources"
 NS="${GPU_NAMESPACE}"
-ASSETS="${E2E_ROOT}/../docs/en/training_pipelines/training_guides/assets/training-runtimes"
+ASSETS="${E2E_ROOT}/../docs/en/train/guides/assets/training-runtimes"
 
 if [ -n "${GPU_DH_MIRROR}" ]; then
   log "C1: applying torch2.6-cu126-amd64 TrainingRuntime to ns/${NS} (Docker Hub mirror=${GPU_DH_MIRROR})"
