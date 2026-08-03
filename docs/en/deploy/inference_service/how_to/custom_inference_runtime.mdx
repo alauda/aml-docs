@@ -1,0 +1,1021 @@
+---
+weight: 20
+i18n:
+  title:
+    en: Extend Inference Runtimes
+    zh: 扩展 AI 平台推理服务运行时
+---
+
+# Extend Inference Runtimes
+
+## Introduction
+
+This document walks you through how to add new inference runtimes for serving
+Large Language Models (LLMs) and other models such as image classification,
+object detection, and text classification models.
+
+Alauda AI comes with a built-in `vLLM` inference engine. With custom inference
+runtimes, you can introduce additional inference engines such as
+[Seldon MLServer](https://github.com/SeldonIO/MLServer),
+[Triton Inference Server](https://github.com/triton-inference-server/server).
+
+By introducing custom runtimes, you can expand the platform's support for a wider range of
+model types and GPU types, and optimize performance for specific scenarios
+to meet broader business needs.
+
+In this section, we'll demonstrate how to extend the current AI platform with a
+custom [Xinference](https://github.com/xorbitsai/inference) serving runtime to
+deploy LLMs and expose an OpenAI-compatible API.
+
+## Scenarios
+
+Consider extending your AI Platform inference service runtimes if you encounter any of the following situations:
+
+* **Support for New Model Types**: Your model isn't natively supported by the current default inference runtime `vLLM`.
+* **Compatibility with other hardware types**: You need to perform LLM inference on hardware such as AMD GPUs or Huawei Ascend NPUs.
+* **Performance Optimization for Specific Scenarios**: In certain inference scenarios, a new runtime (like Xinference) might offer better performance or resource utilization compared to existing runtimes.
+* **Custom Inference Logic**: You need to introduce custom inference logic or dependent libraries that are difficult to implement within the existing default runtimes.
+
+
+## Prerequisites
+
+Before you start, please ensure you meet these conditions:
+
+1. Your ACP cluster is deployed and **running normally**.
+2. Your AI Platform version is **1.3 or higher**.
+3. You have the necessary **inference runtime image(s)** prepared. For example, for the Xinference runtime, images might look like `xprobe/xinference:v1.2.2` (for GPU) or `xprobe/xinference:v1.2.2-cpu` (for CPU).
+4. You have **cluster administrator privileges** (needed to create CRD instances).
+
+
+## Standard Workflow (Example: Xinference)
+
+Follow these steps to extend the platform. We use **Xinference** as a baseline example to demonstrate the standard process.
+
+<Steps>
+
+### Create Inference Runtime Resources
+
+You'll need to create the corresponding inference runtime `ClusterServingRuntime` resources based on your target hardware environment (GPU/CPU/NPU).
+
+1. **Prepare the Runtime YAML Configuration**:
+
+    Based on the type of runtime you want to add (e.g., Xinference) and your target hardware environment, prepare the appropriate YAML configuration file. Here are examples for the Xinference runtime across different hardware environments:
+
+* **GPU Runtime Example**
+        ```yaml
+        # This is a sample YAML for Xinference GPU runtime
+        apiVersion: serving.kserve.io/v1alpha1
+        kind: ClusterServingRuntime
+        metadata:
+          name: aml-xinference-cuda-12.1 # Name of the runtime resource
+          labels:
+            cpaas.io/runtime-class: xinference # required runtime type label
+            cpaas.io/accelerator-type: "nvidia"
+            cpaas.io/cuda-version: "12.1"
+          annotations:
+            cpaas.io/display-name: xinference-cuda-12.1 # Display name in the UI
+        spec:
+          containers:
+          - name: kserve-container
+            image: xprobe/xinference:v1.2.2  # Replace with your actual GPU runtime image
+            env:
+            # Required across all runtimes – path to the model directory
+            - name: MODEL_PATH
+              value: /mnt/models/{{ index .Annotations "aml-model-repo" }}
+            # The MODEL_UID parameter is optional for other runtimes.
+            - name: MODEL_UID 
+              value: '{{ index .Annotations "aml-model-repo" }}'
+            # The MODEL_ENGINE parameter is required by the Xinference runtime, while it can be omitted for other runtimes.
+            - name: MODEL_ENGINE 
+              value: "transformers"
+            # Required parameter for xinference runtime, please set it based on your model family, value: "llama" # e.g., "llama", "chatglm", etc.
+            - name: MODEL_FAMILY 
+              value: ""
+            command:
+            - bash
+            - -c
+            - |
+                set +e
+                if [ "${MODEL_PATH}" == "" ]; then
+                    echo "Need to set MODEL_PATH!"
+                    exit 1
+                fi
+                if [ "${MODEL_ENGINE}" == "" ]; then
+                    echo "Need to set MODEL_ENGINE!"
+                    exit 1
+                fi
+                if [ "${MODEL_UID}" == "" ]; then
+                    echo "Need to set MODEL_UID!"
+                    exit 1
+                fi
+                if [ "${MODEL_FAMILY}" == "" ]; then
+                    echo "Need to set MODEL_FAMILY!"
+                    exit 1
+                fi
+        
+                xinference-local --host 0.0.0.0 --port 8080 &
+                PID=$!
+                while [ true ];
+                do
+                    curl http://127.0.0.1:8080/docs
+                    if [ $? -eq 0 ]; then
+                        break
+                    else
+                        echo "waiting xinference-local server to become ready..."
+                        sleep 1
+                    fi
+                done
+        
+                set -e
+                xinference launch --model_path ${MODEL_PATH} --model-engine ${MODEL_ENGINE} -u ${MODEL_UID} -n ${MODEL_FAMILY} -e http://127.0.0.1:8080 $@
+                xinference list -e http://127.0.0.1:8080
+                echo "model load succeeded, waiting server process: ${PID}..."
+                wait ${PID}
+            # Add this line to use $@ in the script:
+            # see: https://unix.stackexchange.com/questions/144514/add-arguments-to-bash-c
+            - bash
+            resources:
+              limits:
+                cpu: 2 # [!code callout]
+                memory: 6Gi # [!code callout]
+              requests:
+                cpu: 2
+                memory: 6Gi
+            startupProbe:
+              httpGet:
+                path: /docs
+                port: 8080
+                scheme: HTTP
+              failureThreshold: 60 
+              periodSeconds: 10
+              timeoutSeconds: 10
+          supportedModelFormats:
+            - name: transformers # The model format supported by the runtime
+              version: "1"
+      
+        ```
+        <Callouts>
+        1. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+        2. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+        </Callouts>
+        * **Tip**: Make sure to replace the `image` field value with the path to your actual prepared runtime image. You can also modify the `annotations.cpaas.io/display-name` field to **customize the display name** of the runtime in the AI Platform UI.
+
+2.  **Apply the YAML File to Create the Resource**:
+
+    From a terminal with cluster administrator privileges, execute the following command to apply your YAML file and create the inference runtime resource:
+    ```bash
+    kubectl apply -f your-xinference-runtime.yaml
+    ```
+    :::tip
+    * **Important Tip**: Please **refer to the examples above and create/configure the runtime based on your actual environment and inference needs.** These examples are for reference only. You'll need to adjust parameters like the image, resource `limits`, and `requests` to ensure the runtime is compatible with your model and hardware environment and runs efficiently.
+    * **Note**: You can only use this custom runtime on the inference service publishing page *after* the runtime resource has been created!
+    :::
+
+### Publish Xinference Inference Service and Select the Runtime
+
+Once the Xinference inference runtime resource is successfully created, you can select and configure it when publishing your LLM inference service on the AI Platform.
+
+1.  **Configure Inference Framework for the Model**:
+
+    Ensure that on the model details page of the model repository you are about to publish, you have selected the appropriate **framework** using the **File Management** metadata editing feature. The framework value selected here must match one of the values included in the `supportedModelFormats` field when you created the inference service runtime. Please **ensure that the model framework value is listed in the `supportedModelFormats` field** of the inference runtime.
+2.  **Navigate to the Inference Service Publishing Page**:
+
+    Log in to the AI Platform and navigate to the "Inference Services" or "Model Deployment" modules, then click "Publish Inference Service."
+3.  **Select the Xinference Runtime**:
+
+    In the inference service creation wizard, find the "Runtime" or "Inference Framework" option. From the dropdown menu or list, select the Xinference runtime you created in Step 1 (e.g., "Xinference CPU Runtime" or "Xinference GPU Runtime (CUDA)").
+4.  **Set Environment Variables**:
+    The Xinference runtime requires specific environment variables to function correctly. On the inference service configuration page, locate the "Environment Variables" or "More Settings" section and add the following environment variable:
+
+    * **Environment Variable**
+        | Parameter Name   | Description                                                                                                                                                                                                                                                                                                                      |
+        | :--------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+        | `MODEL_FAMILY`   | **Required**. Specifies the family type of the LLM model you are deploying. Xinference uses this parameter to identify and load the correct inference logic for the model. For example, if you are deploying a Llama 3 model, set it to `llama`; if it's a ChatGLM model, set it to `chatglm`. Please set this based on your model's actual family. |
+
+    * **Example**:
+        * **Variable Name**: `MODEL_FAMILY`
+        * **Variable Value**: `llama` (if you are using a Llama series model, check the [docs](https://inference.readthedocs.io/en/v1.2.2/getting_started/using_xinference.html#manage-models) for more details. Or you can run `xinference registrations -t LLM` to list all supported model families.)
+
+</Steps>
+
+## Specific Runtime Examples
+
+Once you understand the standard workflow, refer to these examples for specific configurations related to other runtimes.
+
+### MLServer
+
+The MLServer runtime is versatile and can be used on both NVIDIA GPUs and CPUs.
+
+```yaml
+kind: ClusterServingRuntime
+apiVersion: serving.kserve.io/v1alpha1
+metadata:
+  annotations:
+    cpaas.io/display-name: mlserver-cuda11.6-x86-arm
+  creationTimestamp: 2026-01-05T07:02:33Z
+  generation: 1
+  labels:
+    cpaas.io/accelerator-type: nvidia
+    cpaas.io/cuda-version: "11.6"
+    cpaas.io/runtime-class: mlserver
+  name: aml-mlserver-cuda-11.6
+spec:
+  containers:
+    - command:
+        - /bin/bash
+        - -lc
+        - |
+          if [ "$MODEL_TYPE" = "text-to-image" ]; then
+            MODEL_IMPL="mlserver_diffusers.StableDiffusionRuntime"
+          else
+            MODEL_IMPL="mlserver_huggingface.HuggingFaceRuntime"
+          fi            
+
+          MODEL_DIR="${MLSERVER_MODEL_URI}/${MLSERVER_MODEL_NAME}"
+          # a. using git lfs storage initializer, model will be in /mnt/models/<model_name>
+          # b. using hf storage initializer, model will be in /mnt/models
+          if [ ! -d "${MODEL_DIR}" ]; then
+              MODEL_DIR="${MLSERVER_MODEL_URI}"
+              echo "[WARNING] Model directory ${MODEL_DIR}/${MLSERVER_MODEL_NAME} not found, using ${MODEL_DIR} instead"
+          fi
+
+          export MLSERVER_MODEL_IMPLEMENTATION=${MODEL_IMPL}
+          export MLSERVER_MODEL_EXTRA="{\"task\":\"${MODEL_TYPE}\",\"pretrained_model\":\"${MODEL_DIR}\"}"            
+
+          mlserver start $MLSERVER_MODEL_URI $@
+        - bash
+      env:
+        - name: MLSERVER_MODEL_URI
+          value: /mnt/models
+        - name: MLSERVER_MODEL_NAME
+          value: '{{ index .Annotations "aml-model-repo" }}'
+        - name: MODEL_TYPE
+          value: '{{ index .Annotations "aml-pipeline-tag" }}'
+      image: alaudadockerhub/seldon-mlserver:1.6.0-cu116-v1.3.1
+      name: kserve-container
+      resources:
+        limits:
+          cpu: 2 # [!code callout]
+          memory: 6Gi # [!code callout]
+        requests:
+          cpu: 2
+          memory: 6Gi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        privileged: false
+        runAsNonRoot: true
+        runAsUser: 1000
+      startupProbe:
+        failureThreshold: 60
+        httpGet:
+          path: /v2/models/{{ index .Annotations "aml-model-repo" }}/ready
+          port: 8080
+          scheme: HTTP
+        periodSeconds: 10
+        timeoutSeconds: 10
+  labels:
+    modelClass: mlserver_sklearn.SKLearnModel
+  supportedModelFormats:
+    - name: mlflow
+      version: "1"
+    - name: transformers
+      version: "1"
+
+ ```
+
+<Callouts>
+1. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+2. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+</Callouts>
+
+### Triton Inference Server
+
+The Triton Inference Server runtime is designed for NVIDIA GPUs and supports multiple model formats. Similar to MLServer, you need to create the `ClusterServingRuntime` resource first, then create your inference service.
+
+```yaml
+apiVersion: serving.kserve.io/v1alpha1
+kind: ClusterServingRuntime
+metadata:
+  annotations:
+    cpaas.io/display-name: triton-cuda12-x86
+  labels:
+    cpaas.io/accelerator-type: nvidia
+    cpaas.io/cuda-version: "12.1"
+    cpaas.io/runtime-class: triton
+  name: aml-triton-cuda-12
+spec:
+  containers:
+    - command:
+        - /bin/bash
+        - -c
+        - >
+          tritonserver --log-verbose=1 --http-port=8080
+          --model-repository=/mnt/models
+      env:
+        - name: OMP_NUM_THREADS
+          value: "1"
+        - name: MODEL_REPO
+          value: '{{ index .Annotations "aml-model-repo" }}'
+      image: alaudadockerhub/tritonserver:25.02-py3
+      name: kserve-container
+      resources:
+        limits:
+          cpu: 2 # [!code callout]
+          memory: 6Gi # [!code callout]
+        requests:
+          cpu: 2
+          memory: 6Gi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        privileged: false
+        runAsNonRoot: true
+        runAsUser: 1000
+      startupProbe:
+        failureThreshold: 60
+        httpGet:
+          path: /v2/models/{{ index .Annotations "aml-model-repo" }}/ready
+          port: 8080
+          scheme: HTTP
+        periodSeconds: 10
+        timeoutSeconds: 10
+  supportedModelFormats:
+    - name: triton
+      version: "1"
+```
+
+<Callouts>
+1. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+2. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+</Callouts>
+
+**Usage Instructions:**
+
+1. **Create the ClusterServingRuntime**: Apply the YAML configuration above using `kubectl apply -f triton-runtime.yaml`
+2. **Prepare Your Model**: Ensure your model is in a format supported by Triton (e.g., TensorFlow, PyTorch, ONNX)
+3. **Set Model Framework**: In the model repository, set the framework metadata to `triton` to match the `supportedModelFormats` field
+4. **Create Inference Service**: When publishing your inference service, select the Triton runtime from the runtime dropdown menu
+
+### vLLM-ascend (Ascend NPU)
+
+The `vLLM-ascend` runtime is suitable for Huawei Ascend NPUs. It keeps the
+OpenAI-compatible serving style of vLLM, while requiring a few extra
+`InferenceService` settings for writable paths and group permissions.
+
+This example was validated on `Ascend 910B4`. It should also work with other
+Ascend NPU models, but you should adjust the resource key, image, and related
+version fields according to your actual environment.
+
+#### Modelcar Permission Modes for Ascend 910 \{#modelcar-permission-modes-for-ascend-910}
+
+Alauda AI runs KServe Modelcar with non-root UID `1000` by default. This
+default is designed for the platform security baseline and works for common GPU
+deployments, such as NVIDIA GPU inference services. It also works with the
+community `vLLM-ascend` image in validated Ascend 910 single-card deployments.
+
+Ascend 910 single-node multi-card inference has additional requirements because
+`vLLM-ascend` uses HCCL for distributed initialization. In this scenario, choose
+one of the following Modelcar permission modes according to the runtime image
+and validation result:
+
+| Scenario | Namespace PSA `Enforce` | Modelcar UID | Runtime image requirement | Recommendation |
+| --- | --- | --- | --- | --- |
+| Ascend 910 single-card inference | `restricted` | `1000` | Community `vLLM-ascend` image | Keep the default non-root mode |
+| Ascend 910 single-node multi-card inference with a UID `1000` compatible image | `restricted` | `1000` | The image allows UID `1000` to access Ascend devices and supports HCCL initialization | Use non-root mode after validation |
+| Ascend 910 single-node multi-card inference with the community image when UID `1000` compatibility is not validated | `baseline` | `0` | Community `vLLM-ascend` image | Use root mode |
+
+:::warning
+These modes are mutually exclusive in one cluster because the Modelcar UID is
+configured in the cluster-level KServe Modelcar settings. Keep the default
+non-root UID `1000` for general workloads and for validated Ascend 910
+single-card services. Switch to root mode only for Ascend 910 multi-card
+`vLLM-ascend` deployments that require it.
+:::
+
+##### Non-root Mode
+
+Non-root mode keeps the platform default Modelcar UID `1000`, and the namespace
+can keep PSA `Enforce` set to `restricted`.
+
+Use this mode for Ascend 910 single-card `vLLM-ascend` inference with the
+community image. For Ascend 910 single-node multi-card inference, use this mode
+only after validating that the image supports UID `1000` and HCCL
+initialization. The image must allow the runtime process to access Ascend device
+files, and TP>1 / HCCL initialization may require a matching UID `1000` user
+entry in `/etc/passwd`.
+
+##### Root Mode
+
+Root mode is a compatibility option for Ascend 910 single-node multi-card
+`vLLM-ascend` inference when the selected image cannot run reliably with the
+default Modelcar UID `1000`.
+
+Root mode changes the cluster-level Modelcar UID to `0`. This affects Modelcar
+workloads in the cluster, not only a single inference service. Do not use root
+mode for single-card deployments unless required by your image or environment.
+
+To enable root mode:
+
+1. In the platform console, go to **Project** > **Namespace**, select the
+   namespace used by the inference service, and set Pod Security Admission
+   `Enforce` to `baseline`.
+2. Set KServe Modelcar UID to `0` in the `AmlCluster` configuration:
+
+   ```yaml
+   spec:
+     components:
+       kserve:
+         values:
+           kserve:
+             storage:
+               uidModelcar: 0
+   ```
+
+For root-mode deployments, do not reuse a runtime configuration that forces a
+non-root UID, such as `runAsNonRoot: true` or `runAsUser: 1000`. The
+`ClusterServingRuntime` example below is for non-root mode.
+
+When root mode is no longer required, restore the cluster-level Modelcar UID to
+the platform default non-root value `1000` and set namespace PSA according to
+your workload security requirements.
+
+**1. ClusterServingRuntime**
+
+```yaml
+apiVersion: serving.kserve.io/v1alpha1
+kind: ClusterServingRuntime
+metadata:
+  annotations:
+    aml.cpaas.io/model-type: '["generative"]'
+    aml.cpaas.io/user-create: "true"
+    cpaas.io/display-name: vllm-ascend-cann8.5
+    helm.sh/resource-policy: keep
+  labels:
+    cpaas.io/accelerator-type: ascend
+    cpaas.io/cann-version: "8.5.1"
+    cpaas.io/runtime-class: vllm
+  name: aml-vllm-ascend-cann-8.5.1
+spec:
+  containers:
+    - command:
+        - bash
+        - -c
+        - >
+          set -ex
+
+          # 1. check model path
+
+          MODEL_DIR="/mnt/models/${MODEL_NAME}"
+
+          # a. using git lfs storage initializer, model will be in
+          /mnt/models/<model_name>
+
+          # b. using hf storage initializer, model will be in /mnt/models
+
+          if [ ! -d "${MODEL_DIR}" ]; then
+              MODEL_DIR="/mnt/models"
+              echo "[WARNING] Model directory ${MODEL_DIR}/${MODEL_NAME} not found, using ${MODEL_DIR} instead"
+          fi
+
+
+          # 2. check if using gguf models
+
+          c=`find "${MODEL_DIR}" -maxdepth 1 -type f -name '*.gguf' | wc -l`
+
+          echo "find ${c} gguf files"
+
+          if [ "${c}" -gt 1 ]; then
+              echo "[ERROR] More than one gguf file found in ${MODEL_DIR}"
+              echo "Currently, vllm only supports loading single-file GGUF models. If you have a multi-files GGUF model, you can use gguf-split tool to merge them to a single-file model."
+              exit 1
+          elif [ "${c}" -eq 1 ]; then
+              n=`find "${MODEL_DIR}" -maxdepth 1 -type f -name '*.gguf' -print`
+              echo "[INFO] Using GGUF model file: ${n}"
+              MODEL_PATH="${n}"
+          else
+              echo "[INFO] Using standard model directory"
+              MODEL_PATH="${MODEL_DIR}"
+          fi
+
+
+          # 3. initialize Ascend toolkit environment
+
+          if [[ -f "/usr/local/Ascend/ascend-toolkit/set_env.sh" ]]; then
+              source /usr/local/Ascend/ascend-toolkit/set_env.sh
+          else
+              echo "ascend-toolkit package is incomplete please check it."
+              exit 1
+          fi
+
+
+          # 4. launch vllm server
+
+          python3 -m vllm.entrypoints.openai.api_server \
+
+          --port 8080 \
+
+          --served-model-name {{.Name}} {{.Namespace}}/{{.Name}} \
+
+          --model ${MODEL_PATH} \
+
+          --gpu-memory-utilization ${GPU_MEMORY_UTILIZATION} \
+
+          $@
+        - bash
+      env:
+        - name: MODEL_NAME
+          value: '{{ index .Annotations "aml-model-repo" }}'
+        - name: GPU_MEMORY_UTILIZATION
+          value: "0.95"
+        - name: HOME # [!code callout]
+          value: /tmp
+        - name: USER # [!code callout]
+          value: vllm
+      image: quay.io/ascend/vllm-ascend:v0.18.0rc1
+      name: kserve-container
+      ports:
+        - containerPort: 8080
+          name: http1
+          protocol: TCP
+      resources:
+        limits:
+          cpu: 2 # [!code callout]
+          memory: 6Gi # [!code callout]
+        requests:
+          cpu: 2
+          memory: 6Gi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        privileged: false
+        runAsNonRoot: true
+        runAsUser: 1000 # [!code callout]
+        seccompProfile:
+          type: RuntimeDefault
+      startupProbe:
+        exec:
+          command:
+            - sh
+            - -c
+            - >
+              curl -s -o /dev/null -w "%{http_code}" -X POST
+              "http://127.0.0.1:8080/v1/completions" -H "Content-Type:
+              application/json" -d '{"model": "{{ .Name }}", "prompt": "ping"}'
+              | grep -q "200"
+        failureThreshold: 60
+        periodSeconds: 10
+        timeoutSeconds: 180
+      volumeMounts:
+        - mountPath: /dev/shm
+          name: devshm
+  protocolVersions:
+    - v2
+  supportedModelFormats:
+    - name: transformers
+      version: "1"
+  volumes:
+    - emptyDir:
+        medium: Memory
+        sizeLimit: 1Gi
+      name: devshm
+```
+
+<Callouts>
+1. `HOME` points temporary files and caches to `/tmp`, which is writable for the runtime container.
+2. `USER` prevents Python's `getpass.getuser()` fallback from querying `/etc/passwd` for the container UID. This avoids startup failures in images that run as a non-root UID without a matching passwd entry, while still allowing `torch_npu` to auto-load normally. For TP>1 / HCCL initialization, still validate whether the image needs an actual UID `1000` entry in `/etc/passwd`.
+3. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+4. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+5. `runAsUser: 1000` aligns the runtime container with the platform default Modelcar UID and the common Ascend device permission model.
+</Callouts>
+
+**2. Required Changes to the InferenceService Example**
+
+The `HOME` and `USER` environment variables are set in the `ClusterServingRuntime`
+above so every service that uses the runtime inherits them. When publishing an
+inference service with `vLLM-ascend`, choose the `InferenceService`
+security context according to the Modelcar permission mode.
+
+For non-root mode, add `fsGroup: 1000` and `supplementalGroups: [1000]` so the
+service can access Ascend device files through the expected group permissions:
+
+```yaml
+kind: InferenceService
+apiVersion: serving.kserve.io/v1beta1
+metadata:
+  name: qwen35
+  namespace: demo
+  annotations:
+    aml-model-repo: Qwen3.5-0.8B
+    modelFormat: transformers
+    serving.kserve.io/deploymentMode: Standard
+  labels:
+    aml.cpaas.io/runtime-type: vllm
+spec:
+  predictor:
+    model:
+      modelFormat:
+        name: transformers
+      protocolVersion: v2
+      resources:
+        limits:
+          cpu: "4" # [!code callout]
+          huawei.com/Ascend910B4: "1"
+          memory: 16Gi # [!code callout]
+        requests:
+          cpu: "2"
+          memory: 8Gi
+      runtime: aml-vllm-ascend-0.18.0rc1
+      storageUri: pvc://qwen35/Qwen3.5-0.8B
+    securityContext:
+      fsGroup: 1000 # [!code callout]
+      seccompProfile:
+        type: RuntimeDefault
+      supplementalGroups:
+        - 1000 # [!code callout]
+```
+
+<Callouts>
+1. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+2. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+3. `fsGroup: 1000` makes the mounted files inherit group `1000`, helping align file permissions with the group that is allowed to access Ascend devices.
+4. `supplementalGroups: [1000]` adds the container process to group `1000`, so it can access Ascend devices and related mounted files with the expected group permissions.
+</Callouts>
+
+For root-mode Modelcar deployments, the UID `1000` group settings are not
+required. Keep the `InferenceService` security context minimal:
+
+```yaml
+spec:
+  predictor:
+    model:
+      runtime: aml-vllm-ascend-0.18.0rc1
+      storageUri: oci://<registry>/<repository>:<tag>
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+```
+
+### MindIE (Ascend NPU)
+
+MindIE is specifically designed for Huawei Ascend hardware. Its configuration differs significantly in resource management and metadata.
+
+This example was validated on `Ascend 310P`. It should also work with other
+Ascend NPU models, but you should adjust the image, resource configuration,
+and related version fields according to your actual environment.
+
+**1.ClusterServingRuntime**
+
+```yaml
+# This is a sample YAML for Ascend NPU runtime
+kind: ClusterServingRuntime
+apiVersion: serving.kserve.io/v1alpha1
+metadata:
+  annotations:
+    cpaas.io/display-name: mindie-2.2RC1
+  labels:
+    cpaas.io/accelerator-type: npu
+    cpaas.io/cann-version: 8.3.0
+    cpaas.io/runtime-class: mindie
+  name: mindie-2.2rc1-310p
+spec:
+  containers:
+    - command:
+        - bash
+        - -c
+        - |
+          REAL_SCRIPT=$(echo "$RAW_SCRIPT" | sed 's/__LT__/\x3c/g')
+          echo "$REAL_SCRIPT" > /tmp/startup.sh
+          chmod +x /tmp/startup.sh
+          
+          if [ ! -d "${MODEL_PATH}" ]; then
+              MODEL_DIR="/mnt/models"
+              echo "[WARNING] Model directory ${MODEL_PATH} not found, using ${MODEL_DIR} instead"
+              MODEL_PATH="${MODEL_DIR}"
+          fi
+
+          CONFIG_FILE="${MODEL_PATH}/config.json"
+          echo "Checking for file: ${CONFIG_FILE}"
+
+          ls -ld "${MODEL_PATH}"
+          chmod -R 755 "${MODEL_PATH}"
+          echo "Fixing MODEL_PATH permission..."
+          ls -ld "${MODEL_PATH}"
+
+          /tmp/startup.sh --model-name "${MODEL_NAME}" --model-path "${MODEL_PATH}" --ip "${MY_POD_IP}"
+      env:
+        - name: RAW_SCRIPT
+          value: |
+            #!/bin/bash
+            #
+            #  Copyright 2024 Huawei Technologies Co., Ltd
+            #
+            #  Licensed under the Apache License, Version 2.0 (the "License");
+            #  you may not use this file except in compliance with the License.
+            #  You may obtain a copy of the License at
+            #
+            #  http://www.apache.org/licenses/LICENSE-2.0
+            #
+            #  Unless required by applicable law or agreed to in writing, software
+            #  distributed under the License is distributed on an "AS IS" BASIS,
+            #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+            #  See the License for the specific language governing permissions and
+            #  limitations under the License.
+            #  ============================================================================
+            #
+
+            ##
+            # Script Instruction
+            ##
+            ### Name:
+            ### run_mindie.sh - Use to Start MindIE Service given a specific model
+            ###
+            ### Usage:
+            ###   bash run_mindie.sh --model-name xxx --model-path /path/to/model
+            ###
+            ### Required:
+            ###   --model-name             :Given a model name to identify MindIE Service.
+            ###   --model-path             :Given a model path which contain necessary files such as yaml/conf.json/tokenizer/vocab etc.
+            ### Options:
+            ###   --help                   :Show this message.
+            ###   --ip                     :The IP address bound to the MindIE Server business plane RESTful interface,default value: 127.0.0.1.
+            ###   --port                   :The port bound to the MindIE Server business plane RESTful interface,default value: 1025.
+            ###   --management-ip          :The IP address bound to the MindIE Server management plane RESTful interface,default value: 127.0.0.2.
+            ###   --management-port        :The port bound to the MindIE Server management plane RESTful interface,default value: 1026.
+            ###   --metrics-port           :The port bound to the performance indicator monitoring interface,default value: 1027.
+            ###   --max-seq-len            :Maximum sequence length,default value: 2560.
+            ###   --max-iter-times         :The global maximum output length of the model,default value: 512.
+            ###   --max-input-token-len    :The maximum length of the token id,default value: 2048.
+            ###   --max-prefill-tokens     :Each time prefill occurs, the total number of input tokens in the current batch,default value: 8192
+            ###   --truncation             :Whether to perform parameter rationalization check interception,default value: false.
+            ###   --template-type          :Reasoning type,default value: "Standard"
+            ###   --max-preempt-count      :The upper limit of the maximum number of preemptible requests in each batch,default value: 0.
+            ###   --support-select-batch   :Batch selection strategy,default value: false.
+            ###   --npu-mem-size           :This can be used to apply for the upper limit of the KV Cache size in the NPU,default value: 8.
+            ###   --max-prefill-batch-size :The maximum prefill batch size,default value: 50.
+            ###   --world-size             :Enable several cards for inference.
+            ###                             1. If it is not set, the parallel config in the YAML file is obtained by default. Set worldsize = dp*mp*pp.
+            ###                             2. If set, modify the parallel config in the YAML file. set parallel config: dp:1 mp:worldSize pp:1
+            ###   --ms-sched-host          :MS Scheduler IP address,default value: 127.0.0.1.
+            ###   --ms-sched-port          :MS Scheduler port,default value: 8119.
+            ###   For more details about config description, please check MindIE homepage: https://www.hiascend.com/document/detail/zh/mindie/10RC3/mindiellm/llmdev/mindie_llm0004.html
+            help() {
+              awk -F'### ' '/^###/ { print $2 }' "$0"
+            }
+
+            if [[ $# == 0 ]] || [[ "$1" == "--help" ]]; then
+              help
+              exit 1
+            fi
+
+            ##
+            # Get device info
+            ##
+            total_count=$(npu-smi info -l | grep "Total Count" | awk -F ':' '{print $2}' | xargs)
+
+            if [[ -z "$total_count" ]]; then
+                echo "Error: Unable to retrieve device info. Please check if npu-smi is available for current user (id 1001), or if you are specifying an occupied device."
+                exit 1
+            fi
+
+            echo "$total_count device(s) detected!"
+
+            ##
+            # Set toolkit envs
+            ##
+            echo "Setting toolkit envs..."
+            if [[ -f "/usr/local/Ascend/ascend-toolkit/set_env.sh" ]];then
+                            source /usr/local/Ascend/ascend-toolkit/set_env.sh
+                    else
+                            echo "ascend-toolkit package is incomplete please check it."
+                            exit 1
+                    fi
+            echo "Toolkit envs set succeeded!"
+
+            ##
+            # Set MindIE envs
+            ##
+            echo "Setting MindIE envs..."
+            if [[ -f "/usr/local/Ascend/mindie/set_env.sh" ]];then
+                            source /usr/local/Ascend/mindie/set_env.sh
+                    else
+                            echo "mindie package is incomplete please check it."
+                            exit 1
+                    fi
+            echo "MindIE envs set succeeded!"
+
+            ##
+            # Default MS envs
+            ##
+
+            # Set PYTHONPATH
+            MF_SCRIPTS_ROOT=$(realpath "$(dirname "$0")")
+            export PYTHONPATH=$MF_SCRIPTS_ROOT/../:$PYTHONPATH
+
+            ##
+            # Receive args and modify config.json
+            ##
+            export MIES_INSTALL_PATH=/usr/local/Ascend/mindie/latest/mindie-service
+            CONFIG_FILE=${MIES_INSTALL_PATH}/conf/config.json
+            echo "MindIE Service config path:$CONFIG_FILE"
+            #default config
+            BACKEND_TYPE="atb"
+            MAX_SEQ_LEN=2560
+            MAX_PREFILL_TOKENS=8192
+            MAX_ITER_TIMES=512
+            MAX_INPUT_TOKEN_LEN=2048
+            TRUNCATION=false
+            HTTPS_ENABLED=false
+            MULTI_NODES_INFER_ENABLED=false
+            NPU_MEM_SIZE=8
+            MAX_PREFILL_BATCH_SIZE=50
+            TEMPLATE_TYPE="Standard"
+            MAX_PREEMPT_COUNT=0
+            SUPPORT_SELECT_BATCH=false
+            IP_ADDRESS="127.0.0.1"
+            PORT=8080
+            MANAGEMENT_IP_ADDRESS="127.0.0.2"
+            MANAGEMENT_PORT=1026
+            METRICS_PORT=1027
+
+            #modify config
+            while [[ "$#" -gt 0 ]]; do
+                case $1 in
+                    --model-path) MODEL_WEIGHT_PATH="$2"; shift ;;
+                    --model-name) MODEL_NAME="$2"; shift ;;
+                    --max-seq-len) MAX_SEQ_LEN="$2"; shift ;;
+                    --max-iter-times) MAX_ITER_TIMES="$2"; shift ;;
+                    --max-input-token-len) MAX_INPUT_TOKEN_LEN="$2"; shift ;;
+                    --max-prefill-tokens) MAX_PREFILL_TOKENS="$2"; shift ;;
+                    --truncation) TRUNCATION="$2"; shift ;;
+                    --world-size) WORLD_SIZE="$2"; shift ;;
+                    --template-type) TEMPLATE_TYPE="$2"; shift ;;
+                    --max-preempt-count) MAX_PREEMPT_COUNT="$2"; shift ;;
+                    --support-select-batch) SUPPORT_SELECT_BATCH="$2"; shift ;;
+                    --npu-mem-size) NPU_MEM_SIZE="$2"; shift ;;
+                    --max-prefill-batch-size) MAX_PREFILL_BATCH_SIZE="$2"; shift ;;
+                    --ip) IP_ADDRESS="$2"; shift ;;
+                    --port) PORT="$2"; shift ;;
+                    --management-ip) MANAGEMENT_IP_ADDRESS="$2"; shift ;;
+                    --management-port) MANAGEMENT_PORT="$2"; shift ;;
+                    --metrics-port) METRICS_PORT="$2"; shift ;;
+                    --ms-sched-host) ENV_MS_SCHED_HOST="$2"; shift ;;
+                    --ms-sched-port) ENV_MS_SCHED_PORT="$2"; shift ;;
+                    *)
+                        echo "Unknown parameter: $1"
+                        echo "Please check your inputs."
+                        exit 1
+                        ;;
+                esac
+                shift
+            done
+
+            if [ -z "$MODEL_WEIGHT_PATH" ] || [ -z "$MODEL_NAME" ]; then
+                echo "Error: Both --model-path and --model-name are required."
+                exit 1
+            fi
+            MODEL_NAME=${MODEL_NAME:-$(basename "$MODEL_WEIGHT_PATH")}
+            echo "MODEL_NAME is set to: $MODEL_NAME"
+
+            WORLD_SIZE=$total_count
+            NPU_DEVICE_IDS=$(seq -s, 0 $(($WORLD_SIZE - 1)))
+
+            #validate config
+            if [[ "$BACKEND_TYPE" != "atb" ]]; then
+                echo "Error: BACKEND must be 'atb'. Current value: $BACKEND_TYPE"
+                exit 1
+            fi
+
+            if [[ ! "$IP_ADDRESS" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] ||
+              [[ ! "$MANAGEMENT_IP_ADDRESS" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+                echo "Error: IP_ADDRESS and MANAGEMENT_IP_ADDRESS must be valid IP addresses. Current values: IP_ADDRESS=$IP_ADDRESS, MANAGEMENT_IP_ADDRESS=$MANAGEMENT_IP_ADDRESS"
+                exit 1
+            fi
+
+            if [[ ! "$PORT" =~ ^[0-9]+$ ]] || (( PORT __LT__ 1025 || PORT > 65535 )) ||
+              [[ ! "$MANAGEMENT_PORT" =~ ^[0-9]+$ ]] || (( MANAGEMENT_PORT __LT__ 1025 || MANAGEMENT_PORT > 65535 )); then
+                echo "Error: PORT and MANAGEMENT_PORT must be integers between 1025 and 65535. Current values: PORT=$PORT, MANAGEMENT_PORT=$MANAGEMENT_PORT"
+                exit 1
+            fi
+
+            if [ "$MAX_PREFILL_TOKENS" -lt "$MAX_SEQ_LEN" ]; then
+                MAX_PREFILL_TOKENS=$MAX_SEQ_LEN
+                echo "MAX_PREFILL_TOKENS was less than MAX_SEQ_LEN. Setting MAX_PREFILL_TOKENS to $MAX_SEQ_LEN"
+            fi
+
+            MODEL_CONFIG_FILE="${MODEL_WEIGHT_PATH}/config.json"
+            if [ ! -f "$MODEL_CONFIG_FILE" ]; then
+                echo "Error: config.json file not found in $MODEL_WEIGHT_PATH."
+                exit 1
+            fi
+            chmod 600 "$MODEL_CONFIG_FILE"
+            #update config file
+            chmod u+w ${MIES_INSTALL_PATH}/conf/
+            sed -i "s/\"backendType\"\s*:\s*\"[^\"]*\"/\"backendType\": \"$BACKEND_TYPE\"/" $CONFIG_FILE
+            sed -i "s/\"modelName\"\s*:\s*\"[^\"]*\"/\"modelName\": \"$MODEL_NAME\"/" $CONFIG_FILE
+            sed -i "s|\"modelWeightPath\"\s*:\s*\"[^\"]*\"|\"modelWeightPath\": \"$MODEL_WEIGHT_PATH\"|" $CONFIG_FILE
+            sed -i "s/\"maxSeqLen\"\s*:\s*[0-9]*/\"maxSeqLen\": $MAX_SEQ_LEN/" "$CONFIG_FILE"
+            sed -i "s/\"maxPrefillTokens\"\s*:\s*[0-9]*/\"maxPrefillTokens\": $MAX_PREFILL_TOKENS/" "$CONFIG_FILE"
+            sed -i "s/\"maxIterTimes\"\s*:\s*[0-9]*/\"maxIterTimes\": $MAX_ITER_TIMES/" "$CONFIG_FILE"
+            sed -i "s/\"maxInputTokenLen\"\s*:\s*[0-9]*/\"maxInputTokenLen\": $MAX_INPUT_TOKEN_LEN/" "$CONFIG_FILE"
+            sed -i "s/\"truncation\"\s*:\s*[a-z]*/\"truncation\": $TRUNCATION/" "$CONFIG_FILE"
+            sed -i "s|\(\"npuDeviceIds\"\s*:\s*\[\[\)[^]]*\(]]\)|\1$NPU_DEVICE_IDS\2|" "$CONFIG_FILE"
+            sed -i "s/\"worldSize\"\s*:\s*[0-9]*/\"worldSize\": $WORLD_SIZE/" "$CONFIG_FILE"
+            sed -i "s/\"httpsEnabled\"\s*:\s*[a-z]*/\"httpsEnabled\": $HTTPS_ENABLED/" "$CONFIG_FILE"
+            sed -i "s/\"templateType\"\s*:\s*\"[^\"]*\"/\"templateType\": \"$TEMPLATE_TYPE\"/" $CONFIG_FILE
+            sed -i "s/\"maxPreemptCount\"\s*:\s*[0-9]*/\"maxPreemptCount\": $MAX_PREEMPT_COUNT/" $CONFIG_FILE
+            sed -i "s/\"supportSelectBatch\"\s*:\s*[a-z]*/\"supportSelectBatch\": $SUPPORT_SELECT_BATCH/" $CONFIG_FILE
+            sed -i "s/\"multiNodesInferEnabled\"\s*:\s*[a-z]*/\"multiNodesInferEnabled\": $MULTI_NODES_INFER_ENABLED/" "$CONFIG_FILE"
+            sed -i "s/\"maxPrefillBatchSize\"\s*:\s*[0-9]*/\"maxPrefillBatchSize\": $MAX_PREFILL_BATCH_SIZE/" "$CONFIG_FILE"
+            sed -i "s/\"ipAddress\"\s*:\s*\"[^\"]*\"/\"ipAddress\": \"$IP_ADDRESS\"/" "$CONFIG_FILE"
+            sed -i "s/\"port\"\s*:\s*[0-9]*/\"port\": $PORT/" "$CONFIG_FILE"
+            sed -i "s/\"managementIpAddress\"\s*:\s*\"[^\"]*\"/\"managementIpAddress\": \"$MANAGEMENT_IP_ADDRESS\"/" "$CONFIG_FILE"
+            sed -i "s/\"managementPort\"\s*:\s*[0-9]*/\"managementPort\": $MANAGEMENT_PORT/" "$CONFIG_FILE"
+            sed -i "s/\"metricsPort\"\s*:\s*[0-9]*/\"metricsPort\": $METRICS_PORT/" $CONFIG_FILE
+            sed -i "s/\"npuMemSize\"\s*:\s*-*[0-9]*/\"npuMemSize\": $NPU_MEM_SIZE/" "$CONFIG_FILE"
+
+            ##
+            # Start service
+            ##
+            echo "Current configurations are displayed as follows:"
+            cat $CONFIG_FILE
+            npu-smi info -m > ~/device_info
+
+            ${MIES_INSTALL_PATH}/bin/mindieservice_daemon
+        - name: MODEL_NAME
+          value: '{{ index .Annotations "aml-model-repo" }}'
+        - name: MODEL_PATH
+          value: /mnt/models/{{ index .Annotations "aml-model-repo" }}
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+      image: swr.cn-south-1.myhuaweicloud.com/ascendhub/mindie:2.2.RC1-300I-Duo-py311-openeuler24.03-lts
+      name: kserve-container
+      resources:
+        limits:
+          cpu: 2 # [!code callout]
+          memory: 6Gi # [!code callout]
+        requests:
+          cpu: 2
+          memory: 6Gi
+      volumeMounts:
+        - mountPath: /dev/shm
+          name: dshm
+      startupProbe:
+        failureThreshold: 60
+        httpGet:
+          path: /v1/models
+          port: 8080
+          scheme: HTTP
+        periodSeconds: 10
+        timeoutSeconds: 180
+  supportedModelFormats:
+    - name: transformers
+      version: "1"
+  volumes:
+    - emptyDir:
+        medium: Memory
+        sizeLimit: 8Gi
+      name: dshm
+      
+```
+
+<Callouts>
+1. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+2. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
+</Callouts>
+
+**2.Mandatory Annotations for InferenceService**
+
+Unlike other runtimes, MindIE **must** include the following annotations in the
+`InferenceService` metadata during the final publishing step. This ensures that
+the platform scheduler correctly binds the NPU hardware to the service.
+
+| Configuration Key | Value | Purpose |
+| :--- | :--- | :--- |
+| `storage.kserve.io/readonly` | `"false"` | **Enables write access to the model storage volume.** |
+
+**3.User Privileges (Root Access)**
+
+Due to the requirements of the Ascend driver and hardware abstraction layer, the MindIE image **must run as the root user**. Ensure your `ClusterServingRuntime` or `InferenceService` security context is configured accordingly:
+
+**Note**: The MindIE ClusterServingRuntime YAML example above does not specify a `securityContext`, which means the container runs with the default settings of the image (typically root). Unlike MLServer which explicitly sets `runAsNonRoot: true` and `runAsUser: 1000`, MindIE requires root privileges to access the NPU hardware.
+
+## Comparison of Runtime Configurations
+
+Before proceeding, refer to this table to understand the specific requirements for different runtimes:
+
+| Runtime | Target Hardware | Supported Frameworks | Special Requirements |
+| :--- | :--- | :--- | :--- |
+| **Xinference** | CPU / NVIDIA GPU | transformers, pytorch | **Must** set `MODEL_FAMILY` environment variable |
+| **MLServer** | CPU / NVIDIA GPU | sklearn, xgboost, mlflow | Standard configuration |
+| **Triton** | NVIDIA GPU | triton (TensorFlow, PyTorch, ONNX, etc.) | Standard configuration |
+| **vLLM-ascend** | Huawei Ascend NPU (validated on 910B4) | transformers | **Must** set `HOME` and `USER` in the `ClusterServingRuntime`, choose the proper Modelcar permission mode for Ascend 910 single-card or multi-card deployments, and add UID `1000` group settings only for non-root mode |
+| **MindIE** | Huawei Ascend NPU (validated on 310P) | mindspore, transformers | **Must** add the required NPU annotations to the `InferenceService` |

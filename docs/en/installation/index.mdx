@@ -1,5 +1,10 @@
 ---
-weight: 20
+weight: 30
+i18n:
+  title:
+    en: Install
+    zh: 安装
+title: Install
 ---
 
 # Install
@@ -15,7 +20,7 @@ weight: 20
 - CUDA Toolkit Version: 12.6 or higher.
 
 :::info
-    If your GPU does not support CUDA 12.6, you may still use lower versions of the CUDA Toolkit.However, after deploying Alauda AI, it is necessary to add a custom inference runtime that is adapted for older CUDA versions. This can be done by referring to [Extend LLM Inference Runtimes](../model_inference/inference_service/how_to/custom_inference_runtime.mdx),since the built-in vLLM inference runtime only supports CUDA 12.6 or later versions.
+    If your GPU does not support CUDA 12.6, you may still use lower versions of the CUDA Toolkit.However, after deploying Alauda AI, it is necessary to add a custom inference runtime that is adapted for older CUDA versions. This can be done by referring to [Extend LLM Inference Runtimes](../deploy/inference_service/how_to/custom_inference_runtime.mdx),since the built-in vLLM inference runtime only supports CUDA 12.6 or later versions.
 :::
 
 ## Installing

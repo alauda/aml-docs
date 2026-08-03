@@ -15,7 +15,7 @@ require_env GPU_NAMESPACE "namespace for GPU e2e resources"
 NS="${GPU_NAMESPACE}"
 
 log "C2: applying ClusterTrainingRuntime torch-distributed (from kubeflow-trainer-quick-start.md)"
-# Pulled directly out of docs/en/training_pipelines/training_guides/kubeflow-trainer-quick-start.md.
+# Pulled directly out of docs/en/train/how_to/kubeflow-trainer-quick-start.md.
 # Override TORCH_DIST_IMAGE only when the public Docker Hub image is mirrored locally.
 TORCH_DIST_IMAGE="${TORCH_DIST_IMAGE:-alaudadockerhub/torch-distributed:v2.9.1-aml2}"
 cat <<'YAML' \
