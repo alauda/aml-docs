@@ -1,0 +1,59 @@
+---
+weight: 10
+---
+
+# Fine-Tuning with Kubeflow Trainer v2
+
+Run supervised fine-tuning with [LlamaFactory](https://github.com/hiyouga/LLaMA-Factory) on Kubernetes using Kubeflow Trainer v2.
+
+Trainer v2 splits the job into a reusable `TrainingRuntime` (image + pipeline steps + LlamaFactory config) and per-experiment `TrainJob` runs that override only what changes (model, dataset, hyperparameters, GPU resources).
+
+## Prerequisites
+
+| Requirement | Details |
+|---|---|
+| Kubeflow Trainer v2 | `trainer.kubeflow.org` API group available |
+| Kueue | Optional; for job queuing and quotas |
+| Shared PVC | RWX or correctly-provisioned RWO across all training pods |
+| Git credentials | `Secret` `aml-image-builder-secret` with `MODEL_REPO_GIT_USER` and `MODEL_REPO_GIT_TOKEN` |
+| GPU nodes | NVIDIA GPUs; adjust `nodeSelector` to match your nodes |
+| `kubectl` access | Permission to manage `trainingruntimes` and `trainjobs` in your namespace |
+
+If you hit RBAC errors, ask a cluster admin to grant your workbench ServiceAccount read/write on `trainjobs` and `trainingruntimes` in the target namespace (example role: `apiGroups: ["trainer.kubeflow.org"]`, `resources: ["trainjobs","trainingruntimes"]`).
+
+## Build or use a prebuilt image
+
+Use `alaudadockerhub/fine_tune_with_llamafactory:v0.1.11`, or build your own from the `Containerfile` under [`assets/build-train-image/`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/assets/build-train-image).
+
+## Run the example notebook
+
+Download [`fine-tune-with-trainer-v2.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/fine-tune-with-trainer-v2.ipynb) into your workbench and follow the cells. The notebook creates a `TrainingRuntime`, then submits a `TrainJob` that mounts the shared PVC and uses the `aml-image-builder-secret`.
+
+For Huawei Ascend NPUs, use [`fine-tune-with-trainer-v2-mindspeed-npu.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/fine-tune-with-trainer-v2-mindspeed-npu.ipynb) instead — it runs the MindSpeed-LLM SFT pipeline (HF → MCore checkpoint, preprocess, train) on `huawei.com/Ascend910B4` resources with `runtimeClassName: ascend`.
+
+## Scheduling with Kueue
+
+When [Kueue](https://kueue.sigs.k8s.io/) is installed, TrainJobs stay **suspended** until Kueue admits them against the configured `ClusterQueue` quota. Ready-to-apply YAMLs live in [`assets/kueue/`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/assets/kueue):
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/train/guides/assets/kueue
+NS=my-namespace  # edit to the namespace where you submit jobs
+# 1. Cluster admin — one ResourceFlavor + one ClusterQueue (edit nominalQuota to taste)
+kubectl apply -f $base/cluster-queue.yaml
+# 2. Namespace admin — LocalQueue pointing at the ClusterQueue
+curl -fsSL $base/local-queue.yaml | sed "s/<your-namespace>/$NS/" | kubectl apply -f -
+# 3. Submit a TrainJob labelled with the queue name; Kueue admits it
+curl -fsSL $base/trainjob-kueue-example.yaml | sed "s/<your-namespace>/$NS/" | kubectl create -f -
+```
+
+The three files in turn:
+
+- [`cluster-queue.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/assets/kueue/cluster-queue.yaml) — a single `ResourceFlavor` plus a `ClusterQueue` covering cpu / memory / `nvidia.com/gpu`. Cluster admin applies it once per quota pool.
+- [`local-queue.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/assets/kueue/local-queue.yaml) — a namespaced `LocalQueue` that references `cluster-queue`. Namespace admin applies it once per namespace.
+- [`trainjob-kueue-example.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/assets/kueue/trainjob-kueue-example.yaml) — a `TrainJob` labelled `kueue.x-k8s.io/queue-name: local-queue`. The TrainJob stays Suspended until Kueue admits it; once admitted, JobSet brings the trainer pods up.
+
+See [Kueue docs](../components/kueue/intro) for the full setup.
+
+:::note
+When the Kueue **PodsReady timeout** is short and the training image is large, the first attempt may be evicted on image-pull timeout. Resubmitting usually succeeds because the image is cached on the node.
+:::

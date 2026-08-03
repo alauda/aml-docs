@@ -14,7 +14,7 @@ This guide shows the recommended tracing path for:
 
 ## Prerequisites
 
-- An MLflow tracking server and a workspace you can access. See [Workspaces and access control](../../administer/how_to/mlflow_workspaces.mdx).
+- An MLflow tracking server and a workspace you can access. See [MLflow Workspaces and Access Control](../../administer/multi_tenant/mlflow_workspaces.mdx).
 - A Dex id token in `MLFLOW_TRACKING_TOKEN`. Follow [Using the MLflow Python SDK with Authentication and RBAC](./mlflow-python-sdk.mdx#get-a-token) to obtain and renew one.
 - An experiment for the traces. Creating or writing traces requires `create` and `update` permission on the workspace's `experiments` resource.
 - Network access from the agent to the MLflow tracking server and its model endpoint.

@@ -187,7 +187,7 @@ kubectl get pods -n "${INFERENCE_NAMESPACE}" \
 
 Model artifacts are not included in the InferNex Bridge operator package. Use
 the Alauda AI model catalog to prepare a ModelCar when OCI model storage is
-selected. See [Model Storage](../../model_management/functions/model_storage.mdx).
+selected. See [Model Storage](../../model_management/model_storage.mdx).
 
 :::info
 The Alauda OLM bundle registers the InferNex Bridge admission webhook for the KServe `LLMInferenceService` API versions used by the release examples, including `serving.kserve.io/v1alpha2`. The webhook is used for admission-time compatibility patches when `infernex.io/runtime: "true"` is set on a KServe `LLMInferenceService`; it does not create or reconcile the `LLMInferenceService` resource itself.

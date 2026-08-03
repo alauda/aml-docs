@@ -37,7 +37,7 @@ Before delegating MLOps work, give the agent a small, reliable context to operat
 
 The platform supports two related resources for serving models:
 
-- **`InferenceService`** (`serving.kserve.io/v1beta1`) — the standard KServe predictor used in [Create Inference Service using CLI](../../deploy/inference_service/how_to/create_inference_service_cli.mdx). Best for single-container model servers (vLLM, Triton, custom runtimes).
+- **`InferenceService`** (`serving.kserve.io/v1beta1`) — the standard KServe predictor used in [Create Inference Service using CLI](../../deploy/inference_service/guides/create_inference_service_cli.mdx). Best for single-container model servers (vLLM, Triton, custom runtimes).
 - **`LLMInferenceService`** — KServe's higher-level LLM resource for multi-component LLM serving (orchestrating predictors, optional prefill/decode disaggregation, and gateway/inference-extension integration). It is recognized by platform features such as Hardware Profiles, which mention it alongside `InferenceService` (see [Hardware Profiles](../../administer/hardware_profile/intro.mdx)). Use it when a single-container `InferenceService` is no longer enough.
 
 A good agent loop for either resource is the same:
@@ -52,7 +52,7 @@ Useful prompts to start from:
 - "Convert this `InferenceService` to an `LLMInferenceService` for prefill/decode disaggregation; keep the same model, hardware profile, and served-model name. Show me what changes and why."
 - "List all `InferenceService` and `LLMInferenceService` objects in `mlops-demo-ai-test`, their `READY` status, and the model each one serves. Flag any that have been `NotReady` for more than 10 minutes and summarize the most recent predictor pod events."
 
-For the YAML fields and platform-specific labels/annotations the agent needs to reproduce, point it at [Create Inference Service using CLI](../../deploy/inference_service/how_to/create_inference_service_cli.mdx) as the canonical example. For exposing a new service externally, point it at [Configure External Access for Inference Services](../../deploy/inference_service/how_to/external_access_inference_service.mdx).
+For the YAML fields and platform-specific labels/annotations the agent needs to reproduce, point it at [Create Inference Service using CLI](../../deploy/inference_service/guides/create_inference_service_cli.mdx) as the canonical example. For exposing a new service externally, point it at [Configure External Access for Inference Services](../../deploy/inference_service/guides/external_access_inference_service.mdx).
 
 ## Manage gateways: authentication and rate limits \{#manage-gateways}
 
@@ -122,7 +122,7 @@ The loop ends when SLOs are met, or when the next sensible knob is "different ha
 
 </Steps>
 
-For model-size vs. GPU-memory selection, see the prior doc's [Choose a model that fits your hardware](./coding-agents-with-inference-service.mdx#best-practices) section. For autoscaling and cold-start trade-offs, see [Configure Scaling for Inference Services](../../deploy/inference_service/how_to/autoscale_settings.mdx). For interactive-latency wins, see [Speculative Decoding for vLLM Inference Services](../../deploy/inference_service/how_to/vllm_speculative_decoding.mdx).
+For model-size vs. GPU-memory selection, see the prior doc's [Choose a model that fits your hardware](./coding-agents-with-inference-service.mdx#best-practices) section. For autoscaling and cold-start trade-offs, see [Configure Scaling for Inference Services](../../deploy/inference_service/guides/autoscale_settings.mdx). For interactive-latency wins, see [Speculative Decoding for vLLM Inference Services](../../deploy/inference_service/guides/vllm_speculative_decoding.mdx).
 
 ## Plan fine-tuning and generate reports \{#fine-tuning-plans-and-reports}
 
@@ -132,9 +132,9 @@ Fine-tuning has two failure modes that coding agents are unusually good at preve
 
 | Situation | Recommended tool | Reference |
 |---|---|---|
-| Interactive exploration, small dataset, one or two GPUs | Workbench Notebook | [Fine-tuning with Notebooks](../../train/how_to/fine-tuning-using-notebooks.mdx) |
-| Production-grade SFT / OSFT with automatic memory management | Training Hub | [Fine-tuning LLMs with Training Hub](../../train/how_to/training-hub-fine-tuning.mdx) |
-| Reusable templates, many runs, scheduled / batched on Kueue | Kubeflow Trainer v2 + LlamaFactory | [Fine-Tuning with Kubeflow Trainer v2](../../train/how_to/fine-tune-with-trainer-v2.mdx) |
+| Interactive exploration, small dataset, one or two GPUs | Workbench Notebook | [Fine-tuning with Notebooks](../../train/guides/fine-tuning-using-notebooks.mdx) |
+| Production-grade SFT / OSFT with automatic memory management | Training Hub | [Fine-tuning LLMs with Training Hub](../../train/guides/training-hub-fine-tuning.mdx) |
+| Reusable templates, many runs, scheduled / batched on Kueue | Kubeflow Trainer v2 + LlamaFactory | [Fine-Tuning with Kubeflow Trainer v2](../../train/guides/fine-tune-with-trainer-v2.mdx) |
 | Already-tuned model needs to fit a smaller GPU before serving | LLM Compressor | [LLM Compressor with Alauda AI](../../deploy/model_compression/compressor_by_workbench.mdx) |
 
 ### A reusable fine-tuning plan template
@@ -254,17 +254,17 @@ Each step is a separate prompt with its own diff to review. The agent is the typ
 ## References
 
 - [Use Coding Agents with On-Premise Inference Services](./coding-agents-with-inference-service.mdx)
-- [Create Inference Service using CLI](../../deploy/inference_service/how_to/create_inference_service_cli.mdx)
-- [Configure External Access for Inference Services](../../deploy/inference_service/how_to/external_access_inference_service.mdx)
-- [Configure Scaling for Inference Services](../../deploy/inference_service/how_to/autoscale_settings.mdx)
-- [Speculative Decoding for vLLM Inference Services](../../deploy/inference_service/how_to/vllm_speculative_decoding.mdx)
-- [Extend Inference Runtimes](../../deploy/inference_service/how_to/custom_inference_runtime.mdx)
+- [Create Inference Service using CLI](../../deploy/inference_service/guides/create_inference_service_cli.mdx)
+- [Configure External Access for Inference Services](../../deploy/inference_service/guides/external_access_inference_service.mdx)
+- [Configure Scaling for Inference Services](../../deploy/inference_service/guides/autoscale_settings.mdx)
+- [Speculative Decoding for vLLM Inference Services](../../deploy/inference_service/guides/vllm_speculative_decoding.mdx)
+- [Extend Inference Runtimes](../../deploy/inference_service/guides/custom_inference_runtime.mdx)
 - [Envoy AI Gateway — introduction](../../deploy/components/envoy_ai_gateway/intro.mdx)
 - [Install Envoy AI Gateway](../../deploy/components/envoy_ai_gateway/install.mdx)
 - [Hardware Profiles](../../administer/hardware_profile/intro.mdx)
-- [Fine-Tuning with Kubeflow Trainer v2](../../train/how_to/fine-tune-with-trainer-v2.mdx)
-- [Fine-tuning LLMs with Training Hub](../../train/how_to/training-hub-fine-tuning.mdx)
-- [Fine-tuning with Notebooks](../../train/how_to/fine-tuning-using-notebooks.mdx)
+- [Fine-Tuning with Kubeflow Trainer v2](../../train/guides/fine-tune-with-trainer-v2.mdx)
+- [Fine-tuning LLMs with Training Hub](../../train/guides/training-hub-fine-tuning.mdx)
+- [Fine-tuning with Notebooks](../../train/guides/fine-tuning-using-notebooks.mdx)
 - [LLM Compressor with Alauda AI](../../deploy/model_compression/compressor_by_workbench.mdx)
 - [MLflow on Kubeflow](../components/mlflow/intro.mdx)
 - [Envoy AI Gateway upstream documentation](https://aigateway.envoyproxy.io/)

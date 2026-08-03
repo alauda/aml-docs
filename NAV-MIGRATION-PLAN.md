@@ -20,18 +20,20 @@
 | 2 | Plan 规划与选型 | `plan/` | 11 | — |
 | 3 | Install 安装 | `installation/` | 6 | — |
 | 4 | Upgrade 升级与卸载 | `upgrade/` | 5 | — |
-| 5 | Administer 平台管理 | `administer/` | 14 | — |
-| 6 | Develop 开发 | `develop/` | 53 | data_science_pipelines, feast, kubeflow, kuberay, label_studio, mlflow, spark_operator |
+| 5 | Administer 平台管理 | `administer/` | 13 | — |
+| 6 | Develop 开发 | `develop/` | 56 | data_science_pipelines, feast, kubeflow, kuberay, label_studio, mlflow, spark_operator |
 | 7 | Train 训练与调优 | `train/` | 29 | jobset, kueue, volcano |
-| 8 | Deploy 部署与推理 | `deploy/` | 51 | envoy_ai_gateway, infernex_bridge, kserve, lws |
-| 9 | Build AI Applications 构建 AI 应用 | `ai_applications/` | 21 | dify, kagenti, llama_stack, mcp_lifecycle_operator |
-| 10 | Evaluate & Safety 评测与安全 | `evaluate_safety/` | 7 | trustyai |
-| 11 | Monitor 监控与运维 | `monitor/` | 18 | — |
+| 8 | Deploy 部署与推理 | `deploy/` | 49 | envoy_ai_gateway, infernex_bridge, kserve, lws |
+| 9 | Build AI Applications 构建 AI 应用 | `ai_applications/` | 23 | dify, kagenti, llama_stack, mcp_lifecycle_operator |
+| 10 | Evaluate & Safety 评测与安全 | `evaluate_safety/` | 9 | trustyai |
+| 11 | Monitor 监控与运维 | `monitor/` | 14 | — |
 | 12 | API Reference | `apis/` | 13 | — |
 
 合计 234 页。
 
 ## 3. 逐文件迁移表
+
+> 注：本表为第一版（PR #299 首次提交）的映射；其中 `how_to/` / `functions/` 相关条目已被 §8 的二次调整取代。
 
 
 ### Overview 概述 — `overview/`
@@ -423,3 +425,60 @@
 4. **这是连续第二次重排** — PR #297 刚合并。翻译 sourceSHA、llms.txt、外部引用的成本会叠加，
    建议本方案一次到位，不再分期改动目录结构。
 
+
+## 8. 二次调整：取消 "How To" 桶
+
+第一版结构保留了旧模块模板的 `how_to/` / `functions/` 分组，评审中暴露三个问题：
+
+1. **章节级 How To 与同级模块语义重叠。** `develop/how_to/` 的 10 篇任务页与同级的
+   Workbench、Connections、Experiment Tracking 讲的是同一批工作，读者无法判断
+   "Use Kubeflow Notebooks" 应该去 Workbench 还是去 How To。`administer/`、`deploy/`、
+   `monitor/`、`ai_applications/` 也各有一个同样的桶，共 5 个。
+2. **"How To" 不携带信息。** 该标签只说明体裁不说明内容；RHOAI 的导航节点一律以对象或任务命名
+   （Working with connections、Managing resources…），不存在按体裁分组的节点。
+3. **单页包装目录。** `deploy/model_compression/how_to/` 只有 index 没有任何页面；另有 6 个
+   `how_to/` `functions/` `overview/` `troubleshooting/` 目录只包 1 篇文章。
+
+### 8.1 规则
+
+1. 与模块并列的章节级 `how_to/` 一律拆散，按主题并入既有模块，或新建以任务命名的分组。
+2. 模块内的分组：≤4 篇直接打平到模块下；>4 篇保留分组，但重命名为描述性标签。
+3. 只含 1 篇文章的包装目录一律打平；空目录删除。
+4. 全站不再出现 `How To` 导航标签，目录名同步去掉 `how_to`（URL 与标签一致）。
+
+### 8.2 变更表
+
+| 章节 | 原位置 | 新位置 |
+|---|---|---|
+| Administer | `administer/how_to/mlflow_workspaces.mdx` | `administer/multi_tenant/`（标题改为 MLflow Workspaces and Access Control） |
+| Administer | `administer/how_to/{install_secure_dependencies,enable_secure_profile}.mdx` | `administer/secure_profile/`（新建分组） |
+| Administer | `administer/hardware_profile/{functions,how_to}/` | 打平到 `administer/hardware_profile/` |
+| Administer | `administer/multi_tenant/functions/` | 打平到 `administer/multi_tenant/` |
+| Develop | `develop/how_to/{notebooks,volumes-kserve,tensorboards,upload_models_using_notebook}.mdx` | `develop/workbench/` |
+| Develop | `develop/workbench/{overview,how_to}/`、`develop/connections/{overview,how_to}/` | 各自打平到模块下 |
+| Develop | `develop/how_to/{create_dspa,pipelines,tekton}.mdx` + `workbench/how_to/run-kubeflow-pipelines-with-elyra.mdx` + `train/how_to/{reusable-pipeline-components,kfp-execution-and-storage}.mdx` | `develop/pipelines/`（新建分组，`pipelines.mdx` 更名 `kubeflow_pipelines.mdx`） |
+| Develop | `develop/how_to/{codeflare-sdk-tutorial,run_spark_application}.mdx` | `develop/distributed_workloads/`（新建分组） |
+| Develop | `develop/how_to/model-registry.mdx` | `develop/model_registry.mdx`（章节级单页） |
+| Train | `train/how_to/` | `train/guides/`（标签本已是 Training Guides，仅对齐目录名） |
+| Deploy | `deploy/how_to/isvc.mdx` | `deploy/inference_service/guides/kueue_scheduling.mdx`（标题改为 Schedule Inference Services with Kueue） |
+| Deploy | `deploy/inference_service/how_to/`（9 篇） | `deploy/inference_service/guides/`（10 篇，标签 Guides） |
+| Deploy | `deploy/inference_service/functions/inference_service.mdx` | 打平到模块下（标题改为 Managing Inference Services） |
+| Deploy | `deploy/inference_service/trouble_shooting/` | `deploy/inference_service/troubleshooting/` |
+| Deploy | `deploy/model_management/{functions,how_to}/` | 打平到 `deploy/model_management/` |
+| Deploy | `deploy/maas/`（仅 1 篇 intro） | `deploy/maas.mdx` |
+| Deploy | `deploy/model_compression/how_to/` | 删除（空目录） |
+| Build AI Apps | `ai_applications/how_to/`（4 篇） | 章节根，与 Evaluate & Safety 一致 |
+| Monitor | `monitor/how_to/monitor_pending_workload.mdx` | `monitor/resource_monitoring/` |
+| Monitor | `monitor/{logging_tracing,resource_monitoring}/{functions,how_to,troubleshooting}/` | 各自打平到模块下（`resource_monitoring.mdx` 标题改为 Monitoring Metrics and Views） |
+
+两篇 KFP 通用页（Reusable Pipeline Components、Execution and Storage Behavior）从 Train 移到
+Develop > Pipelines：它们讲的是 KFP 本身的能力与行为，不是训练方法；Train 的索引表保留指向它们的跨章链接。
+
+### 8.3 影响
+
+- 删除 21 个 index.mdx，新建 3 个（`develop/pipelines/`、`develop/distributed_workloads/`、
+  `administer/secure_profile/`），总页数 252 → 234。
+- 二级 How To 节点 5 个 → 0；全站 `how_to` 路径 113 处 → 0（`ExternalSiteLink` 指向 ACP 站点的除外）。
+- 相对链接、GitHub raw/tree URL、3 个 e2e 脚本的 assets 路径已同步重写，校验 0 处失效链接、
+  0 个目录缺 index.mdx、每个目录的 weight 均为 10 步长无重复。
+- §4.3 中"分组级 index.mdx"的清单已被本节取代。

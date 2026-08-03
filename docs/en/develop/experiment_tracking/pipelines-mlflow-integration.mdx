@@ -16,7 +16,7 @@ This guide shows how Kubeflow Pipelines (KFP) components log parameters, metrics
 ## Prerequisites
 
 - `kfp` and `kfp-kubernetes` Python SDKs (`pip install kfp kfp-kubernetes`).
-- Access to a KFP endpoint (see [Use Kubeflow Pipelines](../how_to/pipelines.mdx)).
+- Access to a KFP endpoint (see [Use Kubeflow Pipelines](../pipelines/kubeflow_pipelines.mdx)).
 - A **Dex id token** for a dedicated, non-personal account (an ordinary platform login, not a Kubernetes ServiceAccount), minted browser-free with the authorization-code flow (see the [SDK guide](./mlflow-python-sdk.mdx)). Store it in a Kubernetes `Secret` and inject it into the component.
 - An MLflow workspace (a namespace with `mlflow-enabled=true`) the account can access.
 
@@ -128,7 +128,7 @@ print(f"Run ID: {run.run_id}")
 
 ## Using MLflow in Trainer v2 pipelines
 
-If you fine-tune with [Kubeflow Trainer v2](../../train/how_to/fine-tune-with-trainer-v2.mdx), the framework's MLflow integration (for example `report_to: mlflow` in LLaMA-Factory) authenticates the same way. Trainer v2 uses `apiVersion: trainer.kubeflow.org/v1alpha1`, `kind: TrainJob`, and a `spec.runtimeRef` + `spec.trainer` shape. Point it at the in-cluster Service and inject the id token from a `Secret`:
+If you fine-tune with [Kubeflow Trainer v2](../../train/guides/fine-tune-with-trainer-v2.mdx), the framework's MLflow integration (for example `report_to: mlflow` in LLaMA-Factory) authenticates the same way. Trainer v2 uses `apiVersion: trainer.kubeflow.org/v1alpha1`, `kind: TrainJob`, and a `spec.runtimeRef` + `spec.trainer` shape. Point it at the in-cluster Service and inject the id token from a `Secret`:
 
 ```yaml
 apiVersion: trainer.kubeflow.org/v1alpha1
@@ -152,9 +152,9 @@ spec:
             key: token
 ```
 
-See [Fine-tuning LLMs using Workbench](../../train/how_to/fine-tuning-using-notebooks.mdx) for a full Trainer v2 + MLflow example.
+See [Fine-tuning LLMs using Workbench](../../train/guides/fine-tuning-using-notebooks.mdx) for a full Trainer v2 + MLflow example.
 
-For a longer solution that stitches this integration with the MLflow Model Registry, a TrustyAI `LMEvalJob`, and a daily KFP Recurring Run, see [Daily Fine-Tuning Pipeline with MLflow and TrustyAI](../../train/how_to/fine-tuning-pipeline-with-mlflow-trustyai.mdx).
+For a longer solution that stitches this integration with the MLflow Model Registry, a TrustyAI `LMEvalJob`, and a daily KFP Recurring Run, see [Daily Fine-Tuning Pipeline with MLflow and TrustyAI](../../train/guides/fine-tuning-pipeline-with-mlflow-trustyai.mdx).
 
 ## Best practices
 
@@ -180,6 +180,6 @@ Proxied S3-compatible storage lets pipeline components upload through the tracki
 |---------|-------|
 | Component fails with an HTML/redirect (`302`) response | The OAuth proxy rejected the token. Confirm `spec.auth.oauth.skipJwtBearerTokens` is `true` and `MLFLOW_TRACKING_TOKEN` is a valid Dex id token (see the [SDK guide](./mlflow-python-sdk.mdx)). |
 | `401 UNAUTHENTICATED` | `MLFLOW_TRACKING_TOKEN` is unset, empty, or expired — refresh the `mlflow-token` Secret. |
-| `403 PERMISSION_DENIED` | The token's user lacks access to the workspace namespace. Grant access to the MLflow workspace (see [Workspaces and access control](../../administer/how_to/mlflow_workspaces.mdx)); no ServiceAccount is involved. |
+| `403 PERMISSION_DENIED` | The token's user lacks access to the workspace namespace. Grant access to the MLflow workspace (see [MLflow Workspaces and Access Control](../../administer/multi_tenant/mlflow_workspaces.mdx)); no ServiceAccount is involved. |
 | Run shows up under the wrong owner / workspace | The owner is the token's identity; the workspace is `set_workspace()` (else the server default). Check both. |
 | MLflow metrics not appearing in KFP UI | KFP and MLflow are separate systems. Metrics logged to MLflow appear in the MLflow UI (**Alauda AI → Tools → MLFlow**), not in the KFP run output. |

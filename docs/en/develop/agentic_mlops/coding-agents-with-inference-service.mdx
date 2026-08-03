@@ -22,8 +22,8 @@ Coding agents and their configuration formats evolve quickly. The config snippet
 
 ## Prerequisites
 
-- A running, ready `InferenceService` that serves an OpenAI-compatible API. See [Create Inference Service using CLI](../../deploy/inference_service/how_to/create_inference_service_cli.mdx).
-- Network access from the machine running the agent to the service endpoint. For access from a developer laptop outside the cluster, see [Configure External Access for Inference Services](../../deploy/inference_service/how_to/external_access_inference_service.mdx).
+- A running, ready `InferenceService` that serves an OpenAI-compatible API. See [Create Inference Service using CLI](../../deploy/inference_service/guides/create_inference_service_cli.mdx).
+- Network access from the machine running the agent to the service endpoint. For access from a developer laptop outside the cluster, see [Configure External Access for Inference Services](../../deploy/inference_service/guides/external_access_inference_service.mdx).
 - A model with **tool/function calling** support, served with the matching vLLM parser enabled (see [Enable tool calling on the runtime](#enable-tool-calling-on-the-runtime)). Without this, agents can chat but cannot edit files or run commands.
 - The agent CLI installed locally (`opencode`, `codex`, or `claude`).
 - For Claude Code, a translation proxy (LiteLLM or claude-code-router) to bridge Claude Code's Anthropic Messages API to the OpenAI-compatible endpoint (see [Claude Code](#claude-code)).
@@ -50,7 +50,7 @@ Coding agents and their configuration formats evolve quickly. The config snippet
 
 ## Step 1: Deploy and smoke-test the endpoint
 
-Deploy your model as an `InferenceService` following [Create Inference Service using CLI](../../deploy/inference_service/how_to/create_inference_service_cli.mdx), and if the agent runs outside the cluster, expose it following [Configure External Access for Inference Services](../../deploy/inference_service/how_to/external_access_inference_service.mdx).
+Deploy your model as an `InferenceService` following [Create Inference Service using CLI](../../deploy/inference_service/guides/create_inference_service_cli.mdx), and if the agent runs outside the cluster, expose it following [Configure External Access for Inference Services](../../deploy/inference_service/guides/external_access_inference_service.mdx).
 
 Before wiring up any agent, confirm the endpoint answers a chat request. Coding agents fail in confusing ways if the base URL, model name, or auth is wrong, so validate with `curl` first:
 
@@ -78,7 +78,7 @@ For reasoning-capable models (among the recommended set, GLM-5.2 and Qwen3.6, pl
 
 ## Step 2: Enable tool calling on the runtime \{#enable-tool-calling-on-the-runtime}
 
-Coding agents work by calling tools (read file, write file, run shell). This requires the model to emit tool calls **and** vLLM to parse them. Add the following flags to the vLLM launch command in your `InferenceService` (in the sample from [Create Inference Service using CLI](../../deploy/inference_service/how_to/create_inference_service_cli.mdx), they go on the `python3 -m vllm.entrypoints.openai.api_server` line):
+Coding agents work by calling tools (read file, write file, run shell). This requires the model to emit tool calls **and** vLLM to parse them. Add the following flags to the vLLM launch command in your `InferenceService` (in the sample from [Create Inference Service using CLI](../../deploy/inference_service/guides/create_inference_service_cli.mdx), they go on the `python3 -m vllm.entrypoints.openai.api_server` line):
 
 ```bash
 --enable-auto-tool-choice \
@@ -331,7 +331,7 @@ Two quantization paths cover the accelerators Alauda AI runs on. Pick the build 
 | Qwen3.6-27B | W8A8 (~33 GB) | Ascend 910B4 ×8 (2 × TP=4) | [Qwen3.6-27B (W8A8)](../../plan/validated_models/qwen3-6-27b-w8a8.mdx) |
 | DeepSeek-V4-Flash | W4A8 (~151 GB) | Ascend 910B4 ×8 (1 × TP=8) | [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/deepseek-v4-flash-w4a8.mdx) |
 
-To quantize your own weights on NPU, use the ModelSlim workbench image and its verification notebook (see [Create a Workbench](../workbench/how_to/create_workbench.mdx)).
+To quantize your own weights on NPU, use the ModelSlim workbench image and its verification notebook (see [Create a Workbench](../workbench/create_workbench.mdx)).
 
 #### Hardware fit guide
 
@@ -359,14 +359,14 @@ Coding-agent traffic has a distinctive shape: long, highly repetitive prompts (t
 - **Enable prefix caching** (`--enable-prefix-caching`). This is the single highest-impact flag for coding agents: the shared prompt prefix is reused across turns instead of being recomputed, cutting prefill cost and latency dramatically. See [Automatic Prefix Caching — vLLM](https://docs.vllm.ai/en/latest/features/automatic_prefix_caching.html).
 - **Raise `--gpu-memory-utilization`** toward `0.90–0.95` to enlarge the KV cache, which increases concurrency and the context length you can sustain.
 - **Right-size `--max-model-len`.** Set it to the largest context the agent actually needs, not the model's theoretical maximum — every extra token of capacity costs KV-cache memory.
-- **Enable chunked prefill** (`--enable-chunked-prefill`) when long prompts cause latency spikes under concurrency, so decode steps are not starved by a large prefill. Note the [CLI sample](../../deploy/inference_service/how_to/create_inference_service_cli.mdx) disables it by default.
+- **Enable chunked prefill** (`--enable-chunked-prefill`) when long prompts cause latency spikes under concurrency, so decode steps are not starved by a large prefill. Note the [CLI sample](../../deploy/inference_service/guides/create_inference_service_cli.mdx) disables it by default.
 - **Allow CUDA graphs** for steady-state latency: the CLI sample sets `ENFORCE_EAGER=True` (eager mode, which starts faster but runs slower). Once the service is stable, switch to non-eager to capture CUDA graphs, at the cost of longer startup.
 - **Tune batching** with `--max-num-seqs` and `--max-num-batched-tokens` to balance throughput against per-request latency for your concurrency level.
 - **Use FP8 KV cache** (`--kv-cache-dtype fp8`) to stretch context length and concurrency when memory is tight.
 - **Shard large models** across GPUs with `--tensor-parallel-size` when a model does not fit on one card.
-- **Enable MTP / speculative decoding** for lower interactive latency on agent loops — the recommended `Qwen3.6-27B-MTP` and `Deepseek-v4` ship a native multi-token-prediction head. See [Enable MTP (multi-token prediction)](#enable-mtp) below and [Speculative Decoding for vLLM Inference Services](../../deploy/inference_service/how_to/vllm_speculative_decoding.mdx).
-- **Mind autoscaling and cold starts.** For interactive single-user agent use, keep `minReplicas: 1` — scaling from zero adds a multi-minute cold start that is painful mid-task. For bursty multi-developer usage, configure autoscaling deliberately; see [Configure Scaling for Inference Services](../../deploy/inference_service/how_to/autoscale_settings.mdx) and [Set Up Autoscaling for Inference Services with KEDA](../../deploy/inference_service/how_to/keda_autoscaling.mdx).
-- **Allow long requests.** Agent turns can be long-running; size the Knative `serving.knative.dev/progress-deadline` annotation and your client timeouts accordingly. If requests are cut off, see [Inference timeout troubleshooting](../../deploy/inference_service/trouble_shooting/infer_timeout.mdx).
+- **Enable MTP / speculative decoding** for lower interactive latency on agent loops — the recommended `Qwen3.6-27B-MTP` and `Deepseek-v4` ship a native multi-token-prediction head. See [Enable MTP (multi-token prediction)](#enable-mtp) below and [Speculative Decoding for vLLM Inference Services](../../deploy/inference_service/guides/vllm_speculative_decoding.mdx).
+- **Mind autoscaling and cold starts.** For interactive single-user agent use, keep `minReplicas: 1` — scaling from zero adds a multi-minute cold start that is painful mid-task. For bursty multi-developer usage, configure autoscaling deliberately; see [Configure Scaling for Inference Services](../../deploy/inference_service/guides/autoscale_settings.mdx) and [Set Up Autoscaling for Inference Services with KEDA](../../deploy/inference_service/guides/keda_autoscaling.mdx).
+- **Allow long requests.** Agent turns can be long-running; size the Knative `serving.knative.dev/progress-deadline` annotation and your client timeouts accordingly. If requests are cut off, see [Inference timeout troubleshooting](../../deploy/inference_service/troubleshooting/infer_timeout.mdx).
 
 #### Enable MTP (multi-token prediction) \{#enable-mtp}
 
@@ -382,7 +382,7 @@ Two of the recommended models — `Qwen3.6-27B-MTP` and `Deepseek-v4` — ship a
 --speculative-config '{"method":"mtp","num_speculative_tokens":1}'
 ```
 
-Confirm the exact `method` against your vLLM version, and treat the full recipe — including the MTP guardrails these need on Ascend (disabled prefix caching, a capped `--max-num-seqs`, `enforce_eager`) — as the source of truth: [Qwen3.6-27B (W8A8)](../../plan/validated_models/qwen3-6-27b-w8a8.mdx) and [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/deepseek-v4-flash-w4a8.mdx). For other speculative methods (EAGLE-3, N-gram) and end-to-end verification and rollback, see [Speculative Decoding for vLLM Inference Services](../../deploy/inference_service/how_to/vllm_speculative_decoding.mdx).
+Confirm the exact `method` against your vLLM version, and treat the full recipe — including the MTP guardrails these need on Ascend (disabled prefix caching, a capped `--max-num-seqs`, `enforce_eager`) — as the source of truth: [Qwen3.6-27B (W8A8)](../../plan/validated_models/qwen3-6-27b-w8a8.mdx) and [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/deepseek-v4-flash-w4a8.mdx). For other speculative methods (EAGLE-3, N-gram) and end-to-end verification and rollback, see [Speculative Decoding for vLLM Inference Services](../../deploy/inference_service/guides/vllm_speculative_decoding.mdx).
 
 **llama.cpp (GGUF).** When serving an MTP-enabled GGUF build (for example the Unsloth `-MTP` weights), turn on the draft-MTP path with `--spec-type draft-mtp`. Verify the flag against your llama.cpp build — MTP support and flag names change across releases.
 
@@ -416,18 +416,18 @@ For detailed MLOps workflows — managing InferenceServices, configuring gateway
 - **Agent chats but never edits files or runs commands.** Tool calling is not enabled or the parser does not match the model — see [Enable tool calling on the runtime](#enable-tool-calling-on-the-runtime).
 - **`model not found` / 404.** The model name in the agent config does not match the `--served-model-name`, or the base URL does not end in `/v1`.
 - **401 / 403.** The agent is sending the wrong (or no) API key for what the endpoint or gateway expects.
-- **Requests time out on long tasks.** Increase the Knative `progress-deadline` annotation and the client timeout — see [Inference timeout troubleshooting](../../deploy/inference_service/trouble_shooting/infer_timeout.mdx).
+- **Requests time out on long tasks.** Increase the Knative `progress-deadline` annotation and the client timeout — see [Inference timeout troubleshooting](../../deploy/inference_service/troubleshooting/infer_timeout.mdx).
 - **First request after idle is very slow.** The service scaled to zero and is cold-starting; set `minReplicas: 1` for interactive use.
 
 ## References
 
 - [Run MLOps with Coding Agents and On-Premise LLMs](./mlops-with-coding-agents.mdx)
-- [Create Inference Service using CLI](../../deploy/inference_service/how_to/create_inference_service_cli.mdx)
-- [Configure External Access for Inference Services](../../deploy/inference_service/how_to/external_access_inference_service.mdx)
-- [Configure Scaling for Inference Services](../../deploy/inference_service/how_to/autoscale_settings.mdx)
-- [Set Up Autoscaling for Inference Services with KEDA](../../deploy/inference_service/how_to/keda_autoscaling.mdx)
-- [Speculative Decoding for vLLM Inference Services](../../deploy/inference_service/how_to/vllm_speculative_decoding.mdx)
-- [Extend Inference Runtimes](../../deploy/inference_service/how_to/custom_inference_runtime.mdx)
+- [Create Inference Service using CLI](../../deploy/inference_service/guides/create_inference_service_cli.mdx)
+- [Configure External Access for Inference Services](../../deploy/inference_service/guides/external_access_inference_service.mdx)
+- [Configure Scaling for Inference Services](../../deploy/inference_service/guides/autoscale_settings.mdx)
+- [Set Up Autoscaling for Inference Services with KEDA](../../deploy/inference_service/guides/keda_autoscaling.mdx)
+- [Speculative Decoding for vLLM Inference Services](../../deploy/inference_service/guides/vllm_speculative_decoding.mdx)
+- [Extend Inference Runtimes](../../deploy/inference_service/guides/custom_inference_runtime.mdx)
 - [Tool Calling — vLLM](https://docs.vllm.ai/en/latest/features/tool_calling.html)
 - [Reasoning Outputs — vLLM](https://docs.vllm.ai/en/latest/features/reasoning_outputs/)
 - [Automatic Prefix Caching — vLLM](https://docs.vllm.ai/en/latest/features/automatic_prefix_caching.html)

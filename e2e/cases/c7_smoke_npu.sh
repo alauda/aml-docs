@@ -7,7 +7,7 @@ source "${HERE}/../lib.sh"
 
 require_env NPU_NAMESPACE "namespace for NPU e2e resources"
 NS="${NPU_NAMESPACE}"
-ASSETS="${E2E_ROOT}/../docs/en/train/how_to/assets/training-runtimes"
+ASSETS="${E2E_ROOT}/../docs/en/train/guides/assets/training-runtimes"
 
 if [ -n "${NPU_DH_MIRROR}" ]; then
   log "C7: applying torch2.6-cann8.5-arm64 TrainingRuntime to ns/${NS} (Docker Hub mirror=${NPU_DH_MIRROR})"

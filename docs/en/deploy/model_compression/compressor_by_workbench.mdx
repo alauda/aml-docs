@@ -17,13 +17,13 @@ On the Alauda AI platform, you can use the Workbench feature to run LLM Compress
 
 ### Create a Workbench
 
-Follow the instructions in [Create Workbench](../../develop/workbench/how_to/create_workbench.mdx) to create a new Workbench instance. When creating the Workbench, make sure to select the image `odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-ubi9`, which includes the required LLM Compressor environment. Model compression is currently supported only within **JupyterLab**.
+Follow the instructions in [Create Workbench](../../develop/workbench/create_workbench.mdx) to create a new Workbench instance. When creating the Workbench, make sure to select the image `odh-workbench-jupyter-pytorch-llmcompressor-cuda-py312-ubi9`, which includes the required LLM Compressor environment. Model compression is currently supported only within **JupyterLab**.
 
 If this image is not available in your environment, refer to the linked article for instructions on how to synchronize the image and patch the WorkspaceKind resource so that the image becomes available in the Workbench creation options.
 
 ### Create a Model Repository and Upload Models
 
-Refer to [Upload Models Using Notebook](../../develop/how_to/upload_models_using_notebook.mdx) for detailed steps on creating a model repository and uploading your model files. The example notebooks in this guide use the [TinyLlama-1.1B-Chat-v1.0](https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0) model.
+Refer to [Upload Models Using Notebook](../../develop/workbench/upload_models_using_notebook.mdx) for detailed steps on creating a model repository and uploading your model files. The example notebooks in this guide use the [TinyLlama-1.1B-Chat-v1.0](https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0) model.
 
 ```python title=data-free-compressor.ipynb
 from llmcompressor.modifiers.quantization import QuantizationModifier
@@ -180,7 +180,7 @@ Download the appropriate example notebook for your use case: the **calibration c
 
 ### Upload the Compressed Model to the Repository
 
-Once compression is complete, upload the compressed model back to the model repository. See [Upload Models Using Notebook](../../develop/how_to/upload_models_using_notebook.mdx) for detailed steps on uploading model files to the model repository.
+Once compression is complete, upload the compressed model back to the model repository. See [Upload Models Using Notebook](../../develop/workbench/upload_models_using_notebook.mdx) for detailed steps on uploading model files to the model repository.
 
 ```python
 model_dir = "./" + model_id.split("/")[-1] + "-W4A16" #[!code callout]
@@ -196,4 +196,4 @@ tokenizer.save_pretrained(model_dir);
 
 Quantized and sparse models that you create with LLM Compressor are saved using the `compressed-tensors` library (an extension of [Safetensors](https://huggingface.co/docs/safetensors/en/index)).
 The compression format matches the model's quantization or sparsity type. These formats are natively supported in vLLM, enabling fast inference through optimized deployment kernels by using Alauda AI Inference Server.
-Follow the instructions in [create inference service](../inference_service/functions/inference_service.mdx#create-inference-service) to complete this step.
+Follow the instructions in [create inference service](../inference_service/inference_service.mdx#create-inference-service) to complete this step.

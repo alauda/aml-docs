@@ -183,4 +183,4 @@ After the upgrade, keep `spec.auth.kubernetes.authorizationMode: user_identity_t
 - If the server does not start for another reason, verify PostgreSQL connectivity, that the `mlflow` database exists, and that the credentials in `spec.pg*` are correct.
 - If artifact uploads or model registration fail, verify that `artifacts.s3.enabled` is `true`, the bucket exists, and the referenced credentials Secret and key names are correct.
 - If a workspace is not visible, verify that its namespace matches the configured `workspaceLabelSelector`.
-- If requests are denied (`403 PERMISSION_DENIED`), check the user's Kubernetes `RoleBinding` in the workspace namespace — see [Workspaces and access control](../../../administer/how_to/mlflow_workspaces.mdx).
+- If requests are denied (`403 PERMISSION_DENIED`), check the user's Kubernetes `RoleBinding` in the workspace namespace — see [MLflow Workspaces and Access Control](../../../administer/multi_tenant/mlflow_workspaces.mdx).

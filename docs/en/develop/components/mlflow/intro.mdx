@@ -36,7 +36,7 @@ On Alauda AI, MLflow is multi-tenant by mapping **workspaces to Kubernetes names
 - Every MLflow API call is authenticated by the OAuth proxy, then authorized against the caller's Kubernetes RBAC in the target namespace, using the `mlflow.kubeflow.org` API group.
 - Runs are recorded under the calling user's identity.
 
-Workspace membership and permissions are therefore managed with ordinary Kubernetes `Role` / `RoleBinding` objects — see [Workspaces and access control](../../../administer/how_to/mlflow_workspaces.mdx).
+Workspace membership and permissions are therefore managed with ordinary Kubernetes `Role` / `RoleBinding` objects — see [MLflow Workspaces and Access Control](../../../administer/multi_tenant/mlflow_workspaces.mdx).
 
 ## When to use it
 
