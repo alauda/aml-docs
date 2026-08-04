@@ -32,7 +32,7 @@
 #
 # Model source: ModelScope `Eco-Tech/MiniMax-M2.5-w8a8-QuaRot` (71 shards, ~230 GB),
 # also repackaged as an Alauda ModelCar in OCI Image Layout format (multi-arch amd64+arm64):
-#   http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/MiniMax-M2.5-w8a8-QuaRot/MiniMax-M2.5-w8a8-QuaRot.oci.tar
+#   http://<model-package-host>/packages/aml-models-oci/v0.1.0/MiniMax-M2.5-w8a8-QuaRot/MiniMax-M2.5-w8a8-QuaRot.oci.tar
 # The benchmark itself staged the weights on a **node-local PV/PVC per node** (this file),
 # which is what the manifest below mounts. The OCI ModelCar is the cross-environment
 # distribution path: import it into your own registry once, then point model.uri at

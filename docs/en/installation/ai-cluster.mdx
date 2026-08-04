@@ -592,7 +592,7 @@ Run the commands on a node that has `ctr`, `curl`, and `jq` installed and can re
 First, set the environment variables:
 
 ```bash
-export REG=192.168.140.0:32700                # [!code callout]
+export REG=<harbor-address>:<port>                  # [!code callout]
 export REPO=mlops/modelcar-qwen3.5-0.8b       # [!code callout]
 export TAG=v0.1.0                             # [!code callout]
 export TAR=./Qwen3.5-0.8B.oci.tar             # [!code callout]
@@ -718,7 +718,7 @@ The default audit output path is `/cpaas/audit` on the host. However, on some op
 To modify the audit output path, update the `AmlCluster` default resource and add the `amlSkipper.auditLogHostPath.path` configuration under `spec.values`. For example:
 
 ```yaml
-apiVersion: amlclusters.aml.dev/v1alpha2
+apiVersion: amlclusters.aml.dev/v1alpha1
 kind: AmlCluster
 metadata:
   name: default

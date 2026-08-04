@@ -6,7 +6,7 @@ import time
 from kfp import Client, compiler, dsl
 
 
-@dsl.component(base_image="docker-mirrors.alauda.cn/library/python:3.12-slim")
+@dsl.component(base_image="python:3.12-slim")
 def produce_dataset(seed: str, dataset: dsl.Output[dsl.Dataset]) -> None:
     """Write a small dataset to the KFP artifact path."""
     from pathlib import Path
@@ -17,7 +17,7 @@ def produce_dataset(seed: str, dataset: dsl.Output[dsl.Dataset]) -> None:
     dataset.metadata["seed"] = seed
 
 
-@dsl.component(base_image="docker-mirrors.alauda.cn/library/python:3.12-slim")
+@dsl.component(base_image="python:3.12-slim")
 def verify_dataset(dataset: dsl.Input[dsl.Dataset], item: int, seed: str) -> str:
     """Read the persisted artifact in one ParallelFor iteration."""
     from pathlib import Path

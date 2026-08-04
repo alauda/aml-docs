@@ -26,11 +26,12 @@ sweep (8 / 16 / 32).
 | Architecture | `deepseek_v4` — 256-expert MoE (6 experts/token + 1 shared) + MLA + DSA sparse attention + native MTP |
 | Quantization | W8A8 (`W8A8_DYNAMIC`, int8 attention + expert; ~280 GB weights, 70 shards, 43 layers); MIT license |
 | Model source (W8A8) | https://www.modelscope.cn/models/Eco-Tech/DeepSeek-V4-Flash-w8a8-mtp |
-| ModelCar (OCI Image Layout tar) | `http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/DeepSeek-V4-Flash-w8a8-mtp/DeepSeek-V4-Flash-w8a8-mtp.oci.tar` |
+| ModelCar (OCI Image Layout tar) | `http://<model-package-host>/packages/aml-models-oci/v0.1.0/DeepSeek-V4-Flash-w8a8-mtp/DeepSeek-V4-Flash-w8a8-mtp.oci.tar` |
 
 :::note
 The W8A8 ModelCar is distributed as an **OCI Image Layout tar** on the internal package
-store (link above), not a public Docker Hub image. The cluster pulls an OCI *image*, not
+store, not a public Docker Hub image. Replace `<model-package-host>` in the link above
+with the package store address supplied by Alauda for the environment. The cluster pulls an OCI *image*, not
 the tar, so **import it into your own registry once** and point `model.uri` at that —
 see the **Deploy** section below. The benchmark itself was run with the weights staged on a
 **node-local PVC per node**; the ModelCar is the same weights repackaged (the manifest
@@ -114,7 +115,7 @@ base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/valid
 
 # 1. Import the ModelCar (OCI Image Layout tar) into your own registry once — the cluster
 #    pulls an OCI image, not the tar. skopeo does the multi-arch (amd64+arm64) push in one go:
-curl -sO http://package-minio.alauda.cn:9199/packages/aml-models-oci/v0.1.0/DeepSeek-V4-Flash-w8a8-mtp/DeepSeek-V4-Flash-w8a8-mtp.oci.tar
+curl -sO http://<model-package-host>/packages/aml-models-oci/v0.1.0/DeepSeek-V4-Flash-w8a8-mtp/DeepSeek-V4-Flash-w8a8-mtp.oci.tar
 skopeo copy --all \
   oci-archive:DeepSeek-V4-Flash-w8a8-mtp.oci.tar:v0.1.0 \
   docker://<your-registry>/modelcar-deepseek-v4-flash-w8a8-mtp:v0.1.0

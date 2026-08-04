@@ -28,7 +28,7 @@ spec:
                     fsGroup: 65534
                   containers:
                     - name: dataset-initializer
-                      image: 152-231-registry.alauda.cn:60070/mlops/fine_tune_with_llamafactory:v0.1.11
+                      image: <registry-address>/mlops/fine_tune_with_llamafactory:v0.1.11
                       command:
                       - /bin/bash
                       - -c
@@ -98,7 +98,7 @@ spec:
                     fsGroup: 65534
                   containers:
                     - name: model-initializer
-                      image: 152-231-registry.alauda.cn:60070/mlops/fine_tune_with_llamafactory:v0.1.11
+                      image: <registry-address>/mlops/fine_tune_with_llamafactory:v0.1.11
                       command:
                       - /bin/bash
                       - -c
@@ -176,7 +176,7 @@ spec:
                       sizeLimit: 2Gi
                   containers:
                     - name: node
-                      image: 152-231-registry.alauda.cn:60070/mlops/fine_tune_with_llamafactory:v0.1.11
+                      image: <registry-address>/mlops/fine_tune_with_llamafactory:v0.1.11
                       env:
                       - name: BASE_MODEL_URL
                         value: "https://aml-gitlab.alaudatech.net/mlops-demo-ai-test/amlmodels/qwen3-0.6b"

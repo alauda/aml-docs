@@ -19,9 +19,7 @@ Alauda Build of Kueue uses Kubernetes API Priority and Fairness (APF) To help ma
 apiVersion: flowcontrol.apiserver.k8s.io/v1
 kind: FlowSchema
 metadata:
-  labels:
-    name: kueue-visibility
-    namespace: cpaas-system
+  name: kueue-visibility
 spec:
   distinguisherMethod:
     type: ByUser
@@ -51,7 +49,6 @@ apiVersion: flowcontrol.apiserver.k8s.io/v1
 kind: PriorityLevelConfiguration
 metadata:
   name: kueue-visibility
-  namespace: cpaas-system
 spec:
   limited:
     lendablePercent: 90

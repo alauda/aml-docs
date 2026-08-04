@@ -64,25 +64,25 @@ spec:
             -----END CERTIFICATE-----
         - path: spec.meshConfig.extensionProviders
           value:
-            envoyExtAuthzHttp:
-              headersToDownstreamOnDeny:
-                - content-type
-                - set-cookie
-              headersToUpstreamOnAllow:
-                - authorization
-                - path
-                - x-auth-request-user
-                - x-auth-request-email
-                - x-auth-request-access-token
-              includeAdditionalHeadersInCheck:
-                X-Auth-Request-Redirect: http://%REQ(Host)%%REQ(:PATH)%
-              includeRequestHeadersInCheck:
-                - authorization
-                - cookie
-                - accept
-              port: "80"
-              service: oauth2-proxy.kubeflow-oauth2-proxy.svc.cluster.local
-            name: oauth2-proxy-kubeflow
+            - envoyExtAuthzHttp:
+                headersToDownstreamOnDeny:
+                  - content-type
+                  - set-cookie
+                headersToUpstreamOnAllow:
+                  - authorization
+                  - path
+                  - x-auth-request-user
+                  - x-auth-request-email
+                  - x-auth-request-access-token
+                includeAdditionalHeadersInCheck:
+                  X-Auth-Request-Redirect: http://%REQ(Host)%%REQ(:PATH)%
+                includeRequestHeadersInCheck:
+                  - authorization
+                  - cookie
+                  - accept
+                port: 80
+                service: oauth2-proxy.kubeflow-oauth2-proxy.svc.cluster.local
+              name: oauth2-proxy-kubeflow
 ```
 
 #### Configure ASM v2
@@ -136,7 +136,7 @@ Download the operator bundle packages for the following operators and upload the
 
 ```bash
 # Replace the platform address, username, password, and bundle package path.
-violet push --platform-address="https://192.168.171.123" \
+violet push --platform-address="https://<platform-access-address>" \
   --platform-username="admin@cpaas.io" \
   --platform-password="<platform_password>" \
   <your-downloaded-operator-bundle-package-file>

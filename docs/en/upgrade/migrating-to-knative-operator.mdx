@@ -19,12 +19,13 @@ In **Administrator** view:
 3. Select **Alauda AI**, then click the **All Instances** tab.
 4. Locate the `default` instance and click **Update**.
 5. On the update page, switch to the **YAML** view.
-6. Set `spec.knativeServing.managementState` to `Removed`, for example:
+6. Set `spec.components.knativeServing.managementState` to `Removed`, for example:
 
    ```yaml
    spec:
-     knativeServing:
-       managementState: Removed
+     components:
+       knativeServing:
+         managementState: Removed
    ```
 
 7. Click **Update** to apply the changes.

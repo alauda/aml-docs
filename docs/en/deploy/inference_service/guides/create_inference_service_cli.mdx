@@ -32,7 +32,6 @@ metadata:
     aml-model-repo-tag-commit: 81e07c4246b054b3f3bd2b2c998fdd6da98b1d7f
     aml-pipeline-tag: text-generation
     cpaas.io/description: ""
-    serving.knative.dev/progress-deadline: 2400s
     serving.kserve.io/deploymentMode: Standard
   labels:
     # 2. Required: Model Repo related labels
@@ -174,10 +173,13 @@ kubectl get inferenceservice qwen-2 -n <your-namespace>
 
 The output should look similar to this:
 
-```bash
-NAME     URL                                           READY   PREV   LATEST   PREVROLLEDOUTREVISION   LATESTREADYREVISION      AGE
-qwen-2   http://qwen-2.mlops-demo-ai-test.example.com  True           100                              qwen-2-predictor-00001   2m
+```text
+NAME     URL                                        READY   PREV   LATEST   PREVROLLEDOUTREVISION   LATESTREADYREVISION   AGE
+qwen-2   http://qwen-2.<your-namespace>.example.com True                                                                  2m
 ```
+
+The revision columns stay empty because this service runs in `Standard` deployment mode,
+which creates a plain Kubernetes Deployment rather than a Knative revision.
 
 When the `READY` column shows `True`, the InferenceService is ready to accept requests.
 
