@@ -16,8 +16,8 @@
 
 | # | 章节 | 目录 | 页数 | 含组件 |
 |---|---|---|---|---|
-| 1 | Overview 概述 | `overview/` | 5 | — |
-| 2 | Plan 规划与选型 | `plan/` | 12 | — |
+| 1 | Overview 概述 | `overview/` | 6 | — |
+| 2 | Plan 规划与选型 | `plan/` | 11 | — |
 | 3 | Install 安装 | `installation/` | 6 | — |
 | 4 | Upgrade 升级与卸载 | `upgrade/` | 5 | — |
 | 5 | Administer 平台管理 | `administer/` | 13 | — |
@@ -543,3 +543,22 @@ Monitor 章节导语补了一句全生命周期可观测性的表述。两个 Ov
 两页互链，`components/trustyai/{intro,install}.mdx` 与 Monitor 章节导语的引用同步更新。
 组件仍留在 Evaluate & Safety：TrustyAI operator 的 4 个消费方里 3 个（LM-Eval、FMS Guardrails、
 NeMo Guardrails）在该章。
+
+### 8.7 Glossary 归入 Overview
+
+`plan/glossary.mdx` → `overview/glossary.mdx`（weight 50，排在 Release Notes 之后）。
+
+§3 的第一版映射把原 `learn/` 整章折进 Plan，glossary 是顺带过去的。但 Plan 的定位是
+"装机前的选型决策"——章节导语只介绍 supported configurations、validated models、
+device options 三块，从未引用 glossary，它在这一章里是无入链的孤页。术语表是概念参考，
+与 `overview/` 的 Intro、Architecture 同层。
+
+与 RHOAI 3.x 对照也支持这一归位：其 Plan 章只有 *Choose a validated model for reliable serving*
+与 *Prepare your platform and hardware for Red Hat AI* 两篇，对应我们的 `validated_models/` 与
+`device_options/` + `supported_configurations.md`；RHOAI 顶层另有的 Learn 章是尾部的外部学习
+资源聚合位（Supported Configurations 门户页、Red Hat AI Foundations、Red Hat AI learning hub，
+三条全是站外链接），不是"规划"章的同义改名。Alauda AI 没有对应的外部学习站点，因此不新建
+Learn 章，Plan 保持现名。
+
+全仓无指向该页的相对链接，移动无需改链；`llms.txt` 与 `llmstxt-state.json` 的条目同步移入
+overview 分组。

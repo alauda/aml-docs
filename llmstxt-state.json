@@ -1301,6 +1301,13 @@
       "generation_method": "ai_agent_reading",
       "updated_at": "2026-05-16T10:39:46Z"
     },
+    "docs/en/overview/glossary.mdx": {
+      "sha256": "c7e76e3640d013df67ec2a1265b73138840e83775ee51b4e9674ecf602cb0019",
+      "size": 2136,
+      "description": "Glossary of core Alauda AI terms, defining Large Language Model, Inference Service, Inference Runtime, and related platform concepts used throughout the documentation.",
+      "generation_method": "ai_agent_reading",
+      "updated_at": "2026-08-04T00:00:00Z"
+    },
     "docs/en/overview/index.mdx": {
       "sha256": "3cf9968e41a041c0b6ad6398a9a54c7266da5001ddde18b5c9f53b04a500a276",
       "size": 184,
@@ -1349,13 +1356,6 @@
       "description": "Introduces the Alauda Build of the NVIDIA GPU Device Plugin, a Kubernetes DaemonSet that exposes per-node GPU counts, monitors GPU health, and enables GPU-enabled containers in the cluster. Links to the dedicated pgpu external documentation site for installation and configuration details.",
       "generation_method": "ai_agent_reading",
       "updated_at": "2026-05-16T10:39:46Z"
-    },
-    "docs/en/plan/glossary.mdx": {
-      "sha256": "5eea25b58d162c7be5b2fb809eab85b01cdb3ec1903feec1925ba281fe310b4c",
-      "size": 2086,
-      "description": "Glossary of core Alauda AI terms, defining Large Language Model, Inference Service, Inference Runtime, and related platform concepts used throughout the documentation.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
     },
     "docs/en/plan/index.mdx": {
       "sha256": "6b4a3e7ac874364b489d7d6648e003413ba3d3e94faa890496d5c069e2392940",
