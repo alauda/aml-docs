@@ -5,8 +5,7 @@ weight: 40
 # Use Reusable Kubeflow Pipeline Components
 
 The next Alauda AI release packages reusable components from the mirrored
-[`pipelines-components`](https://gitlab-ce.alauda.cn/aml/pipelines-components)
-project for Kubeflow Pipelines 2.16.1. This KFP version will be delivered by
+`pipelines-components` project for Kubeflow Pipelines 2.16.1. This KFP version will be delivered by
 Alauda `kfp-operator` v26.3.1 and DSPO v2.15.2. Either installation preloads
 two beta AutoGluon pipelines:
 
@@ -122,10 +121,11 @@ test split and trained models to the artifact store.
 
 The `kfp-components` package is not published to PyPI. Clone the Alauda mirror
 and install it in a Python 3.11 or later virtual environment. Pin the SDK to the
-version shipped by Alauda AI:
+version shipped by Alauda AI. Replace `<pipelines-components-repo-url>` with the
+repository address supplied by Alauda for the environment:
 
 ```bash
-git clone https://gitlab-ce.alauda.cn/aml/pipelines-components.git
+git clone <pipelines-components-repo-url>
 cd pipelines-components
 
 python3 -m venv .venv

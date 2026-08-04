@@ -36,7 +36,7 @@ ENV VIRTUAL_ENV=/opt/app-root/venv \
     PYTHONUNBUFFERED=1 \
     PYTHONIOENCODING=utf-8
 
-RUN HTTPS_PROXY=http://192.168.144.12:7890 curl -LsSf https://astral.sh/uv/install.sh | HTTPS_PROXY=http://192.168.144.12:7890 UV_INSTALL_DIR="/opt/app-root/uv" sh
+RUN HTTPS_PROXY=${HTTPS_PROXY} curl -LsSf https://astral.sh/uv/install.sh | HTTPS_PROXY=${HTTPS_PROXY} UV_INSTALL_DIR="/opt/app-root/uv" sh
 
 RUN echo "HwHiAiUser:x:1000:1001,default" >> /etc/group && \
 echo "HwHiAiUser:x:1001:1001::/opt/app-root:/sbin/nologin" >> /etc/passwd && \

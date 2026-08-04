@@ -116,14 +116,13 @@ EOF
 ln -sf ..data/mlops-kfp.json /opt/app-root/runtimes/mlops-kfp.json
 ```
 
-Mount the PVC into the Workspace:
+Mount the PVC into an existing Workspace. The following snippet is a patch, not a
+complete manifest: `spec.kind` and `spec.podTemplate.options` are required fields
+on `Workspace`, so applying this YAML on its own is rejected. Patch the existing
+object instead:
 
-```yaml
-apiVersion: kubeflow.org/v1beta1
-kind: Workspace
-metadata:
-  name: <workspace-name>
-  namespace: <your-namespace>
+```bash
+kubectl patch workspace <workspace-name> -n <your-namespace> --type=merge -p '
 spec:
   podTemplate:
     volumes:
@@ -131,7 +130,11 @@ spec:
         - mountPath: /opt/app-root/runtimes
           pvcName: <elyra-runtime-config-pvc>
           readOnly: false
+'
 ```
+
+Replace `<workspace-name>`, `<your-namespace>`, and `<elyra-runtime-config-pvc>`
+with the values for the environment.
 
 Restart the workbench after creating or updating the file so Elyra can load the runtime configuration.
 

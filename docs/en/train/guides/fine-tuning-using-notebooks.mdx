@@ -58,7 +58,7 @@ Use the prebuilt `alaudadockerhub/fine_tune_with_llamafactory:v0.1.1`, or build 
 
 ```
 ARG LLAMA_FACTORY_VERSION="v0.9.4"
-FROM 152-231-registry.alauda.cn:60070/mlops/nvidia/pytorch:24.12-py3
+FROM <registry-address>/mlops/nvidia/pytorch:24.12-py3
 
 RUN sed -i 's@//.*archive.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list.d/ubuntu.sources && \
     sed -i 's/security.ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/ubuntu.sources && \
@@ -303,8 +303,8 @@ If the PVC backend is NFS:
   provisioner: nfs.csi.k8s.io
   parameters:
     mountPermissions: "0757"
-    server: 192.168.17.28
-    share: /nfs_data/int/ai
+    server: <nfs-server-address>
+    share: <nfs-export-path>
   reclaimPolicy: Delete
   volumeBindingMode: Immediate
   mountOptions: [hard, nfsvers=4.1]

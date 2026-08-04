@@ -10,14 +10,37 @@ i18n:
 
 ## Introduction
 
-This document provides a step-by-step guide for configuring autoscaling up and down for inference services. With these settings, you can optimize resource usage, ensure service availability during high load, and release resources during low load.
+This document provides a step-by-step guide for configuring autoscaling up and down for inference services that run in **Knative** deployment mode. With these settings, you can optimize resource usage, ensure service availability during high load, and release resources during low load.
+
+:::warning
+Every setting on this page applies **only** to inference services running in Knative
+deployment mode. Alauda AI deploys inference services in **`Standard` mode by default**,
+which does not use Knative — in that mode the `config-autoscaler` ConfigMap and the
+`autoscaling.knative.dev/*` annotations below have no effect, and `minReplicas: 0` does
+not scale the service to zero.
+
+To autoscale a service in `Standard` mode, see
+[Set Up Autoscaling for Inference Services with KEDA](./keda_autoscaling.mdx).
+:::
 
 **About the Autoscaler**
 
-Knative Serving supports two autoscalers: **Knative Pod Autoscaler (KPA)** and Kubernetes' **Horizontal Pod Autoscaler (HPA)**. By default, our services use the Knative Pod Autoscaler (KPA).
+Knative Serving supports two autoscalers: **Knative Pod Autoscaler (KPA)** and Kubernetes' **Horizontal Pod Autoscaler (HPA)**. Services deployed in Knative mode use the Knative Pod Autoscaler (KPA) by default.
 
 KPA is designed for serverless workloads and can quickly scale up based on concurrent requests or RPS (requests per second), and can scale services to zero replicas to save costs. HPA is more general and typically scales based on metrics like CPU or memory usage. This guide primarily focuses on configuring services via the Knative Pod Autoscaler (KPA).
 
+## Prerequisites
+
+1. The Knative Operator is installed and a `KnativeServing` instance exists. See [Install Alauda AI](../../../installation/ai-cluster.mdx#enabling-knative-functionality).
+2. The target `InferenceService` is deployed in Knative mode. Confirm the annotation on the service:
+
+   ```bash
+   kubectl get inferenceservice <name> -n <your-namespace> \
+     -o jsonpath='{.metadata.annotations.serving\.kserve\.io/deploymentMode}{"\n"}'
+   ```
+
+   The command must print `Knative`. If it prints `Standard` or nothing, use the KEDA guide instead.
+3. You have permission to edit the `config-autoscaler` ConfigMap in the `knative-serving` namespace for the platform-wide settings.
 
 ## Steps
 <Steps>
