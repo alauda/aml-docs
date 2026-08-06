@@ -15,7 +15,7 @@
     en: Alauda Build of Hami
     zh: Alauda Build of Hami
   base: /hami
-  version: "2.8"
+  version: "2.9"
   repo: https://github.com/alauda/hami-docs
 - name: pgpu
   displayName:
