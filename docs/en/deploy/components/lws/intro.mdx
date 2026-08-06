@@ -18,7 +18,7 @@ Main components and capabilities include:
 - **Rolling Updates & Failure Recovery**: Supports rolling restarts and automatic pod replacement at the group level, ensuring the entire Leader/Worker group is recycled consistently when a failure or update occurs.
 - **Startup Sequencing**: The leader pod can act as the entry point and coordinator, with worker pods starting after the leader is ready — enabling frameworks that require a master process to be initialized before workers connect.
 
-For installation on the platform, see [Install LeaderWorkerSet](./install).
+LWS is installed and managed by Alauda AI through the `lws` component in the `default` `AmlCluster`. For the Alauda AI installation and component configuration, see [Install Alauda AI](../../../installation/ai-cluster.mdx).
 
 ## Documentation
 

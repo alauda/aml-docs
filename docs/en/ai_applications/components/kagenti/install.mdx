@@ -2,7 +2,7 @@
 weight: 20
 ---
 
-# Installation
+# Install Kagenti
 
 Kagenti Operator is delivered as an **OLM Operator** and installed from the platform **OperatorHub**.
 
@@ -13,23 +13,15 @@ Kagenti Operator is delivered as an **OLM Operator** and installed from the plat
 - Operator Lifecycle Manager (OLM) available on the target cluster (provided by ACP).
 - **cert-manager** installed on the target cluster. The operator's admission webhooks get their serving certificate from cert-manager.
 
-## Upload Operator \{#upload-operator}
+## Upload the Operator Package
 
-Download the `Kagenti Operator` bundle from the <Term name="company" /> Customer Portal / Marketplace, then publish it to the platform repository with the `violet` command-line tool:
-
-```bash
-violet push \
-  --platform-address=<platform-access-address> \
-  --platform-username=<platform-admin> \
-  --platform-password=<platform-admin-password> \
-  kagenti-operator.ALL.xxxx.tgz
-```
+Download the `Kagenti Operator` bundle from the <Term name="company" /> Customer Portal / Marketplace, then upload the package following [Upload Packages](../../../installation/package-upload.mdx).
 
 :::info
 The operator bundle records its runtime images in the CSV `relatedImages`, so a `violet` release relocates them into the platform registry. This makes the operator installable on **air-gapped** clusters without reaching `docker.io` or `ghcr.io`.
 :::
 
-## Install Operator
+## Install the Operator
 
 In the **Administrator** view:
 

@@ -1,0 +1,129 @@
+---
+weight: 20
+---
+
+# Upload Packages
+
+Alauda AI components are delivered as platform packages. Before installing an operator or Cluster Plugin, download the package from the <Term name="company" /> Customer Portal and upload it to the target cluster with the `violet` packaging tool.
+
+This page describes the common package workflow. For component-specific prerequisites, installation settings, and custom resources, continue to the installation page for the component after uploading its package.
+
+## Downloading packages
+
+Download the package for the required component and version from the **Marketplace** on the <Term name="company" /> Customer Portal:
+
+- Download the package that matches the Alauda AI release and the target architecture.
+- Use an **OLM operator bundle** for components installed from **OperatorHub**.
+- Use a **Cluster Plugin** package for components installed from **Cluster Plugins**.
+- Keep the downloaded package available on the machine where you will run `violet`.
+
+The exact package filename and version are supplied with the corresponding product release. Do not substitute a package from another Alauda AI release.
+
+## Downloading the `violet` tool
+
+Download `violet` if it is not already available on the machine used to upload packages.
+
+In the Web Console, switch to the **Administrator** view:
+
+1. Click **Marketplace** > **Upload Packages**.
+2. Click **Download Packaging and Listing Tool**.
+3. Locate the correct operating system and CPU architecture under **Execution Environment**.
+4. Click **Download**.
+5. Make the downloaded file executable:
+
+   ```bash
+   chmod +x <path-to-violet>
+   ```
+
+## Uploading a package
+
+Use the following command to upload an operator or Cluster Plugin package to the target cluster:
+
+```bash
+violet push \
+  <package> \
+  --platform-address=<platform-access-address> \
+  --platform-username=<platform-admin> \
+  --platform-password=<platform-admin-password> \
+  --clusters=<target-cluster>
+```
+
+Replace the placeholders with the platform address, platform administrator credentials, target cluster name, and local package path. The package is uploaded to the platform repository and becomes available for installation on the selected cluster.
+
+:::info
+For a platform-built registry, no additional registry arguments are required. `violet` relocates the images included in the package into the platform registry so the operator or Cluster Plugin can be installed without pulling those images from their original registries.
+:::
+
+### Uploading to an external registry
+
+If the target cluster uses an external private or public registry instead of the platform-built registry, provide the destination registry and its credentials:
+
+```bash
+violet push \
+  <package> \
+  --platform-address=<platform-access-address> \
+  --platform-username=<platform-admin> \
+  --platform-password=<platform-admin-password> \
+  --clusters=<target-cluster> \
+  --dst-repo=<external-registry-address> \
+  --username=<registry-username> \
+  --password=<registry-password>
+```
+
+Use a registry address that the target cluster can reach and pull from. Confirm that all images required by the package are available in the destination registry before installing the component.
+
+### Uploading multiple packages
+
+You can upload several packages with a shell script. Set the platform variables and add each downloaded package to the `PACKAGES` array:
+
+```bash title=uploading-packages.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+PLATFORM_ADDRESS=https://<platform-access-address>
+PLATFORM_ADMIN_USER=<platform-admin>
+PLATFORM_ADMIN_PASSWORD=<platform-admin-password>
+CLUSTER=<target-cluster>
+
+PACKAGES=(
+  <path-to-package-1>
+  <path-to-package-2>
+)
+
+VIOLET_EXTRA_ARGS=()
+# Uncomment and set these values when the target cluster uses an external registry.
+# VIOLET_EXTRA_ARGS+=(
+#   --dst-repo=<external-registry-address>
+#   --username=<registry-username>
+#   --password=<registry-password>
+# )
+
+for PACKAGE in "${PACKAGES[@]}"; do
+  violet push \
+    "$PACKAGE" \
+    --platform-address="${PLATFORM_ADDRESS}" \
+    --platform-username="${PLATFORM_ADMIN_USER}" \
+    --platform-password="${PLATFORM_ADMIN_PASSWORD}" \
+    --clusters="${CLUSTER}" \
+    "${VIOLET_EXTRA_ARGS[@]}"
+done
+```
+
+Run the script with:
+
+```bash
+bash ./uploading-packages.sh
+```
+
+:::warning
+Protect platform and registry passwords. Do not commit a script containing real credentials to source control or share it outside the authorized installation team.
+:::
+
+## Install the uploaded component
+
+After the upload finishes, open the target cluster in the Web Console:
+
+- For an OLM operator, go to **Administrator** > **Marketplace** > **OperatorHub**, select the uploaded component, and install it. Then follow the component documentation to create its custom resource, if required.
+- For a Cluster Plugin, go to **Administrator** > **Marketplace** > **Cluster Plugins** and install the uploaded component according to the platform documentation.
+
+If the component or version does not appear, verify that the package upload completed successfully, that the selected cluster is correct, and that the package matches the target platform architecture and release.

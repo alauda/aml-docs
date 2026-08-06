@@ -2,270 +2,211 @@
 weight: 10
 ---
 
-export const prevVersion = '1.5'
-export const curVer = '2.3'
+export const prevVersion = '2.3'
+export const curVer = '2.8'
 
 # Upgrade Alauda AI
 
 :::info
-Upgrade from {prevVersion} to {curVer}
+Upgrade from **Alauda AI {prevVersion}.x** to **Alauda AI {curVer}.x**.
 :::
 
-## Install Alauda AI Cluster Components
-
-Please visit [Alauda AI Cluster](../installation/ai-cluster.mdx) for:
+This procedure describes the migration from the Alauda AI 2.3.x deployment model to the Alauda AI 2.8.x deployment model. Read the complete procedure before starting. The upgrade changes the deployment form of several components, and some components require migration rather than an in-place upgrade.
 
 :::warning
-Please ignore `Creating Alauda AI Instance` since we are upgrading **Alauda AI** from a previously managed version.
+**Alauda AI 2.8.x does not support ACP 4.0.x.** If the target environment runs ACP 4.0.x, upgrade ACP to a supported version from **ACP 4.1.x through 4.3.x** before upgrading Alauda AI.
 :::
 
-1. [Downloading](../installation/ai-cluster.mdx#downloading) operator bundle packages for `Alauda AI` and `Knative Operator` (Optional).
-2. [Downloading](../deploy/components/kserve/install.mdx#upload-operator) operator bundle packages for `Alauda Build of KServe`.
-3. [Uploading](../installation/ai-cluster.mdx#uploading) operator bundle packages to the destination cluster.
-4. To upgrade, follow the process described below.
+:::warning
+Before uninstalling a Cluster Plugin or Operator, review the component-specific migration requirements and preserve important user data and configuration. Export custom resources and configuration where practical, and verify that user PVCs, databases, and object-storage artifacts will be retained. Use storage snapshots or database backups only when they are available and required by your environment. Do not delete a PVC or custom resource unless the relevant migration procedure explicitly requires it.
+:::
+
+## Prepare the Upgrade Packages
+
+Upload the Alauda AI 2.8.x operator package and all required dependency packages before starting the upgrade. Upload packages to the cluster where the corresponding component will run. For the common package download, `violet` setup, and upload procedure, see [Upload Packages](../installation/package-upload.mdx).
+
+The required package set depends on the features enabled in the existing environment. At minimum, prepare the following packages for an Alauda AI 2.8.x environment:
+
+| Package or component | Purpose |
+|:--|:--|
+| **Alauda AI** | Core Alauda AI platform components. |
+| **Alauda Build of KServe** | Model-serving components and inference services. |
+| **Alauda Build of Serving Runtime** | Serving runtimes for supported inference workloads. |
+| **Alauda Build of LeaderWorkerSet** | LeaderWorkerSet workloads. |
+| **PostgreSQL** | PostgreSQL services required by supported components. |
+| **Alauda Build of Authorino** | Authentication and authorization for MaaS. |
+| **Alauda Cache Service for Redis OSS** | Cache services required by supported components. |
+| **Alauda AI Workbench Operator** | Workbench environments and workspace management. |
+| **MLflow Operator** | MLflow tracking and artifact management. |
+| Other operators required by the selected Alauda AI 2.8.x features | For example, operators required by enabled training, gateway, or MLOps capabilities. |
+
+The exact package filenames and versions are delivered with the Alauda AI 2.8.x release. Do not substitute packages from Alauda AI 2.3.x.
+
+### Uploading operator packages
+
+The common package guide includes the `violet push` command, external-registry options, and a multi-package upload example. Use [Upload Packages](../installation/package-upload.mdx) to upload each package using the filename and target-cluster information supplied with the Alauda AI 2.8.x release.
 
 ## Pre-Upgrade Operations
 
-### Annotating Stopped Inference Services
+Complete the following operations before upgrading **Alauda AI**.
 
-Starting from version {curVer}, the platform adopts the community-native stop capability provided by KServe. To ensure a smooth upgrade, all inference services that are currently in a **stopped** state must be explicitly annotated before upgrading.
+### Preserve existing resources
+
+Review the migration requirements for each component and preserve the resources that must survive the migration. The components in this upgrade are designed to retain their data; keep the data in place rather than recreating it where possible. At a minimum, preserve and record:
+
+- `AmlCluster` resources and their current YAML configuration.
+- Custom resources managed by Workbench, MLflow, LWS, KServe, and other enabled components.
+- Workspaces, `WorkspaceKind` resources, the `aml-workbench-config` `ConfigMap`, and user PVCs.
+- MLflow metadata and artifact-storage configuration.
+- Inference-service configuration and model-storage configuration.
+- Any component-specific secrets, ConfigMaps, RoleBindings, and authorization policies.
+
+Use the component-specific backup instructions before uninstalling the old deployment form. For example, the [Workbench upgrade guide](./workbench.mdx) backs up Workbench resources and requires preserving user PVCs.
+
+### Check the target cluster
+
+Confirm that:
+
+1. The target cluster is healthy and has sufficient capacity for the new operators and their operands.
+2. The target cluster can pull images from the configured registry.
+3. The required storage classes and persistent volumes are available.
+4. The platform administrator credentials can upload packages and install Operators through OperatorHub.
+5. The global cluster can be accessed with `kubectl` for the global migration steps described below.
+
+## Remove Cluster Plugins
+
+Alauda AI 2.8.x changes several components from Cluster Plugins to Operators. These deployment forms do not support an in-place upgrade. Before upgrading **Alauda AI**, remove the old Cluster Plugin versions of the components that are installed in the existing environment:
+
+- **Alauda AI Essentials** from the **global** cluster.
+- **Alauda Build of LeaderWorkerSet** from the target cluster.
+- **Alauda AI Workbench** from the target cluster.
+- **MLflow** from the target cluster.
+
+Use the following common procedure:
+
+1. Record the existing custom resources and configuration for the components that are installed.
+2. Preserve the related user data, including Workbench PVCs, MLflow databases and artifacts, and workloads managed by LeaderWorkerSet.
+3. In **Administrator** > **Marketplace** > **Cluster Plugins**, select the relevant cluster:
+   - Select the **global** cluster and uninstall **Alauda AI Essentials**, if it is installed.
+   - Select the target cluster and uninstall the installed **Alauda Build of LeaderWorkerSet**, **Alauda AI Workbench**, and **MLflow** Cluster Plugins.
+4. Do not delete the preserved PVCs, databases, object-storage artifacts, or custom resources unless the component-specific migration procedure explicitly requires it.
+5. After the old Cluster Plugins are removed, enable the replacement components through the Alauda AI 2.8.x deployment model. The upgraded `AmlCluster` installs and reconciles **Alauda Build of LeaderWorkerSet** when `lws.managementState` is `Managed`. Install the replacement Operators and create their custom resources for **Alauda AI Workbench** and **MLflow** as described in their component-specific documentation.
+
+The existing cluster-scoped `AmlCluster` resource named `default` controls the Alauda AI deployment configuration. After upgrading **Alauda AI**, use this resource to configure components managed by Alauda AI, including **Alauda Build of LeaderWorkerSet**. Components delivered as independent Operators, such as Workbench and MLflow, are deployed and configured through their own Operator custom resources.
 
 :::warning
-This step is **required** before upgrading. Failure to annotate stopped inference services may result in unexpected behavior after the upgrade.
+Before uninstalling a Cluster Plugin, verify whether its CRDs, custom resources, or dependent resources will be removed. If the uninstall may remove CRDs, confirm that user data is preserved before proceeding.
 :::
 
-1. List all inference services that are currently stopped:
+For Workbench-specific data-preservation requirements, see [Migrating from the Workbench Cluster Plugin](./workbench.mdx). For the replacement Operator custom resources, see [Install Workbench](../installation/workbench.mdx) and [Install MLflow](../develop/components/mlflow/install.mdx).
 
-   ```bash
-   kubectl get inferenceservices --all-namespaces
-   ```
+## Prepare the Global Cluster
 
-2. For each stopped inference service, add the following annotation:
+Alauda AI 2.8.x uses the single-cluster application architecture. Global resources are no longer supplied by the old **Alauda AI Essentials** (`aml-global`) Cluster Plugin.
 
-   ```bash
-   kubectl annotate inferenceservice <name> -n <namespace> serving.kserve.io/stop='true'
-   ```
+The following commands must run against the **global cluster**, not the cluster where the Alauda AI workloads run. Complete them after uninstalling the old **Alauda AI Essentials** Cluster Plugin.
 
-   Alternatively, you can edit the resource directly and add the annotation under `metadata.annotations`:
+### Run `global-install.sh`
 
-   ```yaml
-   apiVersion: serving.kserve.io/v1beta1
-   kind: InferenceService
-   metadata:
-     name: <name>
-     annotations:
-       serving.kserve.io/stop: 'true' #[!code highlight]
-   ```
+Download the [`global-install.sh`](/global-install.sh) script supplied with the Alauda AI 2.8.x documentation or release package. On the global cluster, run it with the name of the cluster where Alauda AI is installed:
 
-3. Repeat this step for all stopped inference services across all namespaces.
+```bash
+kubectl config use-context <global-cluster-context>
+bash global-install.sh <target-cluster-name>
+```
 
-## Upgrading
+The script creates or verifies the global `OAuth2Client`, OIDC Secret, and `ProductEntry` resources used by Alauda AI. Verify the resources after the script completes:
 
-The following procedure describes how to upgrade from **Alauda AI** {prevVersion} to {curVer}.
+```bash
+kubectl get oauth2client -n cpaas-system
+kubectl get productentry
+```
 
-### Upgrade Alauda AI Essentials
+The **Alauda AI** entry should be available in the platform console after the platform synchronizes the new ProductEntry.
 
-Upgrade **Alauda AI Essentials** in the Functional Components tab of the global cluster.
+### Run `migrate-roles.sh`
 
-In the **Administrator** view, navigate to **Clusters / Cluster** in the left navigation, find the **global** cluster in the right panel, and click the **Upgrade** button on the **Functional Components** tab page to trigger the upgrade.
+Run the `migrate-roles.sh` script supplied with the Alauda AI 2.8.x release on the global cluster after the old Alauda AI Essentials plugin has been removed.
 
-:::info
-All components that require upgrading, including **Alauda AI Essentials**, will be upgraded together and cannot be upgraded individually.
-:::
+Use the command-line usage and arguments provided by the delivered script. The exact invocation is intentionally not included until the release script is added to the documentation package. Confirm that the script completes successfully and that the migrated namespace permissions are present before continuing.
 
-After the upgrade is complete, please confirm that the status of **Alauda AI Essentials** in the list is **Running** and the version is **v{curVer}.x**.
+### Upgrade Alauda AI
 
-### Upgrading Alauda AI Operators
+1. Log in to the Web Console and open the **Administrator** view.
+2. Go to **Marketplace** > **OperatorHub**.
+3. Select the target cluster.
+4. Open **Alauda AI**.
+5. Review the available version and select the Alauda AI 2.8.x version.
+6. Confirm the upgrade and wait for the OperatorHub installation status to become `Installed`.
 
-The procedure for upgrading the operator is nearly identical, with only the target component being different.
+During the upgrade, the existing cluster-scoped `AmlCluster` resource named `default` is upgraded automatically. The upgraded `AmlCluster` automatically enables the following components:
 
-| Step            | Alauda AI Operator                                                                                | 
-|:----------------|:--------------------------------------------------------------------------------------------------|
-| **1. Navigate** | Log into the Web Console, then go to **Marketplace > OperatorHub** in the **Administrator** view. |
-| **2. Select**   | Select your target **cluster**.                                                                   |
-| **3. Click**    | Click the **Alauda AI** card.                                                                     |
-| **4. Confirm**  | Click **Confirm** on the upgrade prompt.                                                          |
+- **PostgreSQL**
+- **Alauda Cache Service for Redis OSS**
+- **Alauda Build of Authorino**
+- **Alauda Build of KServe**
+- **Alauda Build of LeaderWorkerSet**
 
-:::info
-Once the new version is uploaded and recognized by the platform, an upgrade prompt will appear at the top of the operator's page.
-:::
+You can manually enable the following optional components in the `AmlCluster` configuration when they are required:
 
-### Installing Alauda Build of KServe Operator
+- **MLflow Operator**
+- **Alauda AI Workbench Operator**
+- **Alauda Build of Serving Runtime**
 
-Starting from version {curVer}, **Alauda Build of KServe** is provided as a separate operator plugin to offer more specialized and flexible model serving capabilities. After completing the core AI operator upgrades, you must install the KServe operator to enable model serving functionality.
-
-For detailed installation and configuration steps, please refer to the [Alauda Build of KServe Installation Guide](../deploy/components/kserve/install.mdx).
-
-### Upgrading Cluster Plugins
-
-:::info
-This step is **only required if you have deployed** any of the following cluster plugins: **Alauda AI Workbench**, **MLflow**, or **Volcano**. If you have not deployed any of these plugins, you can skip this step.
-
-For more information about cluster plugins, refer to <ExternalSiteLink name="acp" href="extend/index.html" children="Alauda Container Platform - Extend" />.
-:::
-
-The procedure to upgrade cluster plugins involves uploading new version packages and then upgrading them from the Web Console. The following plugins require upgrading:
-
-- Alauda AI Workbench
-- MLflow
-- Volcano
-
-#### Uploading Cluster Plugins
-
-Upload the new cluster plugin packages to the global cluster. For detailed instructions on how to upload cluster plugins, refer to <ExternalSiteLink name="acp" href="extend/upload_package.html#upload-a-cluster-plugin" children="Uploading Cluster Plugins" />.
-
-Repeat the upload process for each plugin that you have deployed.
-
-:::info
-After the upload is completed, wait approximately 10–15 minutes for the platform to synchronize the new version information.
-:::
-
-#### Verifying the New Version
-
-Navigate to **Administrator > Marketplace > Upload Packages** and switch to the **Cluster Plugin** tab. Locate each uploaded plugin to verify that the new version is displayed.
-
-#### Troubleshooting
-
-##### New version not visible after upload (ACP 4.0.x)
-
-On **Alauda Container Platform (ACP) 4.0.x**, the Web Console may fail to show a newly uploaded cluster plugin version even though the upload succeeded. This behavior is a known **ACP** limitation; it has been addressed in newer **ACP** releases.
-
-If the new version does not appear after waiting for synchronization, the following workaround can be used to set the target version on the corresponding `ModuleInfo` and trigger the plugin upgrade directly.
-
-The following `kubectl` commands must run on the **global** cluster.
-
-| Plugin (UI / product name) | Plugin Identifier |
-|:---------------------------|:------------------|
-| Alauda AI Workbench | `workbench` |
-| Volcano | `volcano` |
-| MLflow | `mlflow` |
-| Kubeflow Training Operator | `kftraining` |
-
-1. Resolve the `ModuleInfo` resource name. Replace `<Cluster Name>` with the target cluster name. For `<Plugin Identifier>`, use the value in the **Plugin Identifier** column of the table above:
-
-   ```bash
-   kubectl get moduleinfoes \
-     -l cpaas.io/cluster-name=<Cluster Name>,cpaas.io/module-name=<Plugin Identifier> \
-     -o jsonpath='{.items[*].metadata.name}'
-   ```
-
-2. Get `<New Version>` from the `ModulePlugin` status, using the same `<Plugin Identifier>` value as in step 1 (see the table above):
-
-   ```bash
-   kubectl get moduleplugins <Plugin Identifier> -o jsonpath='{.status.latestVersion}'
-   ```
-
-3. Patch the `ModuleInfo`. Replace `<ModuleInfo Name>` with the name from step 1 and `<New Version>` with the value from step 2:
-
-   ```bash
-   kubectl patch moduleinfoes <ModuleInfo Name> --type merge -p '{"spec":{"version":"<New Version>"}}'
-   ```
-
-   :::warning
-   The patch takes effect immediately and **directly triggers the cluster plugin upgrade** to `<New Version>`, bypassing the Web Console upgrade action. Verify the version string before running the command.
-   :::
-
-#### Upgrading from Web Console
-
-1. Navigate to **Administrator > Clusters > Clusters**.
-2. Click on the cluster where the plugins are deployed.
-3. Switch to the **Functional Components** tab in the cluster details page.
-4. Locate the cluster plugins that have available upgrades—an upgrade icon will be displayed next to them.
-5. Click the **Upgrade** button for the plugin you want to upgrade.
-6. Review the upgrade information in the popup window, confirm the plugin version to be upgraded, and click the **Upgrade** button to start the upgrade process.
-
-Repeat this process for each plugin that you have deployed.
-
-:::info
-Once the new version is uploaded and recognized by the platform, the **Upgrade** button will become available for each plugin on the **Features** tab of the cluster details page.
-:::
+For the `AmlCluster` configuration, registry settings, component options, and installation details, see [Install Alauda AI](../installation/ai-cluster.mdx).
 
 ## Post-Upgrade Operations
 
-### Updating Existing Inference Services
+### Verify Alauda AI
 
-Due to breaking changes in KServe's product mode definition and the `InferenceService` resource introduced in version {curVer}, all inference services that existed **before the upgrade** must be manually updated.
-
-:::warning
-This step is **required** for all pre-existing inference services. Failure to perform this update may cause inference services to behave unexpectedly.
-:::
-
-For each existing inference service, perform the following steps:
-
-1. Navigate to the inference service details page.
-2. Click **Update Inference Service**.
-3. In the update page, click the **YAML** toggle button in the upper-right corner to switch to the YAML view.
-4. Locate the `spec.predictor.model.name` field.
-5. Delete the `name` field and its value entirely.
-
-   For example, if the YAML contains:
-
-   ```yaml
-   spec:
-     predictor:
-       model:
-         name: kserve-container  #[!code --]
-         modelFormat:
-           name: sklearn
-   ```
-
-   After deletion, it should look like:
-
-   ```yaml
-   spec:
-     predictor:
-       model:
-         modelFormat:
-           name: sklearn
-   ```
-
-6. Click **Save** to apply the changes.
-7. Repeat this process for all inference services that existed before the upgrade.
-
-## Verification
-
-<Steps>
-### Alauda AI
-Check the status field from the `AmlCluster` resource named `default`:
+Check the status of the cluster-scoped `AmlCluster` resource:
 
 ```bash
 kubectl get amlcluster default
 ```
 
-Should returns `Ready`:
+The resource should be `Ready`:
 
+```text
+NAME      PHASE   READY   REASON
+default   Ready   True    Reconciled
 ```
-NAME      READY   REASON
-default   True    Succeeded
-```
 
-### Alauda Build of KServe
+### Verify KServe
 
-Check the status field from the `KServe` resource named `default-kserve`:
+If Alauda Build of KServe is installed, verify the KServe instance:
 
 ```bash
 kubectl get kserve default-kserve -n kserve-operator
 ```
 
-Should return `DEPLOYED: True`:
+The instance should report `DEPLOYED: True`:
 
-```
+```text
 NAME             DEPLOYED   REASON
-default-kserve   True       UpgradeSuccessful
+ default-kserve   True       UpgradeSuccessful
 ```
 
-### Other Cluster Plugins
+### Verify Operators and migrated components
 
-In the **Administrator** view, navigate to **Marketplace > Cluster Plugins** and confirm that the following cluster plugins show `Installed` status with the new version:
+Verify the OperatorHub and workload status for every installed dependency:
 
-- Alauda AI Workbench (if deployed)
-- MLflow (if deployed)
-- Volcano (if deployed)
+- Confirm each required component is `Installed` and its ClusterServiceVersion reports `Succeeded`.
+- Confirm the PostgreSQL, Redis, and Authorino services required by enabled features are ready.
+- Confirm the LWS controller is running and a representative distributed workload can start.
+- Confirm the MLflow tracking server is ready and can access existing metadata and artifacts.
+- Confirm the Workbench custom resource is ready, existing Workspaces and PVCs are present, and a test Workbench can be opened.
+- Confirm existing KServe inference services and representative model requests work as expected.
+- On the global cluster, confirm the `OAuth2Client` and `ProductEntry` resources created by `global-install.sh`, and verify that users can open Alauda AI through the platform entry.
 
-</Steps>
+### Verify data preservation
 
-## Deprecating Alauda AI Model Serving
+Confirm that the following data is still available before declaring the upgrade complete:
 
-Starting from the **Alauda AI 2.x** series, the legacy **Alauda AI Model Serving** operator is deprecated. We strongly recommend that users requiring serverless inference capabilities switch to the **Knative Operator** as soon as possible to ensure long-term support and access to the latest features.
+- User PVCs and Workbench home directories.
+- Existing Workspaces and retained `WorkspaceKind` resources.
+- MLflow metadata and model artifacts.
+- Existing inference-service configuration and model data.
+- Distributed-workload configuration and checkpoints.
 
-For guidance on how to move your serverless workloads to the new operator, please see the [Migrating to Knative Operator](./migrating-to-knative-operator.mdx) guide.
+If a component does not reconcile successfully, stop further migration and use the component-specific backup and rollback procedure. Do not delete CRDs while custom resources still exist; deleting a CRD can also delete the custom resources stored in the cluster.

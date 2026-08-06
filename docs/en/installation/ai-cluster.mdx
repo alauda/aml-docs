@@ -1,14 +1,12 @@
 ---
-weight: 40
+weight: 30
 ---
 
 # Install Alauda AI
 
-**Alauda AI** now offers flexible deployment options. Starting with **Alauda AI** `1.4`, the **Knative** capability is an optional feature, allowing for a more streamlined installation if it's not needed.
+**Alauda AI** provides model management, inference, training, and MLOps capabilities through the Alauda AI Operator. The automatically created `default` `AmlCluster` instance controls the components enabled in the cluster. By default, Alauda AI uses the **KServe** `Standard` mode for the inference backend, which is particularly recommended for resource-intensive generative workloads. This mode provides a straightforward way to deploy models and offers robust, customizable deployment capabilities by leveraging foundational Kubernetes functionalities.
 
-To begin, you will need to deploy the **Alauda AI Operator**. This is the core engine for all Alauda AI products. By default, it uses the **KServe** `Standard` mode for the inference backend, which is particularly recommended for resource-intensive generative workloads. This mode provides a straightforward way to deploy models and offers robust, customizable deployment capabilities by leveraging foundational Kubernetes functionalities.
-
-If your use case requires `Knative` functionality, which enables advanced features like **scaling to zero on demand** for cost optimization, you can optionally install the **Knative Operator**. This operator is not part of the default installation and can be added at any time to enable `Knative` functionality.
+Optional capabilities, including **Knative** functionality for scaling inference services to zero, are enabled by updating the component switches in the `AmlCluster` instance. The required operators and operands are installed automatically according to those settings.
 
 
 
@@ -16,124 +14,36 @@ If your use case requires `Knative` functionality, which enables advanced featur
     [Recommended deployment option](https://kserve.github.io/website/docs/admin-guide/overview#generative-inference): For generative inference workloads, the **Standard** approach (previously known as RawKubernetes Deployment) is recommended as it provides the most control over resource allocation and scaling.
 :::
 
-## Downloading \{#downloading}
+## Downloading packages
 
-**Operator Components**:
+For the common procedure for downloading installation packages and the `violet` tool, see [Upload Packages](./package-upload.mdx).
 
-- **Alauda AI Operator**
+The package required for Alauda AI is:
 
-  Alauda AI Operator is the main engine that powers Alauda AI products. It focuses on two core functions: model management and inference services, and provides a flexible framework that can be easily expanded.
+- **Alauda AI** — the main platform component for model management, inference services, and component lifecycle management.
 
-  _Download package: aml-operator.xxx.tgz_
-
-- **Knative Operator**
-
-  Knative Operator provides serverless model inference.
-
-  _Download package: knative-operator.ALL.v1.x.x-yymmdd.tgz_
-
-:::info
-You can download the app named 'Alauda AI' and 'Knative Operator' from the Marketplace on the Customer Portal website.
-:::
+Download the package version that matches the Alauda AI release and the target cluster architecture.
 
 ## Prerequisites
 
-Install the following dependent components on the target cluster before installing Alauda AI. They provide the authentication, metadata storage, and cache services required by [Model as a Service (MaaS)](../deploy/maas.mdx):
+The dependent components listed below are delivered as packages. You do not need to install them on the target cluster separately — upload their packages to the platform repository before installing Alauda AI, and the `AmlCluster` installs and manages the components after Alauda AI is installed.
 
-- **Authorino Operator**
+The following components are required by default:
+
 - **PostgreSQL**
 - **Alauda Cache Service for Redis OSS**
+- **Alauda Build of Authorino**
+- **Alauda Build of Envoy AI Gateway**
+- **Alauda Build of KServe**
+- **Alauda Build of LeaderWorkerSet**
 
-## Uploading \{#uploading}
+## Uploading packages
 
-We need to upload both `Alauda AI` and `Knative Operator` to the cluster where Alauda AI is to be used.
+Upload the **Alauda AI** package to the cluster where Alauda AI will run. Follow [Upload Packages](./package-upload.mdx) to prepare `violet`, configure platform or external-registry credentials, and upload the package.
 
-<Steps>
+After uploading the package, install Alauda AI from **OperatorHub** as described below. Optional capabilities are enabled after installation through the `AmlCluster` component configuration.
 
-### Downloading the violet tool
-
-First, we need to download the `violet` tool if not present on the machine.
-
-Log into the Web Console and switch to the **Administrator** view:
-
-1. Click **Marketplace / Upload Packages**.
-2. Click **Download Packaging and Listing Tool**.
-3. Locate the right OS / CPU architecture under **Execution Environment**.
-4. Click **Download** to download the `violet` tool.
-5. Run `chmod +x ${PATH_TO_THE_VIOLET_TOOL}` to make the tool executable.
-
-### Uploading package
-
-Save the following script in `uploading-ai-cluster-packages.sh` first, then read the comments below to update environment variables for configuration in that script.
-
-```bash title=uploading-ai-cluster-packages.sh
-#!/usr/bin/env bash
-export PLATFORM_ADDRESS=https://platform-address  # [!code callout]
-export PLATFORM_ADMIN_USER=<admin>  # [!code callout]
-export PLATFORM_ADMIN_PASSWORD=<admin-password>  # [!code callout]
-export CLUSTER=<cluster-name>  # [!code callout]
-
-export AI_CLUSTER_OPERATOR_NAME=<path-to-aml-operator-tarball>  # [!code callout]
-export KNATIVE_OPERATOR_PKG_NAME=<path-to-knative-operator-tarball>  # [!code callout]
-
-VIOLET_EXTRA_ARGS=()
-IS_EXTERNAL_REGISTRY=
-
-# If the image registry type of destination cluster is not platform built-in (external private or public repository).
-# Additional configuration is required (uncomment following line):
-# IS_EXTERNAL_REGISTRY=true
-if [[ "${IS_EXTERNAL_REGISTRY}" == "true" ]]; then
-    REGISTRY_ADDRESS=<external-registry-url>  # [!code callout]
-    REGISTRY_USERNAME=<registry-username>  # [!code callout]
-    REGISTRY_PASSWORD=<registry-password>  # [!code callout]
-
-    VIOLET_EXTRA_ARGS+=(
-        --dst-repo "${REGISTRY_ADDRESS}"
-        --username "${REGISTRY_USERNAME}"
-        --password "${REGISTRY_PASSWORD}"
-    )
-fi
-
-# [!code highlight]
-# Push **Alauda AI Cluster** operator package to destination cluster
-violet push \
-    ${AI_CLUSTER_OPERATOR_NAME} \
-    --platform-address=${PLATFORM_ADDRESS} \
-    --platform-username=${PLATFORM_ADMIN_USER} \
-    --platform-password=${PLATFORM_ADMIN_PASSWORD} \
-    --clusters=${CLUSTER} \
-    ${VIOLET_EXTRA_ARGS[@]}
-
-# [!code highlight]
-# Push **Knative Operator** package to destination cluster
-violet push \
-    ${KNATIVE_OPERATOR_PKG_NAME} \
-    --platform-address=${PLATFORM_ADDRESS} \
-    --platform-username=${PLATFORM_ADMIN_USER} \
-    --platform-password=${PLATFORM_ADMIN_PASSWORD} \
-    --clusters=${CLUSTER} \
-    ${VIOLET_EXTRA_ARGS[@]}
-```
-
-<Callouts>
-
-1. `${PLATFORM_ADDRESS}` is your ACP platform address.
-2. `${PLATFORM_ADMIN_USER}` is the username of the ACP platform admin.
-3. `${PLATFORM_ADMIN_PASSWORD}` is the password of the ACP platform admin.
-4. `${CLUSTER}` is the name of the cluster to install the Alauda AI components into.
-5. `${AI_CLUSTER_OPERATOR_NAME}` is the path to the Alauda AI Cluster Operator package tarball.
-6. `${KNATIVE_OPERATOR_PKG_NAME}` is the path to the Knative Operator package tarball.
-7. `${REGISTRY_ADDRESS}` is the address of the external registry.
-8. `${REGISTRY_USERNAME}` is the username of the external registry.
-9. `${REGISTRY_PASSWORD}` is the password of the external registry.
-
-</Callouts>
-
-After configuration, execute the script file using `bash ./uploading-ai-cluster-packages.sh` to upload both `Alauda AI` and `Knative Operator`.
-
-</Steps>
-
-## Installing Alauda AI Operator
+## Installing Alauda AI
 
 <Steps>
 
@@ -163,133 +73,12 @@ Confirm that the **Alauda AI** tile shows one of the following states:
 
 </Steps>
 
-## Installing Alauda Build of KServe Operator
-
-For detailed installation steps, see [Install KServe](../deploy/components/kserve/install.mdx) in Alauda Build of KServe.
-
-## Enabling Knative Functionality \{#enabling-knative-functionality}
-
-Knative functionality is an optional capability that requires an additional operator and instance to be deployed.
-
-:::warning
-If you plan to use Knative functionality, you **MUST** install the Knative Operator and create the Knative Serving instance **BEFORE** configuring the Alauda AI instance to ensure the required CRDs are available in the cluster.
-:::
-
-### 1. Installing the Knative Operator
-
-
-<Steps>
-
-:::info
-Starting from **Knative Operator**, the Knative networking layer switches to **Kourier**, so installing **Istio** is no longer required.
-:::
-
-#### Procedure
-
-In **Administrator** view:
-
-1. Click **Marketplace / OperatorHub**.
-2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install.
-3. Search for and select **Knative Operator**, then click **Install**.
-
-    **Install Knative Operator** window will pop up.
-
-4. Then in the **Install Knative Operator** window.
-5. Leave **Channel** unchanged.
-6. Check whether the **Version** matches the **Knative Operator** version you want to install.
-7. Leave **Installation Location** unchanged.
-8. Select **Manual** for **Upgrade Strategy**.
-9. Click **Install**.
-
-#### Verification
-
-Confirm that the **Knative Operator** tile shows one of the following states:
-
-- `Installing`: installation is in progress; wait for this to change to `Installed`.
-- `Installed`: installation is complete.
-
-</Steps>
-
-
-### 2. Creating Knative Serving Instance
-
-Once **Knative Operator** is installed, you need to create the `KnativeServing` instance manually.
-
-<Steps>
-
-#### Procedure
-
-1. Create the `knative-serving` namespace.
-
-   ```bash
-   kubectl create ns knative-serving
-   ```
-
-2. In the **Administrator** view, navigate to **Operators** -> **Installed Operators**.
-3. Select the **Knative Operator**.
-4. Under **Provided APIs**, locate **KnativeServing** and click **Create Instance**.
-5. Switch to **YAML view**.
-6. Replace the content with the following YAML:
-7. Click **Create**.
-
-
-   ```yaml
-   apiVersion: operator.knative.dev/v1beta1
-   kind: KnativeServing
-   metadata:
-     name: knative-serving
-     namespace: knative-serving
-   spec:
-     # For ACP 4.0, use version 1.18.1
-     # For ACP 4.1 and above, use version 1.19.6
-     version: "1.19.6" # [!code callout]
-     config:
-       deployment:
-         registries-skipping-tag-resolving: kind.local,ko.local,dev.local,private-registry # [!code callout]
-       domain:
-         example.com: ""
-       features:
-         kubernetes.podspec-affinity: enabled
-         kubernetes.podspec-hostipc: enabled
-         kubernetes.podspec-hostnetwork: enabled
-         kubernetes.podspec-init-containers: enabled
-         kubernetes.podspec-nodeselector: enabled
-         kubernetes.podspec-persistent-volume-claim: enabled
-         kubernetes.podspec-persistent-volume-write: enabled
-         kubernetes.podspec-securitycontext: enabled
-         kubernetes.podspec-tolerations: enabled
-         kubernetes.podspec-volumes-emptydir: enabled
-         queueproxy.resource-defaults: enabled
-       network:
-         domain-template: '{{.Name}}.{{.Namespace}}.{{.Domain}}'
-         ingress-class: kourier.ingress.networking.knative.dev
-     ingress:
-       kourier:
-         enabled: true
-   ```
-:::warning
-- For ACP 4.0, use version **1.18.1**
-- For ACP 4.1 and above, use version **1.19.6**
-:::
-
-<Callouts>
-
-1. Specify the version of Knative Serving to be deployed.
-
-2. `private-registry` is a placeholder for your private registry address. You can find this in the **Administrator** view, then click **Clusters**, select `your cluster`, and check the **Private Registry** value in the **Basic Info** section.
-
-
-
-</Callouts>
-
-</Steps>
-
 ## Configuring Alauda AI Instance
 
-Once Alauda AI Operator (and optionally, Knative Operator) is installed, the operator automatically creates the `default` `AmlCluster` instance. You do not need to create the `default` instance manually. Review and update the automatically created instance according to your environment.
+Once Alauda AI is installed, the operator automatically creates the cluster-scoped `default` `AmlCluster` instance. You do not need to create the `default` instance manually. Review and update the automatically created instance according to your environment.
 
 <Steps>
-### Procedure
+### Deploy Alauda AI
 
 In **Administrator** view:
 
@@ -301,8 +90,7 @@ In **Administrator** view:
 6. Select **Deploy Flavor** from dropdown:
    1. `single-node` for non HA deployments.
    2. `ha-cluster` for HA cluster deployments (**Recommended** for production).
-7. Set **KServe Mode** to **Managed**.
-8. Input a valid domain for **Domain** field.
+7. Input a valid domain for **Domain** field.
 
     :::info
     This domain is used by ingress gateway for exposing model serving services.
@@ -318,258 +106,428 @@ In **Administrator** view:
     stored in the `knative-serving-cert` secret that is specified in the **Domain Certificate Secret** field.
     :::
 
-9. **(Optional)** Configure a custom OIDC provider.
+### Component management states \{#component-management-states}
 
-    By default, Alauda AI uses ACP Dex as the OIDC provider. In this default
-    setup, no additional `spec.oidc` configuration is required in the
-    `AmlCluster` instance.
+Alauda AI 2.8 automatically installs and manages the components selected by the `AmlCluster` configuration. The following values show the default component settings. Merge the entries you need into the existing `default` `AmlCluster`; do not create a second instance.
 
-    If you want Alauda AI to use another OIDC provider, register an OAuth2/OIDC
-    client in that provider, allow the Alauda AI callback URL, and then update
-    `spec.oidc` in the `AmlCluster` YAML. The callback URL is:
+```yaml
+spec:
+  components:
+    authorino:
+      managementState: Managed
+    envoyAIGateway:
+      managementState: Unmanaged
+    envoyGateway:
+      managementState: SharedManaged
+    feast:
+      managementState: Unmanaged
+    knativeServing:
+      managementState: Unmanaged
+      providerType: Operator
+    llamaStack:
+      managementState: Unmanaged
+    lws:
+      managementState: Managed
+    mlflow:
+      managementState: Unmanaged
+    npuOperator:
+      managementState: Unmanaged
+      values:
+        clusterd:
+          enabled: false
+        devicePlugin:
+          enabled: true
+        driver:
+          enabled: true
+          recoveryPolicy:
+            autoRecover: false
+          upgradePolicy:
+            autoUpgrade: false
+          version: 25.5.0
+        exporter:
+          enabled: true
+        mindioacp:
+          enabled: false
+        mindiotft:
+          enabled: false
+        nodeD:
+          enabled: false
+        ociRuntime:
+          enabled: true
+        rscontroller:
+          enabled: false
+        trainer:
+          enabled: false
+    postgres:
+      managementState: SharedManaged
+    redis:
+      managementState: SharedManaged
+    servingRuntimeOperator:
+      managementState: Unmanaged
+    trustyAI:
+      managementState: Unmanaged
+    workbench:
+      managementState: Unmanaged
+      values:
+        global:
+          istio:
+            enabled: false
+```
 
-    ```text
-    https://<platform-address>/clusters/<cluster-name>/aml/oauth2/callback
-    ```
+The `spec.components` field uses configuration keys that correspond to the following products and Operators:
 
-    Alauda AI reads the OIDC client secret from a Kubernetes Secret in the
-    `kubeflow` namespace of the Alauda AI installation cluster. The default
-    Secret name is `aml-oidc-secret`, and the Secret key must be
-    `client-secret`. Update this Secret with the client secret from your OIDC
-    provider:
+| Component key | Product or Operator |
+|:--|:--|
+| `authorino` | **Alauda Build of Authorino** |
+| `envoyAIGateway` | **Alauda Build of Envoy AI Gateway** |
+| `envoyGateway` | **Alauda Build of Envoy Gateway** (SharedManaged) |
+| `feast` | **Alauda Build of Feast** |
+| `knativeServing` | **Knative Serving** |
+| `llamaStack` | **Alauda Build of Llama Stack** |
+| `lws` | **Alauda Build of LeaderWorkerSet** |
+| `mlflow` | **MLflow** |
+| `npuOperator` | **Alauda Build of NPU Operator** |
+| `postgres` | **PostgreSQL** (SharedManaged) |
+| `redis` | **Alauda Cache Service for Redis OSS** (SharedManaged) |
+| `servingRuntimeOperator` | **Alauda Build of Serving Runtime** |
+| `trustyAI` | **Alauda Build of TrustyAI** |
+| `workbench` | **Alauda AI Workbench** |
 
-    ```bash
-    kubectl create secret generic aml-oidc-secret \
-      -n kubeflow \
-      --from-literal=client-secret='<oidc-client-secret>' \
-      --dry-run=client -o yaml | kubectl apply -f -
-    ```
+The management states have the following meanings:
 
-    Then configure `spec.oidc`:
+| Value | Meaning |
+|:--|:--|
+| `Managed` | Alauda AI manages the component and its lifecycle. For normal installations, use `Managed` so Alauda AI installs and reconciles the component. |
+| `Unmanaged` | Alauda AI does not install or reconcile the component. Use this only for temporary workarounds, compatibility requirements, or advanced deployments; manage the component separately when required. |
+| `SharedManaged` | Alauda AI deploys the component for shared use, but does not lock the Operator version. |
+| `Removed` | Alauda AI removes the component and its managed resources. This value cannot be used for components with the `SharedManaged` state; set those components to `Unmanaged` instead. |
 
-    ```yaml
-    spec:
-      oidc:
-        # OIDC issuer URL. This must match the issuer value advertised by the
-        # provider, for example a Keycloak realm URL.
-        issuerURL: https://<oidc-provider-issuer>
-        # OAuth2/OIDC client ID registered in the external provider.
-        clientID: <oidc-client-id>
-        # Kubernetes Secret name in the kubeflow namespace. The Secret must
-        # contain a client-secret key. Default: aml-oidc-secret.
-        clientSecretName: aml-oidc-secret
-        # OAuth2 scopes requested during login. Keep this minimal to avoid
-        # oversized ID/access tokens and oversized login cookies.
-        # Default: openid profile email.
-        scope: openid profile email
-        # Whether to use the preferred_username claim as the email value.
-        # Default: true.
-        preferredUsernameAsEmail: true
-        main:
-          # OIDC authorization endpoint. If you use discovery, this maps from
-          # authorization_endpoint.
-          loginURL: https://<oidc-provider-authorization-endpoint>
-          # OAuth2 callback URL registered in the external provider.
-          redirectURL: https://<platform-address>/clusters/<cluster-name>/aml/oauth2/callback
-    ```
+<a id="enabling-knative-functionality"></a>
 
-    If the provider exposes a standard OIDC discovery document at
-    `<issuerURL>/.well-known/openid-configuration`, Alauda AI automatically
-    fills `redeemURL`, `jwksURL`, and `profileURL` from discovery when these
-    fields are not set. If discovery is unavailable, configure these fields
-    explicitly:
+For common 2.8 deployments, set the following component switches to `Managed` when the corresponding capabilities are required. The `servingRuntimeOperator` setting depends on the accelerator and serving-runtime requirements of your environment.
 
-    | Discovery field | `spec.oidc` field |
-    | --- | --- |
-    | `authorization_endpoint` | `loginURL` |
-    | `token_endpoint` | `redeemURL` |
-    | `userinfo_endpoint` | `profileURL` |
-    | `jwks_uri` | `jwksURL` |
+```yaml
+spec:
+  components:
+    envoyAIGateway:
+      managementState: Managed
+    servingRuntimeOperator:
+      managementState: Managed # [!code callout]
+    workbench:
+      managementState: Managed
+```
 
-    Use the mapped `loginURL` value for `main.loginURL`, or for
-    `secondary.loginURL` if you configure a secondary endpoint.
+<Callouts>
 
-    ```yaml
-    spec:
-      oidc:
-        redeemURL: https://<oidc-provider-token-endpoint>
-        jwksURL: https://<oidc-provider-jwks-endpoint>
-        profileURL: https://<oidc-provider-userinfo-endpoint>
-    ```
+1. `servingRuntimeOperator` controls **Alauda Build of Serving Runtime**, which contains vLLM and llm-d serving runtimes for Nvidia GPUs and is available only for x86. Enable it for Nvidia/x86 deployments that require these runtimes. If your environment uses Ascend or another non-Nvidia accelerator, do not enable or install this component; use the serving runtime appropriate for that hardware instead.
 
-    Example Keycloak configuration:
+</Callouts>
 
-    - In the target realm, create an **OpenID Connect** client.
-    - Set **Client ID** to the value used in `spec.oidc.clientID`, for example
-      `aml`.
-    - Turn on **Client authentication**.
-    - Under **Authentication flow**, select **Standard flow**.
-    - Turn on **Require PKCE** and set **PKCE Method** to `S256`.
-    - Set **Valid redirect URIs** to
-      `https://<platform-address>/clusters/<cluster-name>/aml/*`.
-    - Copy the client secret from the Keycloak client **Credentials** tab and
-      update the `aml-oidc-secret` Secret shown above.
-    - In the client **Client scopes** settings, set `basic`, `email`, and
-      `profile` to **Default**, and set other scopes to **Optional** unless your
-      environment explicitly needs them. Avoid adding large claim mappers such
-      as groups, realm roles, client roles, address, phone, offline access, and
-      other application-specific claims unless required. Large tokens can make
-      the oauth2-proxy cookie exceed browser or ingress header size limits and
-      cause login loops or HTTP 431/400 errors.
+:::info
+**Enable Knative functionality**
 
-10. **(Optional)** Configure the languages available in the Alauda AI console.
+Set `spec.components.knativeServing.managementState` to `SharedManaged` in the existing `default` `AmlCluster`:
 
-    Alauda AI reads the available console languages from
-    `spec.i18n.languages` in the `AmlCluster` instance. The default value is
-    `en`.
+```yaml
+spec:
+  components:
+    knativeServing:
+      managementState: SharedManaged
+```
+:::
 
-    Supported language codes are:
+### Configure KServe
 
-    | Code | Language |
-    | --- | --- |
-    | `zh` | Chinese (Simplified) |
-    | `en` | English |
-    | `fr` | French |
-    | `ru` | Russian |
-    | `ja` | Japanese |
-    | `ko` | Korean |
-    | `de` | German |
-    | `es` | Spanish |
-    | `it` | Italian |
-    | `pt-BR` | Portuguese (Brazil) |
-    | `zh-TW` | Chinese (Traditional) |
+**Alauda Build of KServe** is installed and managed by Alauda AI. The `kserve` component in the `default` `AmlCluster` instance defaults to `Managed`, so Alauda AI installs the KServe Operator and automatically creates the `KServe` instance. You do not need to upload the KServe Operator package, install the Operator from OperatorHub, or create a `KServe` custom resource manually.
 
-    `en` and `zh` are built-in languages. Other languages only add the
-    language as a selectable entry. To switch to those languages successfully,
-    you must also provide the corresponding translation file.
+The KServe parameters are exposed through `spec.components.kserve.values`. Merge the settings you need into the existing `default` `AmlCluster`:
 
-    You can use the built-in English and Chinese translation files as
-    references when preparing translation files for other languages:
-
-    ```text
-    /clusters/<cluster-name>/aml/console-aml/assets/i18n/en/lich-single.json
-    /clusters/<cluster-name>/aml/console-aml/assets/i18n/zh/lich-single.json
-    ```
-
-    Generate the target-language translation from these files, or contact
-    Alauda to obtain the latest translation content for the required language.
-
-    For example, to make English, Chinese, and French selectable in the
-    console, update the `AmlCluster` YAML:
-
-    ```yaml
-    spec:
-      i18n:
-        languages:
-          - en
-          - zh
-          - fr
-    ```
-
-    Then create a translation file `ConfigMap` for French in the
-    `cpaas-system` namespace:
-
-    ```yaml
-    apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      labels:
-        image-load-config: "true"
-      name: aml-i18n-fr
-      namespace: cpaas-system
-    data:
-      overrides: |
-        [{
-          "dest": "/aml-i18n/fr/lich-single.json",
-          "configMap": {
-             "name": "aml-i18n-fr",
-             "key": "lich-single.json"
-          }
-        }]
-      lich-single.json: |
-        {
-          "nav_model_repo": "Referentiel de modeles",
-          "nav_infer_svc": "Service d'inference",
-          "workbench": "Workbench",
-          "tool": "Outils"
-        }
-    ```
-
-    Use the same pattern for other non-built-in languages by replacing `fr`
-    with the target language code and providing the translated
-    `lich-single.json` content.
-
-11. **(Optional)** If you want to enable Knative functionality, update the `AmlCluster` YAML to reference the `KnativeServing` instance:
-
-    :::info
-    Configure this only if you installed the Knative Operator and created the
-    `KnativeServing` instance in the previous steps. If you are not using
-    Knative functionality, leave this configuration unset.
-    :::
-
-    ```yaml
-    spec:
-      components:
-        knativeServing:
-          externalCRRef:
-            apiVersion: operator.knative.dev/v1beta1
-            kind: KnativeServing
-            name: knative-serving
-            namespace: knative-serving
-          managementState: Unmanaged
-    ```
-
-12. Under **Model Catalog** section, configure the following parameters:
-
-    - **Model OCI Registry Address**: Registry address hosting model OCI artifacts for Model Catalog. This field has no default value and must be configured for your environment.
-
-      This registry stores the model OCI images used by Model Catalog. Use Harbor or another production-mode OCI registry with HTTPS access enabled. Model Catalog does not support configuring `imagePullSecret` for pulling model OCI images, so the Harbor project or repository used for Model Catalog must allow anonymous pull access from inference cluster nodes. In Harbor, set the project that stores Model Catalog images to **Public**.
-
-      If you cannot deploy a registry with HTTPS in the target environment, you can use an HTTP registry as a fallback. Configure the container runtime on every node in the inference cluster before deploying models. For containerd, add an insecure registry mirror for the registry address, for example by creating `/etc/containerd/certs.d/<registry-host:port>/hosts.toml`:
-
-      ```toml
-      server = "http://<registry-host:port>"
-
-      [host."http://<registry-host:port>"]
-        capabilities = ["pull", "resolve"]
-      ```
-
-      Then restart containerd or apply the equivalent node-runtime configuration through your cluster management system. This configuration must exist on the nodes where inference service pods are scheduled; otherwise the pod image pull will fail even if Model Catalog can list the model. The exact containerd configuration path can vary by Kubernetes distribution; after applying the configuration, verify that the node can pull a Model Catalog image, for example with `crictl pull <registry-host:port>/<repository>:<tag>`.
-
-    - **Source of PVC**: Choose whether to reuse an existing PVC or create a new one. Use `CreateNew` to let the installation create the PVC.
-    - **StorageClass Name**: StorageClass used when creating a new PVC.
-
-13. If you plan to use `llm-d` or `vLLM-ascend`, set KServe Modelcar UID to `0`. The default value is `1000`.
-
-    ```yaml
-    spec:
-      components:
+```yaml
+spec:
+  components:
+    kserve:
+      managementState: Managed
+      values:
+        defaultDeploymentMode: RawDeployment
+        domain: example.com
+        ingressGateway: knative-serving/knative-ingress-gateway
         kserve:
-          values:
-            kserve:
-              storage:
-                uidModelcar: 0
-    ```
+          storage:
+            uidModelcar: 1000
+        preset:
+          envoyAIGateway:
+            port: 1063
+            service: ai-gateway-controller
+          envoyGateway:
+            createInstance: true
+            deployType: ControllerNamespace
+            instanceName: aieg
+            saNamespace: envoy-gateway-system
+            serviceAccount: envoy-gateway
+          gie:
+            enabled: true
+          kserveGateway:
+            enabled: true
+            name: kserve-ingress-gateway
+            namespace: kserve
+            port: 80
+            service_type: NodePort
+```
 
-    This setting is cluster-level and affects all Modelcar workloads in the Alauda AI installation cluster.
+The main `kserve` component settings:
 
-14. Review the configuration and save the `default` `AmlCluster` instance.
+| Field | Description | Default |
+|-------|-------------|---------|
+| `managementState` | Whether Alauda AI manages the KServe Operator and instance. Use `Managed` for normal installations. | `Managed` |
+| `values.defaultDeploymentMode` | Deployment mode for inference services: `RawDeployment` (`Standard`) or `Knative` for serverless features like scale-to-zero. | `RawDeployment` |
+| `values.domain` | Domain used by the ingress gateway to expose inference-service endpoints. Use a wildcard domain, e.g., `*.example.com`. | None |
+| `values.ingressGateway` | Ingress gateway bound to KServe, in the form `<namespace>/<gateway-name>`. | `knative-serving/knative-ingress-gateway` |
+| `values.kserve.storage.uidModelcar` | UID used for Modelcar workloads. Set to `0` when you plan to use `vLLM-ascend`; the default is `1000`. | `1000` |
+
+The gateway presets configure the AI gateway stack that fronts inference traffic:
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `preset.envoyGateway.createInstance` | Create an Envoy Gateway instance to manage inference traffic with bundled extensions. | `true` |
+| `preset.envoyGateway.instanceName` | Name of the Envoy Gateway instance to create. | `aieg` |
+| `preset.envoyGateway.saNamespace` | Namespace where the Envoy Gateway service account is located. | `envoy-gateway-system` |
+| `preset.envoyGateway.serviceAccount` | Service account name used by Envoy Gateway. | `envoy-gateway` |
+| `preset.envoyAIGateway.service` | Kubernetes service name for Envoy AI Gateway. | `ai-gateway-controller` |
+| `preset.envoyAIGateway.port` | Port number used by Envoy AI Gateway. | `1063` |
+| `preset.gie.enabled` | Enable the bundled Gateway API Inference Extension. Set to `false` if GIE is already installed separately in the cluster. | `true` |
+| `preset.kserveGateway.enabled` | Deploy a KServe Gateway instance for InferenceService traffic. | `true` |
+| `preset.kserveGateway.name` | Name of the KServe Gateway. | `kserve-ingress-gateway` |
+| `preset.kserveGateway.namespace` | Namespace where the KServe Gateway is deployed. | `kserve` |
+| `preset.kserveGateway.port` | Port number used by the KServe Gateway. | `80` |
+| `preset.kserveGateway.service_type` | Service type for the KServe Gateway. | `NodePort` |
+
+Verify that the `AmlCluster` reconciles and the `KServe` instance is created by Alauda AI:
+
+```bash
+kubectl get amlcluster default
+
+kubectl get kserve default-kserve -n kserve-operator
+```
+
+The `AmlCluster` should report `Phase=Ready` and `Reason=Reconciled`, and the `KServe` instance is ready when the status shows `DEPLOYED: True`.
+
+### Configure a custom OIDC provider (Optional)
+
+By default, Alauda AI uses ACP Dex as the OIDC provider. In this default
+setup, no additional `spec.oidc` configuration is required in the
+`AmlCluster` instance.
+
+If you want Alauda AI to use another OIDC provider, register an OAuth2/OIDC
+client in that provider, allow the Alauda AI callback URL, and then update
+`spec.oidc` in the `AmlCluster` YAML. The callback URL is:
+
+```text
+https://<platform-address>/clusters/<cluster-name>/aml/oauth2/callback
+```
+
+Alauda AI reads the OIDC client secret from a Kubernetes Secret in the
+`kubeflow` namespace of the Alauda AI installation cluster. The default
+Secret name is `aml-oidc-secret`, and the Secret key must be
+`client-secret`. Update this Secret with the client secret from your OIDC
+provider:
+
+```bash
+kubectl create secret generic aml-oidc-secret \
+  -n kubeflow \
+  --from-literal=client-secret='<oidc-client-secret>' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Then configure `spec.oidc`:
+
+```yaml
+spec:
+  oidc:
+    # OIDC issuer URL. This must match the issuer value advertised by the
+    # provider, for example a Keycloak realm URL.
+    issuerURL: https://<oidc-provider-issuer>
+    # OAuth2/OIDC client ID registered in the external provider.
+    clientID: <oidc-client-id>
+    # Kubernetes Secret name in the kubeflow namespace. The Secret must
+    # contain a client-secret key. Default: aml-oidc-secret.
+    clientSecretName: aml-oidc-secret
+    # OAuth2 scopes requested during login. Keep this minimal to avoid
+    # oversized ID/access tokens and oversized login cookies.
+    # Default: openid profile email.
+    scope: openid profile email
+    # Whether to use the preferred_username claim as the email value.
+    # Default: true.
+    preferredUsernameAsEmail: true
+    main:
+      # OIDC authorization endpoint. If you use discovery, this maps from
+      # authorization_endpoint.
+      loginURL: https://<oidc-provider-authorization-endpoint>
+      # OAuth2 callback URL registered in the external provider.
+      redirectURL: https://<platform-address>/clusters/<cluster-name>/aml/oauth2/callback
+```
+
+If the provider exposes a standard OIDC discovery document at
+`<issuerURL>/.well-known/openid-configuration`, Alauda AI automatically
+fills `redeemURL`, `jwksURL`, and `profileURL` from discovery when these
+fields are not set. If discovery is unavailable, configure these fields
+explicitly:
+
+| Discovery field | `spec.oidc` field |
+| --- | --- |
+| `authorization_endpoint` | `loginURL` |
+| `token_endpoint` | `redeemURL` |
+| `userinfo_endpoint` | `profileURL` |
+| `jwks_uri` | `jwksURL` |
+
+Use the mapped `loginURL` value for `main.loginURL`, or for
+`secondary.loginURL` if you configure a secondary endpoint.
+
+```yaml
+spec:
+  oidc:
+    redeemURL: https://<oidc-provider-token-endpoint>
+    jwksURL: https://<oidc-provider-jwks-endpoint>
+    profileURL: https://<oidc-provider-userinfo-endpoint>
+```
+
+Example Keycloak configuration:
+
+- In the target realm, create an **OpenID Connect** client.
+- Set **Client ID** to the value used in `spec.oidc.clientID`, for example
+  `aml`.
+- Turn on **Client authentication**.
+- Under **Authentication flow**, select **Standard flow**.
+- Turn on **Require PKCE** and set **PKCE Method** to `S256`.
+- Set **Valid redirect URIs** to
+  `https://<platform-address>/clusters/<cluster-name>/aml/*`.
+- Copy the client secret from the Keycloak client **Credentials** tab and
+  update the `aml-oidc-secret` Secret shown above.
+- In the client **Client scopes** settings, set `basic`, `email`, and
+  `profile` to **Default**, and set other scopes to **Optional** unless your
+  environment explicitly needs them. Avoid adding large claim mappers such
+  as groups, realm roles, client roles, address, phone, offline access, and
+  other application-specific claims unless required. Large tokens can make
+  the oauth2-proxy cookie exceed browser or ingress header size limits and
+  cause login loops or HTTP 431/400 errors.
+
+### Configure the console languages (Optional)
+
+Alauda AI reads the available console languages from
+`spec.i18n.languages` in the `AmlCluster` instance. The default value is
+`en`.
+
+Supported language codes are:
+
+| Code | Language |
+| --- | --- |
+| `zh` | Chinese (Simplified) |
+| `en` | English |
+| `fr` | French |
+| `ru` | Russian |
+| `ja` | Japanese |
+| `ko` | Korean |
+| `de` | German |
+| `es` | Spanish |
+| `it` | Italian |
+| `pt-BR` | Portuguese (Brazil) |
+| `zh-TW` | Chinese (Traditional) |
+
+`en` and `zh` are built-in languages. Other languages only add the
+language as a selectable entry. To switch to those languages successfully,
+you must also provide the corresponding translation file.
+
+You can use the built-in English and Chinese translation files as
+references when preparing translation files for other languages:
+
+```text
+/clusters/<cluster-name>/aml/console-aml/assets/i18n/en/lich-single.json
+/clusters/<cluster-name>/aml/console-aml/assets/i18n/zh/lich-single.json
+```
+
+Generate the target-language translation from these files, or contact
+Alauda to obtain the latest translation content for the required language.
+
+For example, to make English, Chinese, and French selectable in the
+console, update the `AmlCluster` YAML:
+
+```yaml
+spec:
+  i18n:
+    languages:
+      - en
+      - zh
+      - fr
+```
+
+Then create a translation file `ConfigMap` for French in the
+`cpaas-system` namespace:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    image-load-config: "true"
+  name: aml-i18n-fr
+  namespace: cpaas-system
+data:
+  overrides: |
+    [{
+      "dest": "/aml-i18n/fr/lich-single.json",
+      "configMap": {
+         "name": "aml-i18n-fr",
+         "key": "lich-single.json"
+      }
+    }]
+  lich-single.json: |
+    {
+      "nav_model_repo": "Referentiel de modeles",
+      "nav_infer_svc": "Service d'inference",
+      "workbench": "Workbench",
+      "tool": "Outils"
+    }
+```
+
+Use the same pattern for other non-built-in languages by replacing `fr`
+with the target language code and providing the translated
+`lich-single.json` content.
+
+### Configure Model Catalog
+
+- **Model OCI Registry Address**: Registry address hosting model OCI artifacts for Model Catalog. This field has no default value and must be configured for your environment.
+
+  This registry stores the model OCI images used by Model Catalog. Use Harbor or another production-mode OCI registry with HTTPS access enabled. Model Catalog does not support configuring `imagePullSecret` for pulling model OCI images, so the Harbor project or repository used for Model Catalog must allow anonymous pull access from inference cluster nodes. In Harbor, set the project that stores Model Catalog images to **Public**.
+
+  If you cannot deploy a registry with HTTPS in the target environment, you can use an HTTP registry as a fallback. Configure the container runtime on every node in the inference cluster before deploying models. For containerd, add an insecure registry mirror for the registry address, for example by creating `/etc/containerd/certs.d/<registry-host:port>/hosts.toml`:
+
+  ```toml
+  server = "http://<registry-host:port>"
+
+  [host."http://<registry-host:port>"]
+    capabilities = ["pull", "resolve"]
+  ```
+
+  Then restart containerd or apply the equivalent node-runtime configuration through your cluster management system. This configuration must exist on the nodes where inference service pods are scheduled; otherwise the pod image pull will fail even if Model Catalog can list the model. The exact containerd configuration path can vary by Kubernetes distribution; after applying the configuration, verify that the node can pull a Model Catalog image, for example with `crictl pull <registry-host:port>/<repository>:<tag>`.
+
+- **Source of PVC**: Choose whether to reuse an existing PVC or create a new one. Use `CreateNew` to let the installation create the PVC.
+- **StorageClass Name**: StorageClass used when creating a new PVC.
 
 ### Verification
 
-Check the status field from the `AmlCluster` resource named `default`:
+Review the configuration and save the `default` `AmlCluster` instance, then check its status:
 
 ```bash
 kubectl get amlcluster default
 ```
 
-It should return `Ready`:
+The resource should be `Ready`:
 
 ```
-NAME      READY   REASON
-default   True    Succeeded
+NAME      PHASE   READY   REASON
+default   Ready   True    Reconciled
 ```
 </Steps>
+
 
 ## Importing Built-in Model Images for Catalog \{#importing-built-in-model-images-for-catalog}
 
@@ -734,3 +692,19 @@ spec:
 :::note
 The specific path should be consistent with the collection configuration of `Alauda Container Platform Log Collector`.
 :::
+
+### 2. Set KServe Modelcar UID for vLLM-ascend
+
+If you plan to use `vLLM-ascend`, set KServe Modelcar UID to `0` (the default is `1000`) in the `default` `AmlCluster`:
+
+```yaml
+spec:
+  components:
+    kserve:
+      values:
+        kserve:
+          storage:
+            uidModelcar: 0
+```
+
+This setting is cluster-level and affects all Modelcar workloads in the Alauda AI installation cluster.

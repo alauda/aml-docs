@@ -4,27 +4,42 @@ weight: 20
 
 # Install Llama Stack
 
-This document describes how to install and deploy Llama Stack Server on Kubernetes using the Llama Stack Operator.
+In Alauda AI 2.8.x, **Alauda Build of Llama Stack** is installed and managed by Alauda AI. The `llamaStack` component in the cluster-scoped `default` `AmlCluster` defaults to `Unmanaged`; set it to `Managed`, and you do not need to install the Operator from OperatorHub manually. After the component is reconciled, deploy Llama Stack Server with a `LlamaStackDistribution` custom resource as described below.
 
-## Upload Operator
+## Upload the Operator Package
 
-Download the Llama Stack Operator installation file (e.g., `llama-stack-operator.alpha.ALL.xxxx.tgz`).
+Download the Llama Stack Operator package, then upload the package following [Upload Packages](../../../installation/package-upload.mdx).
 
-Use the violet command to publish to the platform repository:
+## Enable Llama Stack
 
-```bash
-violet push --platform-address=platform-access-address --platform-username=platform-admin --platform-password=platform-admin-password llama-stack-operator.alpha.ALL.xxxx.tgz
+In **Administrator** view:
+
+1. Open **Marketplace** > **OperatorHub**.
+2. Select the target cluster and open **Alauda AI**.
+3. Open the **All Instances** tab and edit the `default` `AmlCluster` instance.
+4. Set `spec.components.llamaStack.managementState` to `Managed`.
+5. Save the `AmlCluster` instance and wait for the Llama Stack Operator to become ready.
+
+You can apply the component setting in the `AmlCluster` YAML:
+
+```yaml
+spec:
+  components:
+    llamaStack:
+      managementState: Managed
 ```
 
-## Install Operator
+## Verify the Installation
 
-1. Go to the `Administrator` view in the Alauda Container Platform.
+Check the `AmlCluster` status and the Llama Stack Operator:
 
-2. In the left navigation, select `Marketplace` / `Operator Hub`.
+```bash
+kubectl get amlcluster default
 
-3. In the right panel, find `Alauda build of Llama Stack` and click `Install`.
+kubectl get pods -n llama-stack-k8s-operator-system
+```
 
-4. Keep all parameters as default and complete the installation.
+The `AmlCluster` should report `Phase=Ready`, and the Llama Stack Operator controller pod should be in `Running` state. The `LlamaStackDistribution` CRD is registered once the operator is ready.
 
 ## Deploy Llama Stack Server
 

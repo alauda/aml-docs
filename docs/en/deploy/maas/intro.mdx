@@ -1,0 +1,57 @@
+---
+weight: 10
+---
+
+# Introduction
+
+Model as a Service (MaaS) provides a managed gateway for serving large language models through an OpenAI-compatible API. It gives platform teams a consistent way to publish models, grant access, enforce token quotas, and understand usage, while application developers call the models they are subscribed to with API keys.
+
+MaaS is based on **Alauda Build of Envoy Gateway**, **Alauda Build of Envoy AI Gateway**, and **Authorino**. Envoy Gateway provides the Kubernetes Gateway API foundation, Envoy AI Gateway provides model-aware routing and token accounting, and Authorino authenticates requests. Alauda AI installs and manages these components through the `envoyGateway`, `envoyAIGateway`, and `authorino` components of the `default` `AmlCluster`; see [Install Alauda AI](../../installation/ai-cluster.mdx).
+
+## Why use MaaS?
+
+MaaS separates model serving from model consumption:
+
+- Model owners can publish an inference service without exposing its internal route details.
+- Administrators can combine models into subscriptions and assign access to users.
+- Developers use one OpenAI-compatible gateway instead of learning the URL and authentication method of every backend.
+- Platform teams can enforce per-model token quotas and review consumption by user, subscription, model, and token type.
+
+MaaS can expose both platform-hosted inference services and external OpenAI-compatible model providers through the same gateway.
+
+## Request flow
+
+For each request, MaaS performs the following checks:
+
+1. The caller presents an API key and is authenticated.
+2. The caller has access to the requested model through an active subscription.
+3. The subscription has remaining token quota for that user and model.
+4. The gateway routes the request to the selected model and records the actual token usage returned by the model service.
+
+An unauthenticated or unauthorized request returns `401` or `403`. A request that exceeds its subscription quota returns `429`.
+
+Quotas are enforced per user, not per API key. Multiple API keys belonging to the same user share the user's allowance for a subscription and model.
+
+## Main concepts
+
+| Concept | Purpose |
+| --- | --- |
+| **Model** | A published model that can be selected by a subscription and called through the MaaS gateway. |
+| **Model source** | A platform inference service or an external model service that supplies one or more models. |
+| **Subscription** | The access and quota unit. It binds users to models and defines token limits for each model. |
+| **API key** | A developer credential used to call subscribed models. The plaintext key is shown only once when it is created. |
+| **Usage** | Token and request consumption shown to administrators and to developers for their own API keys. |
+| **Guardrails** | Optional content checks that can be attached to models in a subscription. |
+
+## Choose a guide
+
+- [MaaS Administrator Guide](administrator.mdx) — publish and import models, create subscriptions, configure quotas and guardrails, and review reports.
+- [MaaS User Guide](user.mdx) — create an API key, call a subscribed model, and view personal quota and usage.
+
+## Related topics
+
+- [Inference Service](../inference_service/inference_service) — create the `LLMInferenceService` models that can be published to MaaS.
+- [Authenticating Consumers](../gateway/identity_authentication) — authenticate callers and propagate identity to gateway policies.
+- [Configuring Token Quotas](../gateway/token_rate_limiting) — configure token-based quota enforcement at the inference gateway.
+- [Metering Token Usage](../gateway/usage_metering) — understand how token consumption is reported.
+- [Routing to LLM Providers](../gateway/external_provider_routing) — route external providers through a controlled gateway.

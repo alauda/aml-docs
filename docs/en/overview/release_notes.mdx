@@ -4,32 +4,92 @@ weight: 40
 
 # Release Notes
 
-## AI 2.7.0
+## Alauda AI 2.8.0
 
-### **New and Optimized Features**
+Alauda AI 2.8.x summarizes the major platform, model-serving, training, and MLOps changes introduced after Alauda AI 2.3.x.
 
-#### **Model as a Service (MaaS)**
+### **Upgrade Support**
 
-This release adds **Model as a Service (MaaS)**, a managed model-serving gateway based on Alauda Build of Envoy Gateway and Alauda Build of Envoy AI Gateway. MaaS uses Authorino for authentication and lets administrators publish `LLMInferenceService` inference services and external model services through subscriptions.
+Alauda AI 2.8.x supports upgrading an existing Alauda AI 2.3.x environment. Review the upgrade documentation and the component-specific migration requirements before starting the upgrade.
 
-Administrators can bind multiple models to each subscription, configure token limits for different time ranges, assign subscriptions to specified users, and view subscription traffic dashboards and usage reports. Users can access **My Subscriptions** to create, revoke, and delete API keys and view their own usage.
+### **New and Optimized Features Since Alauda AI 2.3.x**
 
+#### **Platform Architecture and Administration**
+
+- **Single-cluster application architecture** simplifies the Alauda AI 2.6.x and later deployment model. The former **Alauda AI Essentials** (`aml-global`) component is removed, and the Alauda AI product entry is configured through the platform's integrated product configuration.
+- **Namespace management and permissions** let administrators create or import namespaces and assign namespace-scoped owner, editor, and viewer permissions. The former platform roles `aml-namespace-editor`, `owner`, and `viewer` are deprecated.
+- **Authentication and access** are integrated with `oauth2-proxy`, with support for an independent OIDC provider and access entry.
+- **Monitoring** is integrated with Prometheus and includes Perses-based dashboards.
+- **Alauda AI Platform Control Plane** provides centralized management of supported AI components through the Alauda AI Operator.
+
+#### **Model Serving and Inference**
+
+- **Image Based Model Catalog** provides a centralized catalog for deploying ready-to-use model images and supports configurable persistent storage.
+- **vLLM-ascend** enables model serving on Ascend NPUs through a custom inference runtime.
+- **vLLM Expert Parallel** supports serving compatible Mixture-of-Experts models with expert parallelism.
+- **vLLM speculative decoding** supports N-gram and EAGLE-3 configuration paths for reducing inference latency.
+- **Alauda Build of InferNex Bridge** provides elastic orchestration capabilities for inference workloads, including `InferNexService` and multi-node inference scenarios.
+- **Model as a Service (MaaS)** provides a managed model-serving gateway based on Alauda Build of Envoy Gateway and Alauda Build of Envoy AI Gateway. Administrators can publish `LLMInferenceService` and external model services through subscriptions, configure token limits, assign subscriptions to users, and view traffic and usage reports.
+
+#### **Training and Distributed Workloads**
+
+- **Kubeflow components** are upgraded to the Kubeflow 1.11 release line. Kubeflow Trainer v2 supports distributed training workflows on GPU and Ascend NPU environments.
+- **JobSet Operator** supports coordinated groups of Kubernetes Jobs for distributed training, batch processing, and HPC workloads.
+- **TrainingHub enhancements** add QLoRA and CPT fine-tuning workflows for single-GPU, multi-GPU, multi-node, and Ascend NPU scenarios.
+- **Kueue enhancements** add quota management, fair sharing, gang scheduling, preemption, cohorts, and preemptible TrainJobs with checkpoint and resume workflows.
+- **Dynamic Resource Allocation (DRA)** enables GPU slicing and shared GPU resource allocation for training workloads.
+- **ARM support** is expanded for Kubeflow Pipelines and training runtimes.
+
+#### **MLOps and Developer Experience**
+
+- **MLflow enhancements** add AI-agent tracing, external PostgreSQL metadata storage, and object-storage configuration, while retaining platform SSO and Kubernetes RBAC integration.
+- **MLflow Operator 3.13.0** is delivered through OperatorHub starting with Alauda AI 2.8.x. Install the Operator and create an `MLflow` custom resource to deploy and manage the tracking server.
+- **Alauda AI Workbench v0.2.0** is managed through the `workbench` component in the `default` `AmlCluster` in Alauda AI 2.8.x. Alauda AI installs and reconciles the Workbench Operator and its resources.
+- **Elyra Pipeline Editor** enables users to compose Kubeflow Pipelines workflows visually from notebooks and scripts.
+- **Reusable pipeline components** and expanded Kubeflow Pipeline mechanisms simplify authoring and reusing pipeline workflows.
+- **Llama Stack** adds PGVector and Milvus vector stores for agent and retrieval workflows.
+- **Alauda Build of Spark Operator** supports running Spark applications as Kubernetes-native distributed workloads.
+- **Coding-agent and agentic MLOps workflows** provide guidance for connecting coding agents to on-premises inference services.
+
+#### **Hardware and Model Optimization**
+
+- **Alauda Build of NPU Operator** is managed through the Alauda AI Operator and includes support for Ascend 910B and immutable operating-system environments.
+- **Ascend NPU fine-tuning** supports MindSpeed-LLM and Kubeflow Trainer v2 workflows, including checkpoint conversion, dataset preprocessing, and supervised fine-tuning.
+- **ModelSlim integration** provides model compression and quantization workflows for Ascend NPU environments.
+
+### **Deployment Form Changes in Alauda AI 2.8.x**
+
+Alauda AI Workbench, MLflow, and Alauda Build of LeaderWorkerSet are delivered through the 2.8.x Operator-based deployment model. Workbench and MLflow are installed as independent Operators from **OperatorHub**, while LWS is installed and reconciled through the `lws` component in the `default` `AmlCluster`:
+
+| Component | Alauda AI 2.8.x deployment form | Migration note |
+|:--|:--|:--|
+| **MLflow** | MLflow OLM Operator | Install the MLflow Operator and create an `MLflow` custom resource. |
+| **Alauda Build of LeaderWorkerSet (LWS)** | Operator managed through Alauda AI and the `AmlCluster` | Enable the `lws` component in the `default` `AmlCluster`; Alauda AI installs and reconciles LWS. |
+| **Alauda AI Workbench** | Workbench OLM Operator | Install the Workbench Operator and create a `Workbench` custom resource. |
+
+These deployment-form changes do not imply that existing user data should be deleted. Follow the component-specific migration instructions and preserve applicable PVCs and custom resources during migration.
+
+### **Deprecated Features**
+
+- The former platform roles `aml-namespace-editor`, `owner`, and `viewer` are deprecated. Use namespace-scoped permissions instead.
+- The GitLab-based Model Catalog is deprecated. Use the Image Based Model Catalog with OCI model artifacts for new model delivery workflows.
+- The former Alauda AI Model Serving operator is deprecated. Use the Knative Operator for supported serverless inference scenarios.
 
 ### **Breaking Changes**
 
-#### **Fresh Installation Only**
+#### **Deployment and Configuration**
 
-**AI 2.7.0** does not support upgrade from AI 2.6.x or earlier versions. Existing environment migration is outside the scope of this Fast release and requires a later LTS release with a dedicated upgrade guide.
+- Alauda AI 2.8.x uses the single-cluster application architecture. The **Alauda AI Essentials** (`aml-global`) component is no longer delivered.
+- Project and cluster switching are removed from the AI header. Use namespace switching to change the working context.
+- Login and logout are handled through `oauth2-proxy`.
+- MLflow, Alauda Build of LeaderWorkerSet, and Alauda AI Workbench change from their previous deployment forms to Operators. Existing installations require component-specific migration instead of an in-place package upgrade.
 
+### **Fixed Issues Since Alauda AI 2.3.x**
 
-### Fixed Issues
+The following issue was documented as a known issue in Alauda AI 2.3.0 and fixed in a later release:
 
-- When injecting SecurityContext into the inference service Pod, KServe interferes with the configuration of the sidecar injected by Knative Serving, causing the Pod to fail to run due to configuration conflicts.
-- Since model-catalog-ui prioritizes the "email" as the username when extracting a username from a token, if the user's email does not match their username, it may extract an incorrect username, which affects the relevant permission checks.
+- **vLLM Ascend:** Fixed multi-card Ascend inference deployments that could fail to become `Ready` because HCCL initialization did not support both root and non-root modes.
 
-### Known Issues
+### **Known Issues**
 
-- When using VictoriaMetrics for monitoring data collection of inference services operating in Serverless mode, there is a known issue where the inference services cannot scale down to zero.
-- Because the name of the WorkspaceKind resource in a Workbench chart includes ".Release.Revision", when the chart is deployed multiple times, multiple instances of the same WorkspaceKind resource may be deployed due to the incrementing of ".Release.Revision".
-- Because the HAMi scheduler component shares the same image as kube-scheduler, it may incorrectly identify the kube-scheduler image registry in the imported cluster, failing to pull the image and thus causing startup failures.
-
+- When VictoriaMetrics is used to collect monitoring data for inference services running in Serverless mode, inference services may not scale down to zero.

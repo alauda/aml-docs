@@ -56,7 +56,7 @@ For the YAML fields and platform-specific labels/annotations the agent needs to 
 
 ## Manage gateways: authentication and rate limits \{#manage-gateways}
 
-Alauda Build of Envoy AI Gateway is a required dependency of Alauda Build of KServe and fronts inference traffic with an OpenAI-compatible API surface, AI-aware routing, and per-model policies (see [Envoy AI Gateway introduction](../../deploy/components/envoy_ai_gateway/intro.mdx) and [installation](../../deploy/components/envoy_ai_gateway/install.mdx)). The agent is well-suited to author its CRDs, which are otherwise verbose:
+Alauda Build of Envoy AI Gateway is a required dependency of Alauda Build of KServe and fronts inference traffic with an OpenAI-compatible API surface, AI-aware routing, and per-model policies (see [Envoy AI Gateway introduction](../../deploy/components/envoy_ai_gateway/intro.mdx)). Envoy AI Gateway is managed by Alauda AI through the `envoyAIGateway` component in the `default` `AmlCluster`; see [Install Alauda AI](../../installation/ai-cluster.mdx). The agent is well-suited to author its CRDs, which are otherwise verbose:
 
 | Concern | CRD / Resource | Where it comes from |
 |---|---|---|
@@ -260,7 +260,6 @@ Each step is a separate prompt with its own diff to review. The agent is the typ
 - [Speculative Decoding for vLLM Inference Services](../../deploy/inference_service/guides/vllm_speculative_decoding.mdx)
 - [Extend Inference Runtimes](../../deploy/inference_service/guides/custom_inference_runtime.mdx)
 - [Envoy AI Gateway — introduction](../../deploy/components/envoy_ai_gateway/intro.mdx)
-- [Install Envoy AI Gateway](../../deploy/components/envoy_ai_gateway/install.mdx)
 - [Hardware Profiles](../../administer/hardware_profile/intro.mdx)
 - [Fine-Tuning with Kubeflow Trainer v2](../../train/guides/fine-tune-with-trainer-v2.mdx)
 - [Fine-tuning LLMs with Training Hub](../../train/guides/training-hub-fine-tuning.mdx)

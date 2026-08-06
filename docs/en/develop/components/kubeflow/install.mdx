@@ -24,7 +24,7 @@ Before you begin, make sure the following prerequisites are met:
 2. Alauda AI is already deployed. Alauda AI 2.3 or later is required for the v26.3.0 operator set.
 3. Alauda Build of KServe is installed.
 4. ASM is deployed in the business cluster where Kubeflow will run. If ASM is not already installed, deploy it before continuing. ASM v1 is deprecated. Use ASM v2 whenever possible.
-5. The LWS plugin, Alauda Build of LeaderWorkerSet, is installed if you plan to deploy `kubeflow-trainer-operator`.
+5. LeaderWorkerSet is installed and ready. LWS is normally managed by Alauda AI through the `lws` component in the `default` `AmlCluster`; see [Install Alauda AI](../../../installation/ai-cluster.mdx). It is required only if you plan to deploy `kubeflow-trainer-operator`.
 6. The `oauth2-proxy` plugin is configured as described below.
 
 ### Configure Dex Redirection
@@ -132,15 +132,7 @@ spec:
 
 ## Component Onboarding
 
-Download the operator bundle packages for the following operators and upload them with `violet`. The bundles register the operators with the ACP OperatorHub.
-
-```bash
-# Replace the platform address, username, password, and bundle package path.
-violet push --platform-address="https://<platform-access-address>" \
-  --platform-username="admin@cpaas.io" \
-  --platform-password="<platform_password>" \
-  <your-downloaded-operator-bundle-package-file>
-```
+Download the operator bundle packages for the following operators, then upload them following [Upload Packages](../../../installation/package-upload.mdx). The bundles register the operators with the ACP OperatorHub.
 
 - `kfbase-operator`: Kubeflow base functionality (owns `KubeflowBase` CR).
 - `kfp-operator`: Kubeflow Pipelines (owns `KubeflowPipelines` CR). amd64-only.
@@ -286,7 +278,7 @@ When creating the instance, configure the following fields as needed:
 
 > **Note:** If the deprecated `kftraining` Cluster Plugin is still installed (from a pre-v26.3.0 cluster), uninstall it before installing `kubeflow-trainer-operator`.
 >
-> **Note:** Install the LWS plugin before deploying `kubeflow-trainer-operator`, because LWS is a dependency of `kubeflow-trainer-operator`.
+> **Note:** LeaderWorkerSet is a dependency of `kubeflow-trainer-operator`. Verify that LWS is enabled and ready through the `lws` component in the `default` `AmlCluster` before deploying `kubeflow-trainer-operator`; see [Install Alauda AI](../../../installation/ai-cluster.mdx).
 >
 > **Note:** v26.3.0 of `kubeflow-trainer-operator` aligns with upstream `kubeflow/manifests` 26.03 and ships **Trainer v2.1.0 + JobSet v0.10.1**. For clusters where an OLM CatalogSource already advertises a higher trainer version (`>=2.2.0`), install with `installPlanApproval: Manual` and `startingCSV: kubeflow-trainer-operator.v2.1.0` to prevent OLM from auto-upgrading past the 26.03 pin.
 

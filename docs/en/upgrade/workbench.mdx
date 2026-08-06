@@ -20,10 +20,10 @@ Starting with v0.2.0, Workbench is delivered as an OLM Helm operator instead of 
    ```
 
 2. In **Administrator** > **Marketplace** > **Cluster Plugins**, uninstall the earlier **Workbench** cluster plugin. Preserve user PVCs, retained `WorkspaceKind` resources, and the `aml-workbench-config` `ConfigMap`; the operator adopts or reapplies these resources.
-3. Install the **Alauda AI Workbench Operator** and create a `Workbench` custom resource as described in [Install Workbench](../installation/workbench.mdx).
+3. Enable Workbench by setting `spec.components.workbench.managementState` to `Managed` in the `default` `AmlCluster`. Alauda AI installs and manages the Workbench Operator and its resources; do not create a `Workbench` custom resource manually. For the normal installation path, see [Install Workbench](../installation/workbench.mdx).
 4. Verify the existing Workspaces and their PVCs are still present, then create and connect to a test Workbench.
 
-If the previous installation relied on the Elyra KFP run-URL redirect, set `spec.global.istio.enabled: true` in the `Workbench` custom resource. Istio integration is optional and disabled by default.
+If the previous installation relied on the Elyra KFP run-URL redirect, set `spec.components.workbench.values.global.istio.enabled: true` in the `default` `AmlCluster`. Istio integration is optional and disabled by default.
 
 ## Migrating from Kubeflow Notebook
 
