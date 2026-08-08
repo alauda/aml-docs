@@ -1,0 +1,232 @@
+---
+weight: 105
+i18n:
+  title:
+    en: Deploy a Multi-Node vLLM Service with llm-d
+    zh: 使用 llm-d 跨节点部署 vLLM 服务
+---
+
+# Deploy a Multi-Node vLLM Service with llm-d
+
+## Overview
+
+Use this pattern when one model instance needs GPUs from more than one Kubernetes
+node. The example creates one logical vLLM service across two nodes with four GPUs
+per node:
+
+```text
+LLMInferenceService replicas=1
+└── LeaderWorkerSet group
+    ├── leader: 4 GPUs, node rank 0, OpenAI-compatible API
+    └── worker: 4 GPUs, node rank 1, headless
+
+tensor parallel = 4
+pipeline parallel = 2
+total GPUs = 4 x 2 = 8
+```
+
+The components have separate responsibilities:
+
+- `LLMInferenceService` describes the logical service and its leader and worker
+  Pod specifications.
+- LeaderWorkerSet (LWS) creates and manages the leader and worker as one group.
+- vLLM multiprocessing and NCCL execute tensor and pipeline parallelism across
+  the GPUs.
+- llm-d routing components, including the inference scheduler/EPP, route requests
+  to available backend groups. They do not implement model parallelism or combine
+  GPUs by themselves.
+
+:::warning
+Do not replace this topology with a single Pod that requests eight GPUs. Kubernetes
+and GPU schedulers allocate a Pod on one node; free GPUs on different nodes cannot
+be combined into one Pod. Also, `replicas: 2` creates two independent
+leader/worker groups. It does not turn two four-GPU replicas into one eight-GPU
+model instance.
+:::
+
+## Prerequisites
+
+Before you deploy, confirm all of the following:
+
+- Alauda Build of KServe and Alauda Build of LeaderWorkerSet are installed.
+- The cluster has two schedulable GPU nodes with at least four allocatable GPUs
+  each.
+- Both nodes run compatible GPU drivers, CUDA, NCCL, and RDMA software.
+- The runtime image supports the model, GPU architecture, quantization format,
+  attention backend, and the vLLM multi-node command-line arguments used here.
+- Both Pods can read identical model files. Use an RWX PVC, an OCI ModelCar that
+  can be pulled by both nodes, or separate node-local copies with identical
+  contents.
+- Network policy and host networking allow TCPStore rendezvous on port `29501`
+  and the ports selected dynamically by NCCL. Low-performance Ethernet can make
+  the service functional but unsuitable for production.
+- CPU and memory requests fit on both GPU nodes. GPU capacity alone is not enough
+  for scheduling.
+
+Check that the required APIs are installed:
+
+```bash
+kubectl api-resources | grep -E 'LLMInferenceService|LeaderWorkerSet'
+```
+
+## Prepare the Manifest
+
+Download or copy the
+[two-node, four-GPU-per-node template](https://github.com/alauda/aml-docs/tree/master/docs/en/deploy/inference_service/guides/assets/llm-d-multi-node-vllm-2x4.yaml).
+
+Replace these values before applying it:
+
+| Placeholder | Replace with |
+| --- | --- |
+| `your-namespace` | Namespace where the service and model PVC exist |
+| `your-registry/vllm-openai:your-tag` | Runtime image validated for the model and GPU architecture; use an immutable digest in production |
+| `pvc://your-model-pvc/path/to/model` | Shared model URI, or the storage URI used by your cluster |
+| `distributed-model` | Name exposed through the OpenAI-compatible API |
+| `--max-model-len 131072` | Context limit that fits the available KV cache and expected concurrency |
+| `nvidia.com/gpu` | GPU resource key used by the cluster |
+
+The template uses the standard `nvidia.com/gpu` resource. If the cluster uses
+HAMi, replace it with the HAMi resource contract used by an existing working Pod,
+for example `nvidia.com/gpualloc`, `nvidia.com/gpucores`, and
+`nvidia.com/gpumem`. HAMi still evaluates each Pod independently on one node.
+
+Add model-specific flags only after checking the exact runtime image. Examples
+include quantization, Expert Parallel, tool-call parser, reasoning parser, and a
+hardware-specific attention backend. Keep speculative decoding disabled for the
+first bring-up so it is not mixed with multi-node troubleshooting.
+
+### Understand the Parallelism Fields
+
+The Kubernetes and vLLM settings must agree:
+
+| Layer | Setting | Example value |
+| --- | --- | ---: |
+| Logical service | `spec.replicas` | 1 |
+| LLMInferenceService | `spec.parallelism.tensor` | 4 |
+| LLMInferenceService | `spec.parallelism.pipeline` | 2 |
+| Leader vLLM | `--tensor-parallel-size` | 4 |
+| Leader vLLM | `--pipeline-parallel-size` | 2 |
+| Worker vLLM | `--tensor-parallel-size` | 4 |
+| Worker vLLM | `--pipeline-parallel-size` | 2 |
+| Both vLLM Pods | `--nnodes` | 2 |
+
+The leader uses its Pod IP as `--master-addr`. LWS injects
+`LWS_LEADER_ADDRESS` into the worker, which uses that address to join the same
+TCPStore and NCCL process group. The worker runs with `--headless`; only the
+leader exposes the inference API.
+
+## Apply the Service
+
+Apply the manifest:
+
+```bash
+kubectl apply -f llm-d-multi-node-vllm-2x4.yaml
+```
+
+You do not need to delete an existing `LLMInferenceService` before applying an
+updated Pod template. KServe and LWS reconcile the generated workload.
+
+Watch both the logical service and its Pods:
+
+```bash
+watch -n 5 'kubectl -n your-namespace get llminferenceservice vllm-multinode; kubectl -n your-namespace get pods -o wide | grep -E "NAME|vllm-multinode"'
+```
+
+The expected result is one leader Pod and one worker Pod on different nodes. The
+leader becomes Ready only after both nodes join the distributed engine and the
+OpenAI-compatible API starts.
+
+## Verify with a Real Inference Request
+
+`Ready=True` and `/health` are necessary but do not prove that a request can pass
+through every pipeline stage. Port-forward the leader Pod:
+
+```bash
+kubectl -n your-namespace port-forward pod/vllm-multinode-kserve-mn-0 8000:8000
+```
+
+In another terminal, send a real request:
+
+```bash
+curl -sS http://127.0.0.1:8000/v1/chat/completions -H 'Content-Type: application/json' -d '{"model":"distributed-model","stream":false,"messages":[{"role":"user","content":"Reply with: multi-node inference succeeded"}],"temperature":0,"max_tokens":64}'
+```
+
+An HTTP 200 response with generated content confirms a basic end-to-end request.
+Before production, also verify representative long contexts, concurrent requests,
+multi-turn conversations, tool calls, Pod restarts, and latency and throughput.
+
+## Troubleshooting
+
+### LLMInferenceServiceConfig Is Missing
+
+Some KServe installations look up a preset when both `spec.worker` and
+`spec.parallelism.pipeline` are present. A reconciliation event similar to the
+following means the referenced preset does not exist:
+
+```text
+failed to get LLMInferenceServiceConfig
+"kserve-config-llm-worker-pipeline-parallel" not found
+```
+
+Create the preset with the exact name and API version installed in the cluster.
+The supplied template includes an empty namespace-local overlay because it
+provides complete leader and worker Pod specifications. Do not guess the API
+version; verify it first:
+
+```bash
+kubectl get crd llminferenceserviceconfigs.serving.kserve.io -o jsonpath='{.spec.versions[*].name}'
+```
+
+For AML releases that serve `v1alpha2`, use
+`serving.kserve.io/v1alpha2`. A `no matches for kind` error indicates that the
+manifest uses an API version not served by that cluster.
+
+### The Worker Pod Is Pending
+
+Inspect the scheduler event instead of relying only on `nvidia-smi`:
+
+```bash
+kubectl -n your-namespace describe pod <worker-pod> | tail -n 30
+```
+
+Common causes include:
+
+- insufficient allocatable GPU count or GPU memory according to HAMi;
+- insufficient CPU or system memory;
+- node selectors, taints, affinity, or topology rules;
+- a model PVC that cannot be mounted on the selected node.
+
+Physical free memory shown by `nvidia-smi` is not the same as scheduler-visible
+capacity. Check resource requests, HAMi allocation annotations, and all Pods that
+already reserve GPUs on the node.
+
+### Ranks Join and Then Report TCPStore or NCCL Broken Pipe
+
+TCPStore `Broken pipe`, NCCL heartbeat warnings, and process termination at the
+end of the log are often secondary errors after one rank has already exited.
+Find the earliest engine or worker exception in both Pods:
+
+```bash
+kubectl -n your-namespace logs <pod> -p --all-containers --prefix | grep -m1 -A40 -E 'Traceback|ValueError|RuntimeError|ERROR'
+```
+
+Typical primary causes are an unsupported attention backend, a runtime image that
+does not support the GPU architecture, model-loading failure, or insufficient KV
+cache for the model's default maximum sequence length.
+
+### The Default Context Length Does Not Fit
+
+vLLM checks whether at least one request at `max_model_len` can fit in the
+available KV cache. If startup reports the required and available KV cache sizes,
+set `--max-model-len` below the estimated maximum and retain operational margin
+for concurrency and memory variation. Increasing `--gpu-memory-utilization` can
+help only when the additional GPU memory is genuinely available; it does not fix
+an incompatible kernel or runtime.
+
+## Related Documentation
+
+- [Alauda Build of LeaderWorkerSet](../../components/lws/intro.mdx)
+- [Alauda Build of KServe](../../components/kserve/intro.mdx)
+- [Enable Expert Parallel for vLLM Inference Services](./vllm_expert_parallel.mdx)
+- [llm-d](https://github.com/llm-d/llm-d)
+- [vLLM Parallelism and Scaling](https://docs.vllm.ai/en/latest/serving/parallelism_scaling/)

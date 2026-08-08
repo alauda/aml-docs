@@ -209,7 +209,11 @@ This review confirms that the intended vLLM arguments were applied to the servic
 Multi-node EP deployments require additional distributed runtime and networking configuration, including per-node launch settings, node roles, and data-parallel communication settings.
 
 :::warning
-This page focuses on the single-node configuration pattern. If you need multi-node EP, refer to the official vLLM guide and adapt the deployment model to your cluster topology and runtime environment.
+This page focuses on the single-node configuration pattern. For the Alauda AI
+leader/worker deployment workflow, see
+[Deploy a Multi-Node vLLM Service with llm-d](./llm-d-multi-node.mdx), then add
+the EP flags supported by your model and runtime image. Also review the official
+vLLM guide for the EP-specific communication topology.
 :::
 
 ## References \{#references}
