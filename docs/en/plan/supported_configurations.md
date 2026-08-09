@@ -123,7 +123,7 @@ This page lists the currently maintained Alauda AI versions in the component mat
 
 ## Notes
 
-(1) Alauda Container Platform v4.0.x is no longer supported in Alauda AI v2.8.
+(1) Alauda AI v2.8 no longer supports Alauda Container Platform v4.0.x. Alauda AI v2.3.x remains supported until Alauda Container Platform v4.0.x reaches end of life.
 
 (2) 'Alauda AI Essentials' is removed after Alauda AI v2.6.
 
