@@ -19,7 +19,7 @@ Before installing **Alauda Build of InferNex Bridge**, ensure the target cluster
 | KServe                          | Operator        | Required when using the KServe `LLMInferenceService` entry point. The declared upstream compatibility range is KServe v0.17.0-v0.19.0. Alauda Build of KServe v0.16.1 has also been validated. |
 | Envoy Gateway and Gateway API   | Operator / CRDs | Required when exposing inference services through Gateway API resources.                                                                                                                       |
 | Gateway API Inference Extension | CRDs            | Required for `InferencePool` based intelligent routing.                                                                                                                                        |
-| Alauda Build of LeaderWorkerSet | Cluster Plugin  | Install it before InferNex Bridge. The controller watches `LeaderWorkerSet` resources and uses them for multi-node inference workloads.                                                        |
+| Alauda Build of LeaderWorkerSet | Operator (managed by AmlCluster) | Required for InferNex Bridge. The controller watches `LeaderWorkerSet` resources and uses them for multi-node inference workloads. It is normally enabled through the `lws` component in the `default` `AmlCluster`; see [Install Alauda AI](../../../installation/ai-cluster.mdx). |
 | Inference runtime prerequisites | Runtime         | Prepare NPU nodes, model storage, runtime templates, runtime images, and network access required by the selected inference engine.                                                             |
 
 :::info
@@ -42,7 +42,7 @@ The following CRDs are not installed by this OLM bundle. Install them separately
 
 | CRD                                         | Source Project                                             | When Required                                                     | How to Install                                                                                                                                   |
 | ------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `leaderworkersets.leaderworkerset.x-k8s.io` | [Alauda Build of LeaderWorkerSet](../lws/index.mdx)        | InferNex Bridge controller and multi-node inference workloads     | Follow the [LeaderWorkerSet installation guide](../lws/install.mdx) before installing InferNex Bridge.                                           |
+| `leaderworkersets.leaderworkerset.x-k8s.io` | [Alauda Build of LeaderWorkerSet](../lws/index.mdx)        | InferNex Bridge controller and multi-node inference workloads     | Ensure LeaderWorkerSet is installed and running. It is normally managed through the `lws` component in the `default` `AmlCluster`; see [Install Alauda AI](../../../installation/ai-cluster.mdx). |
 | `rolebasedgroups.workloads.x-k8s.io`        | [RoleBasedGroup (RBG)](https://github.com/sgl-project/rbg) | ResourceScalingGroup targets that explicitly use `RoleBasedGroup` | Install from the upstream [RBG v0.7.0 release manifest](https://raw.githubusercontent.com/sgl-project/rbg/v0.7.0/deploy/kubectl/manifests.yaml). |
 
 The `rolebasedgroups.workloads.x-k8s.io` CRD is provided by the upstream [RoleBasedGroup (RBG) project](https://github.com/sgl-project/rbg). It is a conditional dependency and is not required for Deployment or LeaderWorkerSet targets. To install the upstream RBG v0.7.0 controller and CRDs, use the versioned release manifest:
@@ -242,18 +242,11 @@ kubectl get deployment,daemonset,service -n <inference-service-namespace> \
 
 Expected workloads include the EagleEye hardware diagnosis Deployment, hardware monitor DaemonSet, and network performance exporter DaemonSet. If EagleEye is not required, keep all three child switches set to `false`.
 
-## Upload Operator \{#upload-operator}
+## Upload the Operator Package
 
-Obtain the arm64 installation package from your Alauda product delivery channel:
-`infernex-bridge.alpha.arm64.v26.6.0.tgz`.
+Obtain the arm64 installation package from your Alauda product delivery channel, then upload the package following [Upload Packages](../../../installation/package-upload.mdx).
 
-Use the `violet` command to publish it to the platform repository:
-
-```bash
-violet push --platform-address=<platform-access-address> --platform-username=<platform-admin> --platform-password=<platform-admin-password> infernex-bridge.alpha.arm64.v26.6.0.tgz
-```
-
-## Install Operator
+## Install the Operator
 
 In **Administrator** view:
 
@@ -302,7 +295,7 @@ For community-maintained examples, see [InferNex Bridge v26.6.0 examples](https:
    kubectl get infernexservice,infernexserviceconfig -A -o yaml > infernex-bridge-backup.yaml
    ```
 
-2. Upload the new version of the **Alauda Build of InferNex Bridge** operator package using the `violet` tool.
+2. Upload the new version of the **Alauda Build of InferNex Bridge** operator package following [Upload Packages](../../../installation/package-upload.mdx).
 3. Go to the `Administrator` -> `Marketplace` -> `OperatorHub` page, find **Alauda Build of InferNex Bridge**, review the target version, and click **Confirm** to apply it.
 
 ### Verification
@@ -324,7 +317,7 @@ kubectl get crd \
 Use a previous package only when its CRDs are compatible with the custom
 resources already stored in the cluster. In OperatorHub, select the previous
 available version and confirm the manual upgrade action. If the previous version
-is not available, upload its installation package with `violet` first.
+is not available, upload its installation package first (see [Upload Packages](../../../installation/package-upload.mdx)).
 
 After rollback, verify the controller, CRDs, inference services, runtime image
 IDs, and one representative inference request. Do not delete the five bundled

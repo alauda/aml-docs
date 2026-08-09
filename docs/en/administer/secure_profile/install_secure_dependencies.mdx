@@ -8,20 +8,10 @@ The [secure profile](./enable_secure_profile.mdx) requires **cert-manager**, **S
 
 ## Common installation pattern
 
-Each component is delivered as a platform package — an OLM operator or a Cluster Plugin. The steps are the same for all of them:
+Each component is delivered as a platform package — an OLM operator or a Cluster Plugin. For the common package download, `violet` setup, and upload procedure, see [Upload Packages](../../installation/package-upload.mdx). The pattern is the same for all of them:
 
-1. **Download** the component package from the <Term name="company" /> Customer Portal — `https://cloud.alauda.cn` (China) or `https://cloud.alauda.io` (international).
-2. **Upload** it to the platform with `violet`:
-
-   ```bash
-   violet push \
-     --platform-address=<platform-access-address> \
-     --platform-username=<platform-admin> \
-     --platform-password=<platform-admin-password> \
-     <package>.tgz
-   ```
-
-   `violet` relocates the package's images into the platform registry, so the components install on **air-gapped** clusters.
+1. **Download** the component package from the <Term name="company" /> Customer Portal.
+2. **Upload** it to the platform following [Upload Packages](../../installation/package-upload.mdx). `violet` relocates the package's images into the platform registry, so the components install on **air-gapped** clusters.
 3. **Install** from the web console — **Administrator → Marketplace / OperatorHub**, selecting the target cluster — or with `kubectl` (a `Subscription` for OLM operators, a `ModuleInfo` for Cluster Plugins).
 
 The sections below cover the per-component configuration.
@@ -30,7 +20,7 @@ The sections below cover the per-component configuration.
 
 SPIRE issues the workload SVIDs that AuthBridge uses for mTLS. It is delivered as a **Cluster Plugin**.
 
-Upload the SPIRE package with `violet` and install it on the **workload cluster** (Marketplace → install on cluster, or create a `ModuleInfo` from the global cluster). Configure the install:
+Upload the SPIRE package following [Upload Packages](../../installation/package-upload.mdx) and install it on the **workload cluster** (Marketplace → install on cluster, or create a `ModuleInfo` from the global cluster). Configure the install:
 
 | Setting | Notes |
 |---------|-------|
@@ -59,7 +49,7 @@ Keycloak issues the OAuth2/JWT tokens that AuthBridge validates. It is delivered
 
 ### 1. Install the operator
 
-Upload the Keycloak operator package with `violet`, then install it from **OperatorHub**. Platform operators require the **`Manual`** upgrade approval — approve the generated `InstallPlan` to complete the install.
+Upload the Keycloak operator package following [Upload Packages](../../installation/package-upload.mdx), then install it from **OperatorHub**. Platform operators require the **`Manual`** upgrade approval — approve the generated `InstallPlan` to complete the install.
 
 ### 2. Deploy a Keycloak instance
 
@@ -117,7 +107,7 @@ The value you set as `keycloak.publicUrl` becomes the JWT issuer (`iss`) claim t
 
 The secure profile uses Istio **ambient** mesh (ztunnel) for namespace-level mTLS, delivered as **<Term name="company" /> Service Mesh v2** (the `servicemesh-operator2` / Sail operator).
 
-Install the **Alauda Service Mesh v2** operator from the Marketplace (download → `violet` → install), version **2.1.1 or later** (ambient support). Ambient on ACP also requires the **Multus** CNI plugin and `kube-ovn` ≥ v4.1.5.
+Install the **Alauda Service Mesh v2** operator from the Marketplace (download → upload via [Upload Packages](../../installation/package-upload.mdx) → install), version **2.1.1 or later** (ambient support). Ambient on ACP also requires the **Multus** CNI plugin and `kube-ovn` ≥ v4.1.5.
 
 Then enable ambient by creating the `IstioCNI`, `Istio`, and `ZTunnel` resources with `profile: ambient`. Create the `istio-cni`, `istio-system`, and `ztunnel` namespaces first, each labeled `istio-discovery=enabled`. The full, authoritative procedure (prerequisites, namespace labels, verification) is in the **Alauda Service Mesh v2** documentation — *Installing Istio ambient mode* ([`alauda/servicemesh2-docs`](https://github.com/alauda/servicemesh2-docs/blob/master/docs/en/installing/ambient-mode/installing-ambient-mode.mdx)). In summary:
 

@@ -1,0 +1,148 @@
+---
+weight: 30
+---
+
+# MaaS User Guide
+
+This guide explains how developers and application users call models through Model as a Service (MaaS). You will learn how to create an API key, find the models available to you, send an OpenAI-compatible request, and review your own quota and usage.
+
+For the product overview, see [Model as a Service (MaaS)](intro.mdx). For administration tasks, see [MaaS Administrator Guide](administrator.mdx).
+
+## Open My Subscriptions
+
+1. Open the account menu in the top-right corner of the Alauda AI console.
+2. Select **My Subscriptions**.
+
+MaaS opens in a side panel over the current page. It is tied to your user identity rather than to a project namespace, so you can open it from any view.
+
+The panel contains two tabs:
+
+- **API Keys** — create and manage your MaaS credentials and find an access example.
+- **Usage** — review quota status and personal usage for a subscription.
+
+## Find your models and endpoint
+
+On the **API Keys** tab, the **Access** section lists the models currently available to you. Each row shows the model name and endpoint.
+
+Select a model to update the example request. Use the copy control next to the endpoint or example request to copy it to your clipboard.
+
+The endpoint normally has this form:
+
+```text
+https://<maas-gateway>/v1
+```
+
+Use the model name shown in the access list as the `model` value in your request. Do not use the name of the underlying Kubernetes resource unless it is also the published model name.
+
+## Create an API key
+
+1. On the **API Keys** tab, click **Create API Key**.
+2. Enter a descriptive key name, such as `my-chatbot-dev`.
+3. Select the subscription to use.
+4. Select a validity period. Depending on the platform policy, you can choose a preset such as 30 or 90 days, a custom duration, or a permanent key.
+5. Click **Create**.
+6. Copy the plaintext key and store it securely.
+
+The plaintext key is shown **only once** and cannot be retrieved later. The dialog also provides a ready-to-run request with the new key filled in. Treat the key like a password:
+
+- Do not commit it to source control.
+- Do not include it in browser code or public notebooks.
+- Store it in a secret manager or an environment variable.
+- Create separate keys for separate applications when possible.
+- Revoke a key immediately if it may have been exposed.
+
+The key list shows the key name, status, subscription, creation time, and last-used time. A key can have one of the following statuses:
+
+- `active` — can be used to call subscribed models.
+- `expired` — its validity period has ended.
+- `revoked` — it has been disabled and cannot be used.
+
+You can **Revoke** an active key. After it is revoked, you can delete it from the list.
+
+## Call a model
+
+MaaS exposes an OpenAI-compatible API. Set the gateway URL and API key as environment variables:
+
+```bash
+export MAAS_ENDPOINT="https://<maas-gateway>/v1"
+export MAAS_API_KEY="<your-api-key>"
+```
+
+Send a chat completion request with `curl`:
+
+```bash
+curl "${MAAS_ENDPOINT}/chat/completions" \
+  -H "Authorization: Bearer ${MAAS_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "<published-model-name>",
+    "messages": [
+      {"role": "user", "content": "Hello"}
+    ]
+  }'
+```
+
+You can also use an OpenAI-compatible Python client:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://<maas-gateway>/v1",
+    api_key="<your-api-key>",
+)
+
+response = client.chat.completions.create(
+    model="<published-model-name>",
+    messages=[{"role": "user", "content": "Hello"}],
+)
+
+print(response.choices[0].message.content)
+```
+
+Replace `<published-model-name>` with the model name shown in your **Access** list. The MaaS gateway chooses the backend associated with that published model name; your application does not need to know the backend service URL.
+
+## Understand quota behavior
+
+MaaS quotas are configured by the administrator for each model in your subscription. A subscription can have multiple time windows, such as an hourly limit and a daily limit.
+
+Quota consumption is tracked per user, subscription, and model. Your API keys share your user quota:
+
+- Creating a second API key does not reset or increase your quota.
+- Requests made with your different keys count toward the same user allowance.
+- Other users have separate quota buckets.
+
+When a quota window is close to its limit, reduce request volume or ask your administrator to review the subscription. When the quota is exhausted, the gateway returns `429 Too Many Requests`. The quota panel shows the configured limit, current usage when available, and the reset time.
+
+## View personal usage
+
+Open the **Usage** tab in **My Subscriptions**:
+
+1. Select a subscription.
+2. Review the per-model quota bars.
+3. Choose a time range: **Last 24 hours**, **Last 7 days**, or **Last 30 days**.
+4. Optionally filter the chart by model or API key.
+5. Click refresh to load the latest data.
+
+The usage summary includes request count, total tokens, and cached tokens. The chart shows the token series over time, including uncached input, cached input, and output tokens when the backend provides those values.
+
+This is a personal view: it includes only requests made with API keys that belong to you. It does not show another user's usage, even if you are an administrator in another part of the platform.
+
+## Understand request errors
+
+| Status | Meaning | What to do |
+| --- | --- | --- |
+| `401 Unauthorized` | The API key is missing, invalid, expired, or revoked. | Check the `Authorization` header and create a new key if necessary. |
+| `403 Forbidden` | You do not have access to the requested model or do not have an applicable subscription. | Confirm the model name and contact your MaaS administrator. |
+| `429 Too Many Requests` | The subscription quota for the user, model, or time window is exhausted. | Wait for the quota to reset or ask the administrator to review the limit. |
+| `5xx` | The gateway or model backend encountered an error. | Retry when appropriate and contact the platform administrator if the problem continues. |
+
+A model can also be visible in the access list but temporarily unavailable while its inference service is not ready. If requests continue to fail after the service should be ready, contact the administrator with the model name and request time.
+
+## Security recommendations
+
+- Keep API keys out of source code, Git repositories, shell history, and client-side applications.
+- Use the shortest validity period that meets your needs.
+- Use one key per application or environment so a compromised key can be revoked without interrupting unrelated applications.
+- Revoke unused or exposed keys from **My Subscriptions**.
+- Never share the MaaS API key with the external provider. MaaS handles the upstream provider credential on the gateway side.

@@ -1,0 +1,134 @@
+---
+weight: 20
+---
+
+# MaaS Administrator Guide
+
+This guide explains how platform administrators manage Model as a Service (MaaS): publish model services, create subscriptions, enforce token quotas, configure optional guardrails, and review usage.
+
+For the product overview, see [Model as a Service (MaaS)](intro.mdx). For the developer workflow, see [MaaS User Guide](user.mdx).
+
+## Publish platform inference services
+
+A model owner publishes a platform-hosted inference service from the service's management page. The service must be an `LLMInferenceService`.
+
+1. Open the project or namespace that contains the inference service.
+2. Open the service management page.
+3. From the service actions, select **Publish to MaaS**.
+4. Enter an optional display name and description.
+5. Click **Publish**.
+
+Publishing creates a MaaS model reference. The model then appears in the administrator's **MaaS** → **Models** → **Published Models** list and can be added to subscriptions.
+
+Unpublishing removes the model from the MaaS catalog. Existing subscriptions that reference the model no longer resolve it, so remove or replace the model in those subscriptions before unpublishing it.
+
+## Import an external model service
+
+Use an external model service when the model is hosted outside the platform or is not represented by an `LLMInferenceService`.
+
+1. In the **Administrator** view, open **MaaS** → **Models**.
+2. On the **Model Services** tab, click **Import External Model Service**.
+3. Enter a lowercase name for the service.
+4. Enter the provider's OpenAI-compatible endpoint, including its API base path when required. For example, use `https://host/v1` when the provider expects `/v1` requests.
+5. Enter an upstream API key if the provider requires one. Leave it empty for an endpoint that does not require credentials.
+6. Click **Create**.
+
+The API key is stored in a Kubernetes Secret and injected by the gateway when it calls the provider. The consumer's MaaS API key and the provider's upstream key are separate credentials: developers receive only the MaaS key.
+
+### Publish models from an external service
+
+After importing a service:
+
+1. On the **Model Services** tab, open the service action menu.
+2. Select **Publish Models**.
+3. Add, rename, or remove the model names exposed by that service.
+4. Click **Save**.
+
+Each published model becomes a separate subscribable model. One external service can therefore expose multiple model names, and those models can use the same endpoint and upstream credential.
+
+The **Published Models** tab shows the model name, namespace, reference target, and readiness phase. Use the type filter to distinguish **External** models from models backed by an **Inference Service**.
+
+## Create a subscription
+
+A subscription is the unit of model access and token quota. A user must be a subscriber of a subscription that contains a model before they can call that model.
+
+1. In the **Administrator** view, open **MaaS** → **Subscriptions**.
+2. Click **Create Subscription**.
+3. Enter a subscription name.
+4. Add one or more subscribers by username.
+5. Add one or more published models.
+6. For each model, configure at least one token limit and time window.
+7. Optionally add more quota tiers for the same model.
+8. Click **Save**.
+
+:::info
+Users can see a subscription in **My Subscriptions** only when they are included as subscribers. Add each user's username to **Subscribers** to grant access to that user. To make the subscription available to all authenticated users, add `*` as a subscriber. The `*` value is a wildcard, not a literal username; users still need a valid MaaS API key to call the models.
+:::
+
+For each model, the form accepts a limit in millions of tokens and a window such as **Minute**, **Hour**, or **Day**. For example, you can set `100M` tokens per hour and `1000M` tokens per day. All configured tiers are enforced.
+
+A subscription can contain several models, and each model can have different limits. This lets you provide different access tiers without creating a separate gateway for each model.
+
+The subscription list shows the subscription name, models, subscribers, and current phase. Use the row action menu to view, edit, or delete a subscription.
+
+## Configure guardrails
+
+MaaS can optionally check model requests and responses with configured content guardrails.
+
+### Enable guardrails
+
+1. Open **MaaS** → **Guardrails**.
+2. Click **Edit settings**.
+3. Enable **guardrails**.
+4. Select a failure policy:
+   - **End request on guardrails failure** (`FailClosed`) rejects or ends the request when the guardrails engine cannot complete the check.
+   - **Ignore guardrails on failure** (`FailOpen`) allows the request to continue when the guardrails engine fails.
+5. Save the settings.
+
+Disabling guardrails removes the data-plane integration. Guardrail settings that remain on subscriptions do not take effect while the global feature is disabled.
+
+### Create a guardrail configuration
+
+1. On the **Guardrails** page, click **Create Config**.
+2. Enter a configuration ID using lowercase letters, numbers, and hyphens.
+3. Configure the guardrail models, including model type, model name, and base URL.
+4. Add an optional API key for a guardrail model. Credentials are stored as Kubernetes Secrets and exposed to the guardrails engine through environment variables.
+5. Edit the `config.yaml` content.
+6. Edit the `rails.co` content when your configuration requires Colang flows.
+7. Click **Save**.
+
+A configuration can contain multiple guardrail models, but each model type must be unique within the configuration. The **Guardrails** list shows whether a configuration is attached to a subscription.
+
+### Attach guardrails to a subscription model
+
+When creating or editing a subscription, enable guardrails for a model and select one of the available guardrail configurations. The setting is applied per model, so different models in the same subscription can use different configurations or no guardrails.
+
+## Review usage and reports
+
+### Subscription management usage
+
+The **Subscriptions** page shows the subscriptions and their configured limits. Use the subscription's usage view, where available, to review token consumption for the selected subscription and model.
+
+### Usage report
+
+Open **MaaS** → **Report** to review administrator-level usage:
+
+1. Select a time range: **Last 1 day**, **Last 7 days**, **Last 30 days**, **Last 90 days**, or **Last 1 year**.
+2. Optionally select a subscription.
+3. Search by username.
+4. Click refresh to reload the data.
+
+The report displays:
+
+- Username
+- Subscription
+- Total tokens
+- Input tokens
+- Cached tokens
+- Output tokens
+- Reasoning tokens
+
+Click **Export CSV** to export the filtered report. The export dialog lets you group data by subscription, user, API key, or model, and group time by day or month.
+
+Usage data is intended for operational visibility, quota observation, and showback. It is not a billing settlement record.
+

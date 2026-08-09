@@ -4,40 +4,42 @@ weight: 20
 
 # Install Feast
 
-This page describes how to install the Feast Operator on Alauda Container Platform. After installation, `FeatureStore` custom resources can be created to deploy Feast services.
+In Alauda AI 2.8.x, **Alauda Build of Feast** is installed and managed by Alauda AI. Set the `feast` component in the cluster-scoped `default` `AmlCluster` to `Managed`; you do not need to install the Operator from OperatorHub or create a custom resource manually. After the component is reconciled, `FeatureStore` custom resources can be created to deploy Feast services.
 
 ## Upload the Operator Package
 
-Download the Feast Operator package, for example `feast-operator.ALL.xxxx.tgz`.
+Download the Feast Operator package, then upload the package following [Upload Packages](../../../installation/package-upload.mdx).
 
-Use `violet` to upload the package to the platform repository:
-
-```bash
-violet push --platform-address=<platform-access-address> --platform-username=<platform-admin> --platform-password=<platform-admin-password> feast-operator.ALL.xxxx.tgz
-```
-
-## Install the Operator
+## Enable Feast
 
 In **Administrator** view:
 
-1. Go to `Marketplace` / `Operator Hub`.
-2. Select the destination cluster.
-3. Search for **Alauda Build of Feast**.
-4. Click **Install**.
-5. Keep the default installation settings unless the environment requires a different namespace.
-6. Complete the installation.
+1. Open **Marketplace** > **OperatorHub**.
+2. Select the target cluster and open **Alauda AI**.
+3. Open the **All Instances** tab and edit the `default` `AmlCluster` instance.
+4. Set `spec.components.feast.managementState` to `Managed`.
+5. Save the `AmlCluster` instance and wait for the Feast Operator to become ready.
+
+You can apply the component setting in the `AmlCluster` YAML:
+
+```yaml
+spec:
+  components:
+    feast:
+      managementState: Managed
+```
 
 ## Verify the Installation
 
-After installation, verify that the operator is running:
+Check the `AmlCluster` status and the Feast Operator:
 
 ```bash
+kubectl get amlcluster default
+
 kubectl get pods -n feast-operator-system
 ```
 
-The Feast Operator controller pod should be in `Running` state.
-
-The `FeatureStore` CRD can also be verified:
+The `AmlCluster` should report `Phase=Ready`, and the Feast Operator controller pod should be in `Running` state. The `FeatureStore` CRD is registered once the operator is ready:
 
 ```bash
 kubectl get crd featurestores.feast.dev
@@ -45,6 +47,6 @@ kubectl get crd featurestores.feast.dev
 
 ## Next Steps
 
-Installing the operator creates only the controller and CRDs. Feast services are created after a `FeatureStore` custom resource is applied.
+Enabling the component creates the Operator, controller, and CRDs. Feast services are created after a `FeatureStore` custom resource is applied.
 
 Continue with [Quickstart](./quickstart) for `FeatureStore` configuration and deployment examples.

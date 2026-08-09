@@ -2,7 +2,7 @@
 weight: 20
 ---
 
-# Installation
+# Install Spark Operator
 
 Alauda Build of Spark Operator is delivered as an **OLM Operator** and installed from the platform **OperatorHub**.
 
@@ -12,23 +12,15 @@ Alauda Build of Spark Operator is delivered as an **OLM Operator** and installed
 - Target cluster architecture `linux/amd64` or `linux/arm64` (the operator ships multi-arch images).
 - Operator Lifecycle Manager (OLM) available on the target cluster (provided by ACP).
 
-## Upload Operator \{#upload-operator}
+## Upload the Operator Package
 
-Download the `Alauda Build of Spark Operator` bundle from the <Term name="company" /> Customer Portal / Marketplace (e.g. `spark-operator.ALL.xxxx.tgz`), then publish it to the platform repository with the `violet` command-line tool:
-
-```bash
-violet push \
-  --platform-address=<platform-access-address> \
-  --platform-username=<platform-admin> \
-  --platform-password=<platform-admin-password> \
-  spark-operator.ALL.xxxx.tgz
-```
+Download the `Alauda Build of Spark Operator` bundle from the <Term name="company" /> Customer Portal / Marketplace, then upload the package following [Upload Packages](../../../installation/package-upload.mdx).
 
 :::info
 The operator bundle records its runtime images (the operator image and the Apache Spark runtime image) in the CSV `relatedImages`, so a `violet` release relocates them into the platform registry. This makes the operator installable on **air-gapped** clusters without reaching `docker.io`.
 :::
 
-## Install Operator
+## Install the Operator
 
 In the **Administrator** view:
 

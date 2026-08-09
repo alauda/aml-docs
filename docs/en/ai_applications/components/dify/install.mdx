@@ -12,7 +12,7 @@ For what Dify is and the components it deploys, see [Introduction](./intro).
 
 | You need | Why |
 |---|---|
-| The Dify operator package (`.tgz`) | Pushed via `violet` so the operator appears in OperatorHub |
+| The Dify operator package | Downloaded and uploaded with the common package procedure so the operator appears in OperatorHub (see [Upload Packages](../../../installation/package-upload.mdx)) |
 | External **PostgreSQL 12+** | Dify's main database (only PostgreSQL is supported) |
 | External **Redis 6+** (standalone or Sentinel) | Cache + Celery broker; Cluster mode is **not** supported |
 | External **pgvector** *(optional)* | Vector store for RAG; disable if not using RAG |
@@ -22,15 +22,7 @@ For what Dify is and the components it deploys, see [Introduction](./intro).
 
 ## Step 1 — Publish the Operator Package
 
-Download the Dify operator package (e.g. `dify-operator.alpha.ALL.v<version>.tgz`) from Customer Support / Portal, then push it to the platform repository so it appears in **Marketplace / OperatorHub**:
-
-```bash
-violet push \
-  --platform-address=<platform-access-address> \
-  --platform-username=<platform-admin> \
-  --platform-password=<platform-admin-password> \
-  dify-operator.alpha.ALL.v<version>.tgz
-```
+Download the Dify operator package from Customer Support / Portal, then upload the package following [Upload Packages](../../../installation/package-upload.mdx) so it appears in **Marketplace / OperatorHub**.
 
 ## Step 2 — Install the Dify Operator
 

@@ -18,7 +18,7 @@ This turns a per-consumer credential, such as an SSO (Single Sign-On) token or a
 
 ## Prerequisites
 
-1. Envoy AI Gateway is installed. See [Install Envoy AI Gateway](../components/envoy_ai_gateway/install).
+1. Envoy AI Gateway is installed. It is managed by Alauda AI through the `envoyAIGateway` component in the `default` `AmlCluster`; see [Install Alauda AI](../../../installation/ai-cluster.mdx) and the [Envoy AI Gateway introduction](../components/envoy_ai_gateway/intro).
 2. An `AIGatewayRoute` already routes requests to one or more backends.
 3. For the OIDC/JWT path: an OIDC issuer with a reachable JWKS endpoint. The platform's built-in identity provider, Dex, is the default; any other OIDC issuer (Keycloak, Auth0, Okta, GitHub OIDC, an enterprise Entra ID tenant) also works as long as the gateway can reach its `/.well-known/openid-configuration` and JWKS URL.
 4. For the API-key path: cluster permission to create `Secret` objects in the gateway's namespace.

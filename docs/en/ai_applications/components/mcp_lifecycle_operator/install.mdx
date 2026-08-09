@@ -2,27 +2,19 @@
 weight: 20
 ---
 
-# Installation
+# Install MCP Lifecycle Operator
 
 Alauda Build of MCP Lifecycle Operator is delivered as an **OLM Operator** and installed from the platform **OperatorHub**.
 
-## Upload Operator
+## Upload the Operator Package
 
-Download the Alauda Build of MCP Lifecycle Operator package from the <Term name="company" /> Customer Portal / Marketplace, then publish it to the platform repository with the `violet` command-line tool:
-
-```bash
-violet push \
-  --platform-address=<platform-access-address> \
-  --platform-username=<platform-admin> \
-  --platform-password=<platform-admin-password> \
-  mcp-lifecycle-operator.ALL.xxxx.tgz
-```
+Download the Alauda Build of MCP Lifecycle Operator package from the <Term name="company" /> Customer Portal / Marketplace, then upload the package following [Upload Packages](../../../installation/package-upload.mdx).
 
 :::info
 The operator package includes the OLM bundle and the related runtime images required by the operator. For air-gapped clusters, make sure the MCP server images used by your `MCPServer` resources are also mirrored to a registry that the cluster can pull from.
 :::
 
-## Install Operator
+## Install the Operator
 
 In the **Administrator** view:
 
@@ -55,7 +47,7 @@ You should see the `mcp-lifecycle-operator-controller-manager` pod in `Running` 
 
 ## Upgrade Operator
 
-1. Upload the new Alauda Build of MCP Lifecycle Operator package with `violet push`.
+1. Upload the new Alauda Build of MCP Lifecycle Operator package following [Upload Packages](../../../installation/package-upload.mdx).
 2. Go to **Administrator** -> **Marketplace** -> **OperatorHub**.
 3. Find **Alauda Build of MCP Lifecycle Operator** and apply the new version according to the configured upgrade strategy.
 4. Verify the CSV, controller pod, and existing `MCPServer` resources after the upgrade.

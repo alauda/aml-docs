@@ -2,9 +2,9 @@
 weight: 20
 ---
 
-# Installation
+# Install MLflow
 
-MLflow is delivered as an **OLM Operator** (the *MLflow Operator*) and installed from the platform **OperatorHub**. Installing the tracking server is a two-step flow: install the operator, then create one `MLflow` custom resource that reconciles the tracking-server stack.
+In Alauda AI 2.8.x, **MLflow** is installed and managed by Alauda AI. The `mlflow` component in the cluster-scoped `default` `AmlCluster` defaults to `Unmanaged`; set it to `Managed`, and Alauda AI installs the **MLflow Operator** automatically — you do not need to install the Operator from OperatorHub manually. Enabling the component installs the Operator only; you still create an `MLflow` custom resource to deploy the tracking-server stack, as described in [Create the MLflow tracking server](#create-the-mlflow-tracking-server).
 
 ## Prerequisites
 
@@ -26,38 +26,38 @@ MLflow is delivered as an **OLM Operator** (the *MLflow Operator*) and installed
   kubectl label namespace finetune mlflow-enabled=true
   ```
 
-## Upload Operator \{#upload-operator}
+## Upload the Operator Package
 
-Download the `MLflow Operator` bundle from the <Term name="company" /> Customer Portal / Marketplace (e.g. `mlflow.ALL.xxxx.tgz`), then publish it to the platform repository with the `violet` command-line tool:
-
-```bash
-violet push \
-  --platform-address=<platform-access-address> \
-  --platform-username=<platform-admin> \
-  --platform-password=<platform-admin-password> \
-  mlflow.ALL.xxxx.tgz
-```
+Download the `MLflow Operator` bundle from the <Term name="company" /> Customer Portal / Marketplace, then upload the package following [Upload Packages](../../../installation/package-upload.mdx).
 
 :::info
 The operator bundle records every runtime image (operator, MLflow tracking server, and the `oauth2-proxy`) in the CSV `relatedImages`, so a `violet` release relocates them into the platform registry. This makes the operator installable on **air-gapped** clusters without reaching `build-harbor.alauda.cn` / `docker.io`.
 :::
 
-## Install Operator
+## Enable MLflow
 
-In the **Administrator** view:
+In **Administrator** view:
 
-1. Click **Marketplace** / **OperatorHub**.
-2. At the top of the console, from the **Cluster** dropdown, select the destination cluster.
-3. Search for and select **MLflow Operator**, then click **Install**.
-4. Leave **Channel** unchanged (`stable`).
-5. Check that the **Version** is `v3.13.0`.
-6. Leave **Installation Location** unchanged — it defaults to the `mlflow-operator` namespace.
-7. Choose an **Upgrade Strategy** (`Manual` is recommended for production).
-8. Click **Install**.
+1. Open **Marketplace** > **OperatorHub**.
+2. Select the target cluster and open **Alauda AI**.
+3. Open the **All Instances** tab and edit the `default` `AmlCluster` instance.
+4. Set `spec.components.mlflow.managementState` to `Managed`.
+5. Save the `AmlCluster` instance and wait for the MLflow Operator to become ready.
+
+You can apply the component setting in the `AmlCluster` YAML:
+
+```yaml
+spec:
+  components:
+    mlflow:
+      managementState: Managed
+```
 
 Confirm the operator is ready before continuing:
 
 ```bash
+kubectl get amlcluster default
+
 # the CSV reports Succeeded
 kubectl get csv -n mlflow-operator | grep mlflow-operator
 
@@ -65,7 +65,9 @@ kubectl get csv -n mlflow-operator | grep mlflow-operator
 kubectl get pods -n mlflow-operator
 ```
 
-## Create the MLflow tracking server
+The `AmlCluster` should report `Phase=Ready`. Enabling the component installs the **MLflow Operator**; the tracking server is deployed only after you create an `MLflow` custom resource as described below.
+
+## Create the MLflow tracking server \{#create-the-mlflow-tracking-server}
 
 The operator does nothing until you create an `MLflow` custom resource (`mlflow.alauda.io/v1alpha1`). You can create it two ways:
 
