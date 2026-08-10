@@ -155,6 +155,35 @@ An HTTP 200 response with generated content confirms a basic end-to-end request.
 Before production, also verify representative long contexts, concurrent requests,
 multi-turn conversations, tool calls, Pod restarts, and latency and throughput.
 
+## Validated Example: GLM-5.2 on A100
+
+This deployment pattern was validated on AML 2.7 with
+[QuantTrio/GLM-5.2-Int4-Int8Mix](https://huggingface.co/QuantTrio/GLM-5.2-Int4-Int8Mix):
+
+- two nodes with four NVIDIA A100 80 GB GPUs per node;
+- tensor parallel size 4 and pipeline parallel size 2;
+- Expert Parallel enabled and speculative decoding disabled;
+- one real `/v1/chat/completions` request completed successfully with HTTP 200.
+
+The deployment used a customer-internal vLLM image built from the SM80 sparse
+MLA implementation proposed in
+[vLLM PR #47629](https://github.com/vllm-project/vllm/pull/47629). With one
+backend group, this result validates LLMInferenceService, LWS, vLLM, and NCCL
+multi-node execution. It does not benchmark llm-d scheduling or routing.
+
+:::warning
+As of August 10, 2026, PR #47629 has not been merged into an official vLLM
+release. Public vLLM images do not provide the SM80 sparse MLA backend required
+by GLM-5.2 on A100. Quantizing the model reduces weight memory but does not
+remove this runtime requirement. The model card's published vLLM verification
+uses eight H200 GPUs, not A100 GPUs.
+
+The customer image is not publicly available. Other A100 deployments must build
+and validate their own image from a pinned PR commit. This result validates basic
+multi-node inference only; it does not constitute long-context, concurrency,
+performance, tool-calling, or production-stability validation.
+:::
+
 ## Troubleshooting
 
 ### LLMInferenceServiceConfig Is Missing
