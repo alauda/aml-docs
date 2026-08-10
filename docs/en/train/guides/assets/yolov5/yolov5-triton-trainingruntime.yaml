@@ -45,46 +45,24 @@ spec:
                         - |
                           set -euo pipefail
 
-                          : "${BASE_MODEL_URL:?Set BASE_MODEL_URL}"
-                          : "${DATASET_URL:?Set DATASET_URL}"
-                          : "${OUTPUT_MODEL_URL:?Set OUTPUT_MODEL_URL}"
-                          : "${OUTPUT_MODEL_BRANCH:?Set OUTPUT_MODEL_BRANCH}"
-                          : "${GIT_USER:?Set GIT_USER}"
-                          : "${GIT_TOKEN:?Set GIT_TOKEN}"
+                          : "${BASE_MODEL_URI:?Set BASE_MODEL_URI}"
+                          : "${DATASET_URI:?Set DATASET_URI}"
+                          : "${OUTPUT_MODEL_URI:?Set OUTPUT_MODEL_URI}"
+                          : "${TRITON_MODEL_NAME:?Set TRITON_MODEL_NAME}"
+                          : "${AWS_S3_ENDPOINT:?Set AWS_S3_ENDPOINT}"
 
                           WORKSPACE=/workspace
                           MODEL_DIR="${WORKSPACE}/yolov5"
                           DATASET_DIR="${WORKSPACE}/datasets/coco128"
                           TRAIN_DIR="${WORKSPACE}/runs/train"
                           TRITON_MODEL_DIR="${WORKSPACE}/triton-model"
-                          BASE_MODEL_URL_NO_HTTPS="${BASE_MODEL_URL#https://}"
-                          DATASET_URL_NO_HTTPS="${DATASET_URL#https://}"
-                          OUTPUT_MODEL_URL_NO_HTTPS="${OUTPUT_MODEL_URL#https://}"
-                          OUTPUT_MODEL_NAME="$(basename "${OUTPUT_MODEL_URL%.git}")"
-
                           # Download the YOLOv5 source, pretrained weight, and dataset from
-                          # the model repositories. Git LFS is required for the images and .pt files.
-                          cat > /tmp/git-askpass <<'EOF'
-                          #!/bin/sh
-                          case "$1" in
-                            *Username*) printf '%s\n' "${GIT_USER}" ;;
-                            *Password*) printf '%s\n' "${GIT_TOKEN}" ;;
-                          esac
-                          EOF
-                          chmod 700 /tmp/git-askpass
-                          export GIT_ASKPASS=/tmp/git-askpass
-                          export GIT_TERMINAL_PROMPT=0
-
-                          GIT_LFS_SKIP_SMUDGE=1 git clone \
-                            "https://${BASE_MODEL_URL_NO_HTTPS}" \
-                            "${MODEL_DIR}"
-                          (cd "${MODEL_DIR}" && git lfs pull)
-
+                          # S3-compatible object storage. The TrainJob supplies the AWS credentials.
+                          aws --endpoint-url "${AWS_S3_ENDPOINT}" s3 sync \
+                            "${BASE_MODEL_URI}" "${MODEL_DIR}"
                           mkdir -p "${WORKSPACE}/datasets"
-                          GIT_LFS_SKIP_SMUDGE=1 git clone \
-                            "https://${DATASET_URL_NO_HTTPS}" \
-                            "${DATASET_DIR}"
-                          (cd "${DATASET_DIR}" && git lfs pull)
+                          aws --endpoint-url "${AWS_S3_ENDPOINT}" s3 sync \
+                            "${DATASET_URI}" "${DATASET_DIR}"
 
                           cd "${MODEL_DIR}"
                           python train.py \
@@ -113,7 +91,7 @@ spec:
                           cp "${TRAIN_DIR}/weights/best.torchscript" \
                             "${TRITON_MODEL_DIR}/1/model.pt"
                           cat > "${TRITON_MODEL_DIR}/config.pbtxt" <<EOF
-                          name: "${OUTPUT_MODEL_NAME}"
+                          name: "${TRITON_MODEL_NAME}"
                           platform: "pytorch_libtorch"
                           max_batch_size: 8
                           input [
@@ -134,22 +112,12 @@ spec:
                           cat > "${TRITON_MODEL_DIR}/README.md" <<EOF
                           # YOLOv5 Triton model
 
-                          Fine-tuned from ${BASE_MODEL_URL} using ${DATASET_URL}.
+                          Fine-tuned from ${BASE_MODEL_URI} using ${DATASET_URI}.
                           EOF
 
-                          # Publish the model artifact to the output model repository on a new branch.
-                          cd "${TRITON_MODEL_DIR}"
-                          git init
-                          git checkout -b "${OUTPUT_MODEL_BRANCH}"
-                          git lfs track "1/model.pt"
-                          git add .
-                          git -c user.name='AMLSystemUser' \
-                            -c user.email='aml_admin@cpaas.io' \
-                            commit -m 'Publish fine-tuned YOLOv5 Triton model'
-                          git remote add origin "https://${OUTPUT_MODEL_URL_NO_HTTPS}"
-                          git -c http.sslVerify=false -c lfs.activitytimeout=36000 \
-                            push --set-upstream origin "${OUTPUT_MODEL_BRANCH}"
-                          rm -f /tmp/git-askpass
+                          # Upload the deployable Triton artifact layout to a new, immutable S3 prefix.
+                          aws --endpoint-url "${AWS_S3_ENDPOINT}" s3 sync \
+                            "${TRITON_MODEL_DIR}" "${OUTPUT_MODEL_URI}"
                       volumeMounts:
                         - name: workspace
                           mountPath: /workspace

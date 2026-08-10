@@ -11,30 +11,39 @@ spec:
   trainer:
     numNodes: 1
     env:
-      # HTTPS URLs for the input YOLOv5 repository, dataset repository, and
-      # empty output model repository. GIT_USER and GIT_TOKEN come from the
-      # AML model-repository credential secret.
-      - name: BASE_MODEL_URL
-        value: https://<git-host>/<project>/amlmodels/yolov5
-      - name: DATASET_URL
-        value: https://<git-host>/<project>/amldatasets/coco128
-      - name: OUTPUT_MODEL_URL
-        value: https://<git-host>/<project>/amlmodels/yolov5-coco128-triton
-      - name: OUTPUT_MODEL_BRANCH
-        value: finetune-coco128-v1
-      - name: GIT_USER
+      # S3 URIs for the input YOLOv5 source and weight, dataset, and output
+      # Triton artifact layout. Use a new output prefix for each training run.
+      - name: BASE_MODEL_URI
+        value: s3://<bucket>/yolov5/v7.0
+      - name: DATASET_URI
+        value: s3://<bucket>/datasets/coco128
+      - name: OUTPUT_MODEL_URI
+        value: s3://<bucket>/models/yolov5-coco128/finetune-coco128-v1
+      - name: TRITON_MODEL_NAME
+        value: yolov5-coco128
+      - name: AWS_ACCESS_KEY_ID
         valueFrom:
           secretKeyRef:
-            name: aml-image-builder-secret
-            key: MODEL_REPO_GIT_USER
-      - name: GIT_TOKEN
+            name: yolov5-s3-credentials
+            key: AWS_ACCESS_KEY_ID
+      - name: AWS_SECRET_ACCESS_KEY
         valueFrom:
           secretKeyRef:
-            name: aml-image-builder-secret
-            key: MODEL_REPO_GIT_TOKEN
+            name: yolov5-s3-credentials
+            key: AWS_SECRET_ACCESS_KEY
+      - name: AWS_S3_ENDPOINT
+        valueFrom:
+          secretKeyRef:
+            name: yolov5-s3-credentials
+            key: AWS_S3_ENDPOINT
+      - name: AWS_DEFAULT_REGION
+        valueFrom:
+          secretKeyRef:
+            name: yolov5-s3-credentials
+            key: AWS_DEFAULT_REGION
 
       # Fine-tuning inputs and hyperparameters. The data/coco128.yaml file in
-      # YOLOv5 expects the data repository at ../datasets/coco128.
+      # YOLOv5 expects the dataset at ../datasets/coco128.
       - name: BASE_WEIGHTS
         value: models/yolov5n.pt
       - name: DATASET_YAML

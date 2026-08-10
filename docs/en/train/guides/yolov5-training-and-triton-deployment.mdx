@@ -4,7 +4,7 @@ weight: 25
 
 # Train, Fine-Tune, and Deploy YOLOv5 with Kubeflow Trainer v2
 
-Fine-tune a YOLOv5 object-detection model on Alauda AI, package the trained model for Triton Inference Server, and publish it as an online inference service. This guide uses **Kubeflow Trainer v2** (`TrainingRuntime` and `TrainJob`), not `VolcanoJob`.
+Fine-tune a YOLOv5 object-detection model on Alauda AI, package the trained model for Triton Inference Server, and publish it as an online inference service. The base model, dataset, and output model are stored in S3-compatible object storage. This guide uses **Kubeflow Trainer v2** (`TrainingRuntime` and `TrainJob`), not `VolcanoJob`.
 
 The example fine-tunes YOLOv5n v7.0 on the COCO128 sample dataset with one NVIDIA GPU. It runs all preparation, training, export, and publishing actions in the Trainer v2 `node` step, so it does not require a shared workspace PVC.
 
@@ -15,36 +15,51 @@ The example fine-tunes YOLOv5n v7.0 on the COCO128 sample dataset with one NVIDI
 | Alauda AI | 1.3 or later, with Kubeflow Trainer v2 installed |
 | Hardware | x86_64 worker node with an NVIDIA GPU. NPU support requires a compatible YOLOv5 training and serving image. |
 | Access | `kubectl` permission to create `trainingruntimes` and `trainjobs` in your project namespace |
-| Model repositories | Three Git LFS-enabled repositories: a YOLOv5 base model, a dataset, and an empty output-model repository |
-| Git credentials | The `aml-image-builder-secret` secret, containing `MODEL_REPO_GIT_USER` and `MODEL_REPO_GIT_TOKEN` |
+| S3-compatible storage | A bucket with read access to the base-model and dataset prefixes and read/write access to the output-model prefix |
+| S3 credentials | The `yolov5-s3-credentials` Secret, with access key, secret key, endpoint, and region. It is also attached to the inference ServiceAccount. |
 | Image registry | A registry reachable by the training nodes, to host the custom YOLOv5 training image |
 
 The sample resources use Alauda AI's NVIDIA vGPU resource keys (`nvidia.com/gpualloc`, `nvidia.com/gpucores`, and `nvidia.com/gpumem`). If your cluster allocates whole GPUs, replace all three keys with `nvidia.com/gpu: 1` in the `TrainJob`.
 
-## Prepare the model and dataset repositories
+## Prepare S3 model and dataset objects
 
-Create the following repositories in **Model Repository**. The training pod clones each repository through its HTTPS Git URL, so the credentials secret must be able to read the first two and write the output repository.
+Create these prefixes in S3-compatible object storage. The training pod downloads the first two prefixes and uploads the deployable Triton repository to the output prefix. The output prefix must be new for every training run; do not let two jobs write to the same prefix.
 
-| Repository | Contents |
+| S3 prefix | Contents |
 | --- | --- |
-| Base model | The [YOLOv5 v7.0](https://github.com/ultralytics/yolov5/tree/v7.0) source tree, including `models/yolov5n.pt` tracked with Git LFS |
-| Dataset | The extracted [COCO128](https://github.com/ultralytics/yolov5/releases/download/v1.0/coco128.zip) directory. Its top level must contain `images/` and `labels/`. Track `*.jpg` with Git LFS. |
-| Output model | An empty model repository to receive the Triton model repository created by the training job |
+| `s3://<bucket>/yolov5/v7.0` | The [YOLOv5 v7.0](https://github.com/ultralytics/yolov5/tree/v7.0) source tree, including `models/yolov5n.pt` |
+| `s3://<bucket>/datasets/coco128` | The extracted [COCO128](https://github.com/ultralytics/yolov5/releases/download/v1.0/coco128.zip) directory. Its top level must contain `images/` and `labels/`. |
+| `s3://<bucket>/models/yolov5-coco128/finetune-coco128-v1` | An empty, unique prefix that receives the Triton artifact layout created by the training job |
 
-YOLOv5 ignores `*.pt` by default, so remove that entry from the source tree's `.gitignore` before adding `models/yolov5n.pt`. `data/coco128.yaml` expects the dataset at `../datasets/coco128` relative to the YOLOv5 source tree. The supplied runtime clones the dataset to exactly that path. For a custom dataset, use a data YAML file in the base-model repository whose `path` matches the directory used by the runtime, or update the runtime and `DATASET_YAML` together.
+Use any S3-compatible client to upload the source tree, weight, and dataset. For example, after configuring the AWS CLI with the same endpoint and credentials as the training Secret:
 
-See [Model Repository](../../deploy/model_management/model_repository.mdx) for Git LFS model-repository usage.
+```bash
+aws --endpoint-url "$AWS_S3_ENDPOINT" s3 sync ./yolov5/ s3://<bucket>/yolov5/v7.0/
+aws --endpoint-url "$AWS_S3_ENDPOINT" s3 sync ./coco128/ s3://<bucket>/datasets/coco128/
+```
+
+`data/coco128.yaml` expects the dataset at `../datasets/coco128` relative to the YOLOv5 source tree. The supplied runtime downloads the dataset to exactly that path. For a custom dataset, use a data YAML file in the base-model prefix whose `path` matches the directory used by the runtime, or update the runtime and `DATASET_YAML` together.
+
+## Create S3 credentials and inference ServiceAccount
+
+Download [`s3-model-storage.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/s3-model-storage.yaml). Set the namespace, endpoint, protocol, region, access key, and secret key, then apply it:
+
+```bash
+kubectl apply -f s3-model-storage.yaml
+```
+
+The Secret's `AWS_S3_ENDPOINT` value includes `http://` or `https://` for the AWS CLI. The `serving.kserve.io/s3-endpoint` annotation must omit the scheme because KServe reads its protocol from `serving.kserve.io/s3-usehttps`. This Secret is referenced directly by the `TrainJob` and indirectly by the `InferenceService` through the `yolov5-s3` ServiceAccount.
 
 ## Build the training image
 
-Build and push an image based on the following `Containerfile`. Mirror the NVIDIA base image first if your cluster cannot pull it directly. The image adds Git, Git LFS, YOLOv5 v7.0 dependencies, and the font files YOLOv5 needs for result plots.
+Build and push an image based on the following `Containerfile`. Mirror the NVIDIA base image first if your cluster cannot pull it directly. The image adds the AWS CLI, YOLOv5 v7.0 dependencies, and the font files YOLOv5 needs for result plots.
 
 ```dockerfile
 FROM nvcr.io/nvidia/pytorch:24.12-py3
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      curl ffmpeg git git-lfs libfreetype6-dev libgl1 libglib2.0-0 && \
+      curl ffmpeg libfreetype6-dev libgl1 libglib2.0-0 && \
     rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL \
@@ -52,7 +67,7 @@ RUN curl -fsSL \
       -o /tmp/requirements.txt && \
     pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
-    pip install --no-cache-dir Pillow==10.4.0 && \
+    pip install --no-cache-dir Pillow==10.4.0 awscli && \
     rm /tmp/requirements.txt
 
 RUN mkdir -p /opt/Ultralytics && \
@@ -92,7 +107,7 @@ kubectl apply -f yolov5-triton-trainingruntime.yaml
 kubectl get trainingruntime yolov5-triton -n <your-namespace>
 ```
 
-The runtime is reusable. It validates the required input variables, clones the model and data with Git LFS, runs `train.py`, exports `best.pt` as TorchScript, and pushes the following artifact layout to the output repository:
+The runtime is reusable. It validates the required input variables, downloads the model and data from S3, runs `train.py`, exports `best.pt` as TorchScript, and uploads the following artifact layout to the output S3 prefix:
 
 ```text
 .
@@ -106,12 +121,12 @@ This is the layout expected by Triton. `config.pbtxt` is configured for the exam
 
 ## Submit a YOLOv5 fine-tuning job
 
-Download [`yolov5-triton-trainjob.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-triton-trainjob.yaml). Edit the namespace, the three Git URLs, and `OUTPUT_MODEL_BRANCH`; the output branch must be new or unused. Then set the resource limits and the training values that fit your cluster:
+Download [`yolov5-triton-trainjob.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-triton-trainjob.yaml). Edit the namespace, the three S3 URIs, and `TRITON_MODEL_NAME`. `OUTPUT_MODEL_URI` must be a new prefix, and must match the inference-service `storageUri`. Then set the resource limits and the training values that fit your cluster:
 
 | Field | Default | Purpose |
 | --- | --- | --- |
-| `BASE_WEIGHTS` | `models/yolov5n.pt` | Pretrained model relative to the base-model repository |
-| `DATASET_YAML` | `data/coco128.yaml` | YOLOv5 dataset configuration relative to the base-model repository |
+| `BASE_WEIGHTS` | `models/yolov5n.pt` | Pretrained model relative to the base-model S3 prefix |
+| `DATASET_YAML` | `data/coco128.yaml` | YOLOv5 dataset configuration relative to the base-model S3 prefix |
 | `IMAGE_SIZE` | `640` | Input image width and height |
 | `BATCH_SIZE` | `16` | Per-device batch size; lower it if the GPU runs out of memory |
 | `EPOCHS` | `3` | Number of fine-tuning epochs |
@@ -127,7 +142,7 @@ kubectl get pods -n <your-namespace>
 kubectl logs -n <your-namespace> <trainer-pod-name> -c node -f
 ```
 
-When the `TrainJob` succeeds, the output model repository contains the `OUTPUT_MODEL_BRANCH` created by the job. The log includes failures from cloning, training, TorchScript export, or the Git push; no `VolcanoJob`, `vcjob`, or `PodGroup` is created.
+When the `TrainJob` succeeds, `OUTPUT_MODEL_URI` contains the deployable Triton artifact. The log includes failures from S3 download, training, TorchScript export, or S3 upload; no `VolcanoJob`, `vcjob`, or `PodGroup` is created.
 
 :::tip
 The supplied manifest is intentionally a one-node recipe. Increasing `trainer.numNodes` alone does not make YOLOv5 distributed: the runtime command must also launch a distributed training process (for example, with `torchrun`) and the data path must be reachable by every node.
@@ -143,16 +158,22 @@ kubectl apply -f triton-servingruntime.yaml
 
 The sample uses `alaudadockerhub/tritonserver:25.02-py3`, CUDA 12.1, and the `triton` model format. Change the image and accelerator labels to match the image and hardware available in your cluster. For a fuller explanation of custom serving runtimes, see [Extend Inference Runtimes](../../deploy/inference_service/guides/custom_inference_runtime.mdx).
 
-## Publish and call the inference service
+## Deploy and call the inference service
 
-1. In **Model Repository**, open the output model repository and select the `OUTPUT_MODEL_BRANCH` created by the job.
-2. In **File Management**, select **Edit Metadata**. Set **Task Type** to **Object Detection** and **Framework** to **triton**. The framework must match `supportedModelFormats` in the `ClusterServingRuntime`.
-3. Select **Publish Inference Service**. Choose the Triton runtime, configure CPU, memory, GPU, and model-cache storage, then publish.
-4. Wait for the service to be running. The **Access Method** tab provides its in-cluster URL.
+Download [`yolov5-triton-inferenceservice.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-triton-inferenceservice.yaml). Set its namespace and `storageUri`, and make sure all of these values match the completed training run:
 
-:::note
-Model Repository reads deployment metadata from the default branch. If the **Publish Inference Service** button is unavailable while `OUTPUT_MODEL_BRANCH` is selected, set the metadata on the repository's default branch, then publish the output branch as the model version.
-:::
+- `spec.predictor.model.storageUri` is `OUTPUT_MODEL_URI`.
+- `metadata.annotations.aml-model-repo` is `TRITON_MODEL_NAME`.
+- The Triton `config.pbtxt` generated by the job uses the same `TRITON_MODEL_NAME`.
+
+Then apply and wait for the service:
+
+```bash
+kubectl apply -f yolov5-triton-inferenceservice.yaml
+kubectl get inferenceservice yolov5-coco128 -n <your-namespace> --watch
+```
+
+KServe downloads the model from S3 before starting Triton, using the credentials attached to the `yolov5-s3` ServiceAccount. See [Model Storage](../../deploy/model_management/model_storage.mdx) for the platform's S3 storage-initializer behavior.
 
 Triton serves the HTTP v2 API. From a workbench or other pod in the cluster, use this minimal client to send a normalized 640 × 640 RGB image:
 
@@ -176,7 +197,7 @@ payload = {
     "outputs": [{"name": "output0"}],
 }
 response = requests.post(
-    f"{service_url}/v2/models/<output-model-repository-name>/infer",
+    f"{service_url}/v2/models/yolov5-coco128/infer",
     json=payload,
     timeout=60,
 )

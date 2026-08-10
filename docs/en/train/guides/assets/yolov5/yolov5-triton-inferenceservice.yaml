@@ -1,0 +1,41 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: yolov5-coco128
+  namespace: <your-namespace>
+  annotations:
+    # This value must match TRITON_MODEL_NAME in the TrainJob and config.pbtxt.
+    aml-model-repo: yolov5-coco128
+    aml-pipeline-tag: object-detection
+    serving.kserve.io/deploymentMode: Standard
+  labels:
+    aml.cpaas.io/runtime-type: triton
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 1
+    serviceAccountName: yolov5-s3
+    model:
+      name: ""
+      modelFormat:
+        name: triton
+      protocolVersion: v2
+      runtime: aml-triton-cuda-12
+      # This URI must exactly match OUTPUT_MODEL_URI in the TrainJob.
+      storageUri: s3://<bucket>/models/yolov5-coco128/finetune-coco128-v1
+      resources:
+        requests:
+          cpu: "2"
+          memory: 6Gi
+          nvidia.com/gpualloc: "1"
+          nvidia.com/gpucores: "50"
+          nvidia.com/gpumem: "8192"
+        limits:
+          cpu: "2"
+          memory: 6Gi
+          nvidia.com/gpualloc: "1"
+          nvidia.com/gpucores: "50"
+          nvidia.com/gpumem: "8192"
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
