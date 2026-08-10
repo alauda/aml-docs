@@ -110,7 +110,7 @@ AML completes the release and operation of cloud native inference services based
 | Model Type             | Required when Model Location is `PVC`. Choose between `Generative AI model` or `Predictive Model`. This selection determines the available Runtimes. |
 | Model                  | Required when Model Location is `Model repository`. The name of the model used for inference.                                                        |
 | Version                | Required when Model Location is `Model repository`. The version of the model. Options include Branch and Tag.                                        |
-| Inference Runtimes     | Required, The engine used for inference runtime. When `Model Type` is `Generative AI model`, `llm-d` is available for distributed inference.         |
+| Inference Runtimes     | Required, The engine used for inference runtime. When `Model Type` is `Generative AI model`, `llm-d` is available for distributed inference. For one model instance that spans multiple nodes, see [Deploy a Multi-Node vLLM Service with llm-d](./guides/llm-d-multi-node.mdx). |
 | Config Source          | Required, Choose the source for deploying resources: `Hardware profile` or `Custom`.                                                                 |
 | Hardware Profile       | Required when Config Source is `Hardware profile`. Select a predefined hardware profile that configures the required resources.                      |
 | Requests CPU           | Required when Config Source is `Custom`. The amount of CPU resources requested by the inference service.                                             |
