@@ -4,12 +4,13 @@ weight: 10
 
 # Training Guides
 
-End-to-end recipes for fine-tuning and pretraining LLMs on Alauda AI.
+End-to-end recipes for training and fine-tuning models on Alauda AI.
 
 ## Pick a path
 
 | When you want… | Use | Guide |
 |---|---|---|
+| Fine-tune a YOLOv5 object-detection model and deploy it with Triton | Kubeflow Trainer v2 + Triton Inference Server | [Train, Fine-Tune, and Deploy YOLOv5](./yolov5-training-and-triton-deployment.mdx) |
 | Reusable templates, repeatable runs, optional Kueue quotas | Kubeflow Trainer v2 + LlamaFactory | [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx) |
 | Survive crashes, preemption, or a pause without losing hours of training | Checkpoint PVC + `resume_from_checkpoint` + `maxRestarts` | [Checkpointing and Resuming TrainJobs](./checkpointing-and-resuming.mdx) |
 | Mix training with online inference, yield GPU back on demand | Kueue cohort + preemption + checkpoint resume | [Preemptible TrainJobs with Kueue](./preemptible-trainjobs-with-kueue.mdx) |

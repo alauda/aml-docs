@@ -1,0 +1,64 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  generateName: yolov5-coco128-
+  namespace: <your-namespace>
+spec:
+  runtimeRef:
+    apiGroup: trainer.kubeflow.org
+    kind: TrainingRuntime
+    name: yolov5-triton
+  trainer:
+    numNodes: 1
+    env:
+      # HTTPS URLs for the input YOLOv5 repository, dataset repository, and
+      # empty output model repository. GIT_USER and GIT_TOKEN come from the
+      # AML model-repository credential secret.
+      - name: BASE_MODEL_URL
+        value: https://<git-host>/<project>/amlmodels/yolov5
+      - name: DATASET_URL
+        value: https://<git-host>/<project>/amldatasets/coco128
+      - name: OUTPUT_MODEL_URL
+        value: https://<git-host>/<project>/amlmodels/yolov5-coco128-triton
+      - name: OUTPUT_MODEL_BRANCH
+        value: finetune-coco128-v1
+      - name: GIT_USER
+        valueFrom:
+          secretKeyRef:
+            name: aml-image-builder-secret
+            key: MODEL_REPO_GIT_USER
+      - name: GIT_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: aml-image-builder-secret
+            key: MODEL_REPO_GIT_TOKEN
+
+      # Fine-tuning inputs and hyperparameters. The data/coco128.yaml file in
+      # YOLOv5 expects the data repository at ../datasets/coco128.
+      - name: BASE_WEIGHTS
+        value: models/yolov5n.pt
+      - name: DATASET_YAML
+        value: data/coco128.yaml
+      - name: IMAGE_SIZE
+        value: "640"
+      - name: BATCH_SIZE
+        value: "16"
+      - name: EPOCHS
+        value: "3"
+      - name: DATALOADER_WORKERS
+        value: "0"
+      - name: DEVICE
+        value: "0"
+    resourcesPerNode:
+      requests:
+        cpu: "1"
+        memory: 8Gi
+        nvidia.com/gpualloc: "1"
+        nvidia.com/gpucores: "50"
+        nvidia.com/gpumem: "8192"
+      limits:
+        cpu: "8"
+        memory: 20Gi
+        nvidia.com/gpualloc: "1"
+        nvidia.com/gpucores: "50"
+        nvidia.com/gpumem: "8192"

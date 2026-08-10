@@ -1,0 +1,191 @@
+---
+weight: 25
+---
+
+# Train, Fine-Tune, and Deploy YOLOv5 with Kubeflow Trainer v2
+
+Fine-tune a YOLOv5 object-detection model on Alauda AI, package the trained model for Triton Inference Server, and publish it as an online inference service. This guide uses **Kubeflow Trainer v2** (`TrainingRuntime` and `TrainJob`), not `VolcanoJob`.
+
+The example fine-tunes YOLOv5n v7.0 on the COCO128 sample dataset with one NVIDIA GPU. It runs all preparation, training, export, and publishing actions in the Trainer v2 `node` step, so it does not require a shared workspace PVC.
+
+## Prerequisites
+
+| Requirement | Details |
+| --- | --- |
+| Alauda AI | 1.3 or later, with Kubeflow Trainer v2 installed |
+| Hardware | x86_64 worker node with an NVIDIA GPU. NPU support requires a compatible YOLOv5 training and serving image. |
+| Access | `kubectl` permission to create `trainingruntimes` and `trainjobs` in your project namespace |
+| Model repositories | Three Git LFS-enabled repositories: a YOLOv5 base model, a dataset, and an empty output-model repository |
+| Git credentials | The `aml-image-builder-secret` secret, containing `MODEL_REPO_GIT_USER` and `MODEL_REPO_GIT_TOKEN` |
+| Image registry | A registry reachable by the training nodes, to host the custom YOLOv5 training image |
+
+The sample resources use Alauda AI's NVIDIA vGPU resource keys (`nvidia.com/gpualloc`, `nvidia.com/gpucores`, and `nvidia.com/gpumem`). If your cluster allocates whole GPUs, replace all three keys with `nvidia.com/gpu: 1` in the `TrainJob`.
+
+## Prepare the model and dataset repositories
+
+Create the following repositories in **Model Repository**. The training pod clones each repository through its HTTPS Git URL, so the credentials secret must be able to read the first two and write the output repository.
+
+| Repository | Contents |
+| --- | --- |
+| Base model | The [YOLOv5 v7.0](https://github.com/ultralytics/yolov5/tree/v7.0) source tree, including `models/yolov5n.pt` tracked with Git LFS |
+| Dataset | The extracted [COCO128](https://github.com/ultralytics/yolov5/releases/download/v1.0/coco128.zip) directory. Its top level must contain `images/` and `labels/`. Track `*.jpg` with Git LFS. |
+| Output model | An empty model repository to receive the Triton model repository created by the training job |
+
+YOLOv5 ignores `*.pt` by default, so remove that entry from the source tree's `.gitignore` before adding `models/yolov5n.pt`. `data/coco128.yaml` expects the dataset at `../datasets/coco128` relative to the YOLOv5 source tree. The supplied runtime clones the dataset to exactly that path. For a custom dataset, use a data YAML file in the base-model repository whose `path` matches the directory used by the runtime, or update the runtime and `DATASET_YAML` together.
+
+See [Model Repository](../../deploy/model_management/model_repository.mdx) for Git LFS model-repository usage.
+
+## Build the training image
+
+Build and push an image based on the following `Containerfile`. Mirror the NVIDIA base image first if your cluster cannot pull it directly. The image adds Git, Git LFS, YOLOv5 v7.0 dependencies, and the font files YOLOv5 needs for result plots.
+
+```dockerfile
+FROM nvcr.io/nvidia/pytorch:24.12-py3
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      curl ffmpeg git git-lfs libfreetype6-dev libgl1 libglib2.0-0 && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL \
+      https://raw.githubusercontent.com/ultralytics/yolov5/v7.0/requirements.txt \
+      -o /tmp/requirements.txt && \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r /tmp/requirements.txt && \
+    pip install --no-cache-dir Pillow==10.4.0 && \
+    rm /tmp/requirements.txt
+
+RUN mkdir -p /opt/Ultralytics && \
+    curl -fsSL https://ultralytics.com/assets/Arial.ttf \
+      -o /opt/Ultralytics/Arial.ttf && \
+    curl -fsSL https://ultralytics.com/assets/Arial.Unicode.ttf \
+      -o /opt/Ultralytics/Arial.Unicode.ttf
+
+RUN groupadd --gid 1000 appuser && \
+    useradd --uid 1000 --gid 1000 --create-home appuser && \
+    mkdir -p /workspace /home/appuser/.config/Ultralytics && \
+    cp /opt/Ultralytics/* /home/appuser/.config/Ultralytics/ && \
+    chown -R 1000:1000 /workspace /home/appuser
+
+USER 1000
+WORKDIR /workspace
+```
+
+For example:
+
+```bash
+docker build -f Containerfile -t <your-registry>/yolov5-trainer:v7.0 .
+docker push <your-registry>/yolov5-trainer:v7.0
+```
+
+## Create the Trainer v2 runtime
+
+Download [`yolov5-triton-trainingruntime.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-triton-trainingruntime.yaml), then make these changes before applying it:
+
+1. Replace `<your-namespace>` with the target project namespace.
+2. Replace `<your-registry>/yolov5-trainer:v7.0` with the image you pushed.
+
+Apply the runtime:
+
+```bash
+kubectl apply -f yolov5-triton-trainingruntime.yaml
+kubectl get trainingruntime yolov5-triton -n <your-namespace>
+```
+
+The runtime is reusable. It validates the required input variables, clones the model and data with Git LFS, runs `train.py`, exports `best.pt` as TorchScript, and pushes the following artifact layout to the output repository:
+
+```text
+.
+├── 1/
+│   └── model.pt
+├── config.pbtxt
+└── README.md
+```
+
+This is the layout expected by Triton. `config.pbtxt` is configured for the example's 640 × 640 COCO model. If you change the input image size or the model output signature, update the config in the runtime before training. Confirm the input and output names and shapes with the exported model before publishing a custom model.
+
+## Submit a YOLOv5 fine-tuning job
+
+Download [`yolov5-triton-trainjob.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-triton-trainjob.yaml). Edit the namespace, the three Git URLs, and `OUTPUT_MODEL_BRANCH`; the output branch must be new or unused. Then set the resource limits and the training values that fit your cluster:
+
+| Field | Default | Purpose |
+| --- | --- | --- |
+| `BASE_WEIGHTS` | `models/yolov5n.pt` | Pretrained model relative to the base-model repository |
+| `DATASET_YAML` | `data/coco128.yaml` | YOLOv5 dataset configuration relative to the base-model repository |
+| `IMAGE_SIZE` | `640` | Input image width and height |
+| `BATCH_SIZE` | `16` | Per-device batch size; lower it if the GPU runs out of memory |
+| `EPOCHS` | `3` | Number of fine-tuning epochs |
+| `DATALOADER_WORKERS` | `0` | Data-loader workers; raise only after confirming the shared-memory allocation is sufficient |
+| `DEVICE` | `0` | GPU index; set `cpu` for CPU-only testing and remove GPU resource requests |
+
+Create and watch the job:
+
+```bash
+kubectl create -f yolov5-triton-trainjob.yaml
+kubectl get trainjobs -n <your-namespace> --watch
+kubectl get pods -n <your-namespace>
+kubectl logs -n <your-namespace> <trainer-pod-name> -c node -f
+```
+
+When the `TrainJob` succeeds, the output model repository contains the `OUTPUT_MODEL_BRANCH` created by the job. The log includes failures from cloning, training, TorchScript export, or the Git push; no `VolcanoJob`, `vcjob`, or `PodGroup` is created.
+
+:::tip
+The supplied manifest is intentionally a one-node recipe. Increasing `trainer.numNodes` alone does not make YOLOv5 distributed: the runtime command must also launch a distributed training process (for example, with `torchrun`) and the data path must be reachable by every node.
+:::
+
+## Register the Triton runtime
+
+If the cluster does not already provide a compatible Triton runtime, a cluster administrator can apply [`triton-servingruntime.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/triton-servingruntime.yaml):
+
+```bash
+kubectl apply -f triton-servingruntime.yaml
+```
+
+The sample uses `alaudadockerhub/tritonserver:25.02-py3`, CUDA 12.1, and the `triton` model format. Change the image and accelerator labels to match the image and hardware available in your cluster. For a fuller explanation of custom serving runtimes, see [Extend Inference Runtimes](../../deploy/inference_service/guides/custom_inference_runtime.mdx).
+
+## Publish and call the inference service
+
+1. In **Model Repository**, open the output model repository and select the `OUTPUT_MODEL_BRANCH` created by the job.
+2. In **File Management**, select **Edit Metadata**. Set **Task Type** to **Object Detection** and **Framework** to **triton**. The framework must match `supportedModelFormats` in the `ClusterServingRuntime`.
+3. Select **Publish Inference Service**. Choose the Triton runtime, configure CPU, memory, GPU, and model-cache storage, then publish.
+4. Wait for the service to be running. The **Access Method** tab provides its in-cluster URL.
+
+:::note
+Model Repository reads deployment metadata from the default branch. If the **Publish Inference Service** button is unavailable while `OUTPUT_MODEL_BRANCH` is selected, set the metadata on the repository's default branch, then publish the output branch as the model version.
+:::
+
+Triton serves the HTTP v2 API. From a workbench or other pod in the cluster, use this minimal client to send a normalized 640 × 640 RGB image:
+
+```python
+import numpy as np
+import requests
+from PIL import Image
+
+service_url = "http://<in-cluster-service-url>"
+image = Image.open("image.jpg").convert("RGB").resize((640, 640))
+tensor = np.asarray(image, dtype=np.float32).transpose(2, 0, 1) / 255.0
+tensor = np.expand_dims(tensor, axis=0)
+
+payload = {
+    "inputs": [{
+        "name": "images",
+        "shape": list(tensor.shape),
+        "datatype": "FP32",
+        "data": tensor.flatten().tolist(),
+    }],
+    "outputs": [{"name": "output0"}],
+}
+response = requests.post(
+    f"{service_url}/v2/models/<output-model-repository-name>/infer",
+    json=payload,
+    timeout=60,
+)
+response.raise_for_status()
+output = response.json()["outputs"][0]
+predictions = np.asarray(output["data"]).reshape(output["shape"])
+print(predictions.shape)
+```
+
+The raw output contains candidate boxes and class scores. YOLOv5 post-processing—confidence filtering, non-maximum suppression, scaling boxes back to the original image, and drawing labels—runs in the client application and is deliberately outside this deployment recipe.
+
+For the general model-service workflow and troubleshooting, see [Managing Inference Services](../../deploy/inference_service/inference_service.mdx).
