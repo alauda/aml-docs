@@ -21,8 +21,8 @@ def model():
         raise RuntimeError("No Ascend NPU is available to torch_npu")
     if not os.path.isfile(MODEL_PATH):
         raise RuntimeError(f"TorchScript model not found: {MODEL_PATH}")
-    loaded = torch.jit.load(MODEL_PATH, map_location="cpu")
-    loaded.to(DEVICE).eval()
+    loaded = torch.jit.load(MODEL_PATH, map_location=DEVICE)
+    loaded.eval()
     return loaded
 
 
