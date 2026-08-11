@@ -1,0 +1,451 @@
+# =============================================================================
+# google/gemma-4-31B-it · P4 + D4 · KServe LLMInferenceService + InferNex Bridge
+#
+# Standard P/D delivery shape derived from the already validated MiniMax P8+D8
+# manifest. InferNex Bridge owns the P/D proxy; KServe owns Prefill/Decode,
+# InferencePool, scheduler, route, and lifecycle resources.
+#
+# Decode:  100.1.69.8 · TP4 · FULL_DECODE_ONLY · Mooncake kv_consumer
+# Prefill: 100.1.69.9 · TP4 · PIECEWISE ACLGraph · Mooncake kv_producer
+# =============================================================================
+---
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceServiceConfig
+metadata:
+  name: kserve-config-llm-decode-template
+  namespace: zgsu-ns1
+  labels:
+    app.kubernetes.io/part-of: infernex-bridge
+spec:
+  template:
+    initContainers: []
+---
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceServiceConfig
+metadata:
+  name: gemma4-31b-it-pd-engine
+  namespace: kserve
+  labels:
+    app.kubernetes.io/name: gemma4-31b-it-pd-engine
+    app.kubernetes.io/part-of: infernex-bridge
+spec:
+  template:
+    initContainers: []
+    nodeSelector:
+      kubernetes.io/hostname: 100.1.69.8
+    hostIPC: true
+    tolerations:
+      - operator: Exists
+    terminationGracePeriodSeconds: 60
+    containers:
+      - name: main
+        image: quay.io/ascend/vllm-ascend@sha256:fa246685a9e0b9ea63f242be634dcc7616060f6f7dc9ca7018fa06c1657940da
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            set +u
+            source /usr/local/Ascend/ascend-toolkit/set_env.sh 2>/dev/null || true
+            source /usr/local/Ascend/nnal/atb/set_env.sh 2>/dev/null || true
+            set -eo pipefail
+            printf '{}' > /app/mooncake.json
+            # AscendDirect may allocate auxiliary transport ports in 20000-27999.
+            # Keep the two application KV listeners above that range so a P/D
+            # restart cannot collide with a transport listener.
+            KV_CONFIG=$(printf '{"engine_id":"%s","kv_buffer_device":"npu","kv_connector":"MooncakeConnectorV1","kv_connector_extra_config":{"decode":{"dp_size":1,"tp_size":4},"prefill":{"dp_size":1,"tp_size":4},"use_ascend_direct":true},"kv_parallel_size":1,"kv_port":"28001","kv_rank":1,"kv_role":"kv_consumer"}' "$POD_NAME")
+            echo "[gemma4-pd-decode] pod=$POD_NAME ip=$POD_IP devices=$(ls /dev/davinci* 2>/dev/null | tr '\n' ' ')"
+            exec vllm serve /mnt/models \
+              --host 0.0.0.0 \
+              --port 8000 \
+              --served-model-name "{{ .Spec.Model.Name }}" \
+              --seed 1024 \
+              --trust-remote-code \
+              --api-server-count 1 \
+              --enable-auto-tool-choice \
+              --tool-call-parser gemma4 \
+              --reasoning-parser gemma4 \
+              --tensor-parallel-size 4 \
+              --max-model-len -1 \
+              --max-num-batched-tokens 128 \
+              --max-num-seqs 96 \
+              --block-size 128 \
+              --gpu-memory-utilization 0.9 \
+              --no-enable-prefix-caching \
+              --async-scheduling \
+              --compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY"}' \
+              --kv-transfer-config "$KV_CONFIG"
+        env: &engine-env
+          - { name: HOME, value: /home }
+          - { name: VLLM_LOGGING_LEVEL, value: INFO }
+          - { name: HF_HUB_OFFLINE, value: "1" }
+          - { name: TRANSFORMERS_OFFLINE, value: "1" }
+          - { name: PYTHONUNBUFFERED, value: "1" }
+          - { name: PYTHONHASHSEED, value: "0" }
+          - { name: VLLM_KV_EVENTS_USE_INT_BLOCK_HASHES, value: "1" }
+          - { name: MOONCAKE_CONFIG_PATH, value: /app/mooncake.json }
+          - { name: PYTORCH_NPU_ALLOC_CONF, value: "expandable_segments:True" }
+          - { name: HCCL_OP_EXPANSION_MODE, value: AIV }
+          - { name: HCCL_BUFFSIZE, value: "1024" }
+          - { name: HCCL_INTRA_PCIE_ENABLE, value: "0" }
+          # Current AscendDirect on Atlas A2/910B3 requires the HCCN RoCE
+          # device IPs for cross-node P/D KV transfer.
+          - { name: HCCL_INTRA_ROCE_ENABLE, value: "1" }
+          - { name: OMP_PROC_BIND, value: "false" }
+          - { name: OMP_NUM_THREADS, value: "1" }
+          - { name: TASK_QUEUE_ENABLE, value: "1" }
+          - { name: VLLM_ENGINE_READY_TIMEOUT_S, value: "3000" }
+          - { name: VLLM_RPC_TIMEOUT, value: "6000" }
+          - { name: VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS, value: "3000" }
+          - { name: HCCL_EXEC_TIMEOUT, value: "600" }
+          - { name: HCCL_CONNECT_TIMEOUT, value: "300" }
+          # Keep per-operation HCCL entries while diagnosing cross-node
+          # AscendDirect KV transfer failures. Remove after root cause is known.
+          - { name: HCCL_ENTRY_LOG_ENABLE, value: "1" }
+          - name: POD_NAME
+            valueFrom:
+              fieldRef: { fieldPath: metadata.name }
+          - name: POD_IP
+            valueFrom:
+              fieldRef: { fieldPath: status.podIP }
+          - name: HCCL_IF_IP
+            valueFrom:
+              fieldRef: { fieldPath: status.podIP }
+          - { name: GLOO_SOCKET_IFNAME, value: eth0 }
+          - { name: TP_SOCKET_IFNAME, value: eth0 }
+          - { name: HCCL_SOCKET_IFNAME, value: eth0 }
+        ports:
+          - { name: http, containerPort: 8000, protocol: TCP }
+          - { name: kv, containerPort: 28001, protocol: TCP }
+        resources:
+          requests:
+            cpu: "16"
+            memory: 96Gi
+            huawei.com/Ascend910: "4"
+          limits:
+            cpu: "48"
+            memory: 256Gi
+            huawei.com/Ascend910: "4"
+        securityContext: &engine-security-context
+          allowPrivilegeEscalation: false
+          capabilities: { drop: ["ALL"] }
+          runAsGroup: 0
+          runAsNonRoot: false
+          runAsUser: 0
+          seccompProfile: { type: RuntimeDefault }
+        startupProbe:
+          httpGet: { path: /health, port: http }
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 160
+        readinessProbe:
+          httpGet: { path: /health, port: http }
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          httpGet: { path: /health, port: http }
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 8
+        volumeMounts:
+          - { name: model, mountPath: /mnt/models, readOnly: true }
+          - { name: shm, mountPath: /dev/shm }
+          - { name: mooncake-config, mountPath: /app }
+          # AscendDirect on Atlas A2 reads each NPU's RoCE device IP from
+          # the node-local HCCN configuration when building its ranktable.
+          - { name: hccn-config, mountPath: /etc/hccn.conf, readOnly: true }
+    volumes:
+      - name: model
+        persistentVolumeClaim: { claimName: gemma4-31b-n8 }
+      - name: shm
+        emptyDir: { medium: Memory, sizeLimit: 32Gi }
+      - name: mooncake-config
+        emptyDir: {}
+      - name: hccn-config
+        hostPath: { path: /etc/hccn.conf, type: File }
+
+  prefill:
+    replicas: 1
+    template:
+      nodeSelector:
+        kubernetes.io/hostname: 100.1.69.9
+      hostIPC: true
+      tolerations:
+        - operator: Exists
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: main
+          image: quay.io/ascend/vllm-ascend@sha256:fa246685a9e0b9ea63f242be634dcc7616060f6f7dc9ca7018fa06c1657940da
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set +u
+              source /usr/local/Ascend/ascend-toolkit/set_env.sh 2>/dev/null || true
+              source /usr/local/Ascend/nnal/atb/set_env.sh 2>/dev/null || true
+              set -eo pipefail
+              printf '{}' > /app/mooncake.json
+              KV_CONFIG=$(printf '{"engine_id":"%s","kv_buffer_device":"npu","kv_connector":"MooncakeConnectorV1","kv_connector_extra_config":{"decode":{"dp_size":1,"tp_size":4},"prefill":{"dp_size":1,"tp_size":4},"use_ascend_direct":true},"kv_parallel_size":1,"kv_port":"28000","kv_rank":0,"kv_role":"kv_producer"}' "$POD_NAME")
+              echo "[gemma4-pd-prefill] pod=$POD_NAME ip=$POD_IP devices=$(ls /dev/davinci* 2>/dev/null | tr '\n' ' ')"
+              exec vllm serve /mnt/models \
+                --host 0.0.0.0 \
+                --port 8000 \
+                --served-model-name "{{ .Spec.Model.Name }}" \
+                --seed 1024 \
+                --trust-remote-code \
+                --api-server-count 1 \
+                --enable-auto-tool-choice \
+                --tool-call-parser gemma4 \
+                --reasoning-parser gemma4 \
+                --tensor-parallel-size 4 \
+                --max-model-len -1 \
+                --max-num-batched-tokens 8192 \
+                --max-num-seqs 96 \
+                --block-size 128 \
+                --gpu-memory-utilization 0.9 \
+                --no-enable-prefix-caching \
+                --compilation-config '{"cudagraph_mode":"PIECEWISE"}' \
+                --kv-transfer-config "$KV_CONFIG"
+          env: *engine-env
+          ports:
+            - { name: http, containerPort: 8000, protocol: TCP }
+            - { name: kv, containerPort: 28000, protocol: TCP }
+          resources:
+            requests:
+              cpu: "16"
+              memory: 96Gi
+              huawei.com/Ascend910: "4"
+            limits:
+              cpu: "48"
+              memory: 256Gi
+              huawei.com/Ascend910: "4"
+          securityContext: *engine-security-context
+          startupProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 160
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 8
+          volumeMounts:
+            - { name: model, mountPath: /mnt/models, readOnly: true }
+            - { name: shm, mountPath: /dev/shm }
+            - { name: mooncake-config, mountPath: /app }
+            - { name: hccn-config, mountPath: /etc/hccn.conf, readOnly: true }
+      volumes:
+        - name: model
+          persistentVolumeClaim: { claimName: gemma4-31b-n9 }
+        - name: shm
+          emptyDir: { medium: Memory, sizeLimit: 32Gi }
+        - name: mooncake-config
+          emptyDir: {}
+        - name: hccn-config
+          hostPath: { path: /etc/hccn.conf, type: File }
+---
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceServiceConfig
+metadata:
+  name: gemma4-31b-it-pd-scheduler
+  namespace: kserve
+  labels:
+    app.kubernetes.io/name: gemma4-31b-it-pd-scheduler
+    app.kubernetes.io/part-of: infernex-bridge
+spec:
+  router:
+    scheduler:
+      pool:
+        spec:
+          endpointPickerRef:
+            failureMode: FailOpen
+            group: ""
+            kind: Service
+            name: "{{ ChildName .ObjectMeta.Name `-epp-service` }}"
+            port: { number: 9002 }
+          selector:
+            matchLabels:
+              app.kubernetes.io/name: "{{ .ObjectMeta.Name }}"
+              app.kubernetes.io/part-of: llminferenceservice
+              kserve.io/component: workload
+          targetPorts:
+            - number: 8000
+      template:
+        nodeSelector:
+          kubernetes.io/hostname: 100.1.69.8
+        tolerations:
+          - operator: Exists
+        serviceAccountName: "{{ ChildName .ObjectMeta.Name `-epp-sa` }}"
+        containers:
+          - name: main
+            image: 100.1.69.8:11443/3rdparty/openfuyao/hermes-router:26.6.0-rc.3
+            imagePullPolicy: IfNotPresent
+            args:
+              - --pool-name
+              - "{{ ChildName .ObjectMeta.Name `-inference-pool` }}"
+              - --pool-namespace
+              - "{{ .ObjectMeta.Namespace }}"
+              - --pool-group
+              - inference.networking.k8s.io
+              - --zap-encoder
+              - json
+              - --v
+              - "1"
+              - --tracing=false
+              - --metrics-endpoint-auth=false
+              # A single fixed P/D pair does not need sub-second load updates.
+              # Keep routing metrics useful without adding two /metrics scrapes
+              # per engine every second (direct plus proxy aggregation).
+              - --refresh-metrics-interval=15s
+              - --config-text
+              - |-
+                # This is Hermes Router's embedded config-document schema, not
+                # a Kubernetes resource API group. InferNex 26.6.0-rc.3 still
+                # requires the x-k8s version here; the actual InferencePool and
+                # --pool-group above both use inference.networking.k8s.io.
+                apiVersion: inference.networking.x-k8s.io/v1alpha1
+                kind: EndpointPickerConfig
+                # One fixed Prefill/Decode pair has no prefix-routing choice.
+                # Keep tokenization out of the scheduler path; the 26.6.0-rc.3
+                # tokenizer RPC has a 5s init deadline while Gemma needs >17s.
+                plugins:
+                - type: metrics-data-source
+                  parameters: { scheme: "http", path: "/metrics", insecureSkipVerify: true }
+                - type: core-metrics-extractor
+                - type: pd-group-producer
+                  parameters:
+                    pdLabelName: app.kubernetes.io/component
+                    pdGroupLabelName: app.kubernetes.io/name
+                    prefillValue: llminferenceservice-workload-prefill
+                    decodeValue: llminferenceservice-workload
+                    leaderValue: pd-proxy
+                - type: request-lifecycle-tracker
+                  parameters:
+                    storeName: gemma4-pd-routing
+                    persistence: { enabled: false }
+                - type: inflight-data-producer
+                  parameters: { storeName: gemma4-pd-routing }
+                - type: pd-group-filter
+                - type: pd-kvcache-aware-scorer
+                  parameters:
+                    prefillKVUsageWeight: 1
+                    prefillQueueWeight: 1
+                    prefillInflightWeight: 1
+                    decodeKVUsageWeight: 1
+                    decodeQueueWeight: 1
+                    decodeInflightWeight: 1
+                    prefillScoreWeight: 1
+                    decodeScoreWeight: 1
+                - type: min-score-picker
+                - type: pd-header-handler
+                schedulingProfiles:
+                - name: default
+                  plugins:
+                  - pluginRef: pd-group-producer
+                  - pluginRef: request-lifecycle-tracker
+                  - pluginRef: inflight-data-producer
+                  - pluginRef: pd-group-filter
+                  - pluginRef: pd-kvcache-aware-scorer
+                  - pluginRef: min-score-picker
+                  - pluginRef: pd-header-handler
+            ports:
+              - { containerPort: 9002, name: grpc, protocol: TCP }
+              - { containerPort: 9003, name: grpc-health, protocol: TCP }
+              - { containerPort: 9090, name: metrics, protocol: TCP }
+            startupProbe:
+              grpc: { port: 9003, service: liveness }
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 30
+            livenessProbe:
+              grpc: { port: 9003, service: liveness }
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 3
+            readinessProbe:
+              grpc: { port: 9003, service: readiness }
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 3
+            resources:
+              requests: { cpu: "1", memory: 1Gi }
+              limits: { memory: 4Gi }
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities: { drop: ["ALL"] }
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              seccompProfile: { type: RuntimeDefault }
+            volumeMounts:
+              - { name: tls-certs, mountPath: /etc/ssl/certs, readOnly: true }
+        volumes:
+          - name: tls-certs
+            secret:
+              secretName: "{{ ChildName .ObjectMeta.Name `-kserve-self-signed-certs` }}"
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        terminationGracePeriodSeconds: 30
+---
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceService
+metadata:
+  name: gemma4-31b-it-pd
+  namespace: zgsu-ns1
+  labels:
+    infernex.io/runtime: "true"
+  annotations:
+    infernex.io/disabled-components: "mooncake,cache-indexer,pd-orchestrator,eagle-eye"
+    model-auto.alauda.io/config-revision: "0803-p4d4-main-pc-piecewise-hccn-no-tokenizer-hccldiag"
+    serving.kserve.io/stop: "false"
+spec:
+  model:
+    name: google/gemma-4-31B-it
+    uri: pvc://gemma4-31b-n8/
+  storageInitializer:
+    enabled: false
+  baseRefs:
+    - name: gemma4-31b-it-pd-engine
+    - name: gemma4-31b-it-pd-scheduler
+  router:
+    gateway: {}
+    route:
+      http:
+        spec:
+          parentRefs:
+            - group: gateway.networking.k8s.io
+              kind: Gateway
+              name: kserve-ingress-gateway
+              namespace: kserve
+          rules:
+            - matches:
+                - path:
+                    type: PathPrefix
+                    value: /zgsu-ns1/gemma4-31b-it-pd
+              filters:
+                - type: URLRewrite
+                  urlRewrite:
+                    path:
+                      type: ReplacePrefixMatch
+                      replacePrefixMatch: /
+              backendRefs:
+                - group: ""
+                  kind: Service
+                  name: gemma4-31b-it-pd-proxy-server
+                  port: 8000
+                  weight: 1
+              timeouts:
+                request: 0s
+                backendRequest: 0s
+  replicas: 1
+  template:
+    enableServiceLinks: false
+  prefill:
+    replicas: 1
+    template:
+      enableServiceLinks: false
