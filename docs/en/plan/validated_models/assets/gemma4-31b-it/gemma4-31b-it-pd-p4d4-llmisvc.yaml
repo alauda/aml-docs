@@ -6,7 +6,7 @@
 # InferencePool, scheduler, route, and lifecycle resources.
 #
 # Decode:  100.1.69.8 · TP4 · FULL_DECODE_ONLY · Mooncake kv_consumer
-# Prefill: 100.1.69.9 · TP4 · eager            · Mooncake kv_producer
+# Prefill: 100.1.69.9 · TP4 · PIECEWISE ACLGraph · Mooncake kv_producer
 # =============================================================================
 ---
 apiVersion: serving.kserve.io/v1alpha2
@@ -39,7 +39,7 @@ spec:
     terminationGracePeriodSeconds: 60
     containers:
       - name: main
-        image: quay.io/ascend/vllm-ascend:nightly-main-openeuler-0721
+        image: quay.io/ascend/vllm-ascend@sha256:fa246685a9e0b9ea63f242be634dcc7616060f6f7dc9ca7018fa06c1657940da
         imagePullPolicy: IfNotPresent
         command: ["/bin/bash", "-c"]
         args:
@@ -49,7 +49,10 @@ spec:
             source /usr/local/Ascend/nnal/atb/set_env.sh 2>/dev/null || true
             set -eo pipefail
             printf '{}' > /app/mooncake.json
-            KV_CONFIG=$(printf '{"engine_id":"%s","kv_buffer_device":"npu","kv_connector":"MooncakeConnectorV1","kv_connector_extra_config":{"decode":{"dp_size":1,"tp_size":4},"prefill":{"dp_size":1,"tp_size":4},"use_ascend_direct":true},"kv_parallel_size":1,"kv_port":"20001","kv_rank":1,"kv_role":"kv_consumer"}' "$POD_NAME")
+            # AscendDirect may allocate auxiliary transport ports in 20000-27999.
+            # Keep the two application KV listeners above that range so a P/D
+            # restart cannot collide with a transport listener.
+            KV_CONFIG=$(printf '{"engine_id":"%s","kv_buffer_device":"npu","kv_connector":"MooncakeConnectorV1","kv_connector_extra_config":{"decode":{"dp_size":1,"tp_size":4},"prefill":{"dp_size":1,"tp_size":4},"use_ascend_direct":true},"kv_parallel_size":1,"kv_port":"28001","kv_rank":1,"kv_role":"kv_consumer"}' "$POD_NAME")
             echo "[gemma4-pd-decode] pod=$POD_NAME ip=$POD_IP devices=$(ls /dev/davinci* 2>/dev/null | tr '\n' ' ')"
             exec vllm serve /mnt/models \
               --host 0.0.0.0 \
@@ -60,6 +63,7 @@ spec:
               --api-server-count 1 \
               --enable-auto-tool-choice \
               --tool-call-parser gemma4 \
+              --reasoning-parser gemma4 \
               --tensor-parallel-size 4 \
               --max-model-len -1 \
               --max-num-batched-tokens 128 \
@@ -82,8 +86,10 @@ spec:
           - { name: PYTORCH_NPU_ALLOC_CONF, value: "expandable_segments:True" }
           - { name: HCCL_OP_EXPANSION_MODE, value: AIV }
           - { name: HCCL_BUFFSIZE, value: "1024" }
-          - { name: HCCL_INTRA_PCIE_ENABLE, value: "1" }
-          - { name: HCCL_INTRA_ROCE_ENABLE, value: "0" }
+          - { name: HCCL_INTRA_PCIE_ENABLE, value: "0" }
+          # Current AscendDirect on Atlas A2/910B3 requires the HCCN RoCE
+          # device IPs for cross-node P/D KV transfer.
+          - { name: HCCL_INTRA_ROCE_ENABLE, value: "1" }
           - { name: OMP_PROC_BIND, value: "false" }
           - { name: OMP_NUM_THREADS, value: "1" }
           - { name: TASK_QUEUE_ENABLE, value: "1" }
@@ -92,6 +98,9 @@ spec:
           - { name: VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS, value: "3000" }
           - { name: HCCL_EXEC_TIMEOUT, value: "600" }
           - { name: HCCL_CONNECT_TIMEOUT, value: "300" }
+          # Keep per-operation HCCL entries while diagnosing cross-node
+          # AscendDirect KV transfer failures. Remove after root cause is known.
+          - { name: HCCL_ENTRY_LOG_ENABLE, value: "1" }
           - name: POD_NAME
             valueFrom:
               fieldRef: { fieldPath: metadata.name }
@@ -106,7 +115,7 @@ spec:
           - { name: HCCL_SOCKET_IFNAME, value: eth0 }
         ports:
           - { name: http, containerPort: 8000, protocol: TCP }
-          - { name: kv, containerPort: 20001, protocol: TCP }
+          - { name: kv, containerPort: 28001, protocol: TCP }
         resources:
           requests:
             cpu: "16"
@@ -142,6 +151,9 @@ spec:
           - { name: model, mountPath: /mnt/models, readOnly: true }
           - { name: shm, mountPath: /dev/shm }
           - { name: mooncake-config, mountPath: /app }
+          # AscendDirect on Atlas A2 reads each NPU's RoCE device IP from
+          # the node-local HCCN configuration when building its ranktable.
+          - { name: hccn-config, mountPath: /etc/hccn.conf, readOnly: true }
     volumes:
       - name: model
         persistentVolumeClaim: { claimName: gemma4-31b-n8 }
@@ -149,6 +161,8 @@ spec:
         emptyDir: { medium: Memory, sizeLimit: 32Gi }
       - name: mooncake-config
         emptyDir: {}
+      - name: hccn-config
+        hostPath: { path: /etc/hccn.conf, type: File }
 
   prefill:
     replicas: 1
@@ -161,7 +175,7 @@ spec:
       terminationGracePeriodSeconds: 60
       containers:
         - name: main
-          image: quay.io/ascend/vllm-ascend:nightly-main-openeuler-0721
+          image: quay.io/ascend/vllm-ascend@sha256:fa246685a9e0b9ea63f242be634dcc7616060f6f7dc9ca7018fa06c1657940da
           imagePullPolicy: IfNotPresent
           command: ["/bin/bash", "-c"]
           args:
@@ -171,7 +185,7 @@ spec:
               source /usr/local/Ascend/nnal/atb/set_env.sh 2>/dev/null || true
               set -eo pipefail
               printf '{}' > /app/mooncake.json
-              KV_CONFIG=$(printf '{"engine_id":"%s","kv_buffer_device":"npu","kv_connector":"MooncakeConnectorV1","kv_connector_extra_config":{"decode":{"dp_size":1,"tp_size":4},"prefill":{"dp_size":1,"tp_size":4},"use_ascend_direct":true},"kv_parallel_size":1,"kv_port":"20000","kv_rank":0,"kv_role":"kv_producer"}' "$POD_NAME")
+              KV_CONFIG=$(printf '{"engine_id":"%s","kv_buffer_device":"npu","kv_connector":"MooncakeConnectorV1","kv_connector_extra_config":{"decode":{"dp_size":1,"tp_size":4},"prefill":{"dp_size":1,"tp_size":4},"use_ascend_direct":true},"kv_parallel_size":1,"kv_port":"28000","kv_rank":0,"kv_role":"kv_producer"}' "$POD_NAME")
               echo "[gemma4-pd-prefill] pod=$POD_NAME ip=$POD_IP devices=$(ls /dev/davinci* 2>/dev/null | tr '\n' ' ')"
               exec vllm serve /mnt/models \
                 --host 0.0.0.0 \
@@ -182,6 +196,7 @@ spec:
                 --api-server-count 1 \
                 --enable-auto-tool-choice \
                 --tool-call-parser gemma4 \
+                --reasoning-parser gemma4 \
                 --tensor-parallel-size 4 \
                 --max-model-len -1 \
                 --max-num-batched-tokens 8192 \
@@ -189,12 +204,12 @@ spec:
                 --block-size 128 \
                 --gpu-memory-utilization 0.9 \
                 --no-enable-prefix-caching \
-                --enforce-eager \
+                --compilation-config '{"cudagraph_mode":"PIECEWISE"}' \
                 --kv-transfer-config "$KV_CONFIG"
           env: *engine-env
           ports:
             - { name: http, containerPort: 8000, protocol: TCP }
-            - { name: kv, containerPort: 20000, protocol: TCP }
+            - { name: kv, containerPort: 28000, protocol: TCP }
           resources:
             requests:
               cpu: "16"
@@ -224,6 +239,7 @@ spec:
             - { name: model, mountPath: /mnt/models, readOnly: true }
             - { name: shm, mountPath: /dev/shm }
             - { name: mooncake-config, mountPath: /app }
+            - { name: hccn-config, mountPath: /etc/hccn.conf, readOnly: true }
       volumes:
         - name: model
           persistentVolumeClaim: { claimName: gemma4-31b-n9 }
@@ -231,6 +247,8 @@ spec:
           emptyDir: { medium: Memory, sizeLimit: 32Gi }
         - name: mooncake-config
           emptyDir: {}
+        - name: hccn-config
+          hostPath: { path: /etc/hccn.conf, type: File }
 ---
 apiVersion: serving.kserve.io/v1alpha2
 kind: LLMInferenceServiceConfig
@@ -279,10 +297,12 @@ spec:
               - json
               - --v
               - "1"
-              - --tracing
-              - "false"
-              - --metrics-endpoint-auth
-              - "false"
+              - --tracing=false
+              - --metrics-endpoint-auth=false
+              # A single fixed P/D pair does not need sub-second load updates.
+              # Keep routing metrics useful without adding two /metrics scrapes
+              # per engine every second (direct plus proxy aggregation).
+              - --refresh-metrics-interval=15s
               - --config-text
               - |-
                 # This is Hermes Router's embedded config-document schema, not
@@ -381,7 +401,8 @@ metadata:
     infernex.io/runtime: "true"
   annotations:
     infernex.io/disabled-components: "mooncake,cache-indexer,pd-orchestrator,eagle-eye"
-    model-auto.alauda.io/config-revision: "0802-p4d4-aiperf-s1s2-no-tokenizer"
+    model-auto.alauda.io/config-revision: "0803-p4d4-main-pc-piecewise-hccn-no-tokenizer-hccldiag"
+    serving.kserve.io/stop: "false"
 spec:
   model:
     name: google/gemma-4-31B-it
@@ -422,5 +443,9 @@ spec:
                 request: 0s
                 backendRequest: 0s
   replicas: 1
+  template:
+    enableServiceLinks: false
   prefill:
     replicas: 1
+    template:
+      enableServiceLinks: false

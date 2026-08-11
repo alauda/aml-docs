@@ -29,24 +29,26 @@ Bridge. It is an **8 × Ascend 910B3 64 GB** composite service, not a 4-card rep
 
 | Platform | Engine | Version / configuration | Status |
 |---|---|---|---|
-| Ascend 910B3 64 GB × 8 across 2 nodes | vLLM-Ascend | `quay.io/ascend/vllm-ascend:nightly-main-openeuler-0721` (vLLM 0.25.1, CANN 9.0.1) | P4+D4 closed-loop AIPerf validation |
+| Ascend 910B3 64 GB × 8 across 2 nodes | vLLM-Ascend | `nightly-main-openeuler-20260804-b481d79c` (ARM64 manifest `sha256:fa246685...`, CANN 9.0.1) | P4+D4 closed-loop AIPerf validation through MaaS |
 
 :::note
-This is a dated `nightly-main` snapshot, retained because it is the exact image used by
-the validated deployment. It is not a claim that the tag is the newest vLLM-Ascend build.
+This is a dated `nightly-main` snapshot built from vLLM-Ascend commit
+`b481d79c7de49ab285e61cec689172931c124429`. The manifest pins its public ARM64 digest;
+it is the exact image content used by the validated deployment, not a claim that the tag
+is the newest vLLM-Ascend build.
 :::
 
 ## Model configuration
 
 | Component | Setting |
 |---|---|
-| Prefill | TP=4 on one 910B3 node; `max-num-batched-tokens=8192`; eager execution |
+| Prefill | TP=4 on one 910B3 node; `max-num-batched-tokens=8192`; `PIECEWISE` ACLGraph |
 | Decode | TP=4 on the second node; `max-num-batched-tokens=128`; `FULL_DECODE_ONLY` graph capture |
 | P/D handoff | `MooncakeConnectorV1`, Ascend Direct KV transfer, TP4/TP4 contract |
 | Capacity guardrail | `max-num-seqs=96` on both engines; `gpu-memory-utilization=0.9` |
 | Prefix cache | disabled in the engine; the workload uses explicit P/D KV transfer |
 | Scheduler | one fixed P/D pair; metrics-based P/D scoring without a tokenizer sidecar |
-| Tool calls | `--enable-auto-tool-choice --tool-call-parser gemma4` |
+| Tool calls and reasoning | `--enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4` |
 
 ## Why P4+D4
 
@@ -76,15 +78,16 @@ the two engines can use Ascend Direct transport.
 base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/assets/gemma4-31b-it
 kubectl apply -f $base/gemma4-31b-it-pd-p4d4-llmisvc.yaml
 
-# Internal KServe ingress (no MaaS API key):
-curl -s http://<gateway>/<namespace>/gemma4-31b-it-pd/v1/chat/completions \
+# Production MaaS ingress:
+curl -s https://<maas-host>/v1/chat/completions \
+  -H "Authorization: Bearer $MAAS_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"model":"google/gemma-4-31B-it","messages":[{"role":"user","content":"hello"}]}'
 ```
 
 ## Benchmark results
 
-Closed-loop `aiperf 0.7.0`, driven directly through the P/D proxy. Both scenarios run
+Closed-loop `aiperf 0.7.0`, driven through MaaS with its API key. Both scenarios run
 480 requests per concurrency tier at concurrency 8 / 16 / 32, with warmup equal to the
 tier's concurrency. TTFT / E2E are seconds, ITL is ms, Decode is output-only token
 throughput, and TPS is input-plus-output token throughput.
@@ -93,30 +96,31 @@ throughput, and TPS is input-plus-output token throughput.
 
 | Concurrency | TTFT avg (s) | ITL avg (ms) | E2E avg (s) | Decode (tok/s) | Requests/s | TPS (in+out) |
 |--:|--:|--:|--:|--:|--:|--:|
-| 8 | 4.023 | 29.11 | 7.720 | 131.66 | 1.03 | 8,373.74 |
-| 16 | 11.642 | 29.10 | 15.338 | 131.52 | 1.03 | 8,365.16 |
-| 32 | 26.458 | 29.09 | 30.153 | 131.64 | 1.03 | 8,372.31 |
+| 8 | 4.096 | 29.33 | 7.821 | 129.97 | 1.02 | 8,266.38 |
+| 16 | 11.816 | 29.29 | 15.536 | 129.82 | 1.01 | 8,256.63 |
+| 32 | 26.843 | 29.36 | 30.572 | 129.84 | 1.01 | 8,257.80 |
 
 **Scenario ② — multi-turn dialogue (average ISL 17,933 / OSL 128)**
 
 | Concurrency | TTFT avg (s) | ITL avg (ms) | E2E avg (s) | Decode (tok/s) | Requests/s | TPS (in+out) |
 |--:|--:|--:|--:|--:|--:|--:|
-| 8 | 14.377 | 28.55 | 18.003 | 56.44 | 0.44 | 7,963.44 |
-| 16 | 32.026 | 28.56 | 35.654 | 56.48 | 0.44 | 7,970.08 |
-| 32 | 66.372 | 28.54 | 69.996 | 56.49 | 0.44 | 7,970.40 |
+| 8 | 14.585 | 28.82 | 18.246 | 55.69 | 0.44 | 7,857.50 |
+| 16 | 32.488 | 28.79 | 36.145 | 55.71 | 0.44 | 7,861.46 |
+| 32 | 67.295 | 28.85 | 70.959 | 55.72 | 0.44 | 7,862.21 |
 
 Every tier completed 480 requests with zero errors. Throughput and ITL are flat from
 concurrency 8 onward in both scenarios, while TTFT grows with concurrency. The service
 is Prefill-capacity-bound at roughly 8k input-dominated tokens/s: increasing average ISL
-from 8,013 to 17,933 lowers request throughput from 1.03 to 0.44 requests/s, while total
-token throughput changes by only about 5%. Decode ITL remains stable near 29 ms.
+from 8,013 to 17,933 lowers request throughput from 1.02 to 0.44 requests/s, while total
+token throughput changes by about 4.8%. Decode ITL remains stable near 29 ms.
 
 :::note
-The benchmark is intentionally sent to the P/D proxy instead of MaaS: at measurement time
-the cluster's MaaS backend still selected the old aggregated TP4 service. This preserves a
-single, unambiguous P4+D4 topology for the published figures. Server metrics and GPU
-telemetry were disabled because AIPerf 0.7.0 cannot parse this vLLM metrics histogram;
-the published values come from the completed request records and CSV export.
+The benchmark was sent to MaaS, whose backend selected this P4+D4 proxy. The API key was
+injected from a Kubernetes Secret and was not written to the manifest, benchmark log, or
+this page. Server metrics and GPU telemetry were disabled because AIPerf 0.7.0 cannot
+parse this vLLM metrics histogram; the published values come from completed request
+records and CSV export. Every one of the six tiers completed 480 requests with zero errors,
+and all four serving Pods remained at zero restarts.
 
 The delivered scheduler intentionally omits the tokenizer plugin. This topology has only
 one fixed Prefill/Decode pair and no prefix-cache producer, so tokenization adds no routing
