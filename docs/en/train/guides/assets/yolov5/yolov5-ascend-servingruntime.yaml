@@ -11,7 +11,8 @@ metadata:
 spec:
   containers:
     - name: kserve-container
-      # Build this image from yolov5-ascend.Containerfile and serve.py.
+      # Build this image from yolov5-ascend.Containerfile and yolov5_ascend_server.py.
+      # Use an approved internal mirror and pin it by digest in production.
       image: <your-registry>/yolov5-ascend:cann8.5
       command:
         - bash

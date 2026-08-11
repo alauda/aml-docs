@@ -11,7 +11,8 @@ metadata:
 spec:
   containers:
     - name: kserve-container
-      image: alaudadockerhub/tritonserver:25.02-py3
+      # Use an approved internal mirror and pin it by digest in production.
+      image: <your-registry>/tritonserver:25.02-py3
       command:
         - /bin/bash
         - -c
@@ -37,6 +38,8 @@ spec:
         privileged: false
         runAsNonRoot: true
         runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       startupProbe:
         httpGet:
           path: /v2/models/{{ index .Annotations "aml-model-repo" }}/ready

@@ -10,6 +10,8 @@ from fastapi import FastAPI, HTTPException
 MODEL_NAME = os.environ.get("MODEL_NAME", "yolov5-coco128")
 MODEL_PATH = os.environ.get("MODEL_PATH", "/mnt/models/1/model.pt")
 DEVICE = os.environ.get("NPU_DEVICE", "npu:0")
+MAX_BATCH_SIZE = int(os.environ.get("MAX_BATCH_SIZE", "8"))
+INPUT_SHAPE = (3, 640, 640)
 app = FastAPI()
 
 
@@ -53,12 +55,28 @@ def infer(model_name: str, request: dict):
 
     shape = image.get("shape")
     data = image.get("data")
-    if not isinstance(shape, list) or data is None:
+    if not isinstance(shape, list) or not isinstance(data, list):
         raise HTTPException(status_code=400, detail="images must include shape and data")
 
-    values = np.asarray(data, dtype=np.float32)
-    if values.size != int(np.prod(shape)):
+    if (
+        len(shape) != 4
+        or any(not isinstance(dimension, int) or isinstance(dimension, bool) for dimension in shape)
+        or not 1 <= shape[0] <= MAX_BATCH_SIZE
+        or tuple(shape[1:]) != INPUT_SHAPE
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=f"images must have shape [batch, 3, 640, 640] with batch between 1 and {MAX_BATCH_SIZE}",
+        )
+
+    expected_values = int(np.prod(shape))
+    if len(data) != expected_values:
         raise HTTPException(status_code=400, detail="images data does not match shape")
+
+    try:
+        values = np.asarray(data, dtype=np.float32)
+    except (TypeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail="images data must contain FP32 values") from error
 
     tensor = torch.from_numpy(values.reshape(shape)).to(DEVICE)
     with torch.inference_mode():

@@ -1,6 +1,6 @@
 # Create this Secret and ServiceAccount in the namespace that runs both the
-# TrainJob and the InferenceService. For an HTTP endpoint, change s3-usehttps
-# to "0" and keep the http:// scheme in AWS_S3_ENDPOINT.
+# TrainJob and the InferenceService. Do not commit populated credentials. Use
+# HTTPS in production; change s3-usehttps to "0" only for a private test endpoint.
 apiVersion: v1
 kind: Secret
 metadata:
@@ -13,6 +13,7 @@ metadata:
     serving.kserve.io/s3-usehttps: "1"
 type: Opaque
 stringData:
+  # Use a credential limited to the input prefixes and this run's output prefix.
   AWS_ACCESS_KEY_ID: <access-key>
   AWS_SECRET_ACCESS_KEY: <secret-key>
   # The AWS CLI in the training image uses a complete endpoint URL.

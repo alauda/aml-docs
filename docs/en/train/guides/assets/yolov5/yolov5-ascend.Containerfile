@@ -1,4 +1,5 @@
-FROM docker.io/alaudadockerhub/torch2.6-cann8.5-arm64:v0.1.0
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
 
 USER 0
 RUN pip install --no-cache-dir \

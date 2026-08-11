@@ -36,7 +36,7 @@ spec:
                         sizeLimit: 2Gi
                   containers:
                     - name: node
-                      # Replace with the image built in the guide.
+                      # Replace with the image built in the guide. Pin by digest in production.
                       image: <your-registry>/yolov5-trainer:v7.0
                       imagePullPolicy: IfNotPresent
                       command:
