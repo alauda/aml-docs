@@ -129,3 +129,25 @@ deadline, while this Gemma tokenizer took 17.59 seconds to cold-load. A future m
 prefix-aware deployment should first use a router build with a configurable initialization
 deadline of at least 30 seconds, then restore the tokenizer plugin.
 :::
+
+## Real coding-agent validation
+
+Gemma-4 was also driven as a real coding agent through the same MaaS gateway, with
+reasoning/thinking enabled. **Pi 0.80.6** ran the fixed 14-task `capacity14`
+Terminal-Bench selection at concurrency **1 / 8 / 32**. Concurrency 1 and 8 use one
+attempt per task; concurrency 32 uses three attempts per task, for 42 trials. An objective
+task verifier produced the scores below.
+
+| Concurrency | Completed trials | Passed | Pass rate | Agent timeouts | Wall time | Correct-task throughput |
+|--:|--:|--:|--:|--:|--:|--:|
+| 1 | 14 / 14 | 5 / 14 | 35.7% | 0 | 1h 23m 24s | 3.60 tasks/hr |
+| 8 | 14 / 14 | 7 / 14 | 50.0% | 1 | 16m 13s | **25.89 tasks/hr** |
+| 32 | 42 / 42 | 20 / 42 | 47.6% | 15 | 1h 8m 59s | 17.40 tasks/hr |
+
+The harness reports **Pass@2 = 54.8%** for the concurrency-32 run. Concurrency 8 is the
+best observed Pi operating point: increasing to 32 did not improve pass rate or
+correct-task throughput and introduced 15 `AgentTimeoutError` trials. During the run the
+Gemma Prefill, Decode, scheduler, and proxy Pods remained Ready with zero restarts and no
+serving 5xx/traceback, so these timeouts are recorded as Agent/task-level failures rather
+than an engine crash. OpenCode `capacity14` is still running and will be added separately;
+the earlier `mini7` result is smoke evidence and is not used as the formal Agent score.
