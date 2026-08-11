@@ -223,18 +223,26 @@ The raw output contains candidate boxes and class scores. YOLOv5 post-processing
 
 ## Deploy on Ascend NPU \{#deploy-on-ascend-npu}
 
-The Triton runtime above is for NVIDIA CUDA and cannot serve an Ascend NPU. To deploy the same S3-stored model on a Huawei Ascend NPU, use a custom KServe runtime that loads the exported TorchScript model with `torch_npu`. This section targets arm64 Ascend 910B4 nodes with CANN 8.5; adjust the image, CANN version, and resource keys for other Ascend hardware.
+The Triton runtime above is for NVIDIA CUDA and cannot serve an Ascend NPU. This guide provides a runnable custom KServe runtime that loads the exported TorchScript model with `torch_npu`. It targets arm64 Ascend 910B4 nodes with CANN 8.5; adjust the image, CANN version, and resource keys for other Ascend hardware.
+
+For a native CANN production implementation, use Ascend's [CANN YOLO model-inference sample](https://github.com/Ascend/samples/tree/master/inference/modelInference/sampleYOLOV7) as the reference architecture. The published sample uses YOLOv7, but its deployment flow is applicable to a compatible YOLOv5 export: export the model to ONNX, compile it with CANN ATC to an `.om` offline model, then execute that model through AscendCL. The companion [CANN post-processing sample](https://github.com/Ascend/samples/tree/master/inference/modelInference/sampleYOLOV7NMSONNX) demonstrates a CANN detection post-processing graph.
+
+The CANN samples are references, not manifests for this service. In particular, their example ATC command targets Ascend 310, so do not copy its `soc_version` for a 910B deployment. Build and validate the `.om` file in a CANN environment compatible with the destination driver and 910B SKU, and store it in a separate immutable S3 prefix. A production KServe runtime for this path must load the `.om` file through AscendCL and implement the same KServe v2 API used below. Keep the TorchScript artifact and the `torch_npu` method when conversion compatibility or a shorter implementation path is more important than native CANN optimization.
 
 The training job already uploads `1/model.pt` under `OUTPUT_MODEL_URI`. The NPU runtime consumes that file directly; it does not use Triton's `config.pbtxt`.
 
-### Prerequisites
+### Deploy the TorchScript model with `torch_npu`
+
+The remainder of this section describes the runnable TorchScript path. It retains the model artifact created by the training job and requires no ONNX or `.om` conversion.
+
+#### Prerequisites
 
 - Ascend driver, Kubernetes device plugin, and the platform's Ascend serving configuration are installed on the target nodes.
 - The `yolov5-s3` ServiceAccount and S3 credentials from [Create S3 credentials and inference ServiceAccount](#create-s3-credentials-and-inference-serviceaccount) exist in the deployment namespace.
 - The CANN image can access the host CANN libraries. Its entrypoint must source `/usr/local/Ascend/ascend-toolkit/set_env.sh` before importing `torch_npu`.
 - The exported TorchScript model is compatible with the PyTorch/CANN version in the serving image. Re-export it with the matching stack if loading fails.
 
-### Build the Ascend serving image
+#### Build the Ascend serving image
 
 Download [`yolov5-ascend.Containerfile`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-ascend.Containerfile) and [`yolov5_ascend_server.py`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5_ascend_server.py) into the same directory. The image extends the CANN PyTorch runtime and exposes the KServe v2 health and inference endpoints for `images` and `output0`. Supply an approved, digest-pinned internal CANN base image when you build it.
 
@@ -246,7 +254,7 @@ nerdctl build \
 nerdctl push <your-registry>/yolov5-ascend:cann8.5
 ```
 
-### Register the Ascend serving runtime
+#### Register the Ascend serving runtime
 
 Download [`yolov5-ascend-servingruntime.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-ascend-servingruntime.yaml), replace its image with the one you built, and apply it as a cluster administrator:
 
@@ -254,7 +262,7 @@ Download [`yolov5-ascend-servingruntime.yaml`](https://github.com/alauda/aml-doc
 kubectl apply -f yolov5-ascend-servingruntime.yaml
 ```
 
-### Create the Ascend inference service
+#### Create the Ascend inference service
 
 Download [`yolov5-ascend-inferenceservice.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-ascend-inferenceservice.yaml). Set the namespace and `storageUri` to the `OUTPUT_MODEL_URI` written by the `TrainJob`. Keep `aml-model-repo` equal to `TRITON_MODEL_NAME`, because the custom runtime uses that value as its KServe v2 model name.
 
