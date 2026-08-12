@@ -131,9 +131,11 @@ The runtime is reusable. It validates the required input variables, downloads th
 
 This is the layout expected by Triton. `config.pbtxt` is configured for the example's 640 × 640 COCO model. If you change the input image size or the model output signature, update the config in the runtime before training. Confirm the input and output names and shapes with the exported model before publishing a custom model.
 
+When `OUTPUT_ONNX_URI` is set, the runtime also writes `model.onnx` to that separate prefix. It is the input artifact for the native CANN deployment path described below. Omit that variable for a Triton-only training run.
+
 ## Submit a YOLOv5 fine-tuning job
 
-Download [`yolov5-triton-trainjob.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-triton-trainjob.yaml). Edit the namespace, the three S3 URIs, and `TRITON_MODEL_NAME`. `OUTPUT_MODEL_URI` must be a new prefix, and must match the inference-service `storageUri`. Then set the resource limits and the training values that fit your cluster:
+Download [`yolov5-triton-trainjob.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-triton-trainjob.yaml). Edit the namespace, the three required S3 URIs, and `TRITON_MODEL_NAME`. Set `OUTPUT_ONNX_URI` as a fourth S3 URI only when following the native CANN path. Every output URI must be a new prefix. `OUTPUT_MODEL_URI` must match the Triton inference-service `storageUri`. Then set the resource limits and the training values that fit your cluster:
 
 | Field | Default | Purpose |
 | --- | --- | --- |
@@ -144,6 +146,7 @@ Download [`yolov5-triton-trainjob.yaml`](https://github.com/alauda/aml-docs/blob
 | `EPOCHS` | `3` | Number of fine-tuning epochs |
 | `DATALOADER_WORKERS` | `0` | Data-loader workers; raise only after confirming the shared-memory allocation is sufficient |
 | `DEVICE` | `0` | GPU index; set `cpu` for CPU-only testing and remove GPU resource requests |
+| `OUTPUT_ONNX_URI` | `s3://<bucket>/models/yolov5-coco128/finetune-coco128-v1-onnx` | Optional separate prefix that receives the exported `model.onnx` for ATC conversion |
 
 Create and watch the job:
 
@@ -223,11 +226,11 @@ The raw output contains candidate boxes and class scores. YOLOv5 post-processing
 
 ## Deploy on Ascend NPU \{#deploy-on-ascend-npu}
 
-The Triton runtime above is for NVIDIA CUDA and cannot serve an Ascend NPU. This guide provides a runnable custom KServe runtime that loads the exported TorchScript model with `torch_npu`. It targets arm64 Ascend 910B4 nodes with CANN 8.5; adjust the image, CANN version, and resource keys for other Ascend hardware.
+The Triton runtime above is for NVIDIA CUDA and cannot serve an Ascend NPU. This guide provides two runnable NPU paths: a custom KServe runtime that loads the exported TorchScript model with `torch_npu`, and a native CANN path that loads an ATC-compiled `.om` model with AscendCL. Adjust the image, CANN version, and resource keys for the destination Ascend hardware.
 
 For a native CANN production implementation, use Ascend's [CANN YOLO model-inference sample](https://github.com/Ascend/samples/tree/master/inference/modelInference/sampleYOLOV7) as the reference architecture. The published sample uses YOLOv7, but its deployment flow is applicable to a compatible YOLOv5 export: export the model to ONNX, compile it with CANN ATC to an `.om` offline model, then execute that model through AscendCL. The companion [CANN post-processing sample](https://github.com/Ascend/samples/tree/master/inference/modelInference/sampleYOLOV7NMSONNX) demonstrates a CANN detection post-processing graph.
 
-The CANN samples are references, not manifests for this service. In particular, their example ATC command targets Ascend 310, so do not copy its `soc_version` for a 910B deployment. Build and validate the `.om` file in a CANN environment compatible with the destination driver and 910B SKU, and store it in a separate immutable S3 prefix. A production KServe runtime for this path must load the `.om` file through AscendCL and implement the same KServe v2 API used below. Keep the TorchScript artifact and the `torch_npu` method when conversion compatibility or a shorter implementation path is more important than native CANN optimization.
+The CANN samples are references, not manifests for this service. In particular, their example ATC command targets Ascend 310, so do not copy its `soc_version` for a 910B deployment. Build and validate the `.om` file in a CANN environment compatible with the destination driver and 910B SKU, and store it in a separate immutable S3 prefix. The runnable AscendCL sample below implements the same KServe v2 API as the TorchScript sample. Keep the TorchScript artifact and the `torch_npu` method when conversion compatibility or a shorter implementation path is more important than native CANN optimization.
 
 ### Build the native CANN compiler image
 
@@ -241,7 +244,8 @@ FROM ${BASE_IMAGE}
 
 USER 0
 ARG CANN_PYTHON_SITE_PACKAGES=/usr/local/Ascend/cann-9.0.1/python/site-packages
-RUN python3 -m pip install --no-cache-dir --target "${CANN_PYTHON_SITE_PACKAGES}" \
+RUN python3 -m pip install --no-cache-dir awscli==1.46.0 && \
+    python3 -m pip install --no-cache-dir --target "${CANN_PYTHON_SITE_PACKAGES}" \
       numpy==1.26.4 \
       decorator==5.2.1 \
       sympy==1.13.1 \
@@ -262,6 +266,72 @@ nerdctl push <your-registry>/yolov5-cann-compiler:9.0.1-910b
 ```
 
 Build for the target `linux/arm64` platform so that the NumPy, SciPy, and psutil wheels match the NPU node architecture. The compiler image needs package access only while it is built. In a restricted network, put the matching CPython 3.11 arm64 wheels in the build context and install them with `--no-index --find-links=<wheelhouse>`; do not give the serving workload broad outbound access merely to install dependencies at startup. Source `/usr/local/Ascend/ascend-toolkit/set_env.sh` before invoking `atc` or importing `acl`.
+
+### Deploy a compiled `.om` model with AscendCL
+
+This path serves a static-batch, FP32 YOLOv5 model compiled for one Ascend SKU. It uses a separate S3 prefix containing exactly this layout:
+
+```text
+.
+└── 1/
+    └── model.om
+```
+
+Do not put the TorchScript Triton repository, the ONNX source, or a model compiled for a different `soc_version` in this prefix. An `.om` file is an executable CANN offline model, not a portable interchange format. Recompile and use a new immutable prefix whenever the target Ascend SKU or incompatible CANN/driver stack changes.
+
+#### Compile and publish the offline model
+
+Start a container from the compiler image built above. Download `model.onnx` from `OUTPUT_ONNX_URI`, then compile it for the destination SKU. This command is for the fixed `images:1,3,640,640` FP32 input used by the supplied KServe server and must be changed together with the server if the model signature changes:
+
+```bash
+source /usr/local/Ascend/ascend-toolkit/set_env.sh
+aws --endpoint-url "$AWS_S3_ENDPOINT" s3 cp \
+  s3://<bucket>/models/yolov5-coco128/finetune-coco128-v1-onnx/model.onnx \
+  /work/model.onnx
+atc \
+  --framework=5 \
+  --model=/work/model.onnx \
+  --output=/work/model \
+  --input_format=NCHW \
+  --input_shape="images:1,3,640,640" \
+  --soc_version=Ascend910B3
+aws --endpoint-url "$AWS_S3_ENDPOINT" s3 cp \
+  /work/model.om \
+  s3://<bucket>/models/yolov5-coco128/finetune-coco128-v1-ascend910b3-cann9.0.1/1/model.om
+```
+
+`atc` writes `/work/model.om`. The commands assume an S3-compatible client configured with the same endpoint and least-privilege credentials used by the training workflow. The output prefix must be new and contain only `1/model.om`. Do not use the sample `Ascend910B3` value for a different SKU.
+
+#### Build the AscendCL serving image
+
+Download [`yolov5-ascendcl-om.Containerfile`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-ascendcl-om.Containerfile) and [`yolov5_ascendcl_om_server.py`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5_ascendcl_om_server.py) into the same directory. Build the image from the derived CANN compiler image above, or an equivalent CANN runtime image that provides the AscendCL Python binding and is compatible with the target driver:
+
+```bash
+nerdctl build --platform linux/arm64 \
+  --build-arg BASE_IMAGE=<your-registry>/yolov5-cann-compiler:9.0.1-910b@sha256:<digest> \
+  -f yolov5-ascendcl-om.Containerfile \
+  -t <your-registry>/yolov5-ascendcl-om:cann9.0.1 .
+nerdctl push <your-registry>/yolov5-ascendcl-om:cann9.0.1
+```
+
+The server initializes AscendCL once, loads `/mnt/models/1/model.om`, validates the fixed input shape, and serializes calls to its ACL context. It exposes KServe v2 health and inference endpoints and returns the raw `output0` tensor. As with the TorchScript path, YOLO confidence filtering and non-maximum suppression remain client responsibilities.
+
+#### Register the AscendCL runtime and deploy the service
+
+Download [`yolov5-ascendcl-om-servingruntime.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-ascendcl-om-servingruntime.yaml), replace its image with the image you pushed, and apply it as a cluster administrator:
+
+```bash
+kubectl apply -f yolov5-ascendcl-om-servingruntime.yaml
+```
+
+Then download [`yolov5-ascendcl-om-inferenceservice.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-ascendcl-om-inferenceservice.yaml). Set the namespace and `storageUri` to the immutable S3 prefix containing `1/model.om`, and keep `aml-model-repo` equal to the KServe v2 model name:
+
+```bash
+kubectl apply -f yolov5-ascendcl-om-inferenceservice.yaml
+kubectl get inferenceservice yolov5-coco128-ascendcl-om -n <your-namespace> --watch
+```
+
+The supplied `InferenceService` requests one whole device with the standard Huawei device-plugin key, `huawei.com/Ascend910: "1"`. If your cluster uses HAMI vNPU slices, replace that limit with the resource keys and memory value required by the cluster's Ascend scheduling configuration. Use the same S3 ServiceAccount created in [Create S3 credentials and inference ServiceAccount](#create-s3-credentials-and-inference-serviceaccount) so KServe can download the offline model.
 
 #### Validated Ascend environment (2026-08-11)
 

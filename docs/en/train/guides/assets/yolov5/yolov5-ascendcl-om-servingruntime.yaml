@@ -1,0 +1,74 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ClusterServingRuntime
+metadata:
+  name: aml-yolov5-ascendcl-om-cann-9
+  annotations:
+    cpaas.io/display-name: yolov5-ascendcl-om-cann9
+  labels:
+    cpaas.io/accelerator-type: ascend
+    cpaas.io/cann-version: "9.0.1"
+    cpaas.io/runtime-class: ascendcl
+spec:
+  containers:
+    - name: kserve-container
+      # Build this image from yolov5-ascendcl-om.Containerfile and
+      # yolov5_ascendcl_om_server.py. Use an approved, digest-pinned mirror.
+      image: <your-registry>/yolov5-ascendcl-om:cann9.0.1
+      command:
+        - bash
+        - -c
+        - |
+          set -e
+          source /usr/local/Ascend/ascend-toolkit/set_env.sh
+          exec uvicorn ascendcl_om_server:app --app-dir /opt/yolov5 --host 0.0.0.0 --port 8080
+      env:
+        - name: MODEL_NAME
+          value: '{{ index .Annotations "aml-model-repo" }}'
+        - name: MODEL_PATH
+          value: /mnt/models/1/model.om
+        - name: ASCEND_DEVICE_ID
+          value: "0"
+        - name: HOME
+          value: /tmp
+        - name: USER
+          value: yolo
+      ports:
+        - containerPort: 8080
+          name: http1
+          protocol: TCP
+      resources:
+        requests:
+          cpu: 2
+          memory: 6Gi
+        limits:
+          cpu: 2
+          memory: 6Gi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+        privileged: false
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      startupProbe:
+        httpGet:
+          path: /v2/models/{{ index .Annotations "aml-model-repo" }}/ready
+          port: 8080
+          scheme: HTTP
+        failureThreshold: 60
+        periodSeconds: 10
+        timeoutSeconds: 10
+      readinessProbe:
+        httpGet:
+          path: /v2/health/ready
+          port: 8080
+          scheme: HTTP
+        periodSeconds: 10
+        timeoutSeconds: 10
+  protocolVersions:
+    - v2
+  supportedModelFormats:
+    - name: cann-om
+      version: "1"
