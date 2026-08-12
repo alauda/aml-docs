@@ -1,0 +1,28 @@
+---
+weight: 20
+---
+
+# Train on GPU and Run Inference on NPU
+
+Training and inference can use different accelerator types. This page is an index for workflows that fine-tune or train a model on NVIDIA GPUs and serve a compatible exported model on Huawei Ascend NPUs. It does not replace the linked guides or provide deployment steps.
+
+## Fine-tune LLMs on GPU and run LLM inference on NPU
+
+Use one of these guides to fine-tune an LLM on GPU:
+
+- [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx) for a reusable `TrainingRuntime` and `TrainJob` workflow.
+- [Fine-tuning LLMs with Training Hub](./training-hub-fine-tuning.mdx) for SFT, OSFT, LoRA, QLoRA, and continued pre-training workflows.
+- [Training Runtime Images](./training-runtimes.mdx) to select a CUDA training runtime.
+
+After the fine-tuned model is published to the model storage location used by your platform, use the NPU-serving guidance in [Extend Inference Runtimes](../../deploy/inference_service/guides/custom_inference_runtime.mdx). Its `vLLM-ascend` section covers Ascend NPU runtime and `InferenceService` configuration. For platform-wide service lifecycle and operations, see [Managing Inference Services](../../deploy/inference_service/inference_service.mdx).
+
+Verify that the exported model, selected NPU serving engine, CANN stack, tokenizer, and model-storage format are compatible before moving a GPU-trained model to an NPU serving environment.
+
+## Train machine-learning models on GPU and run inference on NPU
+
+For an end-to-end object-detection example, use [Train, Fine-Tune, and Deploy YOLOv5](./yolov5-training-and-triton-deployment.mdx). It covers GPU training with Kubeflow Trainer v2 and two Ascend NPU inference choices:
+
+- A custom KServe runtime that serves the exported TorchScript model with `torch_npu`.
+- A native CANN path that converts a YOLOv5 ONNX model to an `.om` model with ATC and executes it through AscendCL.
+
+The YOLOv5 guide also documents the validated CANN compiler image and NPU environment. Use it as the reference for artifact conversion, model storage, and NPU runtime compatibility for similar machine-learning models.

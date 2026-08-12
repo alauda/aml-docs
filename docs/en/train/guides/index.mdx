@@ -10,6 +10,7 @@ End-to-end recipes for training and fine-tuning models on Alauda AI.
 
 | When you want… | Use | Guide |
 |---|---|---|
+| Fine-tune or train on GPU and serve a compatible model on Ascend NPU | Cross-accelerator workflow index | [Train on GPU and Run Inference on NPU](./train-on-gpu-infer-on-npu.mdx) |
 | Fine-tune a YOLOv5 object-detection model and deploy it with Triton | Kubeflow Trainer v2 + Triton Inference Server | [Train, Fine-Tune, and Deploy YOLOv5](./yolov5-training-and-triton-deployment.mdx) |
 | Reusable templates, repeatable runs, optional Kueue quotas | Kubeflow Trainer v2 + LlamaFactory | [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx) |
 | Survive crashes, preemption, or a pause without losing hours of training | Checkpoint PVC + `resume_from_checkpoint` + `maxRestarts` | [Checkpointing and Resuming TrainJobs](./checkpointing-and-resuming.mdx) |
