@@ -6,6 +6,21 @@ weight: 20
 
 Training and inference can use different accelerator types. This page is an index for workflows that fine-tune or train a model on NVIDIA GPUs and serve a compatible exported model on Huawei Ascend NPUs. It does not replace the linked guides or provide deployment steps.
 
+## Supported model artifacts for NPU inference
+
+The selected NPU runtime determines which artifacts it can load. The following are the model representations covered by the referenced NPU-serving guides; they are not a universal compatibility matrix for every Ascend device, model architecture, or runtime version.
+
+| Workload | Model artifact or representation | NPU serving path and compatibility notes |
+| --- | --- | --- |
+| LLM | A Hugging Face model directory with configuration and tokenizer files plus FP16 or BF16 `.safetensors` weights | Serve it with a compatible `vLLM-ascend` runtime using the `transformers` model format. The model architecture, selected runtime image, and CANN stack must support the model and precision. |
+| LLM | W8A8-quantized model package | Serve it only with a compatible vLLM-Ascend/model combination and its required quantization configuration. For a validated W8A8 example, see [Qwen3.6-27B (W8A8)](../../plan/validated_models/qwen3-6-27b-w8a8.mdx). |
+| LLM | A single-file GGUF model | The documented `vLLM-ascend` runtime can detect a single `.gguf` file. Multi-file GGUF packages are not supported by that loader. |
+| Machine learning | TorchScript `.pt` model | The YOLOv5 sample loads the exported model with `torch_npu`. The model must be compatible with the PyTorch and CANN versions in the serving image. |
+| Machine learning | ONNX `.onnx` model | The YOLOv5 native CANN path uses ONNX as the input to ATC conversion; it is not the deployed executable in that path. |
+| Machine learning | CANN offline `.om` model | Deploy it through an AscendCL-based service after compiling it for the destination Ascend SKU and compatible CANN/driver stack. |
+
+`transformers` in an `InferenceService` or `ClusterServingRuntime` identifies the model-directory format expected by the runtime. It does not by itself state that every precision or quantization method is supported. Validate the exact model, weight representation, serving image, CANN version, driver, and NPU SKU before deployment.
+
 ## Fine-tune LLMs on GPU and run LLM inference on NPU
 
 Use one of these guides to fine-tune an LLM on GPU:
