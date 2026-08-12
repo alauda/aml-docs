@@ -1,0 +1,53 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ClusterServingRuntime
+metadata:
+  name: aml-triton-cuda-12
+  annotations:
+    cpaas.io/display-name: triton-cuda12-x86
+  labels:
+    cpaas.io/accelerator-type: nvidia
+    cpaas.io/cuda-version: "12.1"
+    cpaas.io/runtime-class: triton
+spec:
+  containers:
+    - name: kserve-container
+      # Use an approved internal mirror and pin it by digest in production.
+      image: <your-registry>/tritonserver:25.02-py3
+      command:
+        - /bin/bash
+        - -c
+        - >
+          tritonserver --log-verbose=1 --http-port=8080
+          --model-repository=/mnt/models
+      env:
+        - name: OMP_NUM_THREADS
+          value: "1"
+        - name: MODEL_REPO
+          value: '{{ index .Annotations "aml-model-repo" }}'
+      resources:
+        requests:
+          cpu: 2
+          memory: 6Gi
+        limits:
+          cpu: 2
+          memory: 6Gi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+        privileged: false
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      startupProbe:
+        httpGet:
+          path: /v2/models/{{ index .Annotations "aml-model-repo" }}/ready
+          port: 8080
+          scheme: HTTP
+        failureThreshold: 60
+        periodSeconds: 10
+        timeoutSeconds: 10
+  supportedModelFormats:
+    - name: triton
+      version: "1"

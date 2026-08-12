@@ -1,0 +1,43 @@
+---
+weight: 20
+---
+
+# Train on GPU and Run Inference on NPU
+
+Training and inference can use different accelerator types. This page is an index for workflows that fine-tune or train a model on NVIDIA GPUs and serve a compatible exported model on Huawei Ascend NPUs. It does not replace the linked guides or provide deployment steps.
+
+## Supported model artifacts for NPU inference
+
+The selected NPU runtime determines which artifacts it can load. The following are the model representations covered by the referenced NPU-serving guides; they are not a universal compatibility matrix for every Ascend device, model architecture, or runtime version.
+
+| Workload | Model artifact or representation | NPU serving path and compatibility notes |
+| --- | --- | --- |
+| LLM | A Hugging Face model directory with configuration and tokenizer files plus FP16 or BF16 `.safetensors` weights | Serve it with a compatible `vLLM-ascend` runtime using the `transformers` model format. The model architecture, selected runtime image, and CANN stack must support the model and precision. |
+| LLM | W8A8-quantized model package | Serve it only with a compatible vLLM-Ascend/model combination and its required quantization configuration. For a validated W8A8 example, see [Qwen3.6-27B (W8A8)](../../plan/validated_models/qwen3-6-27b-w8a8.mdx). |
+| LLM | A single-file GGUF model | The documented `vLLM-ascend` runtime can detect a single `.gguf` file. Multi-file GGUF packages are not supported by that loader. |
+| Machine learning | TorchScript `.pt` model | The YOLOv5 sample loads the exported model with `torch_npu`. The model must be compatible with the PyTorch and CANN versions in the serving image. |
+| Machine learning | ONNX `.onnx` model | The YOLOv5 native CANN path uses ONNX as the input to ATC conversion; it is not the deployed executable in that path. |
+| Machine learning | CANN offline `.om` model | Deploy it through an AscendCL-based service after compiling it for the destination Ascend SKU and compatible CANN/driver stack. |
+
+`transformers` in an `InferenceService` or `ClusterServingRuntime` identifies the model-directory format expected by the runtime. It does not by itself state that every precision or quantization method is supported. Validate the exact model, weight representation, serving image, CANN version, driver, and NPU SKU before deployment.
+
+## Fine-tune LLMs on GPU and run LLM inference on NPU
+
+Use one of these guides to fine-tune an LLM on GPU:
+
+- [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx) for a reusable `TrainingRuntime` and `TrainJob` workflow.
+- [Fine-tuning LLMs with Training Hub](./training-hub-fine-tuning.mdx) for SFT, OSFT, LoRA, QLoRA, and continued pre-training workflows.
+- [Training Runtime Images](./training-runtimes.mdx) to select a CUDA training runtime.
+
+After the fine-tuned model is published to the model storage location used by your platform, use the NPU-serving guidance in [Extend Inference Runtimes](../../deploy/inference_service/guides/custom_inference_runtime.mdx). Its `vLLM-ascend` section covers Ascend NPU runtime and `InferenceService` configuration. For platform-wide service lifecycle and operations, see [Managing Inference Services](../../deploy/inference_service/inference_service.mdx).
+
+Verify that the exported model, selected NPU serving engine, CANN stack, tokenizer, and model-storage format are compatible before moving a GPU-trained model to an NPU serving environment.
+
+## Train machine-learning models on GPU and run inference on NPU
+
+For an end-to-end object-detection example, use [Train, Fine-Tune, and Deploy YOLOv5](./yolov5-training-and-triton-deployment.mdx). It covers GPU training with Kubeflow Trainer v2 and two Ascend NPU inference choices:
+
+- A custom KServe runtime that serves the exported TorchScript model with `torch_npu`.
+- A native CANN path that converts a YOLOv5 ONNX model to an `.om` model with ATC and executes it through AscendCL.
+
+The YOLOv5 guide also documents the validated CANN compiler image and NPU environment. Use it as the reference for artifact conversion, model storage, and NPU runtime compatibility for similar machine-learning models.

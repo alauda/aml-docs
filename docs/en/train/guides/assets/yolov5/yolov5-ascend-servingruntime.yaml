@@ -1,0 +1,68 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ClusterServingRuntime
+metadata:
+  name: aml-yolov5-ascend-cann-8.5
+  annotations:
+    cpaas.io/display-name: yolov5-ascend-cann8.5
+  labels:
+    cpaas.io/accelerator-type: ascend
+    cpaas.io/cann-version: "8.5"
+    cpaas.io/runtime-class: pytorch-ascend
+spec:
+  containers:
+    - name: kserve-container
+      # Build this image from yolov5-ascend.Containerfile and yolov5_ascend_server.py.
+      # Use an approved internal mirror and pin it by digest in production.
+      image: <your-registry>/yolov5-ascend:cann8.5
+      command:
+        - bash
+        - -c
+        - |
+          set -e
+          source /usr/local/Ascend/ascend-toolkit/set_env.sh
+          source /usr/local/Ascend/nnal/atb/set_env.sh 2>/dev/null || true
+          exec uvicorn serve:app --app-dir /opt/yolov5 --host 0.0.0.0 --port 8080
+      env:
+        - name: MODEL_NAME
+          value: '{{ index .Annotations "aml-model-repo" }}'
+        - name: MODEL_PATH
+          value: /mnt/models/1/model.pt
+        - name: NPU_DEVICE
+          value: npu:0
+        - name: HOME
+          value: /tmp
+        - name: USER
+          value: yolo
+      ports:
+        - containerPort: 8080
+          name: http1
+          protocol: TCP
+      resources:
+        requests:
+          cpu: 2
+          memory: 6Gi
+        limits:
+          cpu: 2
+          memory: 6Gi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+        privileged: false
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      startupProbe:
+        httpGet:
+          path: /v2/models/{{ index .Annotations "aml-model-repo" }}/ready
+          port: 8080
+          scheme: HTTP
+        failureThreshold: 60
+        periodSeconds: 10
+        timeoutSeconds: 10
+  protocolVersions:
+    - v2
+  supportedModelFormats:
+    - name: pytorch
+      version: "1"

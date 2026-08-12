@@ -1,0 +1,73 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  generateName: yolov5-coco128-
+  namespace: <your-namespace>
+spec:
+  runtimeRef:
+    apiGroup: trainer.kubeflow.org
+    kind: TrainingRuntime
+    name: yolov5-triton
+  trainer:
+    numNodes: 1
+    env:
+      # S3 URIs for the input YOLOv5 source and weight, dataset, and output
+      # Triton artifact layout. Use a new output prefix for each training run.
+      - name: BASE_MODEL_URI
+        value: s3://<bucket>/yolov5/v7.0
+      - name: DATASET_URI
+        value: s3://<bucket>/datasets/coco128
+      - name: OUTPUT_MODEL_URI
+        value: s3://<bucket>/models/yolov5-coco128/finetune-coco128-v1
+      - name: TRITON_MODEL_NAME
+        value: yolov5-coco128
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: yolov5-s3-credentials
+            key: AWS_ACCESS_KEY_ID
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: yolov5-s3-credentials
+            key: AWS_SECRET_ACCESS_KEY
+      - name: AWS_S3_ENDPOINT
+        valueFrom:
+          secretKeyRef:
+            name: yolov5-s3-credentials
+            key: AWS_S3_ENDPOINT
+      - name: AWS_DEFAULT_REGION
+        valueFrom:
+          secretKeyRef:
+            name: yolov5-s3-credentials
+            key: AWS_DEFAULT_REGION
+
+      # Fine-tuning inputs and hyperparameters. The data/coco128.yaml file in
+      # YOLOv5 expects the dataset at ../datasets/coco128.
+      - name: BASE_WEIGHTS
+        value: models/yolov5n.pt
+      - name: DATASET_YAML
+        value: data/coco128.yaml
+      - name: IMAGE_SIZE
+        value: "640"
+      - name: BATCH_SIZE
+        value: "16"
+      - name: EPOCHS
+        value: "3"
+      - name: DATALOADER_WORKERS
+        value: "0"
+      - name: DEVICE
+        value: "0"
+    resourcesPerNode:
+      requests:
+        cpu: "1"
+        memory: 8Gi
+        nvidia.com/gpualloc: "1"
+        nvidia.com/gpucores: "50"
+        nvidia.com/gpumem: "8192"
+      limits:
+        cpu: "8"
+        memory: 20Gi
+        nvidia.com/gpualloc: "1"
+        nvidia.com/gpucores: "50"
+        nvidia.com/gpumem: "8192"

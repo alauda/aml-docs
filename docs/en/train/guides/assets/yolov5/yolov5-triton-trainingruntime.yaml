@@ -1,0 +1,132 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainingRuntime
+metadata:
+  name: yolov5-triton
+  namespace: <your-namespace>
+  labels:
+    trainer.kubeflow.org/framework: torch
+spec:
+  mlPolicy:
+    numNodes: 1
+    torch:
+      numProcPerNode: auto
+  template:
+    spec:
+      replicatedJobs:
+        - name: node
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              backoffLimit: 0
+              template:
+                spec:
+                  securityContext:
+                    runAsNonRoot: true
+                    runAsUser: 1000
+                    runAsGroup: 1000
+                    fsGroup: 1000
+                  volumes:
+                    - name: workspace
+                      emptyDir: {}
+                    - name: dshm
+                      emptyDir:
+                        medium: Memory
+                        sizeLimit: 2Gi
+                  containers:
+                    - name: node
+                      # Replace with the image built in the guide. Pin by digest in production.
+                      image: <your-registry>/yolov5-trainer:v7.0
+                      imagePullPolicy: IfNotPresent
+                      command:
+                        - bash
+                        - -c
+                        - |
+                          set -euo pipefail
+
+                          : "${BASE_MODEL_URI:?Set BASE_MODEL_URI}"
+                          : "${DATASET_URI:?Set DATASET_URI}"
+                          : "${OUTPUT_MODEL_URI:?Set OUTPUT_MODEL_URI}"
+                          : "${TRITON_MODEL_NAME:?Set TRITON_MODEL_NAME}"
+                          : "${AWS_S3_ENDPOINT:?Set AWS_S3_ENDPOINT}"
+
+                          WORKSPACE=/workspace
+                          MODEL_DIR="${WORKSPACE}/yolov5"
+                          DATASET_DIR="${WORKSPACE}/datasets/coco128"
+                          TRAIN_DIR="${WORKSPACE}/runs/train"
+                          TRITON_MODEL_DIR="${WORKSPACE}/triton-model"
+                          # Download the YOLOv5 source, pretrained weight, and dataset from
+                          # S3-compatible object storage. The TrainJob supplies the AWS credentials.
+                          aws --endpoint-url "${AWS_S3_ENDPOINT}" s3 sync \
+                            "${BASE_MODEL_URI}" "${MODEL_DIR}"
+                          mkdir -p "${WORKSPACE}/datasets"
+                          aws --endpoint-url "${AWS_S3_ENDPOINT}" s3 sync \
+                            "${DATASET_URI}" "${DATASET_DIR}"
+
+                          cd "${MODEL_DIR}"
+                          python train.py \
+                            --img "${IMAGE_SIZE}" \
+                            --batch "${BATCH_SIZE}" \
+                            --epochs "${EPOCHS}" \
+                            --data "${DATASET_YAML}" \
+                            --weights "${BASE_WEIGHTS}" \
+                            --workers "${DATALOADER_WORKERS}" \
+                            --device "${DEVICE}" \
+                            --project "${WORKSPACE}/runs" \
+                            --name train \
+                            --exist-ok
+
+                          test -f "${TRAIN_DIR}/weights/best.pt"
+                          python export.py \
+                            --weights "${TRAIN_DIR}/weights/best.pt" \
+                            --include torchscript \
+                            --device "${DEVICE}"
+                          test -f "${TRAIN_DIR}/weights/best.torchscript"
+
+                          # Triton requires a versioned model directory and config.pbtxt at
+                          # the repository root. This configuration is for the COCO-80,
+                          # 640x640 YOLOv5n example in the guide.
+                          mkdir -p "${TRITON_MODEL_DIR}/1"
+                          cp "${TRAIN_DIR}/weights/best.torchscript" \
+                            "${TRITON_MODEL_DIR}/1/model.pt"
+                          cat > "${TRITON_MODEL_DIR}/config.pbtxt" <<EOF
+                          name: "${TRITON_MODEL_NAME}"
+                          platform: "pytorch_libtorch"
+                          max_batch_size: 8
+                          input [
+                            {
+                              name: "images"
+                              data_type: TYPE_FP32
+                              dims: [ 3, 640, 640 ]
+                            }
+                          ]
+                          output [
+                            {
+                              name: "output0"
+                              data_type: TYPE_FP32
+                              dims: [ -1, -1 ]
+                            }
+                          ]
+                          EOF
+                          cat > "${TRITON_MODEL_DIR}/README.md" <<EOF
+                          # YOLOv5 Triton model
+
+                          Fine-tuned from ${BASE_MODEL_URI} using ${DATASET_URI}.
+                          EOF
+
+                          # Upload the deployable Triton artifact layout to a new, immutable S3 prefix.
+                          aws --endpoint-url "${AWS_S3_ENDPOINT}" s3 sync \
+                            "${TRITON_MODEL_DIR}" "${OUTPUT_MODEL_URI}"
+                      volumeMounts:
+                        - name: workspace
+                          mountPath: /workspace
+                        - name: dshm
+                          mountPath: /dev/shm
+                      securityContext:
+                        allowPrivilegeEscalation: false
+                        capabilities:
+                          drop: [ALL]
+                        runAsNonRoot: true
+                        seccompProfile:
+                          type: RuntimeDefault

@@ -1,0 +1,338 @@
+---
+weight: 25
+---
+
+# Train, Fine-Tune, and Deploy YOLOv5 with Kubeflow Trainer v2
+
+Fine-tune a YOLOv5 object-detection model on Alauda AI, package the trained model for Triton Inference Server, and publish it as an online inference service. The base model, dataset, and output model are stored in S3-compatible object storage. This guide uses **Kubeflow Trainer v2** resources: `TrainingRuntime` and `TrainJob`.
+
+The example fine-tunes YOLOv5n v7.0 on the COCO128 sample dataset with one NVIDIA GPU. It runs all preparation, training, export, and publishing actions in the Trainer v2 `node` step, so it does not require a shared workspace PVC.
+
+## Prerequisites
+
+| Requirement | Details |
+| --- | --- |
+| Alauda AI | 1.3 or later, with Kubeflow Trainer v2 installed |
+| Hardware | x86_64 worker node with an NVIDIA GPU for the default Triton path. See [Deploy on Ascend NPU](#deploy-on-ascend-npu) for the separate arm64 NPU serving path. |
+| Access | Least-privilege `kubectl` permission to create `trainingruntimes` and `trainjobs` in your project namespace; cluster-administrator access only when creating a `ClusterServingRuntime` |
+| S3-compatible storage | A bucket with read access to the base-model and dataset prefixes and read/write access to the output-model prefix |
+| S3 credentials | The `yolov5-s3-credentials` Secret, with an access key, secret key, endpoint, and region. Grant it only the required source reads and output writes. It is also attached to the inference ServiceAccount. |
+| Image registry | An approved registry reachable by the training and serving nodes, to host pinned YOLOv5 and Triton images |
+
+The sample resources use Alauda AI's NVIDIA vGPU resource keys (`nvidia.com/gpualloc`, `nvidia.com/gpucores`, and `nvidia.com/gpumem`). If your cluster allocates whole GPUs, replace all three keys with `nvidia.com/gpu: 1` in the `TrainJob`.
+
+## Prepare S3 model and dataset objects
+
+Create these prefixes in S3-compatible object storage. The training pod downloads the first two prefixes and uploads the deployable Triton repository to the output prefix. The output prefix must be new for every training run; do not let two jobs write to the same prefix.
+
+| S3 prefix | Contents |
+| --- | --- |
+| `s3://<bucket>/yolov5/v7.0` | The [YOLOv5 v7.0](https://github.com/ultralytics/yolov5/tree/v7.0) source tree, including `models/yolov5n.pt` |
+| `s3://<bucket>/datasets/coco128` | The extracted [COCO128](https://github.com/ultralytics/yolov5/releases/download/v1.0/coco128.zip) directory. Its top level must contain `images/` and `labels/`. |
+| `s3://<bucket>/models/yolov5-coco128/finetune-coco128-v1` | An empty, unique prefix that receives the Triton artifact layout created by the training job |
+
+Use any S3-compatible client to upload the source tree, weight, and dataset. For example, after configuring the AWS CLI with the same endpoint and credentials as the training Secret:
+
+```bash
+aws --endpoint-url "$AWS_S3_ENDPOINT" s3 sync ./yolov5/ s3://<bucket>/yolov5/v7.0/
+aws --endpoint-url "$AWS_S3_ENDPOINT" s3 sync ./coco128/ s3://<bucket>/datasets/coco128/
+```
+
+`data/coco128.yaml` expects the dataset at `../datasets/coco128` relative to the YOLOv5 source tree. The supplied runtime downloads the dataset to exactly that path. For a custom dataset, use a data YAML file in the base-model prefix whose `path` matches the directory used by the runtime, or update the runtime and `DATASET_YAML` together.
+
+:::caution
+The base-model prefix contains Python code that the training pod executes. Populate it only from a reviewed, version-pinned YOLOv5 source tree, and restrict write access to that prefix. Do not grant an untrusted uploader the ability to replace the source tree or pretrained weight.
+:::
+
+## Create S3 credentials and inference ServiceAccount \{#create-s3-credentials-and-inference-serviceaccount}
+
+Download [`s3-model-storage.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/s3-model-storage.yaml). Set the namespace, endpoint, protocol, region, access key, and secret key, then apply it:
+
+```bash
+kubectl apply -f s3-model-storage.yaml
+```
+
+The Secret's `AWS_S3_ENDPOINT` value includes `http://` or `https://` for the AWS CLI. The `serving.kserve.io/s3-endpoint` annotation must omit the scheme because KServe reads its protocol from `serving.kserve.io/s3-usehttps`. This Secret is referenced directly by the `TrainJob` and indirectly by the `InferenceService` through the `yolov5-s3` ServiceAccount.
+
+:::caution
+Do not commit populated Secret manifests. Use your managed-secret workflow or an ignored local copy, and rotate the credentials after an incident. Scope the credential to read only the base-model and dataset prefixes and to write only the unique output-model prefix. Keep `s3-usehttps: "1"` for production; use HTTP only for a private test endpoint after accepting the transport risk.
+:::
+
+## Build the training image
+
+Build and push an image based on the following `Containerfile`. Mirror the NVIDIA base image to an approved internal registry and pin it by digest before a production build. The required `BASE_IMAGE` argument makes that choice explicit. The image adds the AWS CLI, YOLOv5 v7.0 dependencies, and the font files YOLOv5 needs for result plots. For production, review or mirror the downloaded Python dependencies through your approved package source.
+
+```text
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      curl ffmpeg libfreetype6-dev libgl1 libglib2.0-0 && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL \
+      https://raw.githubusercontent.com/ultralytics/yolov5/v7.0/requirements.txt \
+      -o /tmp/requirements.txt && \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r /tmp/requirements.txt && \
+    pip install --no-cache-dir Pillow==10.4.0 awscli && \
+    rm /tmp/requirements.txt
+
+RUN mkdir -p /opt/Ultralytics && \
+    curl -fsSL https://ultralytics.com/assets/Arial.ttf \
+      -o /opt/Ultralytics/Arial.ttf && \
+    curl -fsSL https://ultralytics.com/assets/Arial.Unicode.ttf \
+      -o /opt/Ultralytics/Arial.Unicode.ttf
+
+RUN groupadd --gid 1000 appuser && \
+    useradd --uid 1000 --gid 1000 --create-home appuser && \
+    mkdir -p /workspace /home/appuser/.config/Ultralytics && \
+    cp /opt/Ultralytics/* /home/appuser/.config/Ultralytics/ && \
+    chown -R 1000:1000 /workspace /home/appuser
+
+USER 1000
+WORKDIR /workspace
+```
+
+For example:
+
+```bash
+nerdctl build \
+  --build-arg BASE_IMAGE=<your-registry>/nvidia-pytorch:24.12-py3@sha256:<digest> \
+  -f Containerfile \
+  -t <your-registry>/yolov5-trainer:v7.0 .
+nerdctl push <your-registry>/yolov5-trainer:v7.0
+```
+
+## Create the Trainer v2 runtime
+
+Download [`yolov5-triton-trainingruntime.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-triton-trainingruntime.yaml), then make these changes before applying it:
+
+1. Replace `<your-namespace>` with the target project namespace.
+2. Replace `<your-registry>/yolov5-trainer:v7.0` with the image you pushed. For production, use an immutable digest instead of a mutable tag.
+
+Apply the runtime:
+
+```bash
+kubectl apply -f yolov5-triton-trainingruntime.yaml
+kubectl get trainingruntime yolov5-triton -n <your-namespace>
+```
+
+The runtime is reusable. It validates the required input variables, downloads the model and data from S3, runs `train.py`, exports `best.pt` as TorchScript, and uploads the following artifact layout to the output S3 prefix:
+
+```text
+.
+├── 1/
+│   └── model.pt
+├── config.pbtxt
+└── README.md
+```
+
+This is the layout expected by Triton. `config.pbtxt` is configured for the example's 640 × 640 COCO model. If you change the input image size or the model output signature, update the config in the runtime before training. Confirm the input and output names and shapes with the exported model before publishing a custom model.
+
+## Submit a YOLOv5 fine-tuning job
+
+Download [`yolov5-triton-trainjob.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-triton-trainjob.yaml). Edit the namespace, the three S3 URIs, and `TRITON_MODEL_NAME`. `OUTPUT_MODEL_URI` must be a new prefix, and must match the inference-service `storageUri`. Then set the resource limits and the training values that fit your cluster:
+
+| Field | Default | Purpose |
+| --- | --- | --- |
+| `BASE_WEIGHTS` | `models/yolov5n.pt` | Pretrained model relative to the base-model S3 prefix |
+| `DATASET_YAML` | `data/coco128.yaml` | YOLOv5 dataset configuration relative to the base-model S3 prefix |
+| `IMAGE_SIZE` | `640` | Input image width and height |
+| `BATCH_SIZE` | `16` | Per-device batch size; lower it if the GPU runs out of memory |
+| `EPOCHS` | `3` | Number of fine-tuning epochs |
+| `DATALOADER_WORKERS` | `0` | Data-loader workers; raise only after confirming the shared-memory allocation is sufficient |
+| `DEVICE` | `0` | GPU index; set `cpu` for CPU-only testing and remove GPU resource requests |
+
+Create and watch the job:
+
+```bash
+kubectl create -f yolov5-triton-trainjob.yaml
+kubectl get trainjobs -n <your-namespace> --watch
+kubectl get pods -n <your-namespace>
+kubectl logs -n <your-namespace> <trainer-pod-name> -c node -f
+```
+
+When the `TrainJob` succeeds, `OUTPUT_MODEL_URI` contains the deployable Triton artifact. Its log reports failures from S3 download, training, TorchScript export, or S3 upload.
+
+:::tip
+The supplied manifest is intentionally a one-node recipe. Increasing `trainer.numNodes` alone does not make YOLOv5 distributed: the runtime command must also launch a distributed training process (for example, with `torchrun`) and the data path must be reachable by every node.
+:::
+
+## Register the Triton runtime
+
+If the cluster does not already provide a compatible Triton runtime, a cluster administrator can apply [`triton-servingruntime.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/triton-servingruntime.yaml). Before applying it, replace its image with an approved internal mirror pinned by digest:
+
+```bash
+kubectl apply -f triton-servingruntime.yaml
+```
+
+The sample targets Triton 25.02, CUDA 12.1, and the `triton` model format. Change the image and accelerator labels to match the image and hardware available in your cluster. Ensure serving nodes can pull the selected image before deploying; an internal mirror avoids a runtime dependency on a public registry. For a fuller explanation of custom serving runtimes, see [Extend Inference Runtimes](../../deploy/inference_service/guides/custom_inference_runtime.mdx).
+
+## Deploy and call the inference service
+
+Download [`yolov5-triton-inferenceservice.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-triton-inferenceservice.yaml). Set its namespace and `storageUri`, and make sure all of these values match the completed training run:
+
+- `spec.predictor.model.storageUri` is `OUTPUT_MODEL_URI`.
+- `metadata.annotations.aml-model-repo` is `TRITON_MODEL_NAME`.
+- The Triton `config.pbtxt` generated by the job uses the same `TRITON_MODEL_NAME`.
+
+Then apply and wait for the service:
+
+```bash
+kubectl apply -f yolov5-triton-inferenceservice.yaml
+kubectl get inferenceservice yolov5-coco128 -n <your-namespace> --watch
+```
+
+KServe downloads the model from S3 before starting Triton, using the credentials attached to the `yolov5-s3` ServiceAccount. See [Model Storage](../../deploy/model_management/model_storage.mdx) for the platform's S3 storage-initializer behavior.
+
+Triton serves the HTTP v2 API. From a workbench or other pod in the cluster, use this minimal client to send a normalized 640 × 640 RGB image:
+
+```python
+import numpy as np
+import requests
+from PIL import Image
+
+service_url = "http://<in-cluster-service-url>"
+image = Image.open("image.jpg").convert("RGB").resize((640, 640))
+tensor = np.asarray(image, dtype=np.float32).transpose(2, 0, 1) / 255.0
+tensor = np.expand_dims(tensor, axis=0)
+
+payload = {
+    "inputs": [{
+        "name": "images",
+        "shape": list(tensor.shape),
+        "datatype": "FP32",
+        "data": tensor.flatten().tolist(),
+    }],
+    "outputs": [{"name": "output0"}],
+}
+response = requests.post(
+    f"{service_url}/v2/models/yolov5-coco128/infer",
+    json=payload,
+    timeout=60,
+)
+response.raise_for_status()
+output = response.json()["outputs"][0]
+predictions = np.asarray(output["data"]).reshape(output["shape"])
+print(predictions.shape)
+```
+
+The raw output contains candidate boxes and class scores. YOLOv5 post-processing—confidence filtering, non-maximum suppression, scaling boxes back to the original image, and drawing labels—runs in the client application and is deliberately outside this deployment recipe.
+
+## Deploy on Ascend NPU \{#deploy-on-ascend-npu}
+
+The Triton runtime above is for NVIDIA CUDA and cannot serve an Ascend NPU. This guide provides a runnable custom KServe runtime that loads the exported TorchScript model with `torch_npu`. It targets arm64 Ascend 910B4 nodes with CANN 8.5; adjust the image, CANN version, and resource keys for other Ascend hardware.
+
+For a native CANN production implementation, use Ascend's [CANN YOLO model-inference sample](https://github.com/Ascend/samples/tree/master/inference/modelInference/sampleYOLOV7) as the reference architecture. The published sample uses YOLOv7, but its deployment flow is applicable to a compatible YOLOv5 export: export the model to ONNX, compile it with CANN ATC to an `.om` offline model, then execute that model through AscendCL. The companion [CANN post-processing sample](https://github.com/Ascend/samples/tree/master/inference/modelInference/sampleYOLOV7NMSONNX) demonstrates a CANN detection post-processing graph.
+
+The CANN samples are references, not manifests for this service. In particular, their example ATC command targets Ascend 310, so do not copy its `soc_version` for a 910B deployment. Build and validate the `.om` file in a CANN environment compatible with the destination driver and 910B SKU, and store it in a separate immutable S3 prefix. A production KServe runtime for this path must load the `.om` file through AscendCL and implement the same KServe v2 API used below. Keep the TorchScript artifact and the `torch_npu` method when conversion compatibility or a shorter implementation path is more important than native CANN optimization.
+
+### Build the native CANN compiler image
+
+Use the official CANN 910B development image as the starting point for the ATC and AscendCL path, not the `torch_npu` serving image used by the TorchScript path below. The image validated with this guide is [`quay.io/ascend/cann:9.0.1-910b-openeuler24.03-py3.11-devel`](https://quay.io/repository/ascend/cann), pinned to `sha256:0ff08aa7cbfef37690d2e092aa0dd8fe52add7e50a629f8a0920d3faa0997e06`. Mirror that digest to an approved registry reachable by the build and serving nodes before use; do not depend on public-registry access from a production pod.
+
+The development image contains `atc` and the AscendCL Python binding, but the embedded CANN Python environment does not include all ATC dependencies. Build a derived compiler image with the following tested dependency set. Install the packages into CANN's own site-packages directory: installing them only into the image's normal Python site-packages does not make them visible to the embedded compiler.
+
+```text
+ARG BASE_IMAGE=quay.io/ascend/cann@sha256:0ff08aa7cbfef37690d2e092aa0dd8fe52add7e50a629f8a0920d3faa0997e06
+FROM ${BASE_IMAGE}
+
+USER 0
+ARG CANN_PYTHON_SITE_PACKAGES=/usr/local/Ascend/cann-9.0.1/python/site-packages
+RUN python3 -m pip install --no-cache-dir --target "${CANN_PYTHON_SITE_PACKAGES}" \
+      numpy==1.26.4 \
+      decorator==5.2.1 \
+      sympy==1.13.1 \
+      mpmath==1.3.0 \
+      scipy==1.13.1 \
+      attrs==24.2.0 \
+      psutil==6.1.1
+
+# NumPy and SciPy wheels carry native libraries outside their Python packages.
+ENV LD_LIBRARY_PATH=/usr/local/Ascend/cann-9.0.1/python/site-packages/numpy.libs:/usr/local/Ascend/cann-9.0.1/python/site-packages/scipy.libs:${LD_LIBRARY_PATH}
+```
+
+Build and push that derived image with an approved build tool, for example:
+
+```bash
+nerdctl build --platform linux/arm64 -t <your-registry>/yolov5-cann-compiler:9.0.1-910b .
+nerdctl push <your-registry>/yolov5-cann-compiler:9.0.1-910b
+```
+
+Build for the target `linux/arm64` platform so that the NumPy, SciPy, and psutil wheels match the NPU node architecture. The compiler image needs package access only while it is built. In a restricted network, put the matching CPython 3.11 arm64 wheels in the build context and install them with `--no-index --find-links=<wheelhouse>`; do not give the serving workload broad outbound access merely to install dependencies at startup. Source `/usr/local/Ascend/ascend-toolkit/set_env.sh` before invoking `atc` or importing `acl`.
+
+#### Validated Ascend environment (2026-08-11)
+
+This is validation evidence from the current development cluster, not a general support matrix. Verify equivalent driver, runtime, and resource-key compatibility before using a different environment.
+
+| Component | Verified value |
+| --- | --- |
+| Nodes and architecture | Two `linux/arm64` nodes with Huawei Ascend 910B3 devices |
+| Device resource | Standard device-plugin resource `huawei.com/Ascend910`; eight allocatable devices per node at validation time |
+| Host Ascend driver | Package `25.5.0`; Ascend HAL `7.35.23`; internal version `V100R001C23SPC005B219` |
+| NPU management utility | `npu-smi 25.5.0`; allocated 910B3 device reported `Health: OK` during inference |
+| RuntimeClass | `ascend` |
+| Kubernetes device plugin | `openfuyao/ascendhub/ascend-k8sdeviceplugin:v7.3.0` |
+| Container runtime integration | `openfuyao/npu-container-toolkit:26.6.0` with the `ascend-runtime-containerd` DaemonSet |
+| NPU feature discovery | `npu-feature-discovery:v0.0.0-default.3.g20d80dd1` |
+| CANN validation | CANN `9.0.1` compiled YOLOv5n ONNX with `--soc_version=Ascend910B3`; AscendCL loaded and executed the resulting `.om` model |
+
+The training job already uploads `1/model.pt` under `OUTPUT_MODEL_URI`. The NPU runtime consumes that file directly; it does not use Triton's `config.pbtxt`.
+
+### Deploy the TorchScript model with `torch_npu`
+
+The remainder of this section describes the runnable TorchScript path. It retains the model artifact created by the training job and requires no ONNX or `.om` conversion.
+
+#### Prerequisites
+
+- Ascend driver, Kubernetes device plugin, and the platform's Ascend serving configuration are installed on the target nodes.
+- The `yolov5-s3` ServiceAccount and S3 credentials from [Create S3 credentials and inference ServiceAccount](#create-s3-credentials-and-inference-serviceaccount) exist in the deployment namespace.
+- The CANN image can access the host CANN libraries. Its entrypoint must source `/usr/local/Ascend/ascend-toolkit/set_env.sh` before importing `torch_npu`.
+- The exported TorchScript model is compatible with the PyTorch/CANN version in the serving image. Re-export it with the matching stack if loading fails.
+
+#### Build the Ascend serving image
+
+Download [`yolov5-ascend.Containerfile`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-ascend.Containerfile) and [`yolov5_ascend_server.py`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5_ascend_server.py) into the same directory. The image extends the CANN PyTorch runtime and exposes the KServe v2 health and inference endpoints for `images` and `output0`. Supply an approved, digest-pinned internal CANN base image when you build it.
+
+```bash
+nerdctl build \
+  --build-arg BASE_IMAGE=<your-registry>/torch2.6-cann8.5-arm64:v0.1.0@sha256:<digest> \
+  -f yolov5-ascend.Containerfile \
+  -t <your-registry>/yolov5-ascend:cann8.5 .
+nerdctl push <your-registry>/yolov5-ascend:cann8.5
+```
+
+#### Register the Ascend serving runtime
+
+Download [`yolov5-ascend-servingruntime.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-ascend-servingruntime.yaml), replace its image with the one you built, and apply it as a cluster administrator:
+
+```bash
+kubectl apply -f yolov5-ascend-servingruntime.yaml
+```
+
+#### Create the Ascend inference service
+
+Download [`yolov5-ascend-inferenceservice.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-ascend-inferenceservice.yaml). Set the namespace and `storageUri` to the `OUTPUT_MODEL_URI` written by the `TrainJob`. Keep `aml-model-repo` equal to `TRITON_MODEL_NAME`, because the custom runtime uses that value as its KServe v2 model name.
+
+The sample requests one HAMI vNPU slice:
+
+```yaml
+limits:
+  huawei.com/Ascend910B4: "1"
+  huawei.com/Ascend910B4-memory: "8192"
+```
+
+For the standard Huawei device plugin, replace those two keys with `huawei.com/Ascend910: "1"`. Follow the cluster's Ascend scheduling convention, including the required RuntimeClass or HAMI scheduler configuration. See [Training Runtime Images](./training-runtimes.mdx) for the resource-key details.
+
+Apply and wait for the service:
+
+```bash
+kubectl apply -f yolov5-ascend-inferenceservice.yaml
+kubectl get inferenceservice yolov5-coco128-ascend -n <your-namespace> --watch
+```
+
+The Ascend service uses the same KServe v2 request body as the Triton example; only its service URL changes. Validate the service with a sample image before putting it behind production traffic, because operator coverage and TorchScript compatibility depend on the selected CANN/PyTorch stack.
+
+For the general model-service workflow and troubleshooting, see [Managing Inference Services](../../deploy/inference_service/inference_service.mdx).
