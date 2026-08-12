@@ -1,7 +1,8 @@
 apiVersion: serving.kserve.io/v1alpha1
-kind: ClusterServingRuntime
+kind: ServingRuntime
 metadata:
   name: aml-yolov5-ascendcl-om-cann-9
+  namespace: <your-namespace>
   annotations:
     cpaas.io/display-name: yolov5-ascendcl-om-cann9
   labels:

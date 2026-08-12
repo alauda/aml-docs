@@ -57,11 +57,11 @@ spec:
                           TRAIN_DIR="${WORKSPACE}/runs/train"
                           TRITON_MODEL_DIR="${WORKSPACE}/triton-model"
                           # Download the YOLOv5 source, pretrained weight, and dataset from
-                          # S3-compatible object storage. The TrainJob supplies the AWS credentials.
-                          aws --endpoint-url "${AWS_S3_ENDPOINT}" s3 sync \
+                          # S3-compatible object storage. The TrainJob supplies the credentials.
+                          python /opt/yolov5/yolov5_s3_transfer.py sync \
                             "${BASE_MODEL_URI}" "${MODEL_DIR}"
                           mkdir -p "${WORKSPACE}/datasets"
-                          aws --endpoint-url "${AWS_S3_ENDPOINT}" s3 sync \
+                          python /opt/yolov5/yolov5_s3_transfer.py sync \
                             "${DATASET_URI}" "${DATASET_DIR}"
 
                           cd "${MODEL_DIR}"
@@ -123,11 +123,11 @@ spec:
                           EOF
 
                           # Upload the deployable Triton artifact layout to a new, immutable S3 prefix.
-                          aws --endpoint-url "${AWS_S3_ENDPOINT}" s3 sync \
+                          python /opt/yolov5/yolov5_s3_transfer.py sync \
                             "${TRITON_MODEL_DIR}" "${OUTPUT_MODEL_URI}"
                           if [ -n "${OUTPUT_ONNX_URI:-}" ]; then
                             # Keep the ONNX export in a separate immutable prefix for CANN ATC conversion.
-                            aws --endpoint-url "${AWS_S3_ENDPOINT}" s3 cp \
+                            python /opt/yolov5/yolov5_s3_transfer.py copy \
                               "${TRAIN_DIR}/weights/best.onnx" "${OUTPUT_ONNX_URI%/}/model.onnx"
                           fi
                       volumeMounts:

@@ -14,7 +14,7 @@ The example fine-tunes YOLOv5n v7.0 on the COCO128 sample dataset with one NVIDI
 | --- | --- |
 | Alauda AI | 1.3 or later, with Kubeflow Trainer v2 installed |
 | Hardware | x86_64 worker node with an NVIDIA GPU for the default Triton path. See [Deploy on Ascend NPU](#deploy-on-ascend-npu) for the separate arm64 NPU serving path. |
-| Access | Least-privilege `kubectl` permission to create `trainingruntimes` and `trainjobs` in your project namespace; cluster-administrator access only when creating a `ClusterServingRuntime` |
+| Access | Least-privilege `kubectl` permission to create `trainingruntimes`, `trainjobs`, `servingruntimes`, and `inferenceservices` in your project namespace |
 | S3-compatible storage | A bucket with read access to the base-model and dataset prefixes and read/write access to the output-model prefix |
 | S3 credentials | The `yolov5-s3-credentials` Secret, with an access key, secret key, endpoint, and region. Grant it only the required source reads and output writes. It is also attached to the inference ServiceAccount. |
 | Image registry | An approved registry reachable by the training and serving nodes, to host pinned YOLOv5 and Triton images |
@@ -31,11 +31,12 @@ Create these prefixes in S3-compatible object storage. The training pod download
 | `s3://<bucket>/datasets/coco128` | The extracted [COCO128](https://github.com/ultralytics/yolov5/releases/download/v1.0/coco128.zip) directory. Its top level must contain `images/` and `labels/`. |
 | `s3://<bucket>/models/yolov5-coco128/finetune-coco128-v1` | An empty, unique prefix that receives the Triton artifact layout created by the training job |
 
-Use any S3-compatible client to upload the source tree, weight, and dataset. For example, after configuring the AWS CLI with the same endpoint and credentials as the training Secret:
+Download [`yolov5_s3_transfer.py`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5_s3_transfer.py), install its dependency, and set the same standard S3 environment variables as the training Secret (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_ENDPOINT`, and `AWS_DEFAULT_REGION`). Then upload the source tree, weight, and dataset with the included `boto3` helper:
 
 ```bash
-aws --endpoint-url "$AWS_S3_ENDPOINT" s3 sync ./yolov5/ s3://<bucket>/yolov5/v7.0/
-aws --endpoint-url "$AWS_S3_ENDPOINT" s3 sync ./coco128/ s3://<bucket>/datasets/coco128/
+python3 -m pip install boto3==1.42.97
+python3 yolov5_s3_transfer.py sync ./yolov5/ s3://<bucket>/yolov5/v7.0/
+python3 yolov5_s3_transfer.py sync ./coco128/ s3://<bucket>/datasets/coco128/
 ```
 
 `data/coco128.yaml` expects the dataset at `../datasets/coco128` relative to the YOLOv5 source tree. The supplied runtime downloads the dataset to exactly that path. For a custom dataset, use a data YAML file in the base-model prefix whose `path` matches the directory used by the runtime, or update the runtime and `DATASET_YAML` together.
@@ -52,7 +53,7 @@ Download [`s3-model-storage.yaml`](https://github.com/alauda/aml-docs/blob/maste
 kubectl apply -f s3-model-storage.yaml
 ```
 
-The Secret's `AWS_S3_ENDPOINT` value includes `http://` or `https://` for the AWS CLI. The `serving.kserve.io/s3-endpoint` annotation must omit the scheme because KServe reads its protocol from `serving.kserve.io/s3-usehttps`. This Secret is referenced directly by the `TrainJob` and indirectly by the `InferenceService` through the `yolov5-s3` ServiceAccount.
+The Secret's `AWS_S3_ENDPOINT` value includes `http://` or `https://` for the included `boto3` helper. The `serving.kserve.io/s3-endpoint` annotation must omit the scheme because KServe reads its protocol from `serving.kserve.io/s3-usehttps`. This Secret is referenced directly by the `TrainJob` and indirectly by the `InferenceService` through the `yolov5-s3` ServiceAccount.
 
 :::caution
 Do not commit populated Secret manifests. Use your managed-secret workflow or an ignored local copy, and rotate the credentials after an incident. Scope the credential to read only the base-model and dataset prefixes and to write only the unique output-model prefix. Keep `s3-usehttps: "1"` for production; use HTTP only for a private test endpoint after accepting the transport risk.
@@ -60,7 +61,7 @@ Do not commit populated Secret manifests. Use your managed-secret workflow or an
 
 ## Build the training image
 
-Build and push an image based on the following `Containerfile`. Mirror the NVIDIA base image to an approved internal registry and pin it by digest before a production build. The required `BASE_IMAGE` argument makes that choice explicit. The image adds the AWS CLI, YOLOv5 v7.0 dependencies, and the font files YOLOv5 needs for result plots. For production, review or mirror the downloaded Python dependencies through your approved package source.
+Build and push an image based on the following `Containerfile`. Save the downloaded `yolov5_s3_transfer.py` beside the `Containerfile`. Mirror the NVIDIA base image to an approved internal registry and pin it by digest before a production build. The required `BASE_IMAGE` argument makes that choice explicit. The image adds `boto3`, YOLOv5 v7.0 dependencies, and the font files YOLOv5 needs for result plots. For production, review or mirror the downloaded Python dependencies through your approved package source.
 
 ```text
 ARG BASE_IMAGE
@@ -76,8 +77,11 @@ RUN curl -fsSL \
       -o /tmp/requirements.txt && \
     pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
-    pip install --no-cache-dir Pillow==10.4.0 awscli && \
+    pip install --no-cache-dir Pillow==10.4.0 boto3==1.42.97 && \
     rm /tmp/requirements.txt
+
+COPY --chown=1000:1000 yolov5_s3_transfer.py /opt/yolov5/yolov5_s3_transfer.py
+RUN chmod 0555 /opt/yolov5/yolov5_s3_transfer.py
 
 RUN mkdir -p /opt/Ultralytics && \
     curl -fsSL https://ultralytics.com/assets/Arial.ttf \
@@ -165,7 +169,7 @@ The supplied manifest is intentionally a one-node recipe. Increasing `trainer.nu
 
 ## Register the Triton runtime
 
-If the cluster does not already provide a compatible Triton runtime, a cluster administrator can apply [`triton-servingruntime.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/triton-servingruntime.yaml). Before applying it, replace its image with an approved internal mirror pinned by digest:
+If the namespace does not already provide a compatible Triton runtime, download [`triton-servingruntime.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/triton-servingruntime.yaml). Replace its namespace and image with the deployment namespace and an approved internal mirror pinned by digest, then apply it:
 
 ```bash
 kubectl apply -f triton-servingruntime.yaml
@@ -244,7 +248,7 @@ FROM ${BASE_IMAGE}
 
 USER 0
 ARG CANN_PYTHON_SITE_PACKAGES=/usr/local/Ascend/cann-9.0.1/python/site-packages
-RUN python3 -m pip install --no-cache-dir awscli==1.46.0 && \
+RUN python3 -m pip install --no-cache-dir boto3==1.42.97 && \
     python3 -m pip install --no-cache-dir --target "${CANN_PYTHON_SITE_PACKAGES}" \
       numpy==1.26.4 \
       decorator==5.2.1 \
@@ -253,6 +257,9 @@ RUN python3 -m pip install --no-cache-dir awscli==1.46.0 && \
       scipy==1.13.1 \
       attrs==24.2.0 \
       psutil==6.1.1
+
+COPY yolov5_s3_transfer.py /usr/local/bin/yolov5_s3_transfer.py
+RUN chmod 0555 /usr/local/bin/yolov5_s3_transfer.py
 
 # NumPy and SciPy wheels carry native libraries outside their Python packages.
 ENV LD_LIBRARY_PATH=/usr/local/Ascend/cann-9.0.1/python/site-packages/numpy.libs:/usr/local/Ascend/cann-9.0.1/python/site-packages/scipy.libs:${LD_LIBRARY_PATH}
@@ -265,7 +272,7 @@ nerdctl build --platform linux/arm64 -t <your-registry>/yolov5-cann-compiler:9.0
 nerdctl push <your-registry>/yolov5-cann-compiler:9.0.1-910b
 ```
 
-Build for the target `linux/arm64` platform so that the NumPy, SciPy, and psutil wheels match the NPU node architecture. The compiler image needs package access only while it is built. In a restricted network, put the matching CPython 3.11 arm64 wheels in the build context and install them with `--no-index --find-links=<wheelhouse>`; do not give the serving workload broad outbound access merely to install dependencies at startup. Source `/usr/local/Ascend/ascend-toolkit/set_env.sh` before invoking `atc` or importing `acl`.
+Save `yolov5_s3_transfer.py` beside this compiler `Containerfile` before building it. Build for the target `linux/arm64` platform so that the NumPy, SciPy, and psutil wheels match the NPU node architecture. The compiler image needs package access only while it is built. In a restricted network, put the matching CPython 3.11 arm64 wheels in the build context and install them with `--no-index --find-links=<wheelhouse>`; do not give the serving workload broad outbound access merely to install dependencies at startup. Source `/usr/local/Ascend/ascend-toolkit/set_env.sh` before invoking `atc` or importing `acl`.
 
 ### Deploy a compiled `.om` model with AscendCL
 
@@ -285,7 +292,7 @@ Start a container from the compiler image built above. Download `model.onnx` fro
 
 ```bash
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
-aws --endpoint-url "$AWS_S3_ENDPOINT" s3 cp \
+python3 /usr/local/bin/yolov5_s3_transfer.py copy \
   s3://<bucket>/models/yolov5-coco128/finetune-coco128-v1-onnx/model.onnx \
   /work/model.onnx
 atc \
@@ -295,12 +302,12 @@ atc \
   --input_format=NCHW \
   --input_shape="images:1,3,640,640" \
   --soc_version=Ascend910B3
-aws --endpoint-url "$AWS_S3_ENDPOINT" s3 cp \
+python3 /usr/local/bin/yolov5_s3_transfer.py copy \
   /work/model.om \
   s3://<bucket>/models/yolov5-coco128/finetune-coco128-v1-ascend910b3-cann9.0.1/1/model.om
 ```
 
-`atc` writes `/work/model.om`. The commands assume an S3-compatible client configured with the same endpoint and least-privilege credentials used by the training workflow. The output prefix must be new and contain only `1/model.om`. Do not use the sample `Ascend910B3` value for a different SKU.
+`atc` writes `/work/model.om`. The `boto3` helper reads the same endpoint and least-privilege credentials used by the training workflow. The output prefix must be new and contain only `1/model.om`. Do not use the sample `Ascend910B3` value for a different SKU.
 
 #### Build the AscendCL serving image
 
@@ -318,7 +325,7 @@ The server initializes AscendCL once, loads `/mnt/models/1/model.om`, validates 
 
 #### Register the AscendCL runtime and deploy the service
 
-Download [`yolov5-ascendcl-om-servingruntime.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-ascendcl-om-servingruntime.yaml), replace its image with the image you pushed, and apply it as a cluster administrator:
+Download [`yolov5-ascendcl-om-servingruntime.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-ascendcl-om-servingruntime.yaml), set its namespace to the `InferenceService` namespace, replace its image with the image you pushed, and apply it:
 
 ```bash
 kubectl apply -f yolov5-ascendcl-om-servingruntime.yaml
@@ -376,7 +383,7 @@ nerdctl push <your-registry>/yolov5-ascend:cann8.5
 
 #### Register the Ascend serving runtime
 
-Download [`yolov5-ascend-servingruntime.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-ascend-servingruntime.yaml), replace its image with the one you built, and apply it as a cluster administrator:
+Download [`yolov5-ascend-servingruntime.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-ascend-servingruntime.yaml), set its namespace to the `InferenceService` namespace, replace its image with the one you built, and apply it:
 
 ```bash
 kubectl apply -f yolov5-ascend-servingruntime.yaml

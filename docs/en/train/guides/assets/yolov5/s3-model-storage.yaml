@@ -16,7 +16,7 @@ stringData:
   # Use a credential limited to the input prefixes and this run's output prefix.
   AWS_ACCESS_KEY_ID: <access-key>
   AWS_SECRET_ACCESS_KEY: <secret-key>
-  # The AWS CLI in the training image uses a complete endpoint URL.
+  # The boto3 helper in the training image uses a complete endpoint URL.
   AWS_S3_ENDPOINT: https://<s3-host>:<s3-port>
   AWS_DEFAULT_REGION: us-east-1
 ---
