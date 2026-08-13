@@ -21,9 +21,68 @@ Starting with v0.2.0, Workbench is delivered as an OLM Helm operator instead of 
 
 2. In **Administrator** > **Marketplace** > **Cluster Plugins**, uninstall the earlier **Workbench** cluster plugin. Preserve user PVCs, retained `WorkspaceKind` resources, and the `aml-workbench-config` `ConfigMap`; the operator adopts or reapplies these resources.
 3. Enable Workbench by setting `spec.components.workbench.managementState` to `Managed` in the `default` `AmlCluster`. Alauda AI installs and manages the Workbench Operator and its resources; do not create a `Workbench` custom resource manually. For the normal installation path, see [Install Workbench](../installation/workbench.mdx).
-4. Verify the existing Workspaces and their PVCs are still present, then create and connect to a test Workbench.
+4. Verify the existing Workspaces and their PVCs are still present, then create and connect to a test Workbench. See [Migrate Existing Workspaces](#migrate-existing-workspaces) before declaring the migration complete.
 
 If the previous installation relied on the Elyra KFP run-URL redirect, set `spec.components.workbench.values.global.istio.enabled: true` in the `default` `AmlCluster`. Istio integration is optional and disabled by default.
+
+## Migrate Existing Workspaces \{#migrate-existing-workspaces}
+
+The current Workbench controller creates each Workspace Service with the `ws-` prefix. For example, a Workspace named `jupyter` uses the Service `ws-jupyter`. The Workbench Skipper routes use that Service name.
+
+Workspaces that were created by an earlier controller keep their existing Service named after the Workspace. Kubernetes Services cannot be renamed. Without the migration supplied by the current controller, the new route can return `502` because `ws-<workspace-name>` does not exist.
+
+After the Workbench Operator and its `workspace-controller` have been upgraded to a version that includes this migration, the controller automatically migrates every controller-owned legacy Service:
+
+1. It creates `ws-<workspace-name>` with the same selector and ports as the existing Service.
+2. On the next reconciliation, it deletes the old `<workspace-name>` Service.
+
+The Workspace Pod and PVC are not restarted or deleted. The temporary overlap ensures that the old Service remains available until the new one exists.
+
+### Verify the Service Migration
+
+List every Workspace and its controller-owned Service:
+
+```bash
+kubectl get workspace -A
+kubectl get service -A -l notebooks.kubeflow.org/workspace-name
+```
+
+For each Workspace named `<workspace-name>` in namespace `<namespace>`, verify that the matching Service is named `ws-<workspace-name>`:
+
+```bash
+kubectl -n <namespace> get service ws-<workspace-name>
+```
+
+If the new Service has not appeared, confirm that `workspace-controller` is running and inspect its logs. Do not manually rename a Service; Kubernetes does not support Service renames.
+
+```bash
+kubectl -n kubeflow get deployment -l control-plane=controller-manager
+kubectl -n kubeflow logs deployment/workspace-controller-controller-manager --tail=200
+```
+
+### Restore a Legacy Jupyter Workspace URL Prefix
+
+Older retained Jupyter `WorkspaceKind` resources can set `NB_PREFIX` and `NOTEBOOK_BASE_URL` without the `/aml` segment. The browser URL contains `/clusters/<cluster>/aml/aml-workbench/...`, so those Workspaces can load incorrectly even after their Service migration is complete.
+
+Inspect the environment configuration in the retained `WorkspaceKind`:
+
+```bash
+kubectl get workspacekind <workspacekind-name> -o yaml
+```
+
+For a legacy Jupyter `WorkspaceKind`, run `kubectl edit workspacekind <workspacekind-name>` and update only these values to include `/aml`:
+
+```yaml
+spec:
+  podTemplate:
+    extraEnv:
+      - name: NB_PREFIX
+        value: /clusters/<cluster>/aml/aml-workbench{{`{{ httpPathPrefix "jupyterlab" }}`}}
+      - name: NOTEBOOK_BASE_URL
+        value: /clusters/<cluster>/aml/aml-workbench{{`{{ httpPathPrefix "jupyterlab" }}`}}
+```
+
+Save the `WorkspaceKind`, then restart each affected Workspace from the Workbench page so the Pod receives the new environment variables. Its PVC is preserved. Finally, connect to the Workspace and confirm that it opens without a `502` response or incorrect asset URLs.
 
 ## Migrating from Kubeflow Notebook
 
