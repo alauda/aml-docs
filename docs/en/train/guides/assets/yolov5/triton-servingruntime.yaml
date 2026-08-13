@@ -1,7 +1,8 @@
 apiVersion: serving.kserve.io/v1alpha1
-kind: ClusterServingRuntime
+kind: ServingRuntime
 metadata:
   name: aml-triton-cuda-12
+  namespace: <your-namespace>
   annotations:
     cpaas.io/display-name: triton-cuda12-x86
   labels:

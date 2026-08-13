@@ -19,6 +19,8 @@ spec:
         value: s3://<bucket>/datasets/coco128
       - name: OUTPUT_MODEL_URI
         value: s3://<bucket>/models/yolov5-coco128/finetune-coco128-v1
+      - name: OUTPUT_ONNX_URI
+        value: s3://<bucket>/models/yolov5-coco128/finetune-coco128-v1-onnx
       - name: TRITON_MODEL_NAME
         value: yolov5-coco128
       - name: AWS_ACCESS_KEY_ID
