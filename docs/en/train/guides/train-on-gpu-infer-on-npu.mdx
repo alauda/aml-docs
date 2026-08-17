@@ -19,7 +19,7 @@ The selected NPU runtime determines which artifacts it can load. The following a
 | Machine learning | ONNX `.onnx` model | The YOLOv5 native CANN path uses ONNX as the input to ATC conversion; it is not the deployed executable in that path. |
 | Machine learning | CANN offline `.om` model | Deploy it through a CANN `acl`/`pyACL`-based service after compiling it for the destination Ascend SKU and compatible CANN/driver stack. |
 
-`transformers` in an `InferenceService` or `ClusterServingRuntime` identifies the model-directory format expected by the runtime. It does not by itself state that every precision or quantization method is supported. Before creating an inference service, check the exact model and target NPU SKU against the official [Ascend ModelZoo](https://www.hiascend.com/software/modelzoo) and the selected serving engine's supported-model documentation (for example, the [vLLM-Ascend model tutorials](https://docs.vllm.ai/projects/ascend/en/latest/tutorials/models/index.html)). Then validate the weight representation, serving image, CANN version, and driver in the target environment.
+`transformers` in an `InferenceService` or `ClusterServingRuntime` identifies the model-directory format expected by the runtime. It does not by itself state that every precision or quantization method is supported. Before creating an inference service, check the exact model and target NPU SKU against the official [Ascend ModelZoo](https://gitcode.com/Ascend/ModelZoo-PyTorch) and the selected serving engine's supported-model documentation (for example, the [vLLM-Ascend supported-model matrix](https://docs.vllm.ai/projects/ascend/en/latest/user_guide/support_matrix/supported_models.html) and [model tutorials](https://docs.vllm.ai/projects/ascend/en/latest/tutorials/models/index.html)). Then validate the weight representation, serving image, CANN version, and driver in the target environment.
 
 ## Fine-tune LLMs on GPU and run LLM inference on NPU
 
@@ -28,6 +28,19 @@ Use one of these guides to fine-tune an LLM on GPU:
 - [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx) for a reusable `TrainingRuntime` and `TrainJob` workflow.
 - [Fine-tuning LLMs with Training Hub](./training-hub-fine-tuning.mdx) for SFT, OSFT, LoRA, QLoRA, and continued pre-training workflows.
 - [Training Runtime Images](./training-runtimes.mdx) to select a CUDA training runtime.
+
+### How the fine-tuning method affects NPU inference
+
+The training or alignment method does not, by itself, determine whether the result can run on an NPU. What matters at deployment time is the resulting model architecture, checkpoint or adapter format, weight precision or quantization, tokenizer and configuration, and the versions supported by the NPU serving runtime.
+
+| Fine-tuning or alignment method | Typical output | NPU deployment tip |
+| --- | --- | --- |
+| Continued pre-training (CPT) or full-parameter SFT | A complete Hugging Face checkpoint | Treat it like the base architecture. It can be served when the architecture, configuration, weight dtype, and target hardware are supported by the selected vLLM-Ascend version. |
+| LoRA or another parameter-efficient SFT method | An adapter plus the unchanged base model | vLLM-Ascend provides [experimental LoRA support](https://docs.vllm.ai/projects/ascend/en/latest/user_guide/feature_guide/lora.html). Check the exact base model and feature limitations. If necessary, merge the adapter into the base model and export a supported FP16 or BF16 checkpoint. |
+| QLoRA | Usually a LoRA adapter trained while the frozen base model is loaded in 4-bit NF4 | The bitsandbytes NF4 training representation is not a portable NPU inference artifact. Serve the adapter with a supported full-precision base only when the runtime supports that LoRA combination, or merge it into the full-precision base and then export or quantize it to a format supported by vLLM-Ascend. |
+| Preference optimization or reinforcement-learning post-training, including DPO, PPO, and GRPO | A full policy-model checkpoint or a parameter-efficient adapter, depending on the training configuration | Deploy the resulting policy checkpoint or adapter according to the corresponding full-model or LoRA guidance above. Optimizer state, reference models, critics, value heads, and reward models used only during training are not part of the generative inference artifact. |
+
+Fine-tuning methods can also be combined, such as CPT followed by SFT or DPO with LoRA. Evaluate the final artifact, not the sequence of training algorithms. If the final model is quantized, confirm the exact method in the [vLLM-Ascend quantization guide](https://docs.vllm.ai/projects/ascend/en/latest/user_guide/feature_guide/quantization.html); support for one quantization scheme does not imply support for another.
 
 After the fine-tuned model is published to the model storage location used by your platform, use the NPU-serving guidance in [Extend Inference Runtimes](../../deploy/inference_service/guides/custom_inference_runtime.mdx). Its `vLLM-ascend` section covers Ascend NPU runtime and `InferenceService` configuration. For platform-wide service lifecycle and operations, see [Managing Inference Services](../../deploy/inference_service/inference_service.mdx).
 
@@ -42,4 +55,18 @@ For an end-to-end object-detection example, use [Train, Fine-Tune, and Deploy YO
 
 The YOLOv5 guide also documents the validated CANN compiler image and NPU environment. Use it as the reference for artifact conversion, model storage, and NPU runtime compatibility for similar machine-learning models.
 
-For a trained machine-learning model that does not have a ready-made NPU serving runtime, create a custom `InferenceService`: package a FastAPI application in a CANN-compatible image, load the exported TorchScript model with `torch_npu`, and expose the KServe v2 health and inference endpoints. The YOLOv5 `torch_npu` sample shows that pattern. Alternatively, first check the official [Ascend CANN documentation](https://www.hiascend.com/document/detail/en/canncommercial/850/index/index.html) and ModelZoo for a CANN `acl`/`pyACL`-supported inference method for the exact model. If it is supported, export to the required interchange format, compile the model for the target NPU SKU when required, and deploy it with the matching CANN service implementation. Do not assume that a GPU-trained artifact can run unchanged on an NPU.
+For a trained machine-learning model that does not have a ready-made NPU serving runtime, create a custom `InferenceService`: package a FastAPI application in a CANN-compatible image, load the exported TorchScript model with `torch_npu`, and expose the KServe v2 health and inference endpoints. The YOLOv5 `torch_npu` sample shows that pattern. Alternatively, first check the official [Ascend CANN documentation](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/index/index.html) and [Ascend ModelZoo](https://gitcode.com/Ascend/ModelZoo-PyTorch) for a CANN `acl`/`pyACL`-supported inference method for the exact model. If it is supported, export to the required interchange format, compile the model for the target NPU SKU when required, and deploy it with the matching CANN service implementation. Do not assume that a GPU-trained artifact can run unchanged on an NPU.
+
+### Validated Ascend ModelZoo inference smoke tests
+
+The following ModelZoo-PyTorch examples passed inference-only HTTP smoke tests on an Ascend 910B4 NPU on August 14, 2026. The checkout was ModelZoo-PyTorch commit `a3c42931e0a70f7366416d4e1fc6222d1ef923a2`.
+
+| ModelZoo example | Validated inference path | Result |
+| --- | --- | --- |
+| [DLRM_for_PyTorch](https://gitcode.com/Ascend/ModelZoo-PyTorch/tree/master/PyTorch/built-in/others/DLRM_for_PyTorch) | `torch_npu` | HTTP inference passed with output shape `[2, 1]`. |
+| [ESPnet2_for_PyTorch](https://gitcode.com/Ascend/ModelZoo-PyTorch/tree/master/PyTorch/built-in/audio/ESPnet2_for_PyTorch) | `torch_npu` | HTTP inference passed with encoder output shape `[1, 16]`; the NPU-specific `npu_bmmV2` path executed. |
+| [MinerU](https://gitcode.com/Ascend/ModelZoo-PyTorch/tree/master/ACL_PyTorch/built-in/ocr/MinerU) | MinerU pipeline on `torch_npu` | The official `/file_parse` request passed; layout, OCR detection, and OCR recognition executed on the NPU. |
+| [bge-reranker-v2-m3](https://gitcode.com/Ascend/ModelZoo-PyTorch/tree/master/ACL_PyTorch/built-in/embedding/bge-reranker-v2-m3) | `torch_npu` with the ModelZoo rewrites | The official checkpoint loaded and returned the expected ranking. |
+| [DiT](https://gitcode.com/Ascend/ModelZoo-PyTorch/tree/master/ACL_PyTorch/built-in/foundation_models/DiT) | ONNX to `.om`, then pyACL | The compiled `.om` model returned HTTP 200 with output shape `[1, 8, 32, 32]`. |
+
+These results validate model loading, NPU execution, and an HTTP inference boundary, not accuracy, throughput, or production readiness. DLRM, ESPnet2, and DiT used deterministic initialized weights; bge-reranker-v2-m3 used its official checkpoint; and MinerU used a small synthetic PDF. Revalidate each model with production weights, inputs, target NPU SKU, and software stack.
