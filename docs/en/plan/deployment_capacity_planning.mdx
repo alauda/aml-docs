@@ -43,9 +43,9 @@ These values represent Alauda AI component resources only and do not include the
 
 Alauda AI platform resources do not include business data storage capacity. Plan model weights, training data, model images, Workspace/PVCs, Pipeline artifacts, logs, and backups separately based on data volume, growth rate, retention period, IOPS, throughput, and recovery target.
 
-## 2. Additional capacity for MaaS SSE load tests
+## 2. MaaS SSE capacity reference
 
-MaaS SSE load-test resources are additional capacity beyond the base features. The data comes from long-stream SSE tests: each stream returns 200 content chunks with an interval of about 100 ms, and each test lasts 600 seconds using close connection mode. The tests use the in-cluster `mock-llm` as the backend in place of a real model service, to reduce the influence of uncertainty in model response content and duration on the results.
+The load-test data helps determine reasonable resource configurations for the MaaS components at each concurrency level. It is a reference for sizing MaaS capacity in addition to the base platform resources. The data comes from long-stream SSE tests: each stream returns 200 content chunks with an interval of about 100 ms, and each test lasts 600 seconds using close connection mode. The tests use the in-cluster `mock-llm` as the backend in place of a real model service, to reduce the influence of uncertainty in model response content and duration on the results.
 
 ### 2.1 Without Guardrail
 
