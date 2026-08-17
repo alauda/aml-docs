@@ -1,0 +1,96 @@
+---
+weight: 15
+i18n:
+  title:
+    en: Deployment Capacity Planning
+    zh: 部署容量规划
+title: Deployment Capacity Planning
+---
+
+# Deployment Capacity Planning
+
+This page helps estimate the component resources required to deploy Alauda AI base features, and the additional resources needed for MaaS long-stream SSE scenarios.
+
+## 1. Alauda AI platform resources
+
+The resources below cover Alauda AI base features and fixed platform components. ACP and Kubernetes resources are not included. Different ACP and Kubernetes versions, cluster sizes, and enabled features have different baseline resource requirements, so plan those separately in addition to the Alauda AI resources.
+
+Alauda AI platform resources also exclude the following workloads:
+
+- Training, fine-tuning, and evaluation jobs;
+- Model inference services and inference replicas;
+- Notebook, Workspace, PipelineRun, and Agent instances;
+- Storage for model weights, training data, images, logs, and backups.
+
+Training jobs, inference services, and other AI workloads require additional resources for the task type, model size, concurrency, and performance target, such as GPU/NPU cards, CPU, memory, nodes, and business storage.
+
+### 1.1 Resource recommendations
+
+The table shows reference values for the Alauda AI components only, not the final number or specification of physical servers. When preparing servers, add the resources required by ACP, Kubernetes, the operating system, the container runtime, storage, monitoring and logging, and other platform features on top of these values.
+
+| Deployment scenario | Alauda AI component resources | Use cases | Notes |
+|---|---:|---|---|
+| **High availability deployment** | **48 cores CPU / 72 GiB memory** | Production environments, multi-user shared environments, and scenarios that require control-plane high availability | Recommended deployment on 3 servers, with about 16 cores CPU / 24 GiB memory reserved for Alauda AI on each; does not include ACP and Kubernetes baseline resources |
+| **Demo / trial minimum** | **24 cores CPU / 36 GiB memory** | Feature demos, compatibility validation, and short-term trials | Single-replica deployment profile that includes the Alauda AI base platform components and the training/fine-tuning/Agent control plane, with room for demo data and demo workloads; not high availability |
+
+The high availability profile includes the Alauda AI base platform components and the training, fine-tuning, and Agent control plane, and reserves about 50% additional headroom on top of the component resources to cover rescheduling after a node failure, rolling upgrades, monitoring and logging fluctuation, and business growth. Alauda AI is recommended to run on 3 servers, with about 16 cores CPU / 24 GiB memory reserved for Alauda AI on each; ACP and Kubernetes baseline resources are added on top according to the actual environment.
+
+The Demo / trial profile uses a single-replica deployment profile that includes the Alauda AI base platform components and the training, fine-tuning, and Agent control plane, and reserves room for demo data and demo workloads; it is not high availability. If the Demo or the high availability deployment also runs real training jobs, inference services, MaaS concurrency, user Notebook/Workspace/PipelineRun, Agent instances, or large business datasets, add resources according to the actual workload.
+
+These values represent Alauda AI component resources only and do not include the baseline resources of ACP and Kubernetes.
+
+### 1.2 Storage planning
+
+Alauda AI platform resources do not include business data storage capacity. Plan model weights, training data, model images, Workspace/PVCs, Pipeline artifacts, logs, and backups separately based on data volume, growth rate, retention period, IOPS, throughput, and recovery target.
+
+## 2. MaaS SSE capacity reference
+
+The load-test data helps determine reasonable resource configurations for the MaaS components at each concurrency level. It is a reference for sizing MaaS capacity in addition to the base platform resources. The data comes from long-stream SSE tests: each stream returns 200 content chunks with an interval of about 100 ms, and each test lasts 600 seconds using close connection mode. The tests use the in-cluster `mock-llm` as the backend in place of a real model service, to reduce the influence of uncertainty in model response content and duration on the results.
+
+### 2.1 Without Guardrail
+
+The tables show the load-test results for each concurrency level; every test completed all requests within 600 seconds with no interruptions or errors. Latency is in milliseconds. `TTFT` is the time to first token and stream duration is the duration of a single SSE stream from start to finish; each is given as avg / p95.
+
+| Concurrency | Gateway config | Authorino config | Ratelimit config | TTFT (ms) | Stream duration (ms) |
+|---:|---|---|---|---:|---:|
+| 500 | 2 replicas; 1 CPU / 512 MiB each | 2 replicas; 0.5 CPU / 256 MiB each | 2 replicas; 0.25 CPU / 256 MiB each | avg 140 / p95 1,517 | avg 20,282 / p95 21,668 |
+| 1,000 | 2 replicas; 2 CPU / 512 MiB each | 2 replicas; 1.5 CPU / 256 MiB each | 2 replicas; 0.25 CPU / 256 MiB each | avg 179 / p95 470 | avg 20,397 / p95 20,788 |
+| 2,000 | 4 replicas; 2 CPU / 512 MiB each | 3 replicas; 2 CPU / 256 MiB each | 2 replicas; 0.25 CPU / 256 MiB each | avg 159 / p95 506 | avg 20,293 / p95 21,614 |
+
+### 2.2 With Guardrail
+
+Gateway, Authorino, and Ratelimit use the same configuration as the tests without Guardrail:
+
+- Gateway: 2 replicas; 1 CPU / 512 MiB each
+- Authorino: 2 replicas; 0.5 CPU / 256 MiB each
+- Ratelimit: 2 replicas; 0.25 CPU / 256 MiB each
+
+The Guardrail test adds the NeMo engine and the Guardrail `ext_proc` shim. Every test completed all requests within 600 seconds with no interruptions or errors. Latency is in milliseconds; `TTFT` and stream duration are each given as avg / p95.
+
+| Concurrency | NeMo engine | Guardrail shim | TTFT (ms) | Stream duration (ms) |
+|---:|---|---|---:|---:|
+| 100 | 3 replicas; 1 CPU / 1 GiB each | 2 replicas; 0.5 CPU / 256 MiB each | avg 338 / p95 846 | avg 20,391 / p95 20,906 |
+| 200 | 6 replicas; 1 CPU / 1 GiB each | 2 replicas; 0.5 CPU / 256 MiB each | avg 343 / p95 793 | avg 20,392 / p95 20,848 |
+| 500 | 15 replicas; 1 CPU / 1 GiB each | 2 replicas; 0.5 CPU / 256 MiB each | avg 383 / p95 985 | avg 20,432 / p95 21,034 |
+
+### 2.3 Interpreting the load-test data
+
+CPU is a flexible resource. The actual processing capacity of a single CPU can differ significantly between CPU models, microarchitectures, clock speeds, NUMA topologies, virtualization modes, and runtime environments. Therefore:
+
+- The load-test data is a reference for capacity planning, not a general configuration commitment;
+- `1 CPU` on different CPU models does not necessarily deliver the same throughput and latency;
+- Adjust the CPU configuration to the target CPU model, model size, request length, output speed, connection mode, Guardrail policy, and concurrency target;
+- On ARM64, Kunpeng, or other target hardware, run business load tests on the target hardware;
+- When test results differ from this page, follow the actual business test results.
+
+The MaaS load tests do not include real model inference services, model weights, or GPU/NPU resources. When deploying real inference services, add GPU/NPU, CPU, memory, and storage resources based on model size, quantization, context length, concurrency, and target latency.
+
+### 2.4 MaaS scaling reference
+
+For the scaling approach and the resource configuration entry point of each MaaS component, see [MaaS Component Scaling](../../deploy/maas/scale.mdx).
+
+At the scale level:
+
+- **Gateway**: CPU-bound component. High CPU utilization is normal; configure alerting to avoid false alarms, and increase the replica count when utilization is too high to maintain performance;
+- **Authorino**: sensitive to authorization latency. Requests can queue and time out, returning `403`, even when CPU is not saturated; in that case scale out by increasing the replica count;
+- **NeMo engine**: implemented in Python, so multiple CPU cores are not used efficiently by a single instance; scale out by increasing the number of replicas.
