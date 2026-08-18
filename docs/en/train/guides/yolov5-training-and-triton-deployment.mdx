@@ -230,17 +230,17 @@ The raw output contains candidate boxes and class scores. YOLOv5 post-processing
 
 ## Deploy on Ascend NPU \{#deploy-on-ascend-npu}
 
-The Triton runtime above is for NVIDIA CUDA and cannot serve an Ascend NPU. This guide provides two runnable NPU paths: a custom KServe runtime that loads the exported TorchScript model with `torch_npu`, and a native CANN path that loads an ATC-compiled `.om` model with AscendCL. Adjust the image, CANN version, and resource keys for the destination Ascend hardware.
+The Triton runtime above is for NVIDIA CUDA and cannot serve an Ascend NPU. This guide provides two runnable NPU paths: a custom KServe runtime that loads the exported TorchScript model with `torch_npu`, and a native CANN path that loads an ATC-compiled `.om` model with CANN `pyACL`. Adjust the image, CANN version, and resource keys for the destination Ascend hardware.
 
-For a native CANN production implementation, use Ascend's [CANN YOLO model-inference sample](https://github.com/Ascend/samples/tree/master/inference/modelInference/sampleYOLOV7) as the reference architecture. The published sample uses YOLOv7, but its deployment flow is applicable to a compatible YOLOv5 export: export the model to ONNX, compile it with CANN ATC to an `.om` offline model, then execute that model through AscendCL. The companion [CANN post-processing sample](https://github.com/Ascend/samples/tree/master/inference/modelInference/sampleYOLOV7NMSONNX) demonstrates a CANN detection post-processing graph.
+For a native CANN production implementation, use Ascend's [CANN YOLO model-inference sample](https://github.com/Ascend/samples/tree/master/inference/modelInference/sampleYOLOV7) as the reference architecture. The published sample uses YOLOv7, but its deployment flow is applicable to a compatible YOLOv5 export: export the model to ONNX, compile it with CANN ATC to an `.om` offline model, then execute that model through CANN `pyACL`. The companion [CANN post-processing sample](https://github.com/Ascend/samples/tree/master/inference/modelInference/sampleYOLOV7NMSONNX) demonstrates a CANN detection post-processing graph.
 
-The CANN samples are references, not manifests for this service. In particular, their example ATC command targets Ascend 310, so do not copy its `soc_version` for a 910B deployment. Build and validate the `.om` file in a CANN environment compatible with the destination driver and 910B SKU, and store it in a separate immutable S3 prefix. The runnable AscendCL sample below implements the same KServe v2 API as the TorchScript sample. Keep the TorchScript artifact and the `torch_npu` method when conversion compatibility or a shorter implementation path is more important than native CANN optimization.
+The CANN samples are references, not manifests for this service. In particular, their example ATC command targets Ascend 310, so do not copy its `soc_version` for a 910B deployment. Build and validate the `.om` file in a CANN environment compatible with the destination driver and 910B SKU, and store it in a separate immutable S3 prefix. CANN is the toolkit; its current C and Python inference API libraries are `acl` and `pyACL`. The runnable CANN `pyACL` sample below implements the same KServe v2 API as the TorchScript sample. Keep the TorchScript artifact and the `torch_npu` method when conversion compatibility or a shorter implementation path is more important than native CANN optimization.
 
 ### Build the native CANN compiler image
 
-Use the official CANN 910B development image as the starting point for the ATC and AscendCL path, not the `torch_npu` serving image used by the TorchScript path below. The image validated with this guide is [`quay.io/ascend/cann:9.0.1-910b-openeuler24.03-py3.11-devel`](https://quay.io/repository/ascend/cann), pinned to `sha256:0ff08aa7cbfef37690d2e092aa0dd8fe52add7e50a629f8a0920d3faa0997e06`. Mirror that digest to an approved registry reachable by the build and serving nodes before use; do not depend on public-registry access from a production pod.
+Use the official CANN 910B development image as the starting point for the ATC and `pyACL` path, not the `torch_npu` serving image used by the TorchScript path below. The image validated with this guide is [`quay.io/ascend/cann:9.0.1-910b-openeuler24.03-py3.11-devel`](https://quay.io/repository/ascend/cann), pinned to `sha256:0ff08aa7cbfef37690d2e092aa0dd8fe52add7e50a629f8a0920d3faa0997e06`. Mirror that digest to an approved registry reachable by the build and serving nodes before use; do not depend on public-registry access from a production pod.
 
-The development image contains `atc` and the AscendCL Python binding, but the embedded CANN Python environment does not include all ATC dependencies. Build a derived compiler image with the following tested dependency set. Install the packages into CANN's own site-packages directory: installing them only into the image's normal Python site-packages does not make them visible to the embedded compiler.
+The development image contains `atc` and the CANN `pyACL` Python binding, but the embedded CANN Python environment does not include all ATC dependencies. Build a derived compiler image with the following tested dependency set. Install the packages into CANN's own site-packages directory: installing them only into the image's normal Python site-packages does not make them visible to the embedded compiler.
 
 ```text
 ARG BASE_IMAGE=quay.io/ascend/cann@sha256:0ff08aa7cbfef37690d2e092aa0dd8fe52add7e50a629f8a0920d3faa0997e06
@@ -274,7 +274,7 @@ nerdctl push <your-registry>/yolov5-cann-compiler:9.0.1-910b
 
 Save `yolov5_s3_transfer.py` beside this compiler `Containerfile` before building it. Build for the target `linux/arm64` platform so that the NumPy, SciPy, and psutil wheels match the NPU node architecture. The compiler image needs package access only while it is built. In a restricted network, put the matching CPython 3.11 arm64 wheels in the build context and install them with `--no-index --find-links=<wheelhouse>`; do not give the serving workload broad outbound access merely to install dependencies at startup. Source `/usr/local/Ascend/ascend-toolkit/set_env.sh` before invoking `atc` or importing `acl`.
 
-### Deploy a compiled `.om` model with AscendCL
+### Deploy a compiled `.om` model with CANN `pyACL`
 
 This path serves a static-batch, FP32 YOLOv5 model compiled for one Ascend SKU. It uses a separate S3 prefix containing exactly this layout:
 
@@ -309,9 +309,9 @@ python3 /usr/local/bin/yolov5_s3_transfer.py copy \
 
 `atc` writes `/work/model.om`. The `boto3` helper reads the same endpoint and least-privilege credentials used by the training workflow. The output prefix must be new and contain only `1/model.om`. Do not use the sample `Ascend910B3` value for a different SKU.
 
-#### Build the AscendCL serving image
+#### Build the CANN `pyACL` serving image
 
-Download [`yolov5-ascendcl-om.Containerfile`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-ascendcl-om.Containerfile) and [`yolov5_ascendcl_om_server.py`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5_ascendcl_om_server.py) into the same directory. Build the image from the derived CANN compiler image above, or an equivalent CANN runtime image that provides the AscendCL Python binding and is compatible with the target driver:
+Download [`yolov5-ascendcl-om.Containerfile`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-ascendcl-om.Containerfile) and [`yolov5_ascendcl_om_server.py`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5_ascendcl_om_server.py) into the same directory. Build the image from the derived CANN compiler image above, or an equivalent CANN runtime image that provides the `pyACL` Python binding and is compatible with the target driver:
 
 ```bash
 nerdctl build --platform linux/arm64 \
@@ -321,9 +321,9 @@ nerdctl build --platform linux/arm64 \
 nerdctl push <your-registry>/yolov5-ascendcl-om:cann9.0.1
 ```
 
-The server initializes AscendCL once, loads `/mnt/models/1/model.om`, validates the fixed input shape, and serializes calls to its ACL context. It exposes KServe v2 health and inference endpoints and returns the raw `output0` tensor. As with the TorchScript path, YOLO confidence filtering and non-maximum suppression remain client responsibilities.
+The server initializes CANN `pyACL` once, loads `/mnt/models/1/model.om`, validates the fixed input shape, and serializes calls to its `acl` context. It exposes KServe v2 health and inference endpoints and returns the raw `output0` tensor. As with the TorchScript path, YOLO confidence filtering and non-maximum suppression remain client responsibilities.
 
-#### Register the AscendCL runtime and deploy the service
+#### Register the CANN `pyACL` runtime and deploy the service
 
 Download [`yolov5-ascendcl-om-servingruntime.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/yolov5/yolov5-ascendcl-om-servingruntime.yaml), set its namespace to the `InferenceService` namespace, replace its image with the image you pushed, and apply it:
 
@@ -354,7 +354,7 @@ This is validation evidence from the current development cluster, not a general 
 | Kubernetes device plugin | `openfuyao/ascendhub/ascend-k8sdeviceplugin:v7.3.0` |
 | Container runtime integration | `openfuyao/npu-container-toolkit:26.6.0` with the `ascend-runtime-containerd` DaemonSet |
 | NPU feature discovery | `npu-feature-discovery:v0.0.0-default.3.g20d80dd1` |
-| CANN validation | CANN `9.0.1` compiled YOLOv5n ONNX with `--soc_version=Ascend910B3`; AscendCL loaded and executed the resulting `.om` model |
+| CANN validation | CANN `9.0.1` compiled YOLOv5n ONNX with `--soc_version=Ascend910B3`; `pyACL` loaded and executed the resulting `.om` model |
 
 The training job already uploads `1/model.pt` under `OUTPUT_MODEL_URI`. The NPU runtime consumes that file directly; it does not use Triton's `config.pbtxt`.
 
