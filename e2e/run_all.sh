@@ -5,6 +5,7 @@
 #   ./run_all.sh C1 C7           # run only the named cases
 #   SKIP_NPU=1 ./run_all.sh      # skip cases marked NPU
 #   SKIP_GPU=1 ./run_all.sh      # skip cases marked GPU
+#   SKIP_FEAST=1 ./run_all.sh    # skip the Feast case
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -41,6 +42,7 @@ CASES=(
   # (A30) is reserved by the persistent inference workload and no slice frees up;
   # the orchestrator controls A30 capacity. Same build-harbor image as C13.
   "C14:GPU:cases/c14_traininghub_cpt.sh"
+  "C16:FEAST:cases/c16_feast_offline_online.sh"
 )
 
 want=( "$@" )
@@ -57,6 +59,7 @@ for entry in "${CASES[@]}"; do
   should_run "${id}" || { skip=$((skip+1)); continue; }
   if [ "${cluster}" = "GPU" ] && [ "${SKIP_GPU:-0}" = "1" ]; then skip=$((skip+1)); continue; fi
   if [ "${cluster}" = "NPU" ] && [ "${SKIP_NPU:-0}" = "1" ]; then skip=$((skip+1)); continue; fi
+  if [ "${cluster}" = "FEAST" ] && [ "${SKIP_FEAST:-0}" = "1" ]; then skip=$((skip+1)); continue; fi
 
   log_file="${LOG_DIR}/${id}.log"
   log "==> ${id} [${cluster}] -> ${log_file}"

@@ -18,7 +18,7 @@ case "${E2E_SKIP_RC}" in
   *) [ "${E2E_SKIP_RC}" -ge 0 ] && [ "${E2E_SKIP_RC}" -le 255 ] || E2E_SKIP_RC=77 ;;
 esac
 
-# Required per case: GPU_NAMESPACE or NPU_NAMESPACE.
+# Required per case: GPU_NAMESPACE, NPU_NAMESPACE, or FEAST_NAMESPACE.
 # Optional kube target: GPU_CONTEXT/GPU_KUBECONFIG/NPU_CONTEXT/NPU_KUBECONFIG.
 # Optional Docker Hub mirrors: GPU_DH_MIRROR/NPU_DH_MIRROR.
 # Optional private registry access: E2E_IMAGE_PULL_SECRET.
@@ -31,6 +31,12 @@ NPU_KUBECONFIG="${NPU_KUBECONFIG:-}"
 NPU_NAMESPACE="${NPU_NAMESPACE:-}"
 GPU_DH_MIRROR="${GPU_DH_MIRROR:-}"
 NPU_DH_MIRROR="${NPU_DH_MIRROR:-}"
+FEAST_CONTEXT="${FEAST_CONTEXT:-}"
+FEAST_KUBECONFIG="${FEAST_KUBECONFIG:-}"
+FEAST_NAMESPACE="${FEAST_NAMESPACE:-}"
+FEAST_IMAGE="${FEAST_IMAGE:-}"
+FEAST_STORAGE_CLASS="${FEAST_STORAGE_CLASS:-}"
+FEAST_KEEP_RESOURCES="${FEAST_KEEP_RESOURCES:-0}"
 
 # Rewrite docker.io references to a mirror that the cluster can actually reach.
 # Args: mirror_host. Reads stdin, writes patched YAML to stdout.
@@ -81,6 +87,7 @@ _kubectl_with_env() {
 
 gpu_kc() { _kubectl_with_env "${GPU_KUBECONFIG}" "${GPU_CONTEXT}" "$@"; }
 npu_kc() { _kubectl_with_env "${NPU_KUBECONFIG}" "${NPU_CONTEXT}" "$@"; }
+feast_kc() { _kubectl_with_env "${FEAST_KUBECONFIG}" "${FEAST_CONTEXT}" "$@"; }
 
 yaml_scalar_field() {
   local indent="$1" name="$2" value="${3:-}"
