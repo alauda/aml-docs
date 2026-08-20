@@ -1,0 +1,152 @@
+---
+weight: 30
+---
+
+# Run Kubeflow Pipelines from a Kale Workbench
+
+Kale is a JupyterLab extension that turns annotated notebook cells into a Kubeflow
+Pipelines (KFP) v2 pipeline. Use a JupyterLab WorkspaceKind built with the Kale
+extension; do not install Kale interactively into a running workbench because the
+extension and its server component must use matching versions.
+
+## Prerequisites
+
+- Kubeflow Pipelines is installed and its `ml-pipeline` service is available in the
+  `kubeflow` namespace.
+- The workbench namespace is managed by a Kubeflow `Profile`. This gives the
+  namespace the `kubeflow-profile` label required by the Pipeline API NetworkPolicy.
+- The WorkspaceKind uses a service account that can request the projected token for
+  the `pipelines.kubeflow.org` audience.
+- A Kale JupyterLab image has been built and published to an image registry that
+  cluster nodes can pull from. Ask your platform administrator for the image address
+  and tag.
+
+## Configure Kale authentication per namespace
+
+Kale reads KFP authentication from `kfp_server_config.json`. Store only a token
+*path* in the ConfigMap: the token itself stays in the projected service-account
+volume and is refreshed by Kubernetes.
+
+Create this ConfigMap in every namespace that will use the Kale WorkspaceKind.
+Replace `<your-namespace>` with the namespace of the workbench.
+
+```yaml title=kale-kfp-server-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kale-kfp-server-config
+  namespace: <your-namespace>
+data:
+  kfp_server_config.json: |
+    {
+      "host": "http://ml-pipeline.kubeflow.svc.cluster.local:8888",
+      "auth_type": "kubernetes_service_account_token",
+      "auth_config": {
+        "token_path": "/var/run/secrets/kubeflow/pipelines/token"
+      },
+      "namespace": "<your-namespace>"
+    }
+```
+
+Apply it with:
+
+```bash
+kubectl apply -f kale-kfp-server-config.yaml
+```
+
+## Create a Kale WorkspaceKind
+
+The following excerpt shows the Kale-specific parts of a JupyterLab
+`WorkspaceKind`. Add the usual resource options, probes, and workbench labels used
+by your platform. The `NB_PREFIX` and `NOTEBOOK_BASE_URL` values must match the
+Skipper route for the target cluster.
+
+```yaml title=kale-jupyterlab-workspacekind.yaml
+apiVersion: kubeflow.org/v1beta1
+kind: WorkspaceKind
+metadata:
+  name: kale-jupyterlab
+spec:
+  podTemplate:
+    extraEnv:
+      - name: NB_PREFIX
+        value: /clusters/<cluster>/aml/aml-workbench{{ httpPathPrefix "jupyterlab" }}
+      - name: NOTEBOOK_BASE_URL
+        value: /clusters/<cluster>/aml/aml-workbench{{ httpPathPrefix "jupyterlab" }}
+      - name: NOTEBOOK_ARGS
+        value: --ServerApp.token='' --ServerApp.password=''
+      - name: KF_PIPELINES_ENDPOINT
+        value: http://ml-pipeline.kubeflow.svc.cluster.local:8888
+      - name: KALE_CONFIG_PATH
+        value: /etc/kale/kfp_server_config.json
+    extraVolumes:
+      - name: kfp-api-token
+        projected:
+          sources:
+            - serviceAccountToken:
+                audience: pipelines.kubeflow.org
+                expirationSeconds: 3607
+                path: token
+      - name: kale-kfp-server-config
+        configMap:
+          name: kale-kfp-server-config
+    extraVolumeMounts:
+      - name: kfp-api-token
+        mountPath: /var/run/secrets/kubeflow/pipelines
+        readOnly: true
+      - name: kale-kfp-server-config
+        mountPath: /etc/kale
+        readOnly: true
+    options:
+      imageConfig:
+        spawner:
+          default: kale-jupyterlab
+        values:
+          - id: kale-jupyterlab
+            spawner:
+              displayName: JupyterLab | Kale | CPU
+              description: JupyterLab with the Kubeflow Kale extension.
+            spec:
+              image: <registry>/<project>/kale-jupyterlab:<tag>
+              imagePullPolicy: IfNotPresent
+              ports:
+                - id: jupyterlab
+                  displayName: JupyterLab
+                  port: 8888
+                  protocol: HTTP
+    serviceAccount:
+      name: aml-editor
+```
+
+The ConfigMap is namespace-scoped. A WorkspaceKind can be cluster-scoped, but each
+namespace using it must contain its own `kale-kfp-server-config` ConfigMap with the
+matching KFP namespace value.
+
+Apply the WorkspaceKind and create a workbench from it:
+
+```bash
+kubectl apply -f kale-jupyterlab-workspacekind.yaml
+```
+
+## Use Kale in JupyterLab
+
+1. Open the running Kale workbench and upload a notebook.
+2. Open the Kale panel from the left sidebar.
+3. Mark cells as pipeline steps and set the pipeline and experiment names.
+4. Select **Compile and Run**. Kale compiles the notebook, uploads it to KFP, and
+   starts a run in the namespace configured in `kfp_server_config.json`.
+
+If Kale reports an empty identity or `401 Unauthorized`, verify that
+`KALE_CONFIG_PATH` points to the mounted ConfigMap and that the Pipeline token is
+mounted at `/var/run/secrets/kubeflow/pipelines/token`. A reachable Pipeline health
+endpoint alone is not sufficient: Kale must use that projected token to authenticate.
+
+## Examples
+
+- [Download the Iris scikit-learn pipeline notebook](/kale/iris-sklearn.ipynb).
+  It is a compact end-to-end example for testing compilation and KFP submission;
+  its [requirements file](/kale/iris-sklearn-requirements.txt) is included.
+- [Download the candies-sharing notebook](/kale/candies-sharing.ipynb). It is a
+  minimal example for learning cell annotations before using a larger notebook.
+
+The examples are copied from the upstream [Kubeflow Kale repository](https://github.com/kubeflow/kale).
