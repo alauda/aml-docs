@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: feast-model-inspector
+  namespace: feast-demo
+spec:
+  restartPolicy: Never
+  containers:
+    - name: inspector
+      image: FEAST_MODEL_IMAGE_PLACEHOLDER
+      command: [bash, -c, cat /mnt/models/online-sample.json]
+      volumeMounts:
+        - name: model
+          mountPath: /mnt/models
+  volumes:
+    - name: model
+      persistentVolumeClaim:
+        claimName: feast-notebook-model
