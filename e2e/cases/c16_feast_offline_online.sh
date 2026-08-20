@@ -19,6 +19,7 @@ SPARK_APP="$FS_NAME-spark"
 SPARK_SA="$FS_NAME-spark"
 CM="$FS_NAME-code"
 S3_KEY="e2e/$FS_NAME/driver_stats"
+# The e2e prefix is unique per run; object-store lifecycle policy owns expiry.
 TMP="$(mktemp -d)"
 PF=""
 
@@ -123,15 +124,18 @@ model_repo = Path("/mnt/models/repo")
 repo.mkdir(parents=True, exist_ok=True)
 model_repo.mkdir(parents=True, exist_ok=True)
 
-spark = SparkSession.builder.appName("feast-offline-online-e2e").getOrCreate()
 endpoint = urlparse(os.environ["S3_ENDPOINT_URL"])
-hadoop = spark.sparkContext._jsc.hadoopConfiguration()
-hadoop.set("fs.s3a.endpoint", endpoint.netloc or endpoint.path)
-hadoop.set("fs.s3a.endpoint.region", region)
-hadoop.set("fs.s3a.path.style.access", "true")
-hadoop.set("fs.s3a.connection.ssl.enabled", str(endpoint.scheme == "https").lower())
-hadoop.set("fs.s3a.access.key", os.environ["AWS_ACCESS_KEY_ID"])
-hadoop.set("fs.s3a.secret.key", os.environ["AWS_SECRET_ACCESS_KEY"])
+endpoint_host = endpoint.netloc or endpoint.path
+ssl_enabled = str(endpoint.scheme == "https").lower()
+spark = (
+    SparkSession.builder
+    .appName("feast-offline-online-e2e")
+    .config("spark.hadoop.fs.s3a.endpoint", endpoint_host)
+    .config("spark.hadoop.fs.s3a.endpoint.region", region)
+    .config("spark.hadoop.fs.s3a.path.style.access", "true")
+    .config("spark.hadoop.fs.s3a.connection.ssl.enabled", ssl_enabled)
+    .getOrCreate()
+)
 
 events = (
     spark.range(240)
@@ -155,10 +159,10 @@ batch_config["offline_store"] = {
     "type": "spark",
     "spark_conf": {
         "spark.sql.session.timeZone": "UTC",
-        "spark.hadoop.fs.s3a.endpoint": endpoint.netloc or endpoint.path,
+        "spark.hadoop.fs.s3a.endpoint": endpoint_host,
         "spark.hadoop.fs.s3a.endpoint.region": region,
         "spark.hadoop.fs.s3a.path.style.access": "true",
-        "spark.hadoop.fs.s3a.connection.ssl.enabled": str(endpoint.scheme == "https").lower(),
+        "spark.hadoop.fs.s3a.connection.ssl.enabled": ssl_enabled,
     },
 }
 (repo / "feature_store.yaml").write_text(yaml.safe_dump(batch_config, sort_keys=False))
@@ -223,10 +227,6 @@ serving_config.pop("offline_store", None)
 shutil.copy("/opt/feast-batch/server.py", model_repo / "server.py")
 print(json.dumps({"historical_rows": len(training), "online_rows": len(online)}))
 
-if os.environ.get("CLEANUP_S3") == "true":
-    jvm = spark.sparkContext._jvm
-    filesystem = jvm.org.apache.hadoop.fs.FileSystem.get(jvm.java.net.URI.create(dataset_uri), hadoop)
-    filesystem.delete(jvm.org.apache.hadoop.fs.Path(dataset_uri), True)
 spark.stop()
 PY
 
@@ -341,7 +341,6 @@ spec:
     env:
     - {name: FEAST_PROJECT, value: $PROJECT}
     - {name: S3_DATASET_KEY, value: $S3_KEY}
-    - {name: CLEANUP_S3, value: "true"}
     envFrom: [{secretRef: {name: $FEAST_S3_CREDENTIALS_SECRET}}]
     volumeMounts:
     - {name: batch-code, mountPath: /opt/feast-batch, readOnly: true}
