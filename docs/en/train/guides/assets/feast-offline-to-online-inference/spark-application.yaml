@@ -1,0 +1,71 @@
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: feast-offline-batch
+  namespace: feast-demo
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  image: FEAST_SPARK_IMAGE_PLACEHOLDER
+  imagePullPolicy: IfNotPresent
+  mainApplicationFile: local:///opt/feast-batch/batch.py
+  sparkVersion: FEAST_SPARK_VERSION_PLACEHOLDER
+  timeToLiveSeconds: 3600
+  restartPolicy:
+    type: Never
+  sparkConf:
+    spark.sql.session.timeZone: UTC
+  volumes:
+    - name: batch-code
+      configMap:
+        name: feast-offline-batch-code
+    - name: feast-client
+      configMap:
+        name: feast-feast-notebook-client
+        items:
+          - key: feature_store.yaml
+            path: feature_store.yaml
+    - name: model
+      persistentVolumeClaim:
+        claimName: feast-notebook-model
+    - name: online-tls
+      secret:
+        secretName: feast-feast-notebook-online-tls
+    - name: registry-tls
+      secret:
+        secretName: feast-feast-notebook-registry-tls
+  driver:
+    cores: 1
+    memory: 2g
+    serviceAccount: feast-spark
+    env:
+      - name: FEAST_PROJECT
+        value: feast_demo
+      - name: S3_DATASET_KEY
+        value: datasets/driver_stats
+    envFrom:
+      - secretRef:
+          name: feast-s3-credentials
+    volumeMounts:
+      - name: batch-code
+        mountPath: /opt/feast-batch
+        readOnly: true
+      - name: feast-client
+        mountPath: /etc/feast
+        readOnly: true
+      - name: model
+        mountPath: /mnt/models
+      - name: online-tls
+        mountPath: /tls/online
+        readOnly: true
+      - name: registry-tls
+        mountPath: /tls/registry
+        readOnly: true
+  executor:
+    instances: 2
+    cores: 1
+    memory: 1g
+    envFrom:
+      - secretRef:
+          name: feast-s3-credentials
