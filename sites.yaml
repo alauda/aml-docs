@@ -22,7 +22,7 @@
     en: Alauda Build of NVIDIA GPU Device Plugin
     zh: Alauda Build of NVIDIA GPU Device Plugin
   base: /pgpu
-  version: "0.18"
+  version: "26.3"
   repo: https://github.com/alauda/pgpu-doc
 - name: costmanagement
   displayName:
