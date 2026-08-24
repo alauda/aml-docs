@@ -204,6 +204,9 @@ spec:
         value: http://ml-pipeline.kubeflow.svc.cluster.local:8888
       - name: KALE_CONFIG_PATH
         value: /etc/kale/kfp_server_config.json
+      # Default image for every generated KFP step without an image override.
+      - name: KALE_DEFAULT_BASE_IMAGE
+        value: docker.io/alaudadockerhub/kale-jupyterlab:v2.2.1a2
     extraVolumes:
       - name: kfp-api-token
         projected:
@@ -252,6 +255,57 @@ Apply the WorkspaceKind and create a workbench from it:
 ```bash
 kubectl apply -f kale-jupyterlab-workspacekind.yaml
 ```
+
+## Configure pipeline step runtime images
+
+The image used to open the Kale Workbench and the image used by generated KFP
+steps are separate settings. `options.imageConfig.values[].spec.image` starts the
+JupyterLab Workbench; the settings below control the container image used by
+pipeline steps.
+
+### Method 1: Set one default image in the WorkspaceKind
+
+Set only `KALE_DEFAULT_BASE_IMAGE` in `podTemplate.extraEnv` to apply one default
+runtime image to every generated KFP step that does not specify its own image:
+
+```yaml
+podTemplate:
+  extraEnv:
+    - name: KALE_DEFAULT_BASE_IMAGE
+      value: docker.io/alaudadockerhub/kale-jupyterlab:v2.2.1a2
+```
+
+Set it to a dedicated runtime image when the pipeline needs packages or system
+libraries that are not part of the Workbench image. The image must be pullable by
+the KFP worker nodes (and by both architectures when the cluster is multi-arch),
+not only by the JupyterLab pod.
+
+### Method 2: Override the image for an individual step
+
+To use a different image for one step, add an `image:<image>` tag to that step's
+cell. In the Kale UI, set **Base Image** in the step configuration; the UI writes
+the same cell metadata:
+
+```json
+{
+  "cell_type": "code",
+  "metadata": {
+    "tags": [
+      "step:train",
+      "image:docker.io/alaudadockerhub/my-training-runtime:v1.0.0"
+    ]
+  },
+  "source": [
+    "model.fit(x_train, y_train)\n"
+  ]
+}
+```
+
+The per-step `image:` tag takes precedence over `KALE_DEFAULT_BASE_IMAGE`. If
+neither is set, Kale falls back to `python:3.12`. Use immutable tags or digests
+and make sure each runtime contains the Python packages imported by that step.
+After **Compile and Save**, inspect the generated `.kale/*.kale.py` file for the
+`base_image=` value before submitting the pipeline.
 
 ## Use Kale in JupyterLab
 
