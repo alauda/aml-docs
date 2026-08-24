@@ -1,0 +1,113 @@
+---
+weight: 10
+i18n:
+  title:
+    en: Scenario Recommendations
+    zh: 场景推荐
+---
+
+# Scenario Recommendations
+
+This page recommends models from the validated set for **chat**, **coding**, and
+**retrieval-augmented generation (RAG)**. The recommendation combines the public
+[Artificial Analysis open-weight model leaderboard](https://artificialanalysis.ai/leaderboards/models?weights=open)
+checked on **2026-08-24** with the deployment and workload evidence in this guide.
+
+Artificial Analysis scores are capability signals, not a replacement for an
+application benchmark. This page uses the `weights=open` filter; it does not compare
+against hosted proprietary models. The open-weight leaderboard contains newer model
+releases than some of the checkpoints validated here. In particular, the leaderboard entry
+`DeepSeek V4 Flash 0731` is used as a family-level signal for the validated
+DeepSeek-V4-Flash recipes; validate the exact checkpoint again before a production
+decision.
+
+## At a glance
+
+| Scenario | Primary recommendation | Practical alternative | Decision |
+|---|---|---|---|
+| Chat | [Qwen3.6-27B (W8A8)](./qwen3-6-27b-w8a8.mdx) | [DeepSeek-V4-Flash (W8A8)](./deepseek-v4-flash-w8a8.mdx) for maximum answer quality | Choose Qwen3.6 for the normal 8-card service; choose DeepSeek when quality and long context justify 16 cards. |
+| Coding | [DeepSeek-V4-Flash (W8A8)](./deepseek-v4-flash-w8a8.mdx) | [MiniMax-M2.5 (W8A8)](./minimax-m2.5-w8a8.mdx) when the already-tested coding-agent path is required | DeepSeek has the strongest public coding/agentic signal; MiniMax has direct Pi/OpenCode evidence but remains a POC-level path. |
+| RAG | [DeepSeek-V4-Flash (W8A8)](./deepseek-v4-flash-w8a8.mdx) | [Gemma-4-31B-it](./gemma4-31b-it.mdx) for multimodal documents or a smaller P4+D4 service | DeepSeek is the quality and long-context default; Gemma is the operational alternative for image-heavy knowledge bases. |
+
+## Evidence from Artificial Analysis
+
+The values below are the open-weight leaderboard's **Intelligence Index (II)**,
+**Coding Index**, and **Agentic Index**. A blank value means that the leaderboard
+does not publish that index for the entry, rather than a score of zero.
+
+| Open-weight leaderboard entry | II | Coding | Agentic | Status on leaderboard |
+|---|--:|--:|--:|---|
+| DeepSeek V4 Flash 0731 (Reasoning, Max Effort) | 51.8 | 69.1 | 48.4 | Current open-weight entry |
+| Qwen3.6 27B (Reasoning) | 37.7 | 53.7 | 27.5 | Current open-weight entry |
+| MiniMax-M2.5 | 34.5 | — | — | Marked deprecated |
+| Gemma 4 31B (Reasoning) | 29.7 | 43.4 | 14.4 | Current open-weight entry |
+| Qwen3 32B (Non-reasoning) | 8.5 | — | — | Marked deprecated |
+
+These are the validated candidates only. The open-weight leaderboard's overall
+leaders include models that are not present in this deployment guide (for example,
+Kimi K3, Qwen3.8, and DeepSeek V4 Pro), so they are outside the recommendation scope
+until an Ascend deployment is validated here.
+
+The leaderboard does not provide a dedicated RAG score. RAG selection therefore
+uses II as a response-quality proxy and combines it with the validated model's
+context length, prefix-cache behavior, and document modality. Retrieval quality,
+chunking, embedding choice, reranking, and citation evaluation still need a
+separate application-level test.
+
+## Chat
+
+**Recommended: Qwen3.6-27B (W8A8).** Its current leaderboard entry scores 37.7 on
+II, 53.7 on Coding Index, and 27.5 on Agentic Index. More importantly for a shared
+chat service, the validated recipe fits an 8-card Ascend 910B4 deployment as two
+TP=4 replicas and completed the 8k and 17.5k-input workloads with zero errors. It
+is the best balance in this validated set between capability, replica-level
+latency, and hardware footprint.
+
+Use **DeepSeek-V4-Flash (W8A8)** when answer quality, reasoning, and long-context
+conversations are more important than the 16-card requirement. Its corresponding
+current leaderboard family entry is materially stronger (II 51.8), and the
+validated recipe supports 200k context plus cross-rank prefix reuse. Its larger
+deployment should not be presented as a lower-cost chat default.
+
+## Coding
+
+**Recommended: DeepSeek-V4-Flash (W8A8).** The current DeepSeek V4 Flash 0731
+leaderboard entry has the strongest public coding signal in this set (Coding Index
+69.1; Agentic Index 48.4). The validated deployment also exposes the DeepSeek tool
+and reasoning parsers, a 200k context window, and a long-context aggregation path.
+The score is a family/version signal: the exact `Eco-Tech/DeepSeek-V4-Flash-w8a8-mtp`
+checkpoint still requires Terminal-Bench or an equivalent coding-agent acceptance
+run before production sign-off.
+
+Use **MiniMax-M2.5 (W8A8)** when an already exercised agent integration is the
+priority. Pi and OpenCode were driven through the MaaS gateway and the pinned
+vLLM-Ascend parser had no closing-tag pollution across 3,123 tool executions. The
+leaderboard marks M2.5 deprecated and publishes no Coding/Agentic Index for it, and
+the validation still records parser failures on complex chains; treat it as a POC
+fallback, not evidence that it outranks DeepSeek.
+
+## RAG
+
+**Recommended: DeepSeek-V4-Flash (W8A8).** There is no RAG-specific Artificial
+Analysis index, so this recommendation combines the highest II signal in the
+validated family with the deployment properties that matter for RAG: 200k context,
+effective cross-rank prefix reuse, and a validated 17.5k-token multi-turn workload.
+It is a good default when retrieved passages are long or repeated across users.
+
+Use **Gemma-4-31B-it** for multimodal or document-heavy knowledge bases. Its
+validated text path has a 262k context window and its model supports multimodal
+inputs, while the P4+D4 recipe keeps prefill and decode isolated on eight 910B3
+cards. Its AA II (29.7) is below DeepSeek's, so choose it for modality and
+operational fit rather than leaderboard quality.
+
+For every RAG deployment, measure retrieval recall, grounded answer accuracy,
+citation correctness, and end-to-end latency with the target corpus. A high model
+leaderboard score cannot compensate for a poor retriever or incorrectly sized
+context budget.
+
+## Revalidation rule
+
+Re-run the scenario benchmark when the model revision, quantization, vLLM-Ascend
+image, prompt template, retriever, or context budget changes. Keep the leaderboard
+snapshot date with the benchmark result; Artificial Analysis updates its entries
+and may deprecate older releases.
