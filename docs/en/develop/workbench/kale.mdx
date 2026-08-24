@@ -11,12 +11,14 @@ extension and its server component must use matching versions.
 
 ## Prerequisites
 
-- Kubeflow Pipelines is installed and its `ml-pipeline` service is available in the
-  `kubeflow` namespace.
+- A KFP v2 backend is ready: either the shared `ml-pipeline` service in the
+  `kubeflow` namespace or a ready DSPO `DataSciencePipelinesApplication` in the
+  workbench namespace.
 - The workbench namespace is managed by a Kubeflow `Profile`. This gives the
   namespace the `kubeflow-profile` label required by the Pipeline API NetworkPolicy.
-- The WorkspaceKind uses a service account that can request the projected token for
-  the `pipelines.kubeflow.org` audience.
+- For shared-KFP token authentication, the WorkspaceKind service account can
+  request the projected token for the `pipelines.kubeflow.org` audience. The DSPO
+  in-cluster example below uses `auth_type: none` instead.
 - The Kale JupyterLab CI image is available on Docker Hub at
   `docker.io/alaudadockerhub/kale-jupyterlab:v2.2.1a2`. Cluster nodes must be able
   to pull it. For a private or air-gapped cluster, mirror this image into the
