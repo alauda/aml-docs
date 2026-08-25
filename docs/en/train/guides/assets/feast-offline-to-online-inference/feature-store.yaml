@@ -13,6 +13,8 @@ spec:
           type: redis
           secretRef:
             name: feast-data-stores
+      server:
+        metrics: true
     registry:
       local:
         persistence:

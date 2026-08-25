@@ -1,0 +1,12 @@
+apiVersion: ray.io/v1
+kind: RayJob
+metadata:
+  name: feast-ray-smoke
+  namespace: mlops-demo-e2e
+spec:
+  shutdownAfterJobFinishes: true
+  ttlSecondsAfterFinished: 300
+  clusterSelector:
+    ray.io/cluster: feast-ray-smoke
+  entrypoint: >-
+    python -c "import feast, ray; ray.init(address='auto'); print({'feast': feast.__version__, 'ray_nodes': len(ray.nodes())})"
