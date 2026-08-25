@@ -1,0 +1,59 @@
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: mlflow-ray-training
+  labels:
+    ray.io/cluster: mlflow-ray-training
+spec:
+  rayVersion: "2.9.0"
+  headGroupSpec:
+    serviceType: ClusterIP
+    rayStartParams:
+      dashboard-host: "0.0.0.0"
+    template:
+      spec:
+        serviceAccountName: default
+        containers:
+          - name: ray-head
+            image: <approved-registry>/mlops/ray-mlflow-training:<tag>
+            env:
+              - name: MLFLOW_TRACKING_URI
+                value: http://mlflow-tracking-server.kubeflow:5000
+              - name: MLFLOW_WORKSPACE
+                value: ray-training
+              - name: MLFLOW_EXPERIMENT_NAME
+                value: ray-pytorch
+              - name: MLFLOW_RUN_NAME
+                value: ray-mlflow-training
+              - name: MLFLOW_TRACKING_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: mlflow-token
+                    key: token
+            resources:
+              requests:
+                cpu: "1"
+                memory: 2Gi
+              limits:
+                cpu: "2"
+                memory: 4Gi
+  workerGroupSpecs:
+    - groupName: workers
+      replicas: 2
+      minReplicas: 2
+      maxReplicas: 2
+      rayStartParams: {}
+      template:
+        spec:
+          serviceAccountName: default
+          containers:
+            - name: ray-worker
+              image: <approved-registry>/mlops/ray-mlflow-training:<tag>
+              resources:
+                requests:
+                  cpu: "2"
+                  memory: 4Gi
+                limits:
+                  cpu: "2"
+                  memory: 4Gi
+

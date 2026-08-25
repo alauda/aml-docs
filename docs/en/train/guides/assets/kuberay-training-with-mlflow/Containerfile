@@ -1,0 +1,6 @@
+FROM rayproject/ray:2.9.0-py310
+
+USER root
+RUN pip install --no-cache-dir "mlflow==3.13.0" "torch==2.2.2"
+COPY train_mlflow.py /opt/ray/jobs/train_mlflow.py
+USER ray
