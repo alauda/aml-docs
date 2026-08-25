@@ -719,53 +719,7 @@ export LOCAL_K8S_TOKEN=<kubernetes-token>
 
 ## Ray offline store with KubeRay
 
-Feast 0.61 provides a contributed Ray offline store and Ray batch engine. KubeRay supplies the separate Ray cluster; the Feast Operator does not create or manage that cluster. Use this architecture for parallel joins, aggregations, transformations, historical retrieval, and materialization jobs:
-
-```text
-FileSource (Parquet) -> Feast Ray offline store / Ray batch engine -> registry and online store
-                                      ^
-                              KubeRay RayCluster
-```
-
-Install the [Alauda Build of KubeRay Operator](../kuberay/install) on the workload cluster first. The operator creates the [RayCluster](https://docs.ray.io/en/latest/cluster/kubernetes/index.html), [RayJob](https://docs.ray.io/en/latest/cluster/kubernetes/getting-started/rayjob.html), and RayService CRDs. The [Alauda KubeRay overview](../kuberay/intro) and [KubeRay demo](https://github.com/alauda/aml-docs/blob/main/docs/public/kuberay/demo.ipynb) show the platform-specific deployment patterns.
-
-Build or select a Feast runtime image that includes `feast[ray]`, Ray, the CodeFlare/KubeRay client dependencies, and the object-store connector required by the FileSource. Configure the Feast repository as follows (use a Secret or workload identity for object-store credentials):
-
-```yaml
-offline_store:
-  type: ray
-  storage_path: s3://<bucket>/feast-data
-  ray_address: ray://<ray-head-service>:10001
-
-batch_engine:
-  type: ray.engine
-  max_workers: 8
-```
-
-For CodeFlare/KubeRay submission, use `use_kuberay: true` and set `kuberay_conf.cluster_name`, `kuberay_conf.namespace`, and the API authentication fields instead of `ray_address`. Keep Ray CPU and memory limits explicit and match the Ray version in the image and `RayCluster`.
-
-The Ray offline store currently supports `FileSource` data and does not provide a direct SQL query interface. It also does not write an online store by itself; use Feast materialization with the Ray batch engine after the offline data is available. For the full option list, see the [Feast Ray offline-store reference](https://docs.feast.dev/v0.61-branch/reference/offline-stores/ray) and [Ray compute-engine reference](https://docs.feast.dev/v0.61-branch/reference/compute-engine/ray).
-
-### KubeRay smoke test
-
-Run this check in the target workload cluster after mirroring an approved Ray runtime image. The manifests are stored under `docs/en/develop/components/feast/assets/kuberay/raycluster.yaml` and `rayjob.yaml`; replace the placeholder image with a cluster-registry image that contains the matching Feast/Ray dependencies.
-
-```bash
-kubectl -n mlops-demo-e2e apply -f raycluster.yaml
-kubectl -n mlops-demo-e2e wait --for=condition=Ready raycluster/feast-ray-smoke --timeout=10m
-kubectl -n mlops-demo-e2e apply -f rayjob.yaml
-kubectl -n mlops-demo-e2e wait --for=condition=Succeeded rayjob/feast-ray-smoke --timeout=10m
-kubectl -n mlops-demo-e2e logs -l ray.io/job-name=feast-ray-smoke --tail=100
-```
-
-The sample job validates the Feast and Ray imports and Ray head connection. Extend its entrypoint with a small Parquet `FileSource` and `get_historical_features` retrieval for a full offline-store smoke test, then verify the row count and the `RayJob` status. Remove the temporary resources after the check:
-
-```bash
-kubectl -n mlops-demo-e2e delete rayjob feast-ray-smoke --ignore-not-found
-kubectl -n mlops-demo-e2e delete raycluster feast-ray-smoke --ignore-not-found
-```
-
-For detailed Spark transformation lineage, Feast 0.61 does not expose a native Spark logical-plan hook. Add the OpenLineage Spark agent to the Spark runtime and configure `spark.extraListeners` plus the OpenLineage transport; Feast's OpenLineage integration covers registry/apply and materialization events, while the Spark agent captures Spark-level transformation lineage.
+The complete Ray offline-store configuration, KubeRay deployment, smoke test, and lineage notes are provided as the [Feast with Ray offline store notebook](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/feast-with-ray-offline-store.ipynb). Keep the notebook and its adjacent `assets/feast-with-ray-offline-store/` directory together when downloading it.
 
 ## Further Reading
 
