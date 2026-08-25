@@ -1,0 +1,41 @@
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: feast-ray-cluster
+  namespace: mlops-demo-e2e
+spec:
+  rayVersion: "2.9.0"
+  headGroupSpec:
+    serviceType: ClusterIP
+    rayStartParams:
+      dashboard-host: "0.0.0.0"
+    template:
+      spec:
+        containers:
+          - name: ray-head
+            image: <approved-registry>/mlops/feast-ray-runtime:<tag>
+            resources:
+              requests:
+                cpu: 250m
+                memory: 512Mi
+              limits:
+                cpu: "1"
+                memory: 1Gi
+  workerGroupSpecs:
+    - groupName: small
+      replicas: 1
+      minReplicas: 1
+      maxReplicas: 1
+      rayStartParams: {}
+      template:
+        spec:
+          containers:
+            - name: ray-worker
+              image: <approved-registry>/mlops/feast-ray-runtime:<tag>
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 512Mi
+                limits:
+                  cpu: "1"
+                  memory: 1Gi

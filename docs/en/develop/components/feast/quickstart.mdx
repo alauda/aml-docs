@@ -717,6 +717,10 @@ Example environment variable:
 export LOCAL_K8S_TOKEN=<kubernetes-token>
 ```
 
+## Ray offline store with KubeRay
+
+The complete Ray offline-store configuration, KubeRay deployment, production-scale guidance, and smoke test are provided as the [Feast with Ray offline store notebook](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/feast-with-ray-offline-store.ipynb). Keep the notebook and its adjacent `assets/feast-with-ray-offline-store/` directory together when downloading it.
+
 ## Further Reading
 
 For end-to-end Feast workflows and broader product usage, continue with the official Feast documentation:
@@ -726,3 +730,5 @@ For end-to-end Feast workflows and broader product usage, continue with the offi
 - [Quickstart](https://docs.feast.dev/getting-started/quickstart): end-to-end local workflow with SDK usage
 - [Sample use-case tutorials](https://docs.feast.dev/tutorials/tutorials-overview): scenario-based tutorials for common ML workflows
 - [Running Feast in production](https://docs.feast.dev/how-to-guides/running-feast-in-production): production patterns and operational guidance
+- [Feature quality monitoring](https://docs.feast.dev/v0.61-branch/reference/feature-quality-monitoring): experimental Great Expectations validation for saved datasets and logged features in Feast 0.61
+- [OpenLineage integration](https://docs.feast.dev/v0.61-branch/reference/openlineage): registry and materialization lineage events emitted by Feast
