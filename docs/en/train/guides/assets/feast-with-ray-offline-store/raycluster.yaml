@@ -1,7 +1,7 @@
 apiVersion: ray.io/v1
 kind: RayCluster
 metadata:
-  name: feast-ray-smoke
+  name: feast-ray-cluster
   namespace: mlops-demo-e2e
 spec:
   rayVersion: "2.9.0"
