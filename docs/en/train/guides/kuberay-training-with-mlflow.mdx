@@ -57,10 +57,10 @@ The image must contain the Ray and PyTorch versions used by the cluster, the MLf
 export REGISTRY=registry.example.com/mlops
 export IMAGE="$REGISTRY/ray-mlflow-training:2.31.0-mlflow3.13"
 
-docker build -f assets/kuberay-training-with-mlflow/Containerfile \
+nerdctl build -f assets/kuberay-training-with-mlflow/Containerfile \
   --build-arg BASE_IMAGE=docker-mirrors.alauda.cn/library/python:3.11-slim-bookworm \
   -t "$IMAGE" assets/kuberay-training-with-mlflow
-docker push "$IMAGE"
+nerdctl push "$IMAGE"
 ```
 
 For production, build the image in CI, scan it, and pin it by digest in the manifests. Do not install Python dependencies at pod start; that makes failures non-deterministic and adds startup time.
