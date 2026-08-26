@@ -1,0 +1,179 @@
+---
+weight: 70
+---
+
+# Train on KubeRay and track experiments with MLflow
+
+This guide shows how to run a distributed PyTorch training job with the **Alauda Build of KubeRay Operator** and record its parameters and metrics in the MLflow service managed by Alauda AI. KubeRay manages the Ray cluster and submits the `RayJob`; MLflow remains the system of record for comparing experiments.
+
+The example uses a CPU training loop so it can be validated on a small cluster. Replace the runtime image and resource requests for GPU training. The same job shape works for larger datasets and models.
+
+## Architecture
+
+```text
+RayJob ──creates──> RayCluster
+                       ├── head pod: Ray driver + MLflow client
+                       └── worker pods: distributed PyTorch workers
+
+head pod ──HTTP + bearer token──> MLflow tracking Service ──> PostgreSQL + object storage
+```
+
+The driver opens one MLflow run, logs the immutable job configuration, and records the final metrics returned by Ray Train. Worker pods do not need MLflow credentials because they report metrics to the driver through Ray Train.
+
+## Prerequisites
+
+- The [Alauda Build of KubeRay Operator](../../develop/components/kuberay/install.mdx) is installed in the target data science cluster. Verify that `rayclusters.ray.io` and `rayjobs.ray.io` exist.
+- An MLflow tracking server is running. Follow [Install MLflow](../../develop/components/mlflow/install.mdx) if it is not installed.
+- A workspace namespace labelled `mlflow-enabled=true`, and permission for the identity used by the job to create experiments and runs in that namespace. The example uses `ray-training`.
+- A Dex id token for a dedicated automation account. Follow [Get a token from the command line](../../develop/experiment_tracking/mlflow-python-sdk.mdx#get-a-token), then store the token in a Secret. Do not put tokens in a manifest or image.
+- `kubectl`, a container-image builder, and access to an internal registry. Mirror all images before running in an air-gapped cluster.
+
+The examples pin Ray `2.31.0` and MLflow `3.13.0`. Keep the Ray version in the image and `RayCluster.spec.rayVersion` aligned.
+
+## Prepare the namespace and MLflow credentials
+
+Use a namespace dedicated to the training workload. It is also the MLflow workspace in this example:
+
+```bash
+export NAMESPACE=ray-training
+export MLFLOW_WORKSPACE=ray-training
+
+kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+kubectl label namespace "$NAMESPACE" mlflow-enabled=true --overwrite
+
+# ID_TOKEN must be a current Dex id token for an account that can use this workspace.
+kubectl -n "$NAMESPACE" create secret generic mlflow-token \
+  --from-literal=token="$ID_TOKEN" \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Inside the cluster use `http://mlflow-tracking-server.kubeflow:5000`, the Service fronted by the MLflow OAuth proxy. From outside the cluster use the platform MLflow route described in [Using the MLflow Python SDK with Authentication and RBAC](../../develop/experiment_tracking/mlflow-python-sdk.mdx). The token method requires `spec.auth.oauth.skipJwtBearerTokens: true` on the `MLflow` custom resource (the default for current operator versions).
+
+## Build the training image
+
+The image must contain the Ray and PyTorch versions used by the cluster, the MLflow client, and the training script. Start with the [`Containerfile`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/kuberay-training-with-mlflow/Containerfile) and replace the base image with an approved, mirrored image. The `BASE_IMAGE` argument lets you use an existing internal PyTorch runtime:
+
+```bash
+export REGISTRY=registry.example.com/mlops
+export IMAGE="$REGISTRY/ray-mlflow-training:2.31.0-mlflow3.13"
+
+nerdctl build -f assets/kuberay-training-with-mlflow/Containerfile \
+  --build-arg BASE_IMAGE=docker-mirrors.alauda.cn/library/python:3.11-slim-bookworm \
+  -t "$IMAGE" assets/kuberay-training-with-mlflow
+nerdctl push "$IMAGE"
+```
+
+For production, build the image in CI, scan it, and pin it by digest in the manifests. Do not install Python dependencies at pod start; that makes failures non-deterministic and adds startup time.
+
+## Create the Ray cluster
+
+The [RayCluster manifest](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/kuberay-training-with-mlflow/raycluster.yaml) is a starting template. It has one head and two workers, uses a `ClusterIP` head Service, and injects the MLflow connection settings only into the head pod (the driver). Apply it after replacing the image placeholder:
+
+```bash
+sed "s#<approved-registry>/mlops/ray-mlflow-training:<tag>#$IMAGE#g" \
+  assets/kuberay-training-with-mlflow/raycluster.yaml \
+  | kubectl -n "$NAMESPACE" apply -f -
+
+kubectl -n "$NAMESPACE" wait --for=condition=ready pod \
+  -l ray.io/cluster=mlflow-ray-training,ray.io/node-type=head \
+  --timeout=10m
+kubectl -n "$NAMESPACE" get raycluster,pods -l ray.io/cluster=mlflow-ray-training -o wide
+```
+
+The operator creates the head and worker pods. If the cluster remains pending, inspect scheduling and image-pull events:
+
+```bash
+kubectl -n "$NAMESPACE" describe raycluster mlflow-ray-training
+kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp
+```
+
+For GPU training, add a vendor-specific resource such as `nvidia.com/gpu: "1"` to the worker requests and limits, use a CUDA-compatible image, and set `use_gpu=True` in the training script. Keep the head pod CPU-only unless the driver itself needs an accelerator.
+
+## Submit the training job
+
+The [RayJob manifest](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/kuberay-training-with-mlflow/rayjob.yaml) submits the script to the existing cluster and retains the RayCluster so that another job can reuse it. Use a unique job name for every experiment:
+
+```bash
+export JOB_NAME=ray-mlflow-$(date +%Y%m%d-%H%M%S)
+
+sed "s#<job-name>#$JOB_NAME#g" \
+  assets/kuberay-training-with-mlflow/rayjob.yaml \
+  | kubectl -n "$NAMESPACE" apply -f -
+
+kubectl -n "$NAMESPACE" get rayjob "$JOB_NAME" -w
+```
+
+The RayJob entrypoint runs `/opt/ray/jobs/train_mlflow.py` on the head pod. The script calls `ray.init(address="auto")`, starts a Ray Train `TorchTrainer`, and logs the run with:
+
+```text
+MLFLOW_TRACKING_URI=http://mlflow-tracking-server.kubeflow:5000
+MLFLOW_WORKSPACE=ray-training
+MLFLOW_EXPERIMENT_NAME=ray-pytorch
+MLFLOW_TRACKING_TOKEN=<from Secret>
+```
+
+To run a different experiment without rebuilding the image, set `MLFLOW_EXPERIMENT_NAME` in the head pod template and apply a new cluster, or parameterize the manifest with a ConfigMap. Never pass a token as a command-line argument because it can appear in shell history and Kubernetes events.
+
+## Monitor the RayJob
+
+Use the Kubernetes status for lifecycle state and the Ray driver logs for application output:
+
+```bash
+kubectl -n "$NAMESPACE" get rayjob "$JOB_NAME" \
+  -o jsonpath='{.status.jobStatus}{"\n"}'
+kubectl -n "$NAMESPACE" logs -l ray.io/job-name="$JOB_NAME" \
+  -c ray-head --tail=200 -f
+```
+
+The job is complete when `.status.jobStatus` is `SUCCEEDED`. For a failed job, collect the RayJob description and the head/worker logs before deleting anything:
+
+```bash
+kubectl -n "$NAMESPACE" describe rayjob "$JOB_NAME"
+kubectl -n "$NAMESPACE" logs -l ray.io/cluster=mlflow-ray-training \
+  --all-containers --prefix --tail=200
+```
+
+Ray dashboard and Prometheus integration are useful for longer jobs. Expose them through the platform's approved ingress and monitoring configuration; do not publish the Ray dashboard directly to the Internet.
+
+## Inspect the MLflow experiment
+
+Open **Alauda AI → Tools → MLFlow**, select the `ray-training` workspace, and open the `ray-pytorch` experiment. Each RayJob creates one run with:
+
+- parameters: Ray job name, number of workers, epochs, learning rate, and batch size;
+- metrics: `final_loss` and `epochs_completed`;
+- tags: the RayJob name and Ray version.
+
+Use the MLflow Compare view to compare runs with different worker counts or hyperparameters. MLflow is separate from Kubernetes status: a `SUCCEEDED` RayJob means the process exited successfully, while the MLflow run confirms that tracking requests and artifact uploads completed.
+
+The tracking server must use durable PostgreSQL and an S3-compatible artifact store for production. See [MLflow installation → High availability and storage](../../develop/components/mlflow/install.mdx#storage). If the token expires during a long run, the driver receives `401 UNAUTHENTICATED`; renew the Secret and resubmit the job rather than embedding a long-lived credential in the image.
+
+## Production checklist
+
+- Pin the training image by digest and keep Ray, PyTorch, and the KubeRay CRD versions compatible.
+- Size worker CPU, memory, accelerator, and ephemeral-storage requests from a representative run. Leave headroom for the Ray object store and spill directory.
+- Use Kueue or another cluster scheduler to enforce quotas and queue jobs. Add checkpointing so a preempted job can resume rather than restart from epoch zero.
+- Write checkpoints and datasets to durable object storage or a RWX PVC. Do not rely on the container filesystem or an `emptyDir` for outputs.
+- Use a unique MLflow run name and job name, and log the source revision, dataset version, image digest, and configuration as tags or parameters.
+- Keep `shutdownAfterJobFinishes` aligned with your retention policy. When reusing an existing cluster as this guide does, leave it `false` and delete completed `RayJob` objects with your retention controller; use a TTL only for jobs whose cluster is shut down after completion.
+- Restrict the `mlflow-token` Secret with namespace RBAC, rotate it before expiry, and use a dedicated non-personal account.
+- Configure retries and idempotent output paths. A retried RayJob must not overwrite a successful checkpoint or silently create an unrelated MLflow run.
+
+## Clean up
+
+Delete the completed job and the reusable cluster when they are no longer needed:
+
+```bash
+kubectl -n "$NAMESPACE" delete rayjob "$JOB_NAME" --ignore-not-found
+kubectl -n "$NAMESPACE" delete raycluster mlflow-ray-training --ignore-not-found
+```
+
+Keep the MLflow run and durable artifacts. They are independent of the RayCluster lifecycle.
+
+## References
+
+- [Alauda Build of KubeRay Operator](../../develop/components/kuberay/intro.mdx)
+- [Install KubeRay Operator](../../develop/components/kuberay/install.mdx)
+- [Ray on Kubernetes](https://docs.ray.io/en/latest/cluster/kubernetes/index.html)
+- [Ray Train](https://docs.ray.io/en/latest/train/train.html)
+- [MLflow on Alauda AI](../../develop/components/mlflow/intro.mdx)
+- [Using the MLflow Python SDK with Authentication and RBAC](../../develop/experiment_tracking/mlflow-python-sdk.mdx)
