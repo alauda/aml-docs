@@ -5,7 +5,7 @@ metadata:
   labels:
     ray.io/cluster: mlflow-ray-training
 spec:
-  rayVersion: "2.9.0"
+  rayVersion: "2.31.0"
   headGroupSpec:
     serviceType: ClusterIP
     rayStartParams:
@@ -56,4 +56,3 @@ spec:
                 limits:
                   cpu: "2"
                   memory: 4Gi
-

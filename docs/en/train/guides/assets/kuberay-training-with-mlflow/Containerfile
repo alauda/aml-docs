@@ -1,6 +1,13 @@
-FROM rayproject/ray:2.9.0-py310
+ARG BASE_IMAGE=rayproject/ray:2.31.0-py312
+FROM ${BASE_IMAGE}
 
 USER root
-RUN pip install --no-cache-dir "mlflow==3.13.0" "torch==2.2.2"
+ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+RUN apt-get update && apt-get install -y --no-install-recommends wget \
+    && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir "ray[default,train]==2.31.0" "mlflow==3.13.0"
 COPY train_mlflow.py /opt/ray/jobs/train_mlflow.py
-USER ray
+# The approved PyTorch base runs as the non-root UID 1000 and does not define
+# a named `ray` user. Keep that UID so the image works with restricted PSA.
+USER 1000

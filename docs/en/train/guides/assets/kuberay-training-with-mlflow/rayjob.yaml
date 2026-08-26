@@ -4,7 +4,6 @@ metadata:
   name: <job-name>
 spec:
   shutdownAfterJobFinishes: false
-  ttlSecondsAfterFinished: 3600
   clusterSelector:
     ray.io/cluster: mlflow-ray-training
   entrypoint: env MLFLOW_RUN_NAME=<job-name> python /opt/ray/jobs/train_mlflow.py

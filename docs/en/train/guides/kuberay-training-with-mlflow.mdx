@@ -28,7 +28,7 @@ The driver opens one MLflow run, logs the immutable job configuration, and recor
 - A Dex id token for a dedicated automation account. Follow [Get a token from the command line](../../develop/experiment_tracking/mlflow-python-sdk.mdx#get-a-token), then store the token in a Secret. Do not put tokens in a manifest or image.
 - `kubectl`, a container-image builder, and access to an internal registry. Mirror all images before running in an air-gapped cluster.
 
-The examples pin Ray `2.9.0` and MLflow `3.13.0`. Keep the Ray version in the image and `RayCluster.spec.rayVersion` aligned.
+The examples pin Ray `2.31.0` and MLflow `3.13.0`. Keep the Ray version in the image and `RayCluster.spec.rayVersion` aligned.
 
 ## Prepare the namespace and MLflow credentials
 
@@ -51,13 +51,14 @@ Inside the cluster use `http://mlflow-tracking-server.kubeflow:5000`, the Servic
 
 ## Build the training image
 
-The image must contain the Ray and PyTorch versions used by the cluster, the MLflow client, and the training script. Start with the [`Containerfile`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/kuberay-training-with-mlflow/Containerfile) and replace the base image with an approved, mirrored image:
+The image must contain the Ray and PyTorch versions used by the cluster, the MLflow client, and the training script. Start with the [`Containerfile`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/kuberay-training-with-mlflow/Containerfile) and replace the base image with an approved, mirrored image. The `BASE_IMAGE` argument lets you use an existing internal PyTorch runtime:
 
 ```bash
 export REGISTRY=registry.example.com/mlops
-export IMAGE="$REGISTRY/ray-mlflow-training:2.9.0-mlflow3.13"
+export IMAGE="$REGISTRY/ray-mlflow-training:2.31.0-mlflow3.13"
 
 docker build -f assets/kuberay-training-with-mlflow/Containerfile \
+  --build-arg BASE_IMAGE=docker-mirrors.alauda.cn/library/python:3.11-slim-bookworm \
   -t "$IMAGE" assets/kuberay-training-with-mlflow
 docker push "$IMAGE"
 ```
@@ -153,7 +154,7 @@ The tracking server must use durable PostgreSQL and an S3-compatible artifact st
 - Use Kueue or another cluster scheduler to enforce quotas and queue jobs. Add checkpointing so a preempted job can resume rather than restart from epoch zero.
 - Write checkpoints and datasets to durable object storage or a RWX PVC. Do not rely on the container filesystem or an `emptyDir` for outputs.
 - Use a unique MLflow run name and job name, and log the source revision, dataset version, image digest, and configuration as tags or parameters.
-- Keep `shutdownAfterJobFinishes` and `ttlSecondsAfterFinished` aligned with your retention policy. Delete idle RayClusters after the experiment batch completes.
+- Keep `shutdownAfterJobFinishes` aligned with your retention policy. When reusing an existing cluster as this guide does, leave it `false` and delete completed `RayJob` objects with your retention controller; use a TTL only for jobs whose cluster is shut down after completion.
 - Restrict the `mlflow-token` Secret with namespace RBAC, rotate it before expiry, and use a dedicated non-personal account.
 - Configure retries and idempotent output paths. A retried RayJob must not overwrite a successful checkpoint or silently create an unrelated MLflow run.
 
