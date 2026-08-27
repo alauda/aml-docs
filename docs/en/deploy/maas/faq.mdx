@@ -1,0 +1,26 @@
+---
+weight: 50
+---
+
+# FAQ
+
+## Requests may fail when forwarding to an external model service with a non-default port
+
+### Symptoms
+
+This issue can occur when:
+
+- An external model service is accessed through Envoy AI Gateway or MaaS.
+- The upstream model service listens on a non-default port.
+- The upstream uses the hostname and port together for routing or authentication.
+- Requests forwarded through the gateway fail. Depending on the upstream behavior, the response may be `401`, `403`, `404`, or another status code.
+
+### Root cause
+
+Envoy Gateway's automatic backend hostname rewrite can forward the request with a `Host`/`:authority` value that does not include the upstream's non-default port. An upstream that routes or authenticates based on the complete hostname and port therefore treats the request as invalid.
+
+This is an Envoy Gateway hostname-rewrite limitation.
+
+### Solution
+
+A workaround using low-level Envoy configuration is described in [How to Preserve a Non-Default Backend Port in the Upstream Host Header with Envoy Gateway on ACP](https://cloud.alauda.io/knowledge/solutions/How_to_Preserve_a_Non_Default_Backend_Port_in_the_Upstream_Host_Header_with_Envoy_Gateway_on_ACP.html).
