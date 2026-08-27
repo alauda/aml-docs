@@ -29,7 +29,7 @@ This page lists the currently maintained Alauda AI versions in the component mat
 | Alauda Build of LeaderWorkerSet              | Cluster Plugin | v0.8.0-1                           | Replaced                         |
 | Alauda Build of LeaderWorkerSet              | Operator       | -                                  | v0.9.0-1                         |
 | Alauda Build of JobSet                       | Operator       | -                                  | v0.12.0                          |
-| Volcano                                      | Cluster Plugin | v1.12.4                            | v1.12.4                          |
+| Volcano                                      | Cluster Plugin | v1.12.4                            | v1.15.0                          |
 | MLFlow                                       | Cluster Plugin | v3.1.5                             | Replaced                         |
 | MLFlow Operator                              | Operator       | -                                  | v3.13.0                          |
 | Kubeflow Base                                | Cluster Plugin | v1.10.14-1                         | Replaced                         |
@@ -89,7 +89,7 @@ This page lists the currently maintained Alauda AI versions in the component mat
 | Alauda Build of LeaderWorkerSet              | Cluster Plugin | v0.8.0-1                           | Replaced                         |
 | Alauda Build of LeaderWorkerSet              | Operator       | -                                  | v0.9.0-1                         |
 | Alauda Build of JobSet                       | Operator       | -                                  | v0.12.0                          |
-| Volcano                                      | Cluster Plugin | v1.12.4                            | v1.12.4                          |
+| Volcano                                      | Cluster Plugin | v1.12.4                            | v1.15.0                          |
 | MLFlow                                       | Cluster Plugin | v3.1.5                             | Replaced                         |
 | MLFlow Operator                              | Operator       | -                                  | v3.13.0                          |
 | Kubeflow Base                                | Cluster Plugin | v1.10.14-1                         | Replaced                         |
