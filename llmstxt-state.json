@@ -1064,11 +1064,11 @@
       "updated_at": "2026-08-04T00:00:00Z"
     },
     "docs/en/develop/pipelines/run-kubeflow-pipelines-with-elyra.mdx": {
-      "sha256": "e63940ec6182cb2f7dcac9aac193603ed3207bdf355d9959489ac47bbd7d37c2",
-      "size": 21229,
-      "description": "Guide to building a visual pipeline in JupyterLab with Elyra by connecting notebooks on a canvas and submitting it to Kubeflow Pipelines. Covers verifying the namespace KFP runtime configuration, mounting Elyra runtime and pipeline-runtime-image metadata, the available Elyra runtime images, creating two demo notebooks, configuring node properties in the pipeline editor, and submitting the run.",
+      "sha256": "7cc005d7b94064079fa677d2c9551acd3d4f3ee4057c5e82b944a115484b4b5b",
+      "size": 16556,
+      "description": "Guide to building a visual pipeline in JupyterLab with Elyra by connecting notebooks on a canvas and submitting it to Kubeflow Pipelines. Covers configuring the KFP runtime and selectable runtime images with `elyra-metadata` from a JupyterLab terminal, the available Elyra runtime images, creating two demo notebooks, configuring node properties in the pipeline editor, and submitting and verifying the run.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
+      "updated_at": "2026-08-27T00:00:00Z"
     },
     "docs/en/develop/pipelines/tekton.mdx": {
       "sha256": "bdad28a780803b12520af4aeb629bc8c9d77a7fbb0534490ee40921ba51edb92",
