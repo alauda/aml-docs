@@ -74,6 +74,7 @@ These deployment-form changes do not imply that existing user data should be del
 - The former platform roles `aml-namespace-editor`, `owner`, and `viewer` are deprecated. Use namespace-scoped permissions instead.
 - The GitLab-based Model Catalog is deprecated. Use the Image Based Model Catalog with OCI model artifacts for new model delivery workflows.
 - The former Alauda AI Model Serving operator is deprecated. Use the Knative Operator for supported serverless inference scenarios.
+- **Alauda Build of NVIDIA GPU Device Plugin** and **Alauda Build of DCGM-Exporter** are deprecated. **Alauda GPU Management** is recommended as their replacement.
 
 ### **Breaking Changes**
 
@@ -85,6 +86,9 @@ These deployment-form changes do not imply that existing user data should be del
 - MLflow, Alauda Build of LeaderWorkerSet, and Alauda AI Workbench change from their previous deployment forms to Operators. Existing installations require component-specific migration instead of an in-place package upgrade.
 
 ### **Fixed Issues Since Alauda AI 2.3.x**
+
+- **Alauda Build of TrustyAI:** Fixed missing `arm64` images for some TrustyAI components.
+- **Alauda Build of Envoy AI Gateway:** Fixed an issue where the controller did not process `InferencePool` resources when the CRD was installed after the controller started.
 
 The following issue was documented as a known issue in Alauda AI 2.3.0 and fixed in a later release:
 
