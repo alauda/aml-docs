@@ -38,16 +38,40 @@ Elyra stores runtime metadata as JSON files in the Jupyter data directory. Creat
 the metadata from a terminal in the JupyterLab workbench with the
 `elyra-metadata` command, following the workflow used by
 `00Visual development environment configuration.ipynb`.
+You can download the [Elyra runtime configuration notebook](https://github.com/alauda/aml-docs/tree/master/docs/en/develop/pipelines/assets/elyra-runtime-configuration.ipynb)
+and run the same commands interactively.
 This setup is per user and workbench environment, so repeat it when you create a
 new workbench or when the metadata is missing. It writes directly to the
 workbench user's Jupyter data directory and does not require a Kubernetes volume
 mount.
 
+For an air-gapped cluster, mirror the JupyterLab Workbench image and every
+pipeline runtime image into a registry reachable by the KFP workload nodes.
+Use only cluster-internal KFP and object-storage endpoints, and use the mirrored
+image address in every `--image_name` value below. If the registry is private,
+create an image pull Secret in the KFP namespace and append
+`--pull_secret "<image-pull-secret>"` to each Runtime Image command.
+
+On a connected staging host, mirror each required multi-architecture image with
+`skopeo` (authenticate to the target registry as needed), then transfer the
+registry content or registry backup into the disconnected environment:
+
+```bash
+skopeo copy --all \
+  docker://alaudadockerhub/odh-pipeline-runtime-minimal-cpu-py312-ubi9:<tag> \
+  docker://<internal-registry>/<project>/odh-pipeline-runtime-minimal-cpu-py312-ubi9:<tag>
+```
+
+Repeat the command for each runtime image and for the JupyterLab Workbench image
+used by the authoring environment. The KFP workload nodes must be able to pull
+the resulting internal image references without reaching Docker Hub.
+
 ### Create the KFP Runtime
 
 Run the following command in a JupyterLab terminal. Replace the namespace,
 endpoints, bucket, and object-storage credentials with values from your KFP
-installation:
+installation. The example uses cluster-internal service names and therefore
+does not require internet access:
 
 ```bash
 elyra-metadata create runtimes \
@@ -74,35 +98,41 @@ Jupyter metadata directory; treat them as sensitive.
 ### Create Runtime Images
 
 Create one runtime-image metadata instance for each image that users should be
-able to select in the Elyra **Runtime Image** field. Replace `<tag>` with the
-published tag, or use the address of an image mirrored into a private registry:
+able to select in the Elyra **Runtime Image** field. Replace
+`<internal-registry>/<project>` and `<tag>` with the registry path and tag used
+by your air-gapped cluster:
 
 ```bash
 elyra-metadata create runtime-images \
   --name "odh-pipeline-runtime-minimal-cpu-py312-ubi9" \
   --display_name "Runtime | Minimal | CPU | Python 3.12" \
   --description "Minimal runtime image for Elyra pipeline nodes." \
-  --image_name "docker.io/alaudadockerhub/odh-pipeline-runtime-minimal-cpu-py312-ubi9:<tag>" && \
+  --image_name "<internal-registry>/<project>/odh-pipeline-runtime-minimal-cpu-py312-ubi9:<tag>" \
+  --pull_policy "IfNotPresent" && \
 elyra-metadata create runtime-images \
   --name "odh-pipeline-runtime-datascience-cpu-py312-ubi9" \
   --display_name "Runtime | Data Science | CPU | Python 3.12" \
   --description "Data science runtime image for Elyra pipeline nodes." \
-  --image_name "docker.io/alaudadockerhub/odh-pipeline-runtime-datascience-cpu-py312-ubi9:<tag>" && \
+  --image_name "<internal-registry>/<project>/odh-pipeline-runtime-datascience-cpu-py312-ubi9:<tag>" \
+  --pull_policy "IfNotPresent" && \
 elyra-metadata create runtime-images \
   --name "odh-pipeline-runtime-tensorflow-cuda-py312-ubi9" \
   --display_name "Runtime | TensorFlow | CUDA | Python 3.12" \
   --description "TensorFlow CUDA runtime image for Elyra pipeline nodes." \
-  --image_name "docker.io/alaudadockerhub/odh-pipeline-runtime-tensorflow-cuda-py312-ubi9:<tag>" && \
+  --image_name "<internal-registry>/<project>/odh-pipeline-runtime-tensorflow-cuda-py312-ubi9:<tag>" \
+  --pull_policy "IfNotPresent" && \
 elyra-metadata create runtime-images \
   --name "odh-pipeline-runtime-pytorch-cuda-py312-ubi9" \
   --display_name "Runtime | PyTorch | CUDA | Python 3.12" \
   --description "PyTorch CUDA runtime image for Elyra pipeline nodes." \
-  --image_name "docker.io/alaudadockerhub/odh-pipeline-runtime-pytorch-cuda-py312-ubi9:<tag>" && \
+  --image_name "<internal-registry>/<project>/odh-pipeline-runtime-pytorch-cuda-py312-ubi9:<tag>" \
+  --pull_policy "IfNotPresent" && \
 elyra-metadata create runtime-images \
   --name "odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312-ubi9" \
   --display_name "Runtime | PyTorch LLM Compressor | CUDA | Python 3.12" \
   --description "PyTorch and LLM Compressor CUDA runtime image for Elyra pipeline nodes." \
-  --image_name "docker.io/alaudadockerhub/odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312-ubi9:<tag>"
+  --image_name "<internal-registry>/<project>/odh-pipeline-runtime-pytorch-llmcompressor-cuda-py312-ubi9:<tag>" \
+  --pull_policy "IfNotPresent"
 ```
 
 If an instance with the same name already exists, update or remove that
@@ -112,9 +142,14 @@ in the Elyra panels.
 
 ## Available Elyra Pipeline Runtime Images
 
-The Elyra pipeline runtime images are published under [alaudadockerhub on Docker Hub](https://hub.docker.com/u/alaudadockerhub?page=1&search=pipeline-runtime). They are different from the JupyterLab workbench image: the workbench image runs the authoring UI, while these runtime images run individual KFP pipeline nodes.
+The upstream Elyra pipeline runtime images are published under [alaudadockerhub on Docker Hub](https://hub.docker.com/u/alaudadockerhub?page=1&search=pipeline-runtime). They are different from the JupyterLab workbench image: the workbench image runs the authoring UI, while these runtime images run individual KFP pipeline nodes.
 
-Like the additional workbench images described in [Create Workbench](../workbench/create_workbench.mdx), these Docker Hub addresses are public source images. In a private or air-gapped environment, synchronize the required pipeline runtime images to your internal image registry first, then use the mirrored address in the corresponding `--image_name` argument above.
+These Docker Hub addresses are public source images only. In a private or
+air-gapped environment, synchronize the exact required tags to your internal
+image registry before creating the metadata, then use the mirrored address in
+the corresponding `--image_name` argument above. Verify that the KFP workload
+ServiceAccount can pull the mirrored images, using `--pull_secret` when the
+registry requires authentication.
 
 The following table describes the five commonly used runtime images. Package lists are representative and are based on the matching source directories under `runtimes/` in the image build repository.
 
@@ -269,7 +304,7 @@ Use a JupyterLab workbench image that includes Elyra. Run the `elyra-metadata cr
 
 ### The runtime image is not available in Elyra
 
-Run the corresponding `elyra-metadata create runtime-images` command in the **Create Runtime Images** section, check that the image address can be pulled from the workbench, and refresh JupyterLab.
+Run the corresponding `elyra-metadata create runtime-images` command in the **Create Runtime Images** section, check that the mirrored image address can be pulled by the KFP workload ServiceAccount, and refresh JupyterLab. In a private registry, verify the metadata includes `--pull_secret` and that the Secret exists in the pipeline namespace.
 
 ### The run fails before notebook code starts
 
