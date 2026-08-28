@@ -1036,11 +1036,11 @@
       "updated_at": "2026-08-04T00:00:00Z"
     },
     "docs/en/develop/pipelines/index.mdx": {
-      "sha256": "4b1ece805273e9e3027a77fe8c9a1b55c29d6ba221715df57bf92f82af306cb8",
-      "size": 144,
-      "description": "Section index for pipelines, linking the guides that create a pipeline server, build and run Kubeflow Pipelines, and trigger them from Alauda DevOps.",
+      "sha256": "35f944f5315d872907cb43de9f5bdfa62e5d949289e34c452d33dae41678141b",
+      "size": 864,
+      "description": "Section index for pipelines, linking guides that create a pipeline server, build and run Kubeflow Pipelines, trigger them from Alauda DevOps, and configure and run Elyra notebook pipelines in an air-gapped Workbench.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
+      "updated_at": "2026-08-28T00:00:00Z"
     },
     "docs/en/develop/pipelines/kfp-execution-and-storage.mdx": {
       "sha256": "0ad5f813ddf4e31d7bf0abbbe84b1516d9700cd635f8a6ab1a0e667db13bfd24",
@@ -1060,13 +1060,6 @@
       "sha256": "eaf1a614d63c32d74f50749fc12a2cd72427693c15a4b2e5f1c5a295187a6076",
       "size": 8879,
       "description": "Guide to the reusable pipeline components Alauda AI packages for Kubeflow Pipelines 2.16.1, including the beta AutoGluon tabular and time-series training pipelines. Covers creating the input-storage Secret, running each managed pipeline, composing a custom pipeline from the mirrored component library in a Python virtual environment, and troubleshooting.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/develop/pipelines/run-kubeflow-pipelines-with-elyra.mdx": {
-      "sha256": "e63940ec6182cb2f7dcac9aac193603ed3207bdf355d9959489ac47bbd7d37c2",
-      "size": 21229,
-      "description": "Guide to building a visual pipeline in JupyterLab with Elyra by connecting notebooks on a canvas and submitting it to Kubeflow Pipelines. Covers verifying the namespace KFP runtime configuration, mounting Elyra runtime and pipeline-runtime-image metadata, the available Elyra runtime images, creating two demo notebooks, configuring node properties in the pipeline editor, and submitting the run.",
       "generation_method": "ai_agent_reading",
       "updated_at": "2026-08-04T00:00:00Z"
     },
