@@ -21,11 +21,11 @@ Starting with v0.2.0, Workbench is delivered as an OLM Helm operator instead of 
 
 2. In **Administrator** > **Marketplace** > **Cluster Plugins**, uninstall the earlier **Workbench** cluster plugin. Preserve user PVCs, retained `WorkspaceKind` resources, and the `aml-workbench-config` `ConfigMap`; the operator adopts or reapplies these resources.
 3. Enable Workbench by setting `spec.components.workbench.managementState` to `Managed` in the `default` `AmlCluster`. Alauda AI installs and manages the Workbench Operator and its resources; do not create a `Workbench` custom resource manually. For the normal installation path, see [Install Workbench](../installation/workbench.mdx).
-4. Verify the existing Workspaces and their PVCs are still present, then create and connect to a test Workbench. See [Migrate Existing Workspaces](#migrate-existing-workspaces) before declaring the migration complete.
+4. Verify the existing Workspaces and their PVCs are still present, then create and connect to a test Workbench. Complete the migration steps below before declaring the migration complete.
 
 If the previous installation relied on the Elyra KFP run-URL redirect, set `spec.components.workbench.values.global.istio.enabled: true` in the `default` `AmlCluster`. Istio integration is optional and disabled by default.
 
-## Migrate Existing Workspaces \{#migrate-existing-workspaces}
+## Migrate Existing Workspaces
 
 The current Workbench controller creates each Workspace Service with the `ws-` prefix. For example, a Workspace named `jupyter` uses the Service `ws-jupyter`. The Workbench Skipper routes use that Service name.
 
@@ -56,7 +56,7 @@ kubectl -n <namespace> get service ws-<workspace-name>
 If the new Service has not appeared, confirm that `workspace-controller` is running and inspect its logs. Do not manually rename a Service; Kubernetes does not support Service renames.
 
 ```bash
-kubectl -n kubeflow get deployment -l control-plane=controller-manager
+kubectl -n kubeflow get deployment workspace-controller-controller-manager
 kubectl -n kubeflow logs deployment/workspace-controller-controller-manager --tail=200
 ```
 
