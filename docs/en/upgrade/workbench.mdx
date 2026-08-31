@@ -38,6 +38,15 @@ After the Workbench Operator and its `workspace-controller` have been upgraded t
 
 The Workspace Pod and PVC are not restarted or deleted. The temporary overlap ensures that the old Service remains available until the new one exists.
 
+Before verifying the Services, ensure that the Workbench operand has completed its reconciliation. A `Succeeded` OLM CSV only confirms that the operator is running; it does not confirm that the Workbench release was applied successfully:
+
+```bash
+kubectl -n workbench-operator get workbench <instance-name> \
+  -o jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}'
+```
+
+Proceed only when `Deployed=True` and `ReleaseFailed` is not `True`. If the release failed, resolve that error before testing Service migration.
+
 ### Verify the Service Migration
 
 List every Workspace and its controller-owned Service:
