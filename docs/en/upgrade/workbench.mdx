@@ -38,30 +38,79 @@ After the Workbench Operator and its `workspace-controller` have been upgraded t
 
 The Service migration does not restart or delete the Workspace Pod or PVC. The temporary overlap ensures that the old Service remains available until the new one exists. Other changes applied by the operator upgrade, such as a new image in a managed `WorkspaceKind`, can still restart the Pod; the PVC is preserved.
 
-Before verifying the Services, ensure that the Workbench operand has completed its reconciliation. A `Succeeded` OLM CSV only confirms that the operator is running; it does not confirm that the Workbench release was applied successfully:
+Before verifying the Services, locate the Workbench custom resource and the OLM operator deployment:
 
 ```bash
-kubectl -n workbench-operator get workbench <instance-name> \
+kubectl get workbench -A
+kubectl get deployment -A | grep workbench-operator-controller-manager
+```
+
+Use the namespace containing the Workbench custom resource as `<workbench-namespace>`. This namespace is selected when the custom resource is created and is also where the Helm release, hook Jobs, and `workspace-controller` run. It is not necessarily named `workbench-operator`. Use the namespace containing `workbench-operator-controller-manager` as `<operator-namespace>`.
+
+Ensure that the Workbench operand has completed its reconciliation. A `Succeeded` OLM CSV only confirms that the operator is running; it does not confirm that the Workbench release was applied successfully:
+
+```bash
+kubectl -n <workbench-namespace> get workbench <instance-name> \
   -o jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}'
 ```
 
 Proceed only when `Deployed=True` and `ReleaseFailed` is not `True`. If the release failed, inspect the operator logs, hook Jobs, and both possible controller namespaces before testing Service migration:
 
 ```bash
-kubectl -n workbench-operator logs deployment/workbench-operator-controller-manager --tail=200
-kubectl -n workbench-operator get jobs --sort-by=.metadata.creationTimestamp
+kubectl -n <operator-namespace> logs deployment/workbench-operator-controller-manager --tail=200
+kubectl -n <workbench-namespace> get jobs --sort-by=.metadata.creationTimestamp
 kubectl get deployment -A | grep workspace-controller-controller-manager
 ```
 
-After a successful upgrade, `workspace-controller-controller-manager` runs in the `workbench-operator` namespace. During a failed namespace handoff, the validating webhook can point to `workbench-operator` while the only ready controller is still in `kubeflow`. Verify that the new webhook Service has an endpoint before retrying the release:
+After a successful upgrade, `workspace-controller-controller-manager` runs in `<workbench-namespace>`. During a failed namespace handoff, the validating webhook can point to `<workbench-namespace>` while the only ready controller is still in its earlier namespace. Verify that the new webhook Service has an endpoint before retrying the release:
 
 ```bash
-kubectl -n workbench-operator get deployment workspace-controller-controller-manager
-kubectl -n workbench-operator get endpointslice \
+kubectl -n <workbench-namespace> get deployment workspace-controller-controller-manager
+kubectl -n <workbench-namespace> get endpointslice \
   -l kubernetes.io/service-name=workspace-controller-webhook-service
 ```
 
-If a hook reports that an `imageConfig` or `podConfig` value is in use and cannot be changed, do not delete the Workspace or disable admission validation to force the update. The managed `WorkspaceKind` update must preserve or redirect in-use option IDs. Resolve the operator or chart error, then wait for the Workbench release to report healthy conditions.
+### Resolve In-use WorkspaceKind Option Failures
+
+An `imageConfig` or `podConfig` option's `spec` cannot be changed or removed while a Workspace selects its ID. If an upgrade hook reports that an option is in use, fix the managed `WorkspaceKind` in the operator or chart instead of deleting the Workspace or disabling admission validation.
+
+Use this migration pattern:
+
+1. Keep the old option ID and `spec` unchanged. You can hide its `spawner` entry so new Workspaces cannot select it directly.
+2. Add a new option ID containing the new image or resource configuration. If the old ID was the default, change `spawner.default` to the new ID.
+3. Add a redirect from the old option ID to the new ID. For example, this abridged `imageConfig` shows the required migration pattern; retain all existing required `spawner` and `spec` fields:
+
+   ```yaml
+   imageConfig:
+     spawner:
+       default: <new-id>
+     values:
+       - id: <old-id>
+         spawner:
+           # Keep the existing fields, but optionally hide this entry.
+           hidden: true
+         # Keep the existing spec unchanged.
+         redirect:
+           to: <new-id>
+           message:
+             level: Info
+             text: Restart this Workspace to apply the updated image.
+       - id: <new-id>
+         # Copy the old spawner and spec, then apply the new settings only here.
+   ```
+
+   Apply the same pattern to `podConfig.values` when resource settings change.
+4. Publish or install the corrected operator or chart and wait for the Workbench release to reconcile. Running Workspaces continue using the old option and report `pendingRestart=true` with the new ID under `status.podTemplateOptions`.
+
+   ```bash
+   kubectl get workspace -A \
+     -o custom-columns='NAMESPACE:.metadata.namespace,NAME:.metadata.name,KIND:.spec.kind,IMAGE_CONFIG:.spec.podTemplate.options.imageConfig,POD_CONFIG:.spec.podTemplate.options.podConfig,PENDING_RESTART:.status.pendingRestart'
+   ```
+
+5. Restart each affected Workspace from the Workbench page. With `spec.deferUpdates=false`, the controller changes the selected option to the redirect target while the Workspace is paused, then starts the replacement Pod. The PVC is preserved.
+6. Verify that no Workspace selects the old ID. Remove the old option only in a later operator or chart release after its usage reaches zero.
+
+After the corrected release is healthy, verify again that `Deployed=True` and `ReleaseFailed` is not `True` before continuing.
 
 ### Verify the Service Migration
 
@@ -81,8 +130,8 @@ kubectl -n <namespace> get service ws-<workspace-name>
 If the new Service has not appeared, confirm that `workspace-controller` is running and inspect its logs. Do not manually rename a Service; Kubernetes does not support Service renames.
 
 ```bash
-kubectl -n workbench-operator get deployment workspace-controller-controller-manager
-kubectl -n workbench-operator logs deployment/workspace-controller-controller-manager --tail=200
+kubectl -n <workbench-namespace> get deployment workspace-controller-controller-manager
+kubectl -n <workbench-namespace> logs deployment/workspace-controller-controller-manager --tail=200
 ```
 
 ### Restore a Legacy Jupyter Workspace URL Prefix
