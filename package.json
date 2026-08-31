@@ -2,7 +2,7 @@
   "name": "aml-docs",
   "type": "module",
   "dependencies": {
-    "@alauda/doom": "^2.3.0"
+    "@alauda/doom": "^2.6.0"
   },
   "scripts": {
     "dev": "doom dev",
@@ -13,7 +13,7 @@
     "export": "doom export",
     "prepare": "simple-git-hooks"
   },
-  "packageManager": "yarn@4.14.1",
+  "packageManager": "yarn@4.12.0",
   "devDependencies": {
     "prettier": "^3.8.3",
     "prettier-plugin-pkg": "^0.22.1",
