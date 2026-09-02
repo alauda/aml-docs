@@ -66,7 +66,7 @@ pip install --no-index --find-links . your-package
 ```
 
 :::info
-Packages installed directly into the container are suitable for temporary or personal use. If you recreate the workbench, packages installed only inside the container may be lost. For repeatable environments, prefer a custom workbench image or a virtual environment stored on persistent storage.
+Packages installed directly into the container are suitable for temporary or personal use. If you recreate the workbench, packages installed only inside the container may be lost. For repeatable environments, prefer a [custom workbench image](./byo_workbench_images.mdx) or a virtual environment stored on persistent storage.
 :::
 
 ## Available Workbench Images
@@ -113,7 +113,7 @@ These images are intended for `arm64` nodes with Ascend NPU support.
 | **MindSpore CANN**<br />[docker.io/alaudadockerhub/alauda-workbench-jupyter-mindspore-cann-py312-ubi9:v0.1.7](https://hub.docker.com/r/alaudadockerhub/alauda-workbench-jupyter-mindspore-cann-py312-ubi9) | Use this image for MindSpore model development, checkpoint conversion, and training on Ascend NPUs. | `Python 3.12`<br />`CANN 8.5.0`<br />`MindSpore 2.8.0`<br />`JupyterLab 4.5.6`<br />`Jupyter Server 2.17.0`<br />`TensorBoard 2.20.0`<br />`ODH Elyra 4.3.2`<br />`onnxscript 0.6.2`<br />`KFP 2.15.2`<br />`Kubeflow Training 1.9.3`<br />`pandas 2.3.3`<br />`scikit-learn 1.8.0`<br />`SciPy 1.16.3`                                                  |
 | **ModelSlim CANN**<br />[docker.io/alaudadockerhub/alauda-workbench-jupyter-modelslim-cann-py311-ubi9:v0.1.7](https://hub.docker.com/r/alaudadockerhub/alauda-workbench-jupyter-modelslim-cann-py311-ubi9) | Use this image for Ascend NPU model compression and quantization workflows based on `msmodelslim`, including the official `Qwen3.5` validation path. | `Python 3.11`<br />`CANN 8.5.0`<br />`PyTorch 2.9.0`<br />`torch_npu 2.9.0` (Ascend release `7.3.0`)<br />`msmodelslim 26.0.0a2`<br />`transformers 5.2.0`<br />`huggingface-hub 1.10.2`<br />`torchvision 0.24.0`<br />`mistral-common 1.11.0`<br />`easydict 1.13`<br />`wcmatch 10.1`<br />`TensorBoard 2.20.0`<br />`JupyterLab 4.5.6`<br />`Jupyter Server 2.17.0` |
 
-To use an additional image, first synchronize it to your own image registry. You can do this with a tool such as `skopeo`, or by using the script described in the next section.
+To use an additional image, first synchronize it to your own image registry. You can do this with a tool such as `skopeo`, or by using the script described in the next section. To build a new image and register it as a Workbench option, see [Bring Your Own Workbench Images](./byo_workbench_images.mdx).
 
 ### Verify the ModelSlim image with the Qwen3.5 notebook
 
