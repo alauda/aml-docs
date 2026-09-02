@@ -1,0 +1,545 @@
+---
+weight: 30
+---
+
+# Bring Your Own Workbench Images
+
+Use a BYO (bring your own) image when the built-in Workbench images do not
+contain the framework, system library, or internal tooling that your team needs.
+The image must be available to the cluster, and a cluster administrator must
+register it in a `WorkspaceKind` before it appears in the Workbench creation
+form.
+
+This guide covers two supported approaches:
+
+1. Derive an image from an Alauda Workbench image. This is the recommended
+   approach because the base image already contains the Workbench-compatible
+   Jupyter or code-server startup configuration.
+2. Build a Jupyter Workbench image from a vendor accelerator image. This is
+   useful when you need a particular CUDA or Ascend CANN version, but you must
+   provide the IDE startup contract yourself and validate it on the target
+   cluster.
+
+## Workflow
+
+The complete workflow is:
+
+1. Choose a base image that matches the target node architecture and driver
+   stack.
+2. Build and test the image, then push it to a registry reachable by the
+   Workbench namespace.
+3. Create a `WorkspaceKind` that points at the image and declares its Jupyter
+   port and resource options.
+4. Create a Workbench from that `WorkspaceKind`, then verify the pod, device,
+   and IDE logs.
+
+The image registry, Kubernetes namespace, and Workbench service account are
+cluster-specific. Replace the placeholders in the examples with values from
+your environment.
+
+## Choose the base image
+
+### Start with an Alauda Workbench image
+
+Use an Alauda image when you only need to add Python packages, CLI tools, or
+organization-specific code. Select an image from the [available Workbench
+images](./create_workbench.mdx), then pin the exact tag or digest used by your
+cluster.
+
+Typical starting points include:
+
+| Workload | Example base image | Architecture |
+| --- | --- | --- |
+| Lightweight CPU JupyterLab | `docker.io/alaudadockerhub/alauda-workbench-jupyter-minimal-cpu-py312-ubi9:<tag>` | `amd64` or `arm64` |
+| CPU data science | `docker.io/alaudadockerhub/alauda-workbench-jupyter-datascience-cpu-py312-ubi9:<tag>` | `amd64` or `arm64` |
+| NVIDIA CUDA JupyterLab | `docker.io/alaudadockerhub/odh-workbench-jupyter-minimal-cuda-py312-ubi9:<tag>` | `amd64` |
+| NVIDIA PyTorch | `docker.io/alaudadockerhub/odh-workbench-jupyter-pytorch-cuda-py312-ubi9:<tag>` | `amd64` |
+| Ascend CANN JupyterLab | `docker.io/alaudadockerhub/alauda-workbench-jupyter-minimal-cann-py312-ubi9:<tag>` | `arm64` |
+| Ascend PyTorch | `docker.io/alaudadockerhub/alauda-workbench-jupyter-pytorch-cann-py312-ubi9:<tag>` | `arm64` |
+
+The image names and package versions can change between releases. Confirm the
+tag in the Workbench image table or the matching Docker Hub repository before
+building. For production builds, record the resolved digest:
+
+```bash
+docker buildx imagetools inspect \
+  docker.io/alaudadockerhub/alauda-workbench-jupyter-datascience-cpu-py312-ubi9:<tag>
+```
+
+### Choose a CUDA base image
+
+For a from-scratch NVIDIA image, choose the CUDA tag from the official
+[`nvidia/cuda` repository](https://hub.docker.com/r/nvidia/cuda). A tag encodes
+the CUDA version, cuDNN inclusion, image purpose, and Linux distribution. Use a
+`devel` variant when the image build needs to compile CUDA or Python extensions;
+use a `runtime` variant when all dependencies are already built.
+
+The CUDA version in the image must be supported by the NVIDIA driver on the
+target nodes. The image does not install or upgrade the host driver. Before
+choosing a tag, check the NVIDIA CUDA/driver compatibility documentation and
+confirm that the cluster has the NVIDIA device plugin and container runtime
+configured. Also check the image architecture: Workbench CUDA images in this
+guide target `linux/amd64` unless the selected CUDA tag explicitly provides
+another platform.
+
+For example, this is a build base only; replace the tag with the CUDA version
+validated for your nodes:
+
+```dockerfile
+FROM nvidia/cuda:<cuda-version>-cudnn-devel-ubuntu<ubuntu-version>
+```
+
+### Choose an Ascend CANN base image
+
+For a from-scratch Ascend image, choose the CANN tag from the official
+[`openeuler/cann` repository](https://hub.docker.com/r/openeuler/cann). Select
+the tag whose CANN version, openEuler base, and architecture match the Ascend
+driver and firmware installed on the target nodes. CANN compatibility is a
+vendor stack concern: do not select the newest image by default or install a
+different CANN release into an existing image without checking the release
+compatibility matrix.
+
+The image does not install or upgrade the host Ascend driver. The cluster must
+already provide the Ascend device plugin and expose the resource name used by
+your hardware, for example `huawei.com/Ascend910B4`. Confirm the node
+architecture and driver state before building:
+
+```bash
+kubectl get nodes -L kubernetes.io/arch
+kubectl describe node <ascend-node> | grep -E 'huawei.com/|Allocatable'
+```
+
+For example, this is a build base only; replace the tag with the CANN release
+validated for your nodes:
+
+```dockerfile
+FROM openeuler/cann:<cann-version>
+```
+
+## Build by extending an Alauda image
+
+This is the preferred path for a normal Jupyter Workbench. It preserves the
+base image's user, entrypoint, Jupyter configuration, and filesystem layout.
+Only install the packages that are specific to your workload.
+
+```dockerfile title=Containerfile
+ARG BASE_IMAGE=docker.io/alaudadockerhub/alauda-workbench-jupyter-datascience-cpu-py312-ubi9:<tag>
+FROM ${BASE_IMAGE}
+
+USER 0
+RUN python -m pip install --no-cache-dir \
+      "transformers==<version>" \
+      "datasets==<version>" \
+      "internal-package==<version>"
+
+# Restore the user from the base image. Set BASE_USER to the value reported by:
+# docker image inspect ${BASE_IMAGE} --format '{{.Config.User}}'
+ARG BASE_USER=1001
+USER ${BASE_USER}
+
+# Keep the ENTRYPOINT and CMD from the Alauda base image.
+```
+
+Build and push it with an OCI-capable builder. Use `--platform` explicitly when
+the build host and Workbench nodes have different architectures:
+
+```bash
+export REGISTRY=registry.example.com
+export PROJECT=mlops/workbench-images
+export IMAGE=byo-jupyter-datascience
+export TAG=2026.09.0
+
+docker buildx build \
+  --platform linux/amd64 \
+  --build-arg BASE_IMAGE=docker.io/alaudadockerhub/alauda-workbench-jupyter-datascience-cpu-py312-ubi9:<tag> \
+  -f Containerfile \
+  -t "${REGISTRY}/${PROJECT}/${IMAGE}:${TAG}" \
+  --push .
+```
+
+For an Ascend image, use the arm64 Alauda CANN image as `BASE_IMAGE` and build
+with `--platform linux/arm64`. Do not mix an amd64 base image with an arm64
+Workbench node, even if the image registry accepts the push.
+
+## Build from a CUDA or CANN image
+
+Building from a vendor image gives you control over the accelerator stack, but
+it also makes your image responsible for the Workbench runtime. At minimum,
+the image must:
+
+- run as a non-root user accepted by the cluster's Pod Security Admission;
+- contain Python, JupyterLab, and Jupyter Server (or the IDE you expose);
+- start an HTTP server on the port declared in the `WorkspaceKind`;
+- honor the Workbench route prefix (`NB_PREFIX`) when the platform supplies it;
+- write the user's home directory to the mounted home PVC; and
+- avoid installing host drivers in the container.
+
+The following launcher is a minimal Jupyter example for a from-scratch image.
+Production images should add a pinned dependency lock file, health checks, and
+an approved package mirror.
+
+```bash title=start-workbench.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+args=(
+  --ip=0.0.0.0
+  --port=8888
+  --no-browser
+  --ServerApp.allow_remote_access=True
+  --ServerApp.token=
+  --ServerApp.password=
+)
+
+if [[ -n "${NB_PREFIX:-}" ]]; then
+  args+=("--ServerApp.base_url=${NB_PREFIX}")
+fi
+
+exec jupyter lab "${args[@]}"
+```
+
+### CUDA example
+
+Use a CUDA `devel` tag when packages need compilation. If all packages are
+prebuilt, a smaller `runtime` tag may be sufficient. The `ubuntu` version and
+Python version below are examples; pin versions that are supported by your
+selected CUDA tag.
+
+```dockerfile title=Containerfile.cuda
+FROM nvidia/cuda:<cuda-version>-cudnn-devel-ubuntu<ubuntu-version>
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    HOME=/home/jovyan \
+    JUPYTER_ENABLE_LAB=yes \
+    PATH=/opt/venv/bin:$PATH
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 python3-pip python3-venv git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir \
+      "jupyterlab==<version>" \
+      "jupyter-server==<version>" \
+      "ipykernel==<version>" \
+      "torch==<version>" \
+      "transformers==<version>"
+
+COPY start-workbench.sh /usr/local/bin/start-workbench
+RUN chmod 0755 /usr/local/bin/start-workbench \
+    && useradd --create-home --uid 1001 jovyan \
+    && mkdir -p /home/jovyan \
+    && chown -R 1001:0 /home/jovyan \
+    && chmod -R g=u /home/jovyan
+
+USER 1001
+WORKDIR /home/jovyan
+EXPOSE 8888
+ENTRYPOINT ["/usr/local/bin/start-workbench"]
+```
+
+Build for NVIDIA nodes and verify the CUDA runtime before registering it:
+
+```bash
+docker buildx build --platform linux/amd64 \
+  -f Containerfile.cuda \
+  -t registry.example.com/mlops/workbench-images/byo-jupyter-cuda:2026.09.0 \
+  --push .
+
+docker run --rm --gpus all --entrypoint python3 \
+  registry.example.com/mlops/workbench-images/byo-jupyter-cuda:2026.09.0 \
+  -c 'import torch; print(torch.cuda.is_available())'
+```
+
+### Ascend CANN example
+
+Use an `openeuler/cann` tag that matches the node's CANN/driver/firmware
+combination. CANN images commonly provide `set_env.sh`; source it before
+starting Jupyter so the CANN libraries and compiler paths are visible. Install
+`torch` and `torch-npu` from the wheel source specified by the matching CANN
+release; a generic PyPI version may not be compatible with the device stack.
+
+```dockerfile title=Containerfile.cann
+FROM openeuler/cann:<cann-version>
+
+ENV HOME=/home/jovyan \
+    JUPYTER_ENABLE_LAB=yes \
+    PATH=/opt/venv/bin:$PATH
+
+RUN dnf install -y python3 python3-pip git ca-certificates \
+    && dnf clean all
+
+# Use the CANN release's compatible wheel index or local wheelhouse.
+RUN python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir \
+      "jupyterlab==<version>" \
+      "jupyter-server==<version>" \
+      "ipykernel==<version>" \
+      "torch==<version>" \
+      "torch-npu==<version>"
+
+COPY start-workbench-cann.sh /usr/local/bin/start-workbench
+RUN chmod 0755 /usr/local/bin/start-workbench \
+    && useradd --create-home --uid 1001 jovyan \
+    && mkdir -p /home/jovyan \
+    && chown -R 1001:0 /home/jovyan \
+    && chmod -R g=u /home/jovyan
+
+USER 1001
+WORKDIR /home/jovyan
+EXPOSE 8888
+ENTRYPOINT ["/usr/local/bin/start-workbench"]
+```
+
+Use the same launcher as the CUDA example, but source CANN first:
+
+```bash title=start-workbench-cann.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ -f /usr/local/Ascend/ascend-toolkit/set_env.sh ]]; then
+  # shellcheck disable=SC1091
+  source /usr/local/Ascend/ascend-toolkit/set_env.sh
+fi
+
+args=(
+  --ip=0.0.0.0
+  --port=8888
+  --no-browser
+  --ServerApp.allow_remote_access=True
+  --ServerApp.token=
+  --ServerApp.password=
+)
+
+if [[ -n "${NB_PREFIX:-}" ]]; then
+  args+=("--ServerApp.base_url=${NB_PREFIX}")
+fi
+
+exec jupyter lab "${args[@]}"
+```
+
+Build for the architecture exposed by the Ascend nodes:
+
+```bash
+docker buildx build --platform linux/arm64 \
+  -f Containerfile.cann \
+  -t registry.example.com/mlops/workbench-images/byo-jupyter-cann:2026.09.0 \
+  --push .
+```
+
+Test this image on an Ascend node, not only on the build host. For example,
+verify `npu-smi info`, import `torch_npu`, and run a small device operation from
+inside a pod with the same resource request as the Workbench:
+
+```bash
+python3 -c 'import torch, torch_npu; print(torch.npu.is_available())'
+npu-smi info
+```
+
+## Create a WorkspaceKind
+
+`WorkspaceKind` is cluster-scoped. The `imageConfig` option selects the image,
+and the `podConfig` option selects resources and node placement. The service
+account must already exist in every namespace where users create Workspaces.
+For a private registry, attach an `imagePullSecret` to that service account or
+configure it according to your cluster's image-pull policy.
+
+The examples below intentionally use separate `WorkspaceKind` resources. This
+keeps the CUDA image on NVIDIA nodes and the CANN image on Ascend nodes.
+Replace `<workbench-service-account>`, `<cluster>`, resource names, and image
+tags before applying them.
+
+### CUDA WorkspaceKind
+
+```yaml title=workspacekind-byo-cuda.yaml
+apiVersion: kubeflow.org/v1beta1
+kind: WorkspaceKind
+metadata:
+  name: jupyterlab-byo-cuda
+spec:
+  spawner:
+    displayName: JupyterLab | BYO CUDA
+    description: JupyterLab Workbench using a customer-built NVIDIA CUDA image.
+    icon:
+      url: https://jupyter.org/assets/favicons/apple-touch-icon-152x152.png
+    logo:
+      url: https://jupyter.org/assets/favicons/apple-touch-icon-152x152.png
+  podTemplate:
+    extraEnv:
+      - name: NB_PREFIX
+        value: /clusters/<cluster>/aml/aml-workbench{{ httpPathPrefix "jupyterlab" }}
+      - name: NOTEBOOK_BASE_URL
+        value: /clusters/<cluster>/aml/aml-workbench{{ httpPathPrefix "jupyterlab" }}
+    options:
+      imageConfig:
+        spawner:
+          default: byo-cuda
+        values:
+          - id: byo-cuda
+            spawner:
+              displayName: BYO CUDA JupyterLab
+              description: Customer-built CUDA Workbench image.
+            spec:
+              image: registry.example.com/mlops/workbench-images/byo-jupyter-cuda:2026.09.0
+              imagePullPolicy: IfNotPresent
+              ports:
+                - id: jupyterlab
+                  displayName: JupyterLab
+                  port: 8888
+                  protocol: HTTP
+      podConfig:
+        spawner:
+          default: nvidia-gpu
+        values:
+          - id: nvidia-gpu
+            spawner:
+              displayName: NVIDIA GPU
+              description: Schedule the Workbench on an NVIDIA node.
+            spec:
+              nodeSelector:
+                kubernetes.io/arch: amd64
+              resources:
+                requests:
+                  cpu: "2"
+                  memory: 8Gi
+                  nvidia.com/gpu: "1"
+                limits:
+                  cpu: "2"
+                  memory: 8Gi
+                  nvidia.com/gpu: "1"
+    serviceAccount:
+      name: <workbench-service-account>
+    volumeMounts:
+      home: /home/jovyan
+```
+
+### Ascend NPU WorkspaceKind
+
+```yaml title=workspacekind-byo-cann.yaml
+apiVersion: kubeflow.org/v1beta1
+kind: WorkspaceKind
+metadata:
+  name: jupyterlab-byo-cann
+spec:
+  spawner:
+    displayName: JupyterLab | BYO Ascend CANN
+    description: JupyterLab Workbench using a customer-built Ascend CANN image.
+    icon:
+      url: https://jupyter.org/assets/favicons/apple-touch-icon-152x152.png
+    logo:
+      url: https://jupyter.org/assets/favicons/apple-touch-icon-152x152.png
+  podTemplate:
+    extraEnv:
+      - name: NB_PREFIX
+        value: /clusters/<cluster>/aml/aml-workbench{{ httpPathPrefix "jupyterlab" }}
+      - name: NOTEBOOK_BASE_URL
+        value: /clusters/<cluster>/aml/aml-workbench{{ httpPathPrefix "jupyterlab" }}
+    securityContext:
+      runAsNonRoot: true
+      supplementalGroups:
+        # Replace 1000 with the group owning /dev/davinci* on your nodes.
+        - 1000
+    options:
+      imageConfig:
+        spawner:
+          default: byo-cann
+        values:
+          - id: byo-cann
+            spawner:
+              displayName: BYO Ascend CANN JupyterLab
+              description: Customer-built CANN Workbench image.
+            spec:
+              image: registry.example.com/mlops/workbench-images/byo-jupyter-cann:2026.09.0
+              imagePullPolicy: IfNotPresent
+              ports:
+                - id: jupyterlab
+                  displayName: JupyterLab
+                  port: 8888
+                  protocol: HTTP
+      podConfig:
+        spawner:
+          default: ascend-npu
+        values:
+          - id: ascend-npu
+            spawner:
+              displayName: Ascend NPU
+              description: Schedule the Workbench on an Ascend node.
+            spec:
+              nodeSelector:
+                kubernetes.io/arch: arm64
+              resources:
+                requests:
+                  cpu: "2"
+                  memory: 8Gi
+                  huawei.com/Ascend910B4: "1"
+                limits:
+                  cpu: "2"
+                  memory: 8Gi
+                  huawei.com/Ascend910B4: "1"
+    serviceAccount:
+      name: <workbench-service-account>
+    volumeMounts:
+      home: /home/jovyan
+```
+
+Apply the resources as a cluster administrator:
+
+```bash
+kubectl apply -f workspacekind-byo-cuda.yaml
+kubectl apply -f workspacekind-byo-cann.yaml
+kubectl get workspacekind jupyterlab-byo-cuda jupyterlab-byo-cann
+```
+
+If an existing managed Jupyter `WorkspaceKind` already has the correct route,
+security context, service account, and resource options, you can register an
+additional image instead of creating a new `WorkspaceKind`. Add an item to
+`spec.podTemplate.options.imageConfig.values[]` and preserve the existing
+entries. The [Create Workbench](./create_workbench.mdx) page contains a JSON
+patch example for this migration path.
+
+## Create and verify the Workbench
+
+1. Open **Alauda AI** and go to **Workbench**.
+2. Click **Create** and select `JupyterLab | BYO CUDA` or
+   `JupyterLab | BYO Ascend CANN`.
+3. Select the resource option that matches the image and node hardware.
+4. Wait for the Workbench status to become `Running`, then click **Connect**.
+5. In a terminal, verify the architecture, framework, and accelerator:
+
+   ```bash
+   uname -m
+   python3 -c 'import sys; print(sys.version)'
+   ```
+
+   For CUDA, also run `nvidia-smi` and a framework CUDA availability check. For
+   CANN, run `npu-smi info` and import `torch_npu`.
+
+If the Workspace does not start, inspect the image pull, scheduling, and
+container logs first:
+
+```bash
+kubectl get workspace -A
+kubectl get pod -n <workbench-namespace> -o wide
+kubectl describe pod -n <workbench-namespace> <pod-name>
+kubectl logs -n <workbench-namespace> <pod-name>
+```
+
+Common causes are an image tag that is not present in the registry, a missing
+image-pull secret, an architecture mismatch, an unsupported host driver, a
+missing accelerator device plugin, or a `WorkspaceKind` resource name that
+does not exist on the target nodes. On Ascend vNPU clusters, add the device-file
+group to `supplementalGroups`; `fsGroup` alone may not grant access to
+`/dev/davinci*`.
+
+## Build and security recommendations
+
+- Pin the base image, Python packages, and final image by tag plus digest in CI.
+- Build and scan the image in CI; do not install large or privileged packages
+  when the Workbench starts.
+- Run as non-root and make the mounted home directory writable by the runtime
+  UID/GID. Do not add `privileged: true` to make an accelerator appear.
+- Mirror all bases and packages into approved internal registries for an
+  air-gapped cluster, then use the mirrored image in `WorkspaceKind`.
+- Keep CUDA and CANN images separate. A CUDA image belongs on NVIDIA nodes and
+  an Ascend image belongs on Ascend nodes; the host driver and device plugin
+  are supplied by the cluster, not by the container image.
