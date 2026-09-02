@@ -25,15 +25,22 @@ Create a workbench in **Alauda AI → Workbench** (or **Advanced → Kubeflow �
 
 ## 2. Prepare the base model
 
-Download `Qwen/Qwen3-0.6B` (or any HF model) and push it to the platform model repository. See [Upload Models Using Notebook](../../deploy/model_management/upload_models_using_notebook.mdx).
+Download `Qwen/Qwen3-0.6B` (or any Hugging Face model) into a shared PVC or
+S3-compatible object storage that the training job can access. Register the
+resulting Model URI in a Model Registry if you want to deploy or reuse the base
+model through the console. See [Upload Models Using a Workbench](../../deploy/model_management/upload_models_using_notebook.mdx)
+and [Model Registry](../../deploy/model_management/model_repository.mdx#register-a-model-and-version).
 
-## 3. Prepare the output model placeholder
+## 3. Prepare the output model location
 
-Create an empty model entry in the model repository to receive the fine-tuned output, and note its Git URL.
+Use a shared PVC directory for the fine-tuning output, or configure an S3
+location for the job to write to. After the job completes, register the output
+artifact as a new Model Registry version using its Model URI. No placeholder
+model record is required.
 
 ## 4. Prepare the dataset
 
-Use the [sample identity dataset](/identity-alauda-main.zip) which teaches the model to answer "Who are you?". Create an empty dataset repository under **Datasets → Dataset Repository**, then `git lfs push` the unzipped files. The repository file list should show the upload after refresh.
+Use the [sample identity dataset](/identity-alauda-main.zip) which teaches the model to answer "Who are you?". Upload the unzipped files to a PVC or S3 location accessible to the training job, and set `DATASET_URI` to that location. The dataset layout must match the fine-tuning framework.
 
 > The dataset format must match what the fine-tuning framework expects.
 
@@ -51,7 +58,7 @@ If you use LLaMA-Factory, use its expected layout — see [data_preparation](htt
 
 ## 5. Runtime image
 
-Use the prebuilt `alaudadockerhub/fine_tune_with_llamafactory:v0.1.1`, or build your own. The image must include `git lfs` so it can pull and push models / datasets.
+Use the prebuilt `alaudadockerhub/fine_tune_with_llamafactory:v0.1.1`, or build your own. The image must include the tools required to read the selected model and dataset storage. It does not need a large-file model repository client.
 
 <details>
 <summary>Containerfile</summary>
@@ -64,7 +71,7 @@ RUN sed -i 's@//.*archive.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.l
     sed -i 's/security.ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/ubuntu.sources && \
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends \
-      git git-lfs unzip curl ffmpeg default-libmysqlclient-dev build-essential pkg-config && \
+      unzip curl ffmpeg default-libmysqlclient-dev build-essential pkg-config && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -U pip setuptools && \
@@ -103,16 +110,16 @@ spec:
   queue: default
   volumes:
     # Workspace PVC (temporary; deleted after the job)
-    - mountPath: "/mnt/workspace"
+    - mountPath: '/mnt/workspace'
       volumeClaim:
-        accessModes: [ "ReadWriteOnce" ]
-        storageClassName: "sc-topolvm"
+        accessModes: ['ReadWriteOnce']
+        storageClassName: 'sc-topolvm'
         resources:
           requests:
             storage: 5Gi
   tasks:
-    - name: "train"
-      replicas: 1                 # >= 2 for distributed training
+    - name: 'train'
+      replicas: 1 # >= 2 for distributed training
       template:
         metadata:
           name: train
@@ -136,15 +143,14 @@ spec:
               image: alaudadockerhub/fine_tune_with_llamafactory:v0.1.1
               imagePullPolicy: IfNotPresent
               env:
-                - { name: BASE_MODEL_URL, value: "https://<git-host>/<ns>/amlmodels/qwen3-0.6b" }
-                - { name: DATASET_URL,    value: "https://<git-host>/<ns>/amldatasets/identity-alauda" }
-                - name: GIT_USER
-                  valueFrom: { secretKeyRef: { name: aml-image-builder-secret, key: MODEL_REPO_GIT_USER } }
-                - name: GIT_TOKEN
-                  valueFrom: { secretKeyRef: { name: aml-image-builder-secret, key: MODEL_REPO_GIT_TOKEN } }
+                - { name: BASE_MODEL_URI, value: 's3://models/qwen3-0.6b' }
+                - {
+                    name: DATASET_URI,
+                    value: 'pvc://dataset-pvc/identity-alauda',
+                  }
               resources:
                 requests: { cpu: 100m, memory: 128Mi }
-                limits:   { cpu: 2,    memory: 4Gi }
+                limits: { cpu: 2, memory: 4Gi }
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities: { drop: [ALL] }
@@ -152,42 +158,40 @@ spec:
                 seccompProfile: { type: RuntimeDefault }
               volumeMounts:
                 - { name: models-cache, mountPath: /mnt/models }
-              command: [ /bin/bash, -c ]
+              command: [/bin/bash, -c]
               args:
                 - |
                   set -ex
+                  # Mount or download the base model and dataset using the
+                  # storage mechanism configured for the job. The example
+                  # assumes the PVC mount already contains these directories.
                   cd /mnt/models
-                  gitauth="${GIT_USER}:${GIT_TOKEN}"
-                  BASE_MODEL_NAME=$(basename ${BASE_MODEL_URL})
-                  if [ ! -d ${BASE_MODEL_NAME} ]; then
-                    GIT_LFS_SKIP_SMUDGE=1 git -c http.sslVerify=false -c lfs.activitytimeout=36000 \
-                      clone "https://${gitauth}@${BASE_MODEL_URL#https://}"
-                    (cd ${BASE_MODEL_NAME} && git -c http.sslVerify=false -c lfs.activitytimeout=36000 lfs pull)
-                  fi
-                  DATASET_NAME=$(basename ${DATASET_URL})
-                  rm -rf ${DATASET_NAME} data
-                  git -c http.sslVerify=false -c lfs.activitytimeout=36000 \
-                    clone "https://${gitauth}@${DATASET_URL#https://}"
+                  BASE_MODEL_NAME=qwen3-0.6b
+                  DATASET_NAME=identity-alauda
+                  test -d "${BASE_MODEL_NAME}" || { echo "Mount or stage ${BASE_MODEL_URI} at /mnt/models/${BASE_MODEL_NAME}"; exit 1; }
+                  test -d "${DATASET_NAME}" || { echo "Mount or stage ${DATASET_URI} at /mnt/models/${DATASET_NAME}"; exit 1; }
           containers:
             - name: train
               image: alaudadockerhub/fine_tune_with_llamafactory:v0.1.1
               imagePullPolicy: IfNotPresent
               volumeMounts:
                 - { mountPath: /dev/shm, name: dshm }
-                - { name: models-cache,  mountPath: /mnt/models }
+                - { name: models-cache, mountPath: /mnt/models }
               env:
-                - { name: BASE_MODEL_URL,   value: "https://<git-host>/<ns>/amlmodels/qwen3-0.6b" }
-                - { name: DATASET_URL,      value: "https://<git-host>/<ns>/amldatasets/identity-alauda" }
-                - { name: OUTPUT_MODEL_URL, value: "https://<git-host>/<ns>/amlmodels/wy-sft-output" }
+                - { name: BASE_MODEL_URI, value: 's3://models/qwen3-0.6b' }
+                - {
+                    name: DATASET_URI,
+                    value: 'pvc://dataset-pvc/identity-alauda',
+                  }
+                - { name: OUTPUT_MODEL_URI, value: 's3://models/wy-sft-output' }
                 - { name: HF_HOME, value: /mnt/workspace/hf_cache }
-                - { name: DO_MERGE, value: "true" }
-                - name: GIT_USER
-                  valueFrom: { secretKeyRef: { name: aml-image-builder-secret, key: MODEL_REPO_GIT_USER } }
-                - name: GIT_TOKEN
-                  valueFrom: { secretKeyRef: { name: aml-image-builder-secret, key: MODEL_REPO_GIT_TOKEN } }
-                - { name: MLFLOW_TRACKING_URI,    value: "http://mlflow-tracking-server.kubeflow:5000" }
-                - { name: MLFLOW_EXPERIMENT_NAME, value: "<your-namespace>" }
-              command: [ bash, -c ]
+                - { name: DO_MERGE, value: 'true' }
+                - {
+                    name: MLFLOW_TRACKING_URI,
+                    value: 'http://mlflow-tracking-server.kubeflow:5000',
+                  }
+                - { name: MLFLOW_EXPERIMENT_NAME, value: '<your-namespace>' }
+              command: [bash, -c]
               args:
                 - |
                   set -ex
@@ -201,8 +205,8 @@ spec:
                       export N_RANKS=1 RANK=0 NNODES=1 MASTER_HOST=""
                   fi
                   cd /mnt/workspace
-                  BASE_MODEL_NAME=$(basename ${BASE_MODEL_URL})
-                  DATASET_NAME=$(basename ${DATASET_URL})
+                  BASE_MODEL_NAME=qwen3-0.6b
+                  DATASET_NAME=identity-alauda
                   cat >lf-sft.yaml <<EOL
                   model_name_or_path: /mnt/models/${BASE_MODEL_NAME}
                   stage: sft
@@ -259,18 +263,15 @@ spec:
                   else
                     mv output_models output_models_merged
                   fi
-                  cd /mnt/workspace/output_models_merged
-                  touch README.md
-                  PUSH_URL="https://${GIT_USER}:${GIT_TOKEN}@${OUTPUT_MODEL_URL#https://}"
-                  push_branch=$(date +'%Y%m%d-%H%M%S')
-                  git init && git checkout -b sft-${push_branch}
-                  git lfs track *.safetensors
-                  git add .
-                  git -c user.name='AMLSystemUser' -c user.email='aml_admin@cpaas.io' commit -am "fine tune push auto commit"
-                  git -c http.sslVerify=false -c lfs.activitytimeout=36000 push -u ${PUSH_URL} sft-${push_branch}
+                  # The merged artifact is now available at
+                  # /mnt/workspace/output_models_merged. Upload it to the
+                  # configured S3/PVC location with the organization's storage
+                  # tooling, then register OUTPUT_MODEL_URI as a new Model
+                  # Registry version. The training job does not use a
+                  # source-code repository for model storage.
               resources:
-                requests: { cpu: "1", memory: "2Gi" }
-                limits:   { cpu: "8", memory: "16Gi", nvidia.com/gpu: 1 }
+                requests: { cpu: '1', memory: '2Gi' }
+                limits: { cpu: '8', memory: '16Gi', nvidia.com/gpu: 1 }
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities: { drop: [ALL] }
@@ -282,7 +283,10 @@ spec:
 
 Things to change before submitting:
 
-- `BASE_MODEL_URL`, `DATASET_URL`, `OUTPUT_MODEL_URL` to your repository Git URLs.
+- `BASE_MODEL_URI`, `DATASET_URI`, and `OUTPUT_MODEL_URI` to the supported
+  storage URIs used by your environment. Mount or stage the base model and
+  dataset at the paths used by the example, and upload the output directory to
+  `OUTPUT_MODEL_URI` after the job finishes.
 - `models-cache` PVC — create it ahead of time. Reuse it across experiments to avoid re-downloading the base model.
 - Shared memory `dshm` — at least 4 GiB for multi-GPU.
 - CPU / memory / GPU `requests` and `limits` — match the cluster's device-plugin (e.g. `nvidia.com/gpu`, `nvidia.com/gpualloc`).
@@ -302,7 +306,7 @@ If the PVC backend is NFS:
     name: ai-nfs
   provisioner: nfs.csi.k8s.io
   parameters:
-    mountPermissions: "0757"
+    mountPermissions: '0757'
     server: <nfs-server-address>
     share: <nfs-export-path>
   reclaimPolicy: Delete
@@ -321,7 +325,8 @@ kubectl get podgroups              # Volcano scheduling view
 kubectl delete vcjob <name>
 ```
 
-After success the merged model is pushed to a date-stamped branch (`sft-YYYYMMDD-HHMMSS`) in the output repository — pick that branch when publishing.
+After success, upload the merged directory to `OUTPUT_MODEL_URI` and register
+it as a new Model Registry version. Select that active version when publishing.
 
 ## 8. Experiment tracking
 
@@ -331,12 +336,18 @@ On a secured (SSO + multi-tenant) MLflow install the job must also authenticate 
 
 ## 9. Publish the fine-tuned model
 
-> The example uses LoRA and merges the adapter into the base model before push. Inference services from base + adapter pairs are not yet supported.
+> The example uses LoRA and merges the adapter into the base model before
+> uploading the output artifact. Inference services from base + adapter pairs
+> are not yet supported.
 
-1. **Model Repository** → fine-tuned output model → **Model Info → File Management → Edit Metadata**, set Task Type = Text Classification, Framework = Transformers.
-2. **Publish Inference API → Custom Publishing**.
-3. Pick the vLLM runtime that matches the cluster's CUDA, fill storage / resource / GPU settings, click **Publish**.
-4. Once running, click **Experience** to chat with the model (only when the model includes a `chat_template`).
+1. Open **AI Hub > Model Registry**, register the fine-tuned output URI as a
+   new model version, and set Task Type and Framework in its metadata (for
+   example, `text-generation` and `transformers`).
+2. Open the active version and select **Create Inference API**.
+3. Pick the vLLM runtime that matches the cluster's CUDA, fill storage/resource
+   and GPU settings, and click **Publish**.
+4. Once running, click **Experience** to chat with the model (only when the
+   model includes a `chat_template`).
 
 ## Running on non-NVIDIA GPUs \{#non-nvidia}
 
@@ -364,15 +375,15 @@ spec:
   maxRetry: 1
   queue: default
   volumes:
-    - mountPath: "/mnt/workspace"
+    - mountPath: '/mnt/workspace'
       volumeClaim:
-        accessModes: [ "ReadWriteOnce" ]
-        storageClassName: "sc-topolvm"
+        accessModes: ['ReadWriteOnce']
+        storageClassName: 'sc-topolvm'
         resources:
           requests:
             storage: 5Gi
   tasks:
-    - name: "train"
+    - name: 'train'
       replicas: 1
       template:
         metadata: { name: train }
@@ -386,28 +397,34 @@ spec:
                 claimName: sft-qwen3-volume
           containers:
             - name: train
-              image: "<vendor-fine-tuning-image>"
+              image: '<vendor-fine-tuning-image>'
               imagePullPolicy: IfNotPresent
               volumeMounts:
                 - { mountPath: /dev/shm, name: dshm }
                 - { name: models-cache, mountPath: /mnt/models }
               env:
-                - { name: MLFLOW_TRACKING_URI, value: "http://mlflow-tracking-server.aml-system.svc.cluster.local:5000" }
-                - { name: MLFLOW_EXPERIMENT_NAME, value: kubeflow-admin-cpaas-io }
-              command: [ bash, -c ]
+                - {
+                    name: MLFLOW_TRACKING_URI,
+                    value: 'http://mlflow-tracking-server.aml-system.svc.cluster.local:5000',
+                  }
+                - {
+                    name: MLFLOW_EXPERIMENT_NAME,
+                    value: kubeflow-admin-cpaas-io,
+                  }
+              command: [bash, -c]
               args:
                 - |
                   set -ex
                   echo "job workers list: ${VC_WORKER_HOSTS}"
                   # vendor-specific launch command goes here
               resources:
-                requests: { cpu: "1", memory: "8Gi" }
+                requests: { cpu: '1', memory: '8Gi' }
                 limits:
-                  cpu: "8"
-                  memory: "16Gi"
-                  nvidia.com/gpualloc: "1"
-                  nvidia.com/gpucores: "50"
-                  nvidia.com/gpumem: "8192"
+                  cpu: '8'
+                  memory: '16Gi'
+                  nvidia.com/gpualloc: '1'
+                  nvidia.com/gpucores: '50'
+                  nvidia.com/gpumem: '8192'
 ```
 
 </details>

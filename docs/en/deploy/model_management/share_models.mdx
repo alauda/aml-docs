@@ -8,91 +8,111 @@ i18n:
 
 # Share Models
 
-## Introduction
+## Overview
 
-While the AI platform doesn't have a UI for sharing models yet, you can still do it manually. Before we dive into the steps, let's cover some essential knowledge.
+Model sharing is handled through **Model Catalog sources** and **Model Registry
+permissions**.
 
-To publish a large language model (LLM) as an inference service, you need to add necessary **model card** metadata, such as `pipeline_tag` (called **Task Type** on the platform) and `library_name`. This information is typically stored as metadata in the `README.md` file at the model's root directory.
+Use Model Catalog when an administrator wants to make models from an upstream
+source discoverable to users. Use Model Registry when a team needs to share
+registered models, versions, metadata, and artifact locations with other users
+or namespaces.
 
-Alternatively, you can add this metadata after uploading your model to the AI platform's model repository. From the **File Management** interface, click the **"Edit Metadata"** button, select the parameters from the pop-up, and save.
+A shared model still needs a reachable artifact location. The Model Catalog or
+Model Registry stores the model metadata and Model URI; the model bytes remain
+in S3, a PVC, or an OCI registry. Configure the corresponding Connection,
+Secret, or service account so the inference service can access the artifact.
 
-Once a model has this essential metadata, it's ready for publishing. A key point to remember is that **you cannot edit metadata for models that are already shared**. This is an intentional platform restriction.
+## Share models through Model Catalog
 
-Also, if you're not using the UI to add metadata (for example, you manually created the `README.md` file), you'll need to add a few topics to the model's GitLab repository. This ensures the platform can correctly identify that the model is ready for inference.
+### Configure a catalog source
 
-:::warning
-**GitLab Admin privileges are needed to proceed. Please reach out to your administrator.**
-:::
+An administrator can add a source from **Admin View > Settings > Model Catalog
+Sources**:
 
-## Steps
+1. Select **Add Source**.
+2. Enter a source name using lowercase letters, numbers, and underscores.
+3. Select the source type:
+   - **Hugging Face**: enter the required Organization and, if required, an
+     Access Token.
+   - **YAML**: enter the catalog YAML content.
+4. Optionally set Display Name, Allowed Models, Excluded Models, and Enabled.
+5. Select **Add** and wait for the source status to become available.
 
-<Steps>
-### Adding Model Card Metadata: Two Options
+Allowed and Excluded Models can limit which models are exposed by that source.
+Do not include credentials in YAML content or model metadata. Edit or delete a
+source from its row action menu when the source is no longer needed.
 
-You have two distinct methods for adding model card metadata. **You only need to use one of these; you don't have to do both.**
+### Browse and use a catalog model
 
-**Option 1: Using the UI**
+A user can open **User View > AI Hub > Model Catalog**, choose a source, and
+open a model entry. The details page can show the provider, description, model
+card, task type, labels, framework, license, size, and artifact URI.
 
-This is the most straightforward method. After uploading your model to the AI platform's repository, follow these steps:
+From the details page, the user can:
 
-1. Navigate to the **File Management** interface.
+- select **Create Inference API** to deploy the catalog artifact directly; or
+- select **Register Model**, choose an available Model Registry, and create a
+  local registered model and version that references the catalog artifact.
 
-2. Click the **"Edit Metadata"** button.
+Catalog entries themselves are read-only. To edit the local metadata or control
+its lifecycle, register the model and manage the resulting Model Registry
+record.
 
-3. In the pop-up window, set the **Task Type** based on your model and the desired service. For the **Framework**, if you don't have a special requirement, select `transformers`.
+## Share models through Model Registry
 
-4. Save your changes.
+### Grant access to a Model Registry
 
-**Option 2: Directly Editing the `README.md` File**
+An administrator can manage registry access from **Admin View > Settings > Model
+Registries**:
 
-If you prefer to manage metadata directly in your model's files, you can add a metadata block to the very top of the `README.md` file.
+1. Find the target registry.
+2. Open its row action menu and select **Manage permissions**.
+3. Add the required users, groups, or namespaces and assign the appropriate
+   permission.
+4. Save the permission changes.
 
-Add the following metadata block, setting the pipeline_tag based on your model and the library_name to transformers unless specified otherwise.
+Adding a namespace allows service accounts in that namespace to access the
+registry according to the configured permission. Grant only the access needed
+for the team or workload.
 
+### Manage a registered model
 
-```yaml
----
-pipeline_tag: text-classification
-library_name: transformers
-language: []
-datasets: []
-metrics: []
----
-```
+A user with the required registry permission can open **User View > AI Hub > Model
+Registry** and:
 
-:::info
-**Note: If you use this method, you must also add specific topics to the model's GitLab repository for the platform to recognize the metadata.**
-:::
-1. First, go to \<your model\>'s project in GitLab. On the left-hand navigation bar, click on **Settings**, then select **General**
+1. Select the Model Registry containing the model.
+2. Open the registered model to review its Overview and Versions tabs.
+3. Update labels, descriptions, or custom properties when needed.
+4. Open a version to inspect its Model URI, framework, state, and related
+   inference services.
+5. Select **Create Inference API** or **Deploy** for a LIVE version.
 
-2. In the **"Project topics"** section, add the following parameters:
+The model and version metadata are maintained by Model Registry. They are
+independent of the catalog source metadata.
 
-    - For `pipeline_tag`, the topic value should be "\<pipeline_tag value\>" (e.g., `text-classification`).
+### Archive and restore
 
-    - For `library_name`, the topic value should be "aml_framework_\<library_name value\>" (e.g., `aml_framework_transformers`).
+Archiving removes a model or version from the active view while retaining its
+metadata and artifact reference:
 
-3. **Save Your Changes**, be sure to scroll to the bottom of the page and click the **"Save changes"** button to apply the update.
+1. Open the model or version action menu and select **Archive**.
+2. Type the exact model or version name in the confirmation field.
+3. Select **Archive**.
+4. Use the archived view and **Restore** action to make it active again.
 
-### Change Project visibility from Private to Public
+A model or version that is used by an inference service cannot be archived. Delete
+the related inference service first. Archiving a registered model also archives
+its versions. An archived entry is not available for a new deployment until it
+is restored.
 
-1.  **Navigate to Project Settings:**
+## Recommended sharing patterns
 
-    Go to your GitLab project. In the left-hand sidebar, click **Settings**, then select **General**. This will take you to the project's general settings page.
-
-2.  **Expand Visibility Options:**
-
-    On this page, look for the **"Visibility, project features, permissions"** section and click the arrow to expand it.
-
-3.  **Change Visibility Level:**
-
-    Under the expanded options, you'll see a **"Project visibility"** dropdown menu. Click on it and choose **Public** from the list.
-
-4.  **Save Your Changes:**
-
-    After selecting **Public**, be sure to scroll to the bottom of the page and click the **"Save changes"** button to apply the update.
-
-    :::caution
-    Making the model repository Public exposes all repository files (including code and potentially model weights) and associated model metadata to all users with access to your instance. Before changing visibility, ensure no sensitive data.
-    :::
-
-</Steps>
+| Requirement                                                                    | Recommended approach                                                          |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Make approved upstream models discoverable                                     | Configure a Model Catalog Source                                              |
+| Deploy a catalog model without managing a local copy                           | Deploy directly from Model Catalog                                            |
+| Track team-owned versions and metadata                                         | Register the model in Model Registry                                          |
+| Share registered models with another namespace                                 | Manage Model Registry permissions and grant namespace access                  |
+| Keep a model available to inference services but hide it from active selection | Archive the model/version only after removing dependent inference services    |
+| Share model files with workloads                                               | Keep the artifact in S3, PVC, or OCI storage and configure access credentials |

@@ -17,7 +17,7 @@ The core definition of the inference service feature is to deploy trained machin
 
 **Direct Model Deployment for Inference Services**
 
-- Allows users to select specific versions of model files from a **Model repository** or directly mount models from a **PVC**, and specify the inference runtime image to quickly deploy online inference services. The system automatically downloads, caches, and loads the model, starting the inference service. This simplifies the model deployment process and lowers the deployment threshold.
+- Allows users to deploy an artifact from the **Model Catalog** or a selected active version in **Model Registry**, or directly mount a model from a **PVC**. The system automatically downloads, caches, and loads the model, starting the inference service.
 
 **Application for Inference Services**
 
@@ -65,8 +65,9 @@ The core definition of the inference service feature is to deploy trained machin
 
 There are two ways to start the inference service publishing process:
 
-1. **From Model Repository**: In the left navigation bar, click **Model Repository**. Click the target model name to enter the model details page, and click **Publish Inference Service** in the upper right corner.
-2. **From Inference Service**: In the left navigation bar, click **Inference Service**, and then click **Create Inference Service**.
+1. **From Model Catalog**: In User View, open **AI Hub > Model Catalog**, select a catalog model, and click **Create Inference API**.
+2. **From Model Registry**: In User View, open **AI Hub > Model Registry**, select an active registered model version, and click **Create Inference API** or **Deploy**.
+3. **From Inference Service**: Open **AI Hub > Inference Service**, and select **Create Inference Service**.
 
 :::tip
 Custom publishing inference service requires manual setting of parameters. You can also create a "template" by combining input parameters for quick publishing of inference services.
@@ -74,7 +75,7 @@ Custom publishing inference service requires manual setting of parameters. You c
 
 ### Step 2: Configure Model Metadata (if needed)
 
-If you start from the Model Repository and the **"Publish Inference Service"** button is not clickable, go to the **"File Management"** tab, click "Edit Metadata", and select **"Task Type"** and **"Framework"** based on the actual model information. (You must edit the metadata of the default branch for it to take effect.)
+If **Create Inference API** is unavailable, verify that the catalog entry or registered model version has an artifact URI and the required task and framework metadata. For a registered model, update labels or custom properties from the Model Registry details page. A model version must be active (LIVE) before it can be deployed.
 
 ### Step 3: Select Publish Mode and Configure
 
@@ -87,7 +88,7 @@ Enter the **Publish Mode Selection** page. AML provides **Custom Publish** and *
 
 2. Custom Publish：
    - Click **Custom Publish**
-   - Enter the custom publish form and configure the parameters, including the **Model Location** (Model repository or PVC).
+   - Enter the custom publish form and configure the parameters, including the **Model Source** (Model Catalog, Model Registry, Connection, or Persistent Volume Claim, depending on the installed version).
    - Click **Publish** to deploy the inference service
 
 ### Step 4: Monitor and Manage Inference Service
@@ -225,7 +226,7 @@ In the **Inference Experience** interface, common parameters and default values 
 | `penalty_alpha`      | float     | Contrastive search is enabled when `penalty_alpha` is greater than 0 and `top_k` is greater than 1. The larger the `penalty_alpha` value, the stronger the contrastive penalty, and the more likely the generated text is to meet expectations. If the `penalty_alpha` value is set too large, it may cause the generated text to be too uniform.                                                              |
 | `typical_p`          | float     | Local typicality measures the similarity between the conditional probability of predicting the next target token and the expected conditional probability of predicting the next random token given the generated partial text. If set to a floating-point number less than 1, the smallest set of locally typical tokens whose probabilities add up to or exceed `typical_p` will be retained for generation. |
 | `epsilon_cutoff`     | float     | If set to a floating-point number strictly between 0 and 1, only tokens with conditional probabilities greater than `epsilon_cutoff` will be sampled. Suggested values range from {/* lint ignore unit-case */} 3e-4 to 9e-4, depending on the model size.                                                                                                                                                     |
-| `eta_cutoff`         | float     | Eta sampling is a hybrid of local typical sampling and epsilon sampling. If set to a floating-point number strictly between 0 and 1, a token will only be considered if it is greater than `eta_cutoff` or sqrt(`eta_cutoff`) _ exp(-entropy(softmax(next_token_logits))). Suggested values range from {/* lint ignore unit-case */} 3e-4 to 2e-3, depending on the model size.                               |
+| `eta_cutoff`         | float     | Eta sampling is a hybrid of local typical sampling and epsilon sampling. If set to a floating-point number strictly between 0 and 1, a token will only be considered if it is greater than `eta_cutoff` or sqrt(`eta_cutoff`) \_ exp(-entropy(softmax(next_token_logits))). Suggested values range from {/* lint ignore unit-case */} 3e-4 to 2e-3, depending on the model size.                               |
 | `repetition_penalty` | float     | Parameter for repetition penalty. 1.0 means no penalty.                                                                                                                                                                                                                                                                                                                                                        |
 
 For more parameters, please refer to [Text Generation Parameter Configuration](https://huggingface.co/docs/transformers/main/en/main_classes/text_generation#transformers.GenerationConfig).
