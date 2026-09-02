@@ -2,68 +2,156 @@
 weight: 20
 ---
 
-# Model Repository
-The core definition of the model repository feature is to provide a Git-based version-controlled storage system for machine learning models, enabling teams to manage model files, track versions, and collaborate across tenants. It leverages **Git LFS** for large file storage and integrates with MLOps workflows to bridge model development and deployment.
+# Model Catalog and Model Registry
 
-## Advantages
-**Git-native Version Control**
-- Track model changes via commits/branches/tags, ensuring reproducibility.
+Alauda AI provides two model-management experiences in **AI Hub**:
 
-**High-Speed Transfers**
-- CLI/Notebook uploads leverage internal network bandwidth.
+| Capability         | Purpose                                                                         | Where to manage it                  |
+| ------------------ | ------------------------------------------------------------------------------- | ----------------------------------- |
+| **Model Catalog**  | Browse models and metadata supplied by configured external or platform sources. | User View > AI Hub > Model Catalog  |
+| **Model Registry** | Register models, versions, metadata, and artifact locations for namespace use.  | User View > AI Hub > Model Registry |
 
-**Cross-Tenant Sharing**
-- Shared models can be accessed across namespaces (e.g., `public` as a model marketplace).
+A model is referenced by a **Model URI**, while metadata and lifecycle state
+are managed by the catalog or registry APIs.
 
-**Seamless Integration**
-- Directly deploy models from the repository to inference services.
+## Model Catalog
 
-## Core Features
-**Model Repository Creation & Deletion**
-- Create an empty Git-backed repository with metadata (name/description/visibility).
-- Delete models after dependency checks (e.g., ensure no active inference services).
+### Browse catalog models
 
-**File Management**
-1. **CLI/Git LFS**
-    - Use `git lfs track` for large files (e.g., `*.bin`, `*.h5`).
-    - Example:
-      ```bash
-      git clone <model_repo_url>
-      git lfs install
-      cp ~/local_model/* . && git add . && git commit -m "v1.0" && git push
-      ```
+1. Switch to **User View** and select a namespace.
+2. In the left navigation, expand **AI Hub** and select **Model Catalog**.
+3. Optionally select a catalog **Source** and filter by task type, provider,
+   framework, or labels.
+4. Select a model card or model name to open its details.
+5. Review the model description, model card, task type, labels, framework,
+   tensor type, size, license, and Model URI.
 
-**Version Control**
-1. **Branching**
-    - Maintain parallel versions (e.g., `experimental` vs `main` branches).
-2. **Tagging**
-    - Mark releases via UI/CLI (e.g., `git tag -a v2.0 -m "Stable release"`).
-3. **Metadata Sync**
-    - Auto-read `README.md` from the default branch for model descriptions.
+A catalog entry is read-only in the user view. It is an external reference, so
+there is no local file upload or delete operation for the entry.
 
-**Cross-Tenant Sharing**
-1. **Shared Models**
-    - Set visibility to "Shared" during creation for inter-tenant access.
-2. **Public Marketplace**
-    - Use `public` namespace to publish open-source models (e.g., HuggingFace conversions).
+### Deploy or register a catalog model
 
-**Integration with MLOps**
-1. **Deployment Ready**
-    - One-click inference service launch from tagged model versions.
-2. **Notebook Integration**
-    - Pull models directly into AML Notebooks for testing:
-      ```bash
-      !git clone https://aml-public/resnet50.git
-      ```
+On a catalog model's details page:
 
+- Select **Create Inference API** to open the inference-service form with the
+  catalog artifact preselected; or
+- Select **Register Model** to copy the catalog model into a Model Registry.
+  Choose a registry, review the model name and description, accept or edit the
+  suggested version name, and confirm the artifact URI. The catalog metadata
+  such as task and framework may be copied to the registered model or version.
 
-## Technical Notes
-1. **Git LFS Requirement**
-    - Must include `.gitattributes` to specify LFS-tracked files (e.g., `*.zip filter=lfs diff=lfs merge=lfs`).
-2. **Default Branch Rules**
-    - Misconfigured `README.md` metadata may block inference deployment.
+Registering a catalog model creates a registered model, a model version, and a
+model artifact in the selected registry. The artifact continues to be addressed
+by its URI.
 
+### Configure catalog sources (administrator)
 
-## Create Model and Upload Model Files \{#create-model-repository}
+An administrator can configure sources in **Admin View > Settings > Model
+Catalog Sources**.
 
-Refer to [Upload Models Using Notebook](./upload_models_using_notebook.mdx) for detailed steps on uploading model files to the model repository.
+1. Select **Add Source**.
+2. Enter a source name. Use lowercase letters, numbers, and underscores; do
+   not use hyphens.
+3. Select a source type:
+   - **Hugging Face**: provide the required Organization and, when needed, an
+     Access Token.
+   - **YAML**: provide the YAML catalog content.
+4. Optionally set Display Name, Allowed Models, Excluded Models, and Enabled.
+5. Select **Add**. The source status indicates whether it is available,
+   disabled, or has an error.
+6. Edit or delete a source from its row action menu when needed.
+
+A source configuration controls what appears in Model Catalog. It does not
+create a private registered model or upload model files.
+
+## Model Registry
+
+### Create a registry (administrator)
+
+Before users can register models, an administrator must create a backend in
+**Admin View > Settings > Model Registries**:
+
+1. Select **Create Model Registry**.
+2. Enter a registry name and, optionally, a display name.
+3. Select a Storage Class.
+4. Select an Access Mode (the default is typically `ReadWriteOnce`).
+5. Set the metadata storage size in GiB.
+6. Select **Create**.
+
+The registry list shows the registry status, Storage Class, storage size, and
+creation time. Creation provisions the registry's underlying deployment and
+persistent storage, so the status can initially be **Deploying** or otherwise
+not yet available. The row action menu also provides **Manage permissions**,
+**Edit**, and **Delete**.
+
+### Register a model and version
+
+1. Switch to **User View**, select a namespace, and open **AI Hub > Model
+   Registry**.
+2. Select **Register Model**.
+3. Choose a **Model Registry**. If the form has already selected the first
+   available registry, verify that it is the intended one.
+4. Enter the model **Name** and optional Description.
+5. Enter a **Version** name. When the model name already exists, the console
+   suggests the next available name such as `Version 2`; review it before
+   submitting.
+6. Enter a **Model URI**. The URI must include a scheme, for example:
+   `s3://bucket/path`, `pvc://claim/path`, or
+   `oci://registry.example.com/project/model:tag`.
+7. Select **Register**.
+
+The console creates or reuses the registered model and adds the submitted
+version and model artifact. The model details page contains **Overview** and
+**Versions** tabs. Overview shows the description, owner, ID, labels, custom
+properties, latest versions, and related inference services. The version detail
+page shows the version state, artifact URI, framework, timestamps, and related
+inference services.
+
+### Add a version
+
+To add a new artifact to an existing registered model:
+
+1. Open the registered model details page.
+2. Select **Versions**.
+3. Select **Register New Version**.
+4. Enter the version name, optional description, Model URI, and model framework.
+5. Select **Register New Version**.
+
+The version remains **LIVE** until it is archived. Use the version's action menu
+to restore an archived version when it is needed again.
+
+### Update metadata
+
+On a registered model or version details page, users with edit permission can
+update labels, descriptions, and custom properties. Metadata is stored in the
+Model Registry and is independent of any upstream catalog source. Archived
+models and versions cannot be edited until they are restored.
+
+### Archive and restore
+
+Archiving is the lifecycle operation used instead of deleting a registered model
+or version:
+
+1. Open the model or version action menu.
+2. Select **Archive**.
+3. Type the exact model or version name in the confirmation field.
+4. Select **Archive**.
+5. To use it again, switch to the archived view and select **Restore**.
+
+A registered model archive also archives all of its versions. A model or version
+that has a published inference service cannot be archived; delete the related
+inference service first. Archived entries remain in the registry and can be
+viewed or restored.
+
+## Deploy from model management
+
+Both model-management views can start an inference deployment:
+
+- **Model Catalog**: open a catalog entry and select **Create Inference API**.
+- **Model Registry**: open an active model version and select **Create Inference
+  API**, or select **Deploy** beside a latest version.
+
+The console passes the selected artifact's Model URI, model name, version, task,
+and framework to the inference-service form. Choose an appropriate serving
+runtime and deployment resources there. For storage URI formats and direct
+storage workflows, see [Model Storage](./model_storage.mdx).

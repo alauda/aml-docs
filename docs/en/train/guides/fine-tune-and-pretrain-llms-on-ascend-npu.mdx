@@ -6,10 +6,10 @@ weight: 100
 
 Workbench-based recipes for running full-parameter SFT and pretraining on `arm64` nodes with Huawei Ascend NPUs. These notebooks run training directly inside a single workbench container with multiple NPUs attached (no VolcanoJob).
 
-| Notebook | Workbench image | Workload |
-|---|---|---|
-| [`qwen3_finetune_verify.ipynb`](/qwen3_finetune_verify.ipynb) | `PyTorch CANN` | Full-parameter SFT of `Qwen3-8B` (MindSpeed-LLM) |
-| [`qwen25_pretrain_verify.ipynb`](/qwen25_pretrain_verify.ipynb) | `PyTorch CANN` | Pretraining of `Qwen2.5-7B` (MindSpeed-LLM) |
+| Notebook                                                                | Workbench image  | Workload                                                                       |
+| ----------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------ |
+| [`qwen3_finetune_verify.ipynb`](/qwen3_finetune_verify.ipynb)           | `PyTorch CANN`   | Full-parameter SFT of `Qwen3-8B` (MindSpeed-LLM)                               |
+| [`qwen25_pretrain_verify.ipynb`](/qwen25_pretrain_verify.ipynb)         | `PyTorch CANN`   | Pretraining of `Qwen2.5-7B` (MindSpeed-LLM)                                    |
 | [`qwen3_0.6b_finetune_verify.ipynb`](/qwen3_0.6b_finetune_verify.ipynb) | `MindSpore CANN` | Full-parameter SFT of `Qwen3-0.6B` (bundled MindSpeed-Core-MS + MindSpeed-LLM) |
 
 All three notebooks are **validation-first**: the defaults use short sequences and few iterations so you can confirm the runtime, model loading, preprocessing, and distributed launch path before scaling up. The `PyTorch CANN` image bundles Python 3.12, CANN 8.5.0, PyTorch 2.9.0, and `torch_npu 2.9.0`.
@@ -27,13 +27,13 @@ Create the workbench (`PyTorch CANN` or `MindSpore CANN`) per [Creating a Workbe
 
 Each notebook expects a HuggingFace-format model at:
 
-| Notebook | `HF_MODEL_DIR` default |
-|---|---|
-| Fine-tuning | `/opt/app-root/src/models/Qwen3-8B` |
-| Pretraining | `/opt/app-root/src/models/Qwen2.5-7B` |
+| Notebook      | `HF_MODEL_DIR` default                |
+| ------------- | ------------------------------------- |
+| Fine-tuning   | `/opt/app-root/src/models/Qwen3-8B`   |
+| Pretraining   | `/opt/app-root/src/models/Qwen2.5-7B` |
 | MindSpore SFT | `/opt/app-root/src/models/Qwen3-0.6B` |
 
-Either drop the model files there or change `HF_MODEL_DIR` in the first parameter cell. For versioned, reusable models, push to the platform model repository and clone from there per [Upload Models Using Notebook](../../deploy/model_management/upload_models_using_notebook.mdx).
+Either drop the model files there or change `HF_MODEL_DIR` in the first parameter cell. For versioned, reusable models, store the artifact in S3, a PVC, or an OCI registry. See [Upload Models Using a Workbench](../../deploy/model_management/upload_models_using_notebook.mdx); register the resulting URI separately in [Model Registry](../../deploy/model_management/model_repository.mdx#register-a-model-and-version).
 
 > All three notebooks convert HF → Megatron / MCore before training; expect a second large weight directory on disk.
 
@@ -49,7 +49,7 @@ Both fine-tuning notebooks expect:
 If the parquet exists the notebook converts it to JSONL automatically. If you already have JSONL, place it at `RAW_DATA_FILE` or update the variable. The expected record:
 
 ```json
-{"instruction": "...", "input": "...", "output": "..."}
+{ "instruction": "...", "input": "...", "output": "..." }
 ```
 
 ShareGPT and Pairwise formats can be swapped in by changing the handler in the parameter cell.
@@ -94,13 +94,13 @@ For real runs, raise `SEQ_LENGTH` to your model's context window, raise `TRAIN_I
 
 ## Output paths
 
-| Notebook | Default output |
-|---|---|
-| `qwen3_finetune_verify.ipynb` | `/opt/app-root/src/Qwen3-8B-work-dir/output/qwen3_8b_finetuned` |
-| `qwen25_pretrain_verify.ipynb` | `/opt/app-root/src/Qwen2.5-7B-work-dir/output/qwen25_7b_pretrained` |
+| Notebook                           | Default output                                                      |
+| ---------------------------------- | ------------------------------------------------------------------- |
+| `qwen3_finetune_verify.ipynb`      | `/opt/app-root/src/Qwen3-8B-work-dir/output/qwen3_8b_finetuned`     |
+| `qwen25_pretrain_verify.ipynb`     | `/opt/app-root/src/Qwen2.5-7B-work-dir/output/qwen25_7b_pretrained` |
 | `qwen3_0.6b_finetune_verify.ipynb` | `/opt/app-root/src/Qwen3-0.6B-work-dir/output/qwen3_0.6b_finetuned` |
 
-Keep these on persistent storage. To push the result to the model repository, use the Git LFS workflow in [Upload Models Using Notebook](../../deploy/model_management/upload_models_using_notebook.mdx).
+Keep these on persistent storage. After training, upload the result to S3, a PVC, or an OCI registry with [Upload Models Using a Workbench](../../deploy/model_management/upload_models_using_notebook.mdx), then register its Model URI as a new Model Registry version using [Model Registry](../../deploy/model_management/model_repository.mdx#register-a-model-and-version).
 
 ## Notes
 

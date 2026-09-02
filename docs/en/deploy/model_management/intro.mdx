@@ -4,4 +4,64 @@ weight: 10
 
 # Introduction
 
-The Model Repository is a versioned storage and management hub designed specifically for LLM models on the Alauda AI platform. Built upon Git LFS technology, it provides an efficient and reliable model storage solution, spanning critical phases such as inference service deployment, model training fine-tuning, and model evaluation. Through the Model Repository, users can easily manage model versions, share model assets, and achieve full lifecycle management of models.
+Alauda AI manages models with two complementary capabilities: **Model Catalog** and
+**Model Registry**. They serve different purposes and should not be confused.
+
+## Model Catalog
+
+Model Catalog is a searchable inventory of models provided by configured catalog
+sources. A source can be a Hugging Face organization, a YAML catalog, or a
+platform-provided OCI model catalog. Catalog entries are external references;
+the catalog stores their descriptive information and artifact URI without
+storing the model files itself.
+
+From **User View > AI Hub > Model Catalog**, you can:
+
+- browse models in grid or list view;
+- filter models by source, provider, task type, framework, and labels;
+- open a model's details, including its description, model card, license, and
+  artifact URI;
+- create an inference service directly from a catalog artifact; or
+- register a catalog model and one of its artifacts in a Model Registry.
+
+Administrators configure sources in **Admin View > Settings > Model Catalog
+Sources**. The catalog list is read-only for users: changes to a catalog model
+are made in the upstream source or by registering the model in a Model Registry.
+
+## Model Registry
+
+Model Registry is the lifecycle system for models that your team registers and
+uses in a namespace. It stores model metadata, registered models, model
+versions, and model artifacts. A model artifact is identified by a **Model URI**
+(for example, an S3 URI, a PVC URI, or an OCI image URI); the registry stores
+metadata and artifact references rather than a model-file working tree.
+
+From **User View > AI Hub > Model Registry**, you can:
+
+- register a model and its first version;
+- add additional versions to an existing registered model;
+- edit labels, descriptions, and custom properties;
+- inspect the artifact URI and model framework for a version;
+- create an inference service from an active version; and
+- archive or restore models and versions.
+
+Administrators create the registry backend in **Admin View > Settings > Model
+Registries**. A registry uses the selected Storage Class and storage size for
+its metadata service. The registry may remain in a provisioning state until the
+underlying deployment and storage are ready.
+
+## Recommended workflow
+
+1. Prepare the model in a supported storage location, such as S3, a PVC, or an
+   OCI registry. See [Model Storage](./model_storage.mdx).
+2. If the model comes from a configured source, find it in Model Catalog and
+   review its details. Otherwise, open Model Registry and register it directly.
+3. Select a Model Registry, enter the model name and version, and provide the
+   Model URI.
+4. Verify the model metadata and active version.
+5. Deploy the model from the catalog or from the active Model Registry version.
+6. Archive versions that should no longer be used. A version with a published
+   inference service must be cleaned up before it can be archived.
+
+The following pages describe the catalog, registry, storage, upload, and
+sharing workflows in detail.

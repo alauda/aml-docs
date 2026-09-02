@@ -6,28 +6,34 @@ weight: 30
 This document aims to help new users quickly understand how to deploy inference services in Alauda AI. By deploying a simple "text generation" inference service and experiencing it, you can quickly grasp the main features and usage methods of the platform.
 
 ## Estimated Reading Time
+
 It is estimated that completing the reading and operations in this document will take approximately 20 minutes.
 
 ## Notes
+
 This document only demonstrates the basic process. For detailed parameter configurations, please refer to the complete documentation.
 
 ## Prerequisites
-+ You already have a platform administrator account (used to create and manage namespaces).
-+ You have prepared the model file to be deployed (you can download it in advance from websites such as Hugging Face or ModelScope).
-+ If you need to use GPU inference, please ensure that the GPU plugin is installed. If not, please install the GPU plugin in the platform management plugin center.
-+ You understand the basic concepts of Kubernetes and machine learning models.
+
+- You already have a platform administrator account (used to create and manage namespaces).
+- You have prepared the model file to be deployed (you can download it in advance from websites such as Hugging Face or ModelScope).
+- If you need to use GPU inference, please ensure that the GPU plugin is installed. If not, please install the GPU plugin in the platform management plugin center.
+- You understand the basic concepts of Kubernetes and machine learning models.
 
 ## Step Overview
-| Step | Operation | Description | Notes |
-| --- | --- | --- | --- |
-| 1 | Create Namespace | Create a namespace in Alauda AI or the container platform | Skip this step if you already have a namespace |
-| 2 | Manage Namespace and Add User | Include the namespace in Alauda AI management and add users to the namespace | Skip this step if the namespace is already managed and user permissions are configured |
-| 3 | Upload Model | Upload the model file to the model repository | Skip this step if you have already uploaded the model or are using a platform-shared model |
-| 4 | Publish Inference Service | Publish the model as an online inference service |
-| 5 | Invoke Inference Service | Invoke the inference service via API or the "Experience" feature |
+
+| Step | Operation                     | Description                                                                                                         | Notes                                                                                  |
+| ---- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 1    | Create Namespace              | Create a namespace in Alauda AI or the container platform                                                           | Skip this step if you already have a namespace                                         |
+| 2    | Manage Namespace and Add User | Include the namespace in Alauda AI management and add users to the namespace                                        | Skip this step if the namespace is already managed and user permissions are configured |
+| 3    | Prepare and Register Model    | Store the model in S3, PVC, or OCI storage and register its Model URI, or use a platform-shared Model Catalog entry | Skip this step if you already have a registered model or are using a catalog model     |
+| 4    | Publish Inference Service     | Publish the model as an online inference service                                                                    |
+| 5    | Invoke Inference Service      | Invoke the inference service via API or the "Experience" feature                                                    |
 
 ## Operation Steps
+
 ### Step 1: Create Namespace
+
 **Note：Skip this step if you already have a namespace**
 
 Namespaces are the foundation for multi-tenant isolation in Alauda AI, and each project should use an independent namespace. You can create a namespace directly in Alauda AI or import an existing namespace from the container platform.
@@ -40,6 +46,7 @@ Namespaces are the foundation for multi-tenant isolation in Alauda AI, and each 
 If the namespace already exists in the container platform, click **Import Namespace** on the **Namespaces** page and select the namespace to import it into Alauda AI.
 
 ### Step 2: Manage Namespace and Add User
+
 **Note：Skip this step if the namespace is already managed and user permissions are configured**
 
 Include the created namespace in Alauda AI management and add users to the namespace:
@@ -53,26 +60,30 @@ Include the created namespace in Alauda AI management and add users to the names
    - Editor: Can use the namespace to create and manage AI resources.
    - Viewer: Can view resources in the namespace.
 
-### Step 3: Upload Model
-**Note：Skip this step if you have already uploaded the model or are using a platform-shared model**
+### Step 3: Prepare and Register Model
 
-Upload the text classification model to the model repository:
+**Note：Skip this step if you already have a registered model or are using a platform-shared Model Catalog entry**
+
+Store the text classification model in a supported backend and register it:
 
 1. Enter Alauda AI, select **User View** in the top navigation, and select the managed namespace from the previous step.
-2. Click **Model Repository** in the left navigation bar, click **Create Model Repository**, and enter the prepared model name, such as "Meta-Llama-3-8B-Instruct".
-3. To complete model uploading, refer to the [Create Model Repository](../deploy/model_management/model_repository.mdx#create-model-repository).
-4. In the **File Management** tab, click **Update metadata** and select the correct "Task Type" and "Framework" according to the attributes of the large model.
-   - Task Type: It is an attribute of the model itself and can be obtained by viewing the label on the model download details page. It is divided into "Text Generation", "Image Generation", etc.
-   - Framework: It is also an attribute of the model itself and can be obtained by viewing the label on the model download details page. It is divided into "Transformers", "MLflow", etc. Most popular open-source Large Language Models are of the "Transformers" type.
+2. Store the model in S3, an attached PVC, or an OCI registry. Record its Model URI, for example `s3://models/Meta-Llama-3-8B-Instruct`.
+3. Open **AI Hub > Model Registry**, select **Register Model**, choose a Model Registry, enter the model name and version, and provide the Model URI.
+4. Set the model task and framework in the registry metadata when needed. Most popular open-source LLMs use the `transformers` framework and the `text-generation` task.
+5. If the model is already available in **AI Hub > Model Catalog**, open its catalog details instead and use **Create Inference API** or **Register Model**.
+
+For Workbench upload instructions, see [Upload Models Using a Workbench](../deploy/model_management/upload_models_using_notebook.mdx). For registration, see [Model Registry](../deploy/model_management/model_repository.mdx#register-a-model-and-version).
 
 ### Step 4: Publish Inference Service
+
 Publish the model as an online inference service:
 
-1. On the model details page, click **Publish inference API** > **Custom publishing**.
+1. On the model details page, click **Create Inference API**. For a Model Registry model, select the active **Version**; for a catalog model, the catalog artifact is selected automatically.
 2. Configure service parameters:
    - Name: meta-llama-3-8b-service
+   - Model Source: Model Catalog or Model Registry
    - Model: Meta-Llama-3-8B-Instruct
-   - Version: Branch-main
+   - Version: Version 1 (when using Model Registry)
    - Inference Runtimes: Needs to be selected based on the cuda version installed in the GPU node. For example,if cuda12.6 or later is installed, select "vllm-cuda12.6-x86".
    - Resource Requests: 2CPU/20Gi Memory
    - Resource Limits: 2CPU/20Gi Memory
@@ -80,13 +91,14 @@ Publish the model as an online inference service:
      - gpu number: 1
      - vgpu cores: 50
      - GPU vmemory: 23552
-   - Storage: Mount existing PVC/Capacity 10Gi
+   - Storage: Use the artifact's configured storage or mount an existing PVC
    - Auto Scaling: Off
    - Number of instances: 1
 3. Click **Publish** and wait for the service to start.
 4. View the service status on the **Inference Services** page.
 
 ### Step 5: Invoke Inference Service
+
 Test the published inference service:
 
 1. Click **Inference Services** in the left navigation bar, click the name of the "Published Inference Service", and click **Experience** on the inference service details page.
