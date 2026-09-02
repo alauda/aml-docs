@@ -62,7 +62,7 @@ tag in the Workbench image table or the matching Docker Hub repository before
 building. For production builds, record the resolved digest:
 
 ```bash
-docker buildx imagetools inspect \
+nerdctl manifest inspect \
   docker.io/alaudadockerhub/alauda-workbench-jupyter-datascience-cpu-py312-ubi9:<tag>
 ```
 
@@ -133,7 +133,7 @@ RUN python -m pip install --no-cache-dir \
       "internal-package==<version>"
 
 # Restore the user from the base image. Set BASE_USER to the value reported by:
-# docker image inspect ${BASE_IMAGE} --format '{{.Config.User}}'
+# nerdctl image inspect ${BASE_IMAGE} --format '{{.Config.User}}'
 ARG BASE_USER=1001
 USER ${BASE_USER}
 
@@ -149,7 +149,7 @@ export PROJECT=mlops/workbench-images
 export IMAGE=byo-jupyter-datascience
 export TAG=2026.09.0
 
-docker buildx build \
+nerdctl build \
   --platform linux/amd64 \
   --build-arg BASE_IMAGE=docker.io/alaudadockerhub/alauda-workbench-jupyter-datascience-cpu-py312-ubi9:<tag> \
   -f Containerfile \
@@ -241,12 +241,12 @@ ENTRYPOINT ["/usr/local/bin/start-workbench"]
 Build for NVIDIA nodes and verify the CUDA runtime before registering it:
 
 ```bash
-docker buildx build --platform linux/amd64 \
+nerdctl build --platform linux/amd64 \
   -f Containerfile.cuda \
   -t registry.example.com/mlops/workbench-images/byo-jupyter-cuda:2026.09.0 \
   --push .
 
-docker run --rm --gpus all --entrypoint python3 \
+nerdctl run --rm --gpus all --entrypoint python3 \
   registry.example.com/mlops/workbench-images/byo-jupyter-cuda:2026.09.0 \
   -c 'import torch; print(torch.cuda.is_available())'
 ```
@@ -321,7 +321,7 @@ exec jupyter lab "${args[@]}"
 Build for the architecture exposed by the Ascend nodes:
 
 ```bash
-docker buildx build --platform linux/arm64 \
+nerdctl build --platform linux/arm64 \
   -f Containerfile.cann \
   -t registry.example.com/mlops/workbench-images/byo-jupyter-cann:2026.09.0 \
   --push .
