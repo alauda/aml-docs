@@ -153,8 +153,8 @@ nerdctl build \
   --platform linux/amd64 \
   --build-arg BASE_IMAGE=docker.io/alaudadockerhub/alauda-workbench-jupyter-datascience-cpu-py312-ubi9:<tag> \
   -f Containerfile \
-  -t "${REGISTRY}/${PROJECT}/${IMAGE}:${TAG}" \
-  --push .
+  --output "type=image,name=${REGISTRY}/${PROJECT}/${IMAGE}:${TAG},push=true" \
+  .
 ```
 
 For an Ascend image, use the arm64 Alauda CANN image as `BASE_IMAGE` and build
@@ -243,8 +243,8 @@ Build for NVIDIA nodes and verify the CUDA runtime before registering it:
 ```bash
 nerdctl build --platform linux/amd64 \
   -f Containerfile.cuda \
-  -t registry.example.com/mlops/workbench-images/byo-jupyter-cuda:2026.09.0 \
-  --push .
+  --output "type=image,name=registry.example.com/mlops/workbench-images/byo-jupyter-cuda:2026.09.0,push=true" \
+  .
 
 nerdctl run --rm --gpus all --entrypoint python3 \
   registry.example.com/mlops/workbench-images/byo-jupyter-cuda:2026.09.0 \
@@ -323,8 +323,8 @@ Build for the architecture exposed by the Ascend nodes:
 ```bash
 nerdctl build --platform linux/arm64 \
   -f Containerfile.cann \
-  -t registry.example.com/mlops/workbench-images/byo-jupyter-cann:2026.09.0 \
-  --push .
+  --output "type=image,name=registry.example.com/mlops/workbench-images/byo-jupyter-cann:2026.09.0,push=true" \
+  .
 ```
 
 Test this image on an Ascend node, not only on the build host. For example,
@@ -365,11 +365,22 @@ spec:
     logo:
       url: https://jupyter.org/assets/favicons/apple-touch-icon-152x152.png
   podTemplate:
+    containerSecurityContext:
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
     extraEnv:
       - name: NB_PREFIX
         value: /clusters/<cluster>/aml/aml-workbench{{ httpPathPrefix "jupyterlab" }}
       - name: NOTEBOOK_BASE_URL
         value: /clusters/<cluster>/aml/aml-workbench{{ httpPathPrefix "jupyterlab" }}
+    securityContext:
+      runAsNonRoot: true
+      fsGroup: 1001
     options:
       imageConfig:
         spawner:
@@ -429,6 +440,14 @@ spec:
     logo:
       url: https://jupyter.org/assets/favicons/apple-touch-icon-152x152.png
   podTemplate:
+    containerSecurityContext:
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
     extraEnv:
       - name: NB_PREFIX
         value: /clusters/<cluster>/aml/aml-workbench{{ httpPathPrefix "jupyterlab" }}
@@ -436,6 +455,7 @@ spec:
         value: /clusters/<cluster>/aml/aml-workbench{{ httpPathPrefix "jupyterlab" }}
     securityContext:
       runAsNonRoot: true
+      fsGroup: 1001
       supplementalGroups:
         # Replace 1000 with the group owning /dev/davinci* on your nodes.
         - 1000
