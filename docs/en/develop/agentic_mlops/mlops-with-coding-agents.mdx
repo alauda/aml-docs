@@ -58,13 +58,13 @@ For the YAML fields and platform-specific labels/annotations the agent needs to 
 
 Alauda Build of Envoy AI Gateway is a required dependency of Alauda Build of KServe and fronts inference traffic with an OpenAI-compatible API surface, AI-aware routing, and per-model policies (see [Envoy AI Gateway introduction](../../deploy/components/envoy_ai_gateway/intro.mdx)). Envoy AI Gateway is managed by Alauda AI through the `envoyAIGateway` component in the `default` `AmlCluster`; see [Install Alauda AI](../../installation/ai-cluster.mdx). The agent is well-suited to author its CRDs, which are otherwise verbose:
 
-| Concern | CRD / Resource | Where it comes from |
-|---|---|---|
-| Route requests to one or more model backends | `AIGatewayRoute`, `AIServiceBackend` | Envoy AI Gateway |
-| Authenticate the **client** (downstream): API key, JWT, OIDC | `SecurityPolicy` | Envoy Gateway |
-| Authenticate to the **upstream** model (when chaining to a hosted provider) | `BackendSecurityPolicy` | Envoy AI Gateway |
-| Per-route or per-model rate limiting and token-budget enforcement | `BackendTrafficPolicy` (global rate limit) or `AIGatewayRoute` token-rate-limit settings | Envoy Gateway / Envoy AI Gateway |
-| TLS termination, observability | Standard `Gateway` / `HTTPRoute` and Envoy Gateway features | Envoy Gateway |
+| Concern                                                                     | CRD / Resource                                                                           | Where it comes from              |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------- |
+| Route requests to one or more model backends                                | `AIGatewayRoute`, `AIServiceBackend`                                                     | Envoy AI Gateway                 |
+| Authenticate the **client** (downstream): API key, JWT, OIDC                | `SecurityPolicy`                                                                         | Envoy Gateway                    |
+| Authenticate to the **upstream** model (when chaining to a hosted provider) | `BackendSecurityPolicy`                                                                  | Envoy AI Gateway                 |
+| Per-route or per-model rate limiting and token-budget enforcement           | `BackendTrafficPolicy` (global rate limit) or `AIGatewayRoute` token-rate-limit settings | Envoy Gateway / Envoy AI Gateway |
+| TLS termination, observability                                              | Standard `Gateway` / `HTTPRoute` and Envoy Gateway features                              | Envoy Gateway                    |
 
 A practical agent workflow:
 
@@ -77,7 +77,7 @@ For the exact field shape of each CRD, defer to the upstream documentation linke
 
 ## Tune service performance to fit your hardware \{#tune-performance}
 
-This section focuses on how an agent can *drive* tuning instead of you doing it by hand. The server-side knobs differ by runtime — for vLLM, see [Best practices: tune inference service performance](./coding-agents-with-inference-service.mdx#best-practices); for llama.cpp (GGUF), the relevant flags include `--cache-type-k`/`--cache-type-v` (KV cache quantization), `--ctx-size` (context window), `--parallel` (concurrency), and `--reasoning`/`--reasoning-budget` (reasoning control).
+This section focuses on how an agent can _drive_ tuning instead of you doing it by hand. The server-side knobs differ by runtime — for vLLM, see [Best practices: tune inference service performance](./coding-agents-with-inference-service.mdx#best-practices); for llama.cpp (GGUF), the relevant flags include `--cache-type-k`/`--cache-type-v` (KV cache quantization), `--ctx-size` (context window), `--parallel` (concurrency), and `--reasoning`/`--reasoning-budget` (reasoning control).
 
 A productive loop:
 
@@ -130,12 +130,12 @@ Fine-tuning has two failure modes that coding agents are unusually good at preve
 
 ### Pick the right tool for the job
 
-| Situation | Recommended tool | Reference |
-|---|---|---|
-| Interactive exploration, small dataset, one or two GPUs | Workbench Notebook | [Fine-tuning with Notebooks](../../train/guides/fine-tuning-using-notebooks.mdx) |
-| Production-grade SFT / OSFT with automatic memory management | Training Hub | [Fine-tuning LLMs with Training Hub](../../train/guides/training-hub-fine-tuning.mdx) |
-| Reusable templates, many runs, scheduled / batched on Kueue | Kubeflow Trainer v2 + LlamaFactory | [Fine-Tuning with Kubeflow Trainer v2](../../train/guides/fine-tune-with-trainer-v2.mdx) |
-| Already-tuned model needs to fit a smaller GPU before serving | LLM Compressor | [LLM Compressor with Alauda AI](../../deploy/model_compression/compressor_by_workbench.mdx) |
+| Situation                                                     | Recommended tool                   | Reference                                                                                   |
+| ------------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------- |
+| Interactive exploration, small dataset, one or two GPUs       | Workbench Notebook                 | [Fine-tuning with Notebooks](../../train/guides/fine-tuning-using-notebooks.mdx)            |
+| Production-grade SFT / OSFT with automatic memory management  | Training Hub                       | [Fine-tuning LLMs with Training Hub](../../train/guides/training-hub-fine-tuning.mdx)       |
+| Reusable templates, many runs, scheduled / batched on Kueue   | Kubeflow Trainer v2 + LlamaFactory | [Fine-Tuning with Kubeflow Trainer v2](../../train/guides/fine-tune-with-trainer-v2.mdx)    |
+| Already-tuned model needs to fit a smaller GPU before serving | LLM Compressor                     | [LLM Compressor with Alauda AI](../../deploy/model_compression/compressor_by_workbench.mdx) |
 
 ### A reusable fine-tuning plan template
 
@@ -145,15 +145,18 @@ Have the agent fill in this template **before** any job is submitted, and commit
 # Fine-tuning plan: <run-id>
 
 ## Objective
+
 - Business goal:
 - Success metric (what improves; how it's measured):
 - Acceptance threshold (minimum acceptable score on the metric):
 
 ## Base model
+
 - Model and revision:
 - Why this base (capability, license, context window, tool-calling support):
 
 ## Dataset
+
 - Source(s) and license:
 - Size (examples / tokens):
 - Format (e.g., JSONL chat messages):
@@ -161,25 +164,30 @@ Have the agent fill in this template **before** any job is submitted, and commit
 - Known biases or contamination risks:
 
 ## Method
+
 - Approach (SFT / LoRA / QLoRA / OSFT / continued pre-train):
 - Justification vs. the alternatives:
 - Tool (Training Hub / Kubeflow Trainer v2 / Notebook / LlamaFactory):
 
 ## Compute budget
+
 - Hardware (GPU type, count, hours):
 - Hardware Profile to use:
 - Estimated cost / wall-clock:
 
 ## Hyperparameters
+
 - Effective batch size, max_tokens_per_gpu, lr, epochs, scheduler, seed:
 - Checkpoint cadence and retention:
 
 ## Evaluation plan
+
 - Benchmarks (public + internal):
 - Eval harness and seed:
 - Comparison baselines (the base model, prior runs):
 
 ## Risks and rollback
+
 - What could go wrong (catastrophic forgetting, tool-calling regression, license conflict):
 - How we'll detect it:
 - Rollback (which model artifact to revert to):
@@ -195,12 +203,14 @@ After the job finishes, ask the agent to ingest the training logs, eval outputs,
 # Fine-tuning report: <run-id>
 
 ## Provenance
+
 - Plan: link to plan.md and its commit SHA
 - TrainJob / Notebook: name, namespace, start/end time
 - Hardware actually used (vs. planned):
-- Model artifact location (PVC / model repo path / OCI image):
+- Model artifact location (S3 URI / PVC URI / OCI image URI):
 
 ## Training summary
+
 - Steps / epochs completed:
 - Final training loss; loss trend (link to TensorBoard / MLflow run):
 - Throughput (tokens/sec, samples/sec):
@@ -208,20 +218,24 @@ After the job finishes, ask the agent to ingest the training logs, eval outputs,
 - Anomalies (loss spikes, restarts, OOMs):
 
 ## Evaluation results
+
 - Headline metric vs. baseline and acceptance threshold:
 - Per-benchmark scores table (this run, base model, prior best):
 - Tool-calling sanity check (pass/fail with example):
 - Qualitative samples (3–5 prompts; this run vs. base, side by side):
 
 ## Cost
+
 - GPU-hours, $ (if applicable), $/percentage-point of improvement:
 
 ## Decision
+
 - Promote / re-run / abandon:
 - If promote: which `InferenceService` to update and how (image, storageUri, runtime flags):
 - If re-run: what to change in the next plan.md:
 
 ## Next actions
+
 - Owner / date:
 ```
 
@@ -243,7 +257,7 @@ Each step is a separate prompt with its own diff to review. The agent is the typ
 
 ## Best practices and guardrails \{#best-practices-and-guardrails}
 
-- **Read-only first, write second.** Start every new task by asking the agent to read state (`get`, `describe`, logs, metrics) and *describe what it would do* before making changes.
+- **Read-only first, write second.** Start every new task by asking the agent to read state (`get`, `describe`, logs, metrics) and _describe what it would do_ before making changes.
 - **Always `--dry-run=server`.** Make it a standing rule in the agent context file; mention it in every prompt that involves `kubectl apply`.
 - **One change per iteration.** Especially for performance tuning, mixing two changes hides which one helped.
 - **Never let the agent fabricate metrics.** Require it to cite the file, log, or run ID it pulled each number from, and to mark `TODO` when data is missing.

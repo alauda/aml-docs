@@ -9,11 +9,17 @@ This document describes how to use the LLM Compressor integration with the Alaud
 - A workbench image and the [data-free-compressor.ipynb](/data-free-compressor.ipynb) that demonstrate how to compress a model.
 - A workbench image and the [calibration-compressor.ipynb](/calibration-compressor.ipynb) that demonstrate how to compress a model using a calibration dataset.
 
-<a href="/data-free-compressor.ipynb" download="data-free-compressor.ipynb"  rel="noopener noreferrer">notebook</a>
+<a
+  href="/data-free-compressor.ipynb"
+  download="data-free-compressor.ipynb"
+  rel="noopener noreferrer"
+>
+  notebook
+</a>
 
 ## Supported Model Compression Workflows
 
-On the Alauda AI platform, you can use the Workbench feature to run LLM Compressor on models stored in your model repository. The following workflow outlines the typical steps for compressing a model.
+On the Alauda AI platform, you can use the Workbench feature to run LLM Compressor on models stored in S3, a PVC, or an OCI registry. The following workflow outlines the typical steps for compressing a model.
 
 ### Create a Workbench
 
@@ -21,9 +27,14 @@ Follow the instructions in [Create Workbench](../../develop/workbench/create_wor
 
 If this image is not available in your environment, refer to the linked article for instructions on how to synchronize the image and patch the WorkspaceKind resource so that the image becomes available in the Workbench creation options.
 
-### Create a Model Repository and Upload Models
+### Prepare the Model Artifact
 
-Refer to [Upload Models Using Notebook](../model_management/upload_models_using_notebook.mdx) for detailed steps on creating a model repository and uploading your model files. The example notebooks in this guide use the [TinyLlama-1.1B-Chat-v1.0](https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0) model.
+Download the model into the Workbench or stage it on a PVC/S3 location accessible
+from the Workbench. After compression, upload the output to a supported storage backend. See
+[Upload Models Using a Workbench](../model_management/upload_models_using_notebook.mdx).
+Register the resulting Model URI as a new Model Registry version using [Model
+Registry](../model_management/model_repository.mdx#register-a-model-and-version).
+The example notebooks in this guide use the [TinyLlama-1.1B-Chat-v1.0](https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0) model.
 
 ```python title=data-free-compressor.ipynb
 from llmcompressor.modifiers.quantization import QuantizationModifier
@@ -33,12 +44,11 @@ recipe = QuantizationModifier(targets="Linear", scheme="W4A16", ignore=["lm_head
 ```
 
 <Callouts>
-  1. Model to compress. **You can modify this line if you want to use your own model**.
-  2. This recipe will quantize all Linear layers except those in the `lm_head`,
-     which is often sensitive to quantization. The `W4A16` scheme compresses
-     weights to `4-bit` integers while retaining `16-bit` activations.
+  1. Model to compress. **You can modify this line if you want to use your own
+  model**. 2. This recipe will quantize all Linear layers except those in the
+  `lm_head`, which is often sensitive to quantization. The `W4A16` scheme
+  compresses weights to `4-bit` integers while retaining `16-bit` activations.
 </Callouts>
-
 
 ### (Optional) Prepare and Upload a Dataset
 
@@ -46,7 +56,7 @@ recipe = QuantizationModifier(targets="Linear", scheme="W4A16", ignore=["lm_head
 If you plan to use the **data-free compressor notebook**, you can skip this step.
 :::
 
-To use the **calibration compressor notebook**, you must prepare and upload a calibration dataset. Prepare your dataset using the same process described in *Upload Models Using Notebook*. The example calibration notebook uses the [ultrachat_200k](https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k) dataset.
+To use the **calibration compressor notebook**, you must prepare and upload a calibration dataset. Prepare your dataset using the same process described in _Upload Models Using Notebook_. The example calibration notebook uses the [ultrachat_200k](https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k) dataset.
 
 ```python title=calibration-compressor.ipynb
 from datasets import load_dataset
@@ -76,11 +86,12 @@ ds = ds.map(preprocess, remove_columns=ds.column_names)
 ```
 
 <Callouts>
-  1. Create the calibration dataset, using Huggingface datasets API. **You can modify this line if you want to use your own dataset**.
-  2. Select number of samples. 512 samples is a good place to start. Increasing the number of samples can improve accuracy.
-  3. Load dataset.
-  4. Shuffle and grab only the number of samples we need.
-  5. Preprocess and tokenize into format the model uses.
+  1. Create the calibration dataset, using Huggingface datasets API. **You can
+  modify this line if you want to use your own dataset**. 2. Select number of
+  samples. 512 samples is a good place to start. Increasing the number of
+  samples can improve accuracy. 3. Load dataset. 4. Shuffle and grab only the
+  number of samples we need. 5. Preprocess and tokenize into format the model
+  uses.
 </Callouts>
 
 ### (Optional) Upload Dataset into S3-Compatible Object Storage
@@ -112,8 +123,9 @@ for root, dirs, files in os.walk(local_folder):
 ```
 
 <Callouts>
-  1. **You can modify this line if you want to use your own dataset**.
-  2. Configure multipart upload with 100 MB chunks and a maximum of 10 concurrent threads.
+  1. **You can modify this line if you want to use your own dataset**. 2.
+  Configure multipart upload with 100 MB chunks and a maximum of 10 concurrent
+  threads.
 </Callouts>
 
 ### (Optional) Use Dataset from S3-Compatible Object Storage
@@ -153,23 +165,30 @@ ds = load_dataset(
   3. If the dataset is split, this is equivalent to `split="train_sft"` in the example.
 </Callouts>
 
-### Clone Models and Datasets in JupyterLab
+### Download Models and Datasets in JupyterLab
 
-In the JupyterLab terminal, use `git clone` to download the model repository (and dataset, if applicable) to your workspace. The data-free compressor notebook does not require a dataset.
+In the JupyterLab terminal, use the `hf` command-line tool or your approved
+object-storage client to download the model and dataset into the workspace. The
+data-free compressor notebook does not require a dataset.
 
 :::info
 We recommend using the Hugging Face (hf) command-line tool to download models and datasets directly when network access allows it. This approach is usually faster and simpler than cloning repositories manually.
 :::
 
 If you are in a restricted network environment, you can use the Hugging Face mirror for accelerated access:
+
 ```bash
 export HF_ENDPOINT=https://hf-mirror.com
 ```
+
 You can use the `hf` command-line tool to download models and datasets directly. For example, to download the TinyLlama model:
+
 ```bash
 hf download TinyLlama/TinyLlama-1.1B-Chat-v1.0 --local-dir TinyLlama-1.1B-Chat-v1.0
 ```
+
 For calibration datasets, download them similarly:
+
 ```bash
 hf download --repo-type dataset HuggingFaceH4/ultrachat_200k --local-dir ultrachat_200k
 ```
@@ -178,9 +197,12 @@ hf download --repo-type dataset HuggingFaceH4/ultrachat_200k --local-dir ultrach
 
 Download the appropriate example notebook for your use case: the **calibration compressor notebook** if you are using a dataset, or the **data-free compressor notebook** otherwise. Click the upward arrow button on the JupyterLab page to upload the downloaded notebook file.
 
-### Upload the Compressed Model to the Repository
+### Register the Compressed Model
 
-Once compression is complete, upload the compressed model back to the model repository. See [Upload Models Using Notebook](../model_management/upload_models_using_notebook.mdx) for detailed steps on uploading model files to the model repository.
+Once compression is complete, upload the compressed model to S3, a PVC, or an OCI
+registry using [Upload Models Using a Workbench](../model_management/upload_models_using_notebook.mdx).
+Then register its Model URI as a new Model Registry version using [Model
+Registry](../model_management/model_repository.mdx#register-a-model-and-version).
 
 ```python
 model_dir = "./" + model_id.split("/")[-1] + "-W4A16" #[!code callout]
@@ -189,7 +211,8 @@ tokenizer.save_pretrained(model_dir);
 ```
 
 <Callouts>
-  1. Save model and tokenizer. **You can modify this line if you want to change the name of output**.
+  1. Save model and tokenizer. **You can modify this line if you want to change
+  the name of output**.
 </Callouts>
 
 ### Deploy and Use the Compressed Model for Inference
