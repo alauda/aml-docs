@@ -44,7 +44,7 @@ Alauda AI 2.8.x supports upgrading an existing Alauda AI 2.3.x environment. Revi
 
 - **MLflow enhancements** add AI-agent tracing, external PostgreSQL metadata storage, and object-storage configuration, while retaining platform SSO and Kubernetes RBAC integration.
 - **MLflow Operator 3.13.0** is delivered through OperatorHub starting with Alauda AI 2.8.x. Install the Operator and create an `MLflow` custom resource to deploy and manage the tracking server.
-- **Alauda AI Workbench v0.2.0** is managed through the `workbench` component in the `default` `AmlCluster` in Alauda AI 2.8.x. Alauda AI installs and reconciles the Workbench Operator and its resources.
+- **Alauda AI Workbench v0.2.0** is installed through the Workbench OLM Operator. Create the `Workbench` CR in the `kubeflow` namespace. Use Alauda AI Operator (`aml-operator`) v2.8.1, which automatically corrects the v0.2.0 Workbench-CR namespace issue.
 - **Elyra Pipeline Editor** enables users to compose Kubeflow Pipelines workflows visually from notebooks and scripts.
 - **Reusable pipeline components** and expanded Kubeflow Pipeline mechanisms simplify authoring and reusing pipeline workflows.
 - **Llama Stack** adds PGVector and Milvus vector stores for agent and retrieval workflows.
@@ -65,7 +65,7 @@ Alauda AI Workbench, MLflow, and Alauda Build of LeaderWorkerSet are delivered t
 |:--|:--|:--|
 | **MLflow** | MLflow OLM Operator | Install the MLflow Operator and create an `MLflow` custom resource. |
 | **Alauda Build of LeaderWorkerSet (LWS)** | Operator managed through Alauda AI and the `AmlCluster` | Enable the `lws` component in the `default` `AmlCluster`; Alauda AI installs and reconciles LWS. |
-| **Alauda AI Workbench** | Workbench OLM Operator | Install the Workbench Operator and create a `Workbench` custom resource. |
+| **Alauda AI Workbench** | Workbench OLM Operator | Install Workbench v0.2.0 and create its `Workbench` custom resource in `kubeflow`; use `aml-operator` v2.8.1 to automatically correct the namespace issue. |
 
 These deployment-form changes do not imply that existing user data should be deleted. Follow the component-specific migration instructions and preserve applicable PVCs and custom resources during migration.
 
