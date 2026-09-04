@@ -4,56 +4,81 @@ weight: 40
 
 # Install Workbench
 
-In Alauda AI 2.8.x, Workbench is normally installed and managed by Alauda AI. Enable the `workbench` component in the cluster-scoped `default` `AmlCluster`; you do not need to upload the Workbench Operator package, install the Operator separately, or create a `Workbench` custom resource manually.
+Starting with v0.2.0, Workbench is delivered as an independent OLM Helm
+operator. Install the **Alauda AI Workbench Operator** and create a
+`Workbench` custom resource (CR) to deploy Workbench.
+
+Before installing Workbench v0.2.0, install or upgrade the Alauda AI Operator
+(`aml-operator`) to v2.8.1. This version automatically corrects the v0.2.0
+Workbench-CR namespace issue. The `Workbench` CR must be created in the
+`kubeflow` namespace.
 
 ## Prerequisites
 
-- Alauda AI is installed on the target cluster. See [Install Alauda AI](./ai-cluster.mdx).
+- Alauda AI Operator (`aml-operator`) v2.8.1 is installed on the target cluster. See [Install Alauda AI](./ai-cluster.mdx).
 - The target cluster has sufficient resources for Workbench workloads.
 - **Optional:** Alauda Service Mesh (Istio) is required only for the Elyra Kubeflow Pipelines run-URL redirect. Istio integration is disabled by default.
 
-## Enable Workbench
+## Install the Workbench operator
 
 In **Administrator** view:
 
 1. Open **Marketplace** > **OperatorHub**.
-2. Select the target cluster and open **Alauda AI**.
-3. Open the **All Instances** tab and edit the `default` `AmlCluster` instance.
-4. Set `spec.components.workbench.managementState` to `Managed`.
-5. Save the `AmlCluster` instance and wait for Workbench to become ready.
+2. Select the target cluster and open **Alauda AI Workbench Operator**.
+3. Select version `v0.2.0`, then install the operator.
+4. Wait for the operator to become ready.
 
-You can apply the component setting in the `AmlCluster` YAML:
+## Create the Workbench custom resource
+
+After the Workbench operator is ready, open its **All Instances** tab and
+create a `Workbench` instance in the `kubeflow` namespace. Do not create the
+CR in the `aml-operator` namespace or in another namespace.
+
+You can create the resource with `kubectl`:
 
 ```yaml
+apiVersion: workbench.alauda.io/v1alpha1
+kind: Workbench
+metadata:
+  name: workbench
+  namespace: kubeflow
 spec:
-  components:
-    workbench:
-      managementState: Managed
-      values:
-        global:
-          istio:
-            enabled: false
+  global:
+    istio:
+      enabled: false
 ```
 
-Set `spec.components.workbench.values.global.istio.enabled` to `true` only when the target cluster runs Alauda Service Mesh and you need Elyra-generated KFP run URLs to redirect through the Kubeflow Istio ingress gateway.
+Save the manifest as `workbench.yaml`, then apply it:
+
+```bash
+kubectl apply -f workbench.yaml
+```
+
+Set `spec.global.istio.enabled` to `true` only when the target cluster runs
+Alauda Service Mesh and you need Elyra-generated KFP run URLs to redirect
+through the Kubeflow Istio ingress gateway.
 
 :::note
-The default `workbench` state is `Unmanaged`, so Workbench is not installed until you explicitly set the component to `Managed`. For normal deployments, use `Managed` and let Alauda AI install and reconcile Workbench.
+`aml-operator` v2.8.1 automatically repairs an existing v0.2.0 Workbench CR
+that was created outside the required `kubeflow` namespace. Create new
+Workbench CRs in `kubeflow` so that the installation is correct from the
+start.
 :::
 
 ## Verification
 
-Check the `AmlCluster` status:
+Check the Workbench CR status:
 
 ```bash
-kubectl get amlcluster default
+kubectl -n kubeflow get workbench workbench
 ```
 
-The resource should report `Phase=Ready` and `Reason=Reconciled`. You can also verify the Workbench resources created by Alauda AI:
+The resource should report that it is ready. You can also verify the Workbench
+resources created by the operator:
 
 ```bash
-# The Workbench instance is ready.
-kubectl get workbench -A
+# The Workbench instance is in the required namespace.
+kubectl -n kubeflow get workbench
 
 # The workspace controller is available.
 kubectl -n kubeflow get deploy workspace-controller-controller-manager
