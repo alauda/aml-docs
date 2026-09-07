@@ -29,7 +29,7 @@ In **Administrator** view:
 
 1. Open **Marketplace** > **OperatorHub**.
 2. Select the target cluster and open **Alauda AI Workbench Operator**.
-3. Select version `v0.2.0`, then install the operator.
+3. Select the version of the operator that you uploaded, then install it.
 4. Wait for the operator to become ready.
 
 ## Create the Workbench custom resource
@@ -38,7 +38,7 @@ After the Workbench operator is ready, open its **All Instances** tab and
 create a `Workbench` instance in the `kubeflow` namespace. Do not create the
 CR in the `aml-operator` namespace or in another namespace.
 
-You can create the resource with `kubectl`:
+Alternatively, you can create the resource with `kubectl`:
 
 ```yaml
 apiVersion: workbench.alauda.io/v1alpha1

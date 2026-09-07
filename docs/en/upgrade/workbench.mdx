@@ -21,7 +21,7 @@ Starting with v0.2.0, Workbench is delivered as an OLM Helm operator instead of 
 
 2. In **Administrator** > **Marketplace** > **Cluster Plugins**, uninstall the earlier **Workbench** cluster plugin. Preserve user PVCs, retained `WorkspaceKind` resources, and the `aml-workbench-config` `ConfigMap`; the operator adopts or reapplies these resources.
 3. Install or upgrade the Alauda AI Operator (`aml-operator`) according to [Version Compatibility](../installation/workbench.mdx#version-compatibility). For the v0.2.0 migration, use v2.8.1; this version automatically corrects the Workbench-CR namespace issue.
-4. Install the Workbench v0.2.0 operator, then create its `Workbench` custom resource in the `kubeflow` namespace. Do not create the CR in the `aml-operator` namespace or in another namespace. For the manifest and normal installation path, see [Install Workbench](../installation/workbench.mdx).
+4. Install the Workbench operator version that you uploaded, then create its `Workbench` custom resource in the `kubeflow` namespace. Do not create the CR in the `aml-operator` namespace or in another namespace. For the manifest and normal installation path, see [Install Workbench](../installation/workbench.mdx).
 5. Verify the existing Workspaces and their PVCs are still present, then create and connect to a test Workbench. Complete the migration steps below before declaring the migration complete.
 
 If the previous installation relied on the Elyra KFP run-URL redirect, set `spec.global.istio.enabled: true` in the `Workbench` CR. Istio integration is optional and disabled by default.
