@@ -8,14 +8,18 @@ Starting with v0.2.0, Workbench is delivered as an independent OLM Helm
 operator. Install the **Alauda AI Workbench Operator** and create a
 `Workbench` custom resource (CR) to deploy Workbench.
 
-Before installing Workbench v0.2.0, install or upgrade the Alauda AI Operator
-(`aml-operator`) to v2.8.1. This version automatically corrects the v0.2.0
-Workbench-CR namespace issue. The `Workbench` CR must be created in the
-`kubeflow` namespace.
+## Version Compatibility
+
+Use a compatible Alauda AI and Workbench version pair:
+
+| Workbench version | Compatible Alauda AI version | Notes |
+|:--|:--|:--|
+| **v0.2.0** | **v2.8.1** | Alauda AI Operator (`aml-operator`) v2.8.1 automatically corrects the v0.2.0 Workbench-CR namespace issue. |
+| **v0.2.2** | **v2.5.0 and later (`>= v2.5.0`)** | Workbench v0.2.2 is compatible with Alauda AI v2.5.0 and later. |
 
 ## Prerequisites
 
-- Alauda AI Operator (`aml-operator`) v2.8.1 is installed on the target cluster. See [Install Alauda AI](./ai-cluster.mdx).
+- A compatible Alauda AI version is installed on the target cluster. See [Install Alauda AI](./ai-cluster.mdx).
 - The target cluster has sufficient resources for Workbench workloads.
 - **Optional:** Alauda Service Mesh (Istio) is required only for the Elyra Kubeflow Pipelines run-URL redirect. Istio integration is disabled by default.
 
@@ -59,10 +63,10 @@ Alauda Service Mesh and you need Elyra-generated KFP run URLs to redirect
 through the Kubeflow Istio ingress gateway.
 
 :::note
-`aml-operator` v2.8.1 automatically repairs an existing v0.2.0 Workbench CR
-that was created outside the required `kubeflow` namespace. Create new
-Workbench CRs in `kubeflow` so that the installation is correct from the
-start.
+For Workbench v0.2.0, `aml-operator` v2.8.1 automatically repairs an existing
+Workbench CR that was created outside the required `kubeflow` namespace.
+Create new Workbench CRs in `kubeflow` so that the installation is correct
+from the start.
 :::
 
 ## Verification
