@@ -1,0 +1,349 @@
+---
+weight: 60
+i18n:
+  title:
+    en: Qwen3.5-397B-A17B (W8A8)
+    zh: Qwen3.5-397B-A17B (W8A8)
+---
+
+# Qwen3.5-397B-A17B (W8A8)
+
+`qwen3_5_moe`-architecture model (`Qwen3_5MoeForConditionalGeneration`) — a **512-expert
+MoE** (10 experts per token + 1 shared expert) with a **hybrid attention stack**: of its
+60 layers only **15 carry a full-attention KV cache**, the other 45 are linear-attention
+(one full-attention layer every 4). It ships a native **MTP** head and is served as
+**W8A8** (~392 GB weights: 373 GB experts + 18 GB non-expert). **397B total /
+~17B activated per token.**
+
+It was validated on **Ascend 910B3 (64 GB/card)** in **two topologies on the same 16
+cards** — one 16-card cross-node aggregation and one 8-card single-node aggregation —
+so that per-scenario placement can be chosen on measured data rather than assumed. Load
+is a **replay of real agent traces** (Exgentic v2, `claude_code` harness), swept over
+concurrent agent **sessions**, not synthetic fixed-length prompts.
+
+:::tip
+**In short — split the 16 cards into two independent 8-card services for chat and coding,
+and keep one 16-card service only for RAG.**
+
+On identical hardware and at the same total number of concurrent sessions, two 8-card
+islands served chat and coding at **1.7–2.1× lower inter-token latency** and **up to 89 %
+higher throughput** than a single 16-card cross-node service — but only while each
+island's KV cache has headroom. **RAG must stay on the 16-card service** (30 % of its
+requests exceed the window an 8-card deployment can hold), and **coding should move back
+to it above ~16 total sessions**, where an island reaches 86 % KV and latency quadruples.
+Also: do not hand-write `cudagraph_capture_sizes` — see the caution below.
+:::
+
+## Model identity
+
+| Field | Value |
+|---|---|
+| Publisher | Qwen |
+| Architecture | `qwen3_5_moe` (`Qwen3_5MoeForConditionalGeneration`) — 512-expert MoE (10 experts/token + shared expert, `moe_intermediate_size` 1024) over **60 layers, hybrid attention: 15 × `full_attention` + 45 × `linear_attention`** (`full_attention_interval` 4); native MTP head (`mtp_num_hidden_layers` 1); **397B total / ~17B activated** |
+| Quantization | W8A8 (`--quantization ascend`); ~392 GB weights — 373 GB expert + 18 GB non-expert |
+| Context / hidden | 262,144 (`max_position_embeddings`) / 4096 |
+| Model source (W8A8) | https://modelscope.cn/models/Eco-Tech/Qwen3.5-397B-A17B-w8a8-mtp |
+
+:::note
+**Only 15 of the 60 layers hold a KV cache.** Sizing this model as if all 60 layers were
+full-attention overstates per-request KV by **4×** and understates how many sessions fit
+by the same factor. The KV figures below use the 15 full-attention layers, read from
+`layer_types` in `config.json`.
+:::
+
+## Validated hardware × stack
+
+| Platform | Engine | Version / config | Status |
+|---|---|---|---|
+| Ascend 910B3 64 GB × 16, 2 nodes — **1 instance, DP2 × TP=8 + EP16** | vLLM-Ascend | vLLM 0.23.0 (`vllm-ascend@sha256:6c183df…`) | ✅ 3 scenarios (chat / coding / RAG), 4-rung session sweep |
+| Ascend 910B3 64 GB × 8, 1 node — **1 instance, TP=8 (DP1) + EP8** | vLLM-Ascend | same image | ✅ 2 scenarios (chat / coding); **RAG does not fit** — see below |
+
+## Model configuration \{#model-configuration}
+
+| Parameter | 16-card (DP2 × TP=8) | 8-card (TP=8) |
+|---|---|---|
+| Tensor / data / expert parallelism | TP=8, DP=2 (1 rank per node), EP16 | TP=8, DP=1, EP8 |
+| `max-model-len` | 180224 | 65536 (KV-bound) |
+| `max-num-batched-tokens` | 8192 | 4096 |
+| `max-num-seqs` (admission gate, per rank) | 64 | 16 |
+| `gpu-memory-utilization` | 0.90 | 0.97 |
+| KV cache (engine-reported) | 1,416,463 tokens | 375,260 tokens |
+| Speculative decoding | `qwen3_5_mtp`, `num_speculative_tokens: 1` | same |
+| Decode graph | `FULL_DECODE_ONLY`; capture sizes **left to the engine** → `[8…128]` | same → `[8…32]` |
+| Prefix caching | enabled (local) | enabled (local) |
+| Notable env | `VLLM_ASCEND_ENABLE_FLASHCOMM1=1`, `HCCL_INTRA_ROCE_ENABLE=1` | same |
+
+:::caution
+**Do not hand-write `cudagraph_capture_sizes`.** Left alone, this engine sizes the capture
+list to cover exactly the largest decode step the admission gate can produce —
+`max_num_seqs × (1 + num_speculative_tokens)` tokens. Measured on both topologies here:
+gate 64 → captures `[8, 16, …, 128]`; gate 16 → `[8, 16, 24, 32]`. **The default has no
+cliff by construction.** A hand-written list silently overrides it, and **any decode step
+whose token count exceeds the largest captured size falls back to eager dispatch for the
+whole step**.
+
+The unit is **tokens per step, not requests**: with MTP (`k = 1`) each running sequence
+contributes 2 tokens per step, so a captured maximum of 64 covers only 32 sequences per
+rank. An earlier configuration of this model pinned `[1,2,4,8,16,32,64]` against a gate of
+64 — half the coverage it needed. A controlled probe on that deployment measured
+**506–675 ms per step above the boundary versus 145 ms below it**, and one rank crossing
+it stalls the whole DP group.
+
+Removing the list costs ~9 min of extra graph capture at startup on the 16-card topology
+(749 s vs 322 s) and **nothing** in KV cache — the 8-card engine reported the same
+375,260-token cache either way.
+:::
+
+## Benchmark method \{#benchmark-method}
+
+Closed-loop `aiperf 0.12.0`, replaying **real agent sessions** from the Exgentic v2
+corpus (`harness=claude_code`) rather than synthetic prompts. The x-axis is **concurrent
+agent sessions**: one session has at most one request in flight, and finished sessions
+are immediately replaced, so a rung holds its session count for the whole run.
+
+| Scenario | Corpus subset | Sessions in pool | What it models | ISL (measured avg) |
+|---|---|--:|---|--:|
+| **chat** | `tau2_retail` | 356 | Customer-support agent, multi-turn tool use | ~22k tokens |
+| **coding** | `swebench` | 495 | Coding agent working a repository task | ~30k tokens |
+| **RAG** | `browsecompplus` | 451 | Retrieval-heavy browsing agent, long context | ~52k tokens (p90 101k) |
+
+Each rung sends a fixed request count scaled with concurrency
+(`max(200, 25 × concurrency)`) so every rung drives each session to the same depth — a
+fixed per-rung request count would let high-concurrency rungs spread the same work over
+more, shallower sessions and flatter the numbers.
+
+:::note
+**Every figure below is measured over the second half of its rung — the steady state.**
+
+Closed-loop replay starts all N sessions at turn 0 at once, so a rung opens with every
+session doing a full cold prefill simultaneously; those prefill steps crowd out decode and
+inflate ITL until the prefix cache catches up. On this model that alone accounts for a
+38–50 % fall in ITL from the first to the last fifth of a rung, on an already-warm engine.
+Production traffic is a mixture of session depths, not a synchronized cold start, so the
+settled half is the representative operating point and the whole-rung average is
+pessimistic. That window is itself re-checked for drift (≤ 25 % change in median ITL
+across it); rungs that still drift are marked ⚠️ and excluded from the conclusions.
+
+Engine warm-up is a separate, one-time effect — a fresh process is several times slower
+for its first ~600 long-context requests while it compiles shapes — and is absorbed by a
+corpus warm-up phase before the sweep.
+:::
+
+## Benchmark results \{#benchmark-results}
+
+### chat
+
+Customer-support agent (`tau2_retail`), ISL ~22k
+
+**16-card — DP2 × TP=8 (2 nodes)**
+
+| Sessions | ITL avg (ms) | ITL p95 (ms) | TTFT avg (s) | TTFT p95 (s) | E2E avg (s) | Req/s | Output tok/s | Achieved sessions | KV peak % |
+|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 8 | 58.9 | 94.4 | 2.42 | 4.01 | 17.7 | 0.393 | 98 | 7.5 | 7.2 |
+| 16 | 107.0 | 174.9 | 3.09 | 7.93 | 26.3 | 0.474 | 105 | 14.9 | 10.1 |
+| 32 | 171.8 | 270.4 | 3.66 | 8.62 | 46.4 | 0.545 | 139 | 29.1 | 16.9 |
+| 64 ⚠️ | 284.8 | 424.6 | 4.31 | 9.08 | 69.7 | 0.704 | 208 | 55.7 | 27.3 |
+
+**8-card — TP=8 (1 node, per island)**
+
+| Sessions | ITL avg (ms) | ITL p95 (ms) | TTFT avg (s) | TTFT p95 (s) | E2E avg (s) | Req/s | Output tok/s | Achieved sessions | KV peak % |
+|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 4 | 32.7 | 54.1 | 1.79 | 3.23 | 9.6 | 0.321 | 76 | 3.3 | 21.8 |
+| 8 | 52.6 | 77.6 | 2.26 | 5.74 | 15.1 | 0.448 | 107 | 7.0 | 31.7 |
+| 16 | 101.4 | 167.9 | 2.93 | 5.75 | 31.6 | 0.430 | 117 | 14.5 | 60.0 |
+
+> ⚠️ 64 sessions (16-card, -41 %) — the measured window is not flat to within 25 %. Shown for completeness, excluded from the capacity conclusions.
+
+### coding
+
+Coding agent (`swebench`), ISL ~30k
+
+**16-card — DP2 × TP=8 (2 nodes)**
+
+| Sessions | ITL avg (ms) | ITL p95 (ms) | TTFT avg (s) | TTFT p95 (s) | E2E avg (s) | Req/s | Output tok/s | Achieved sessions | KV peak % |
+|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 4 | 44.3 | 65.9 | 2.06 | 3.55 | 11.2 | 0.317 | 61 | 3.7 | 6.7 |
+| 8 | 74.7 | 115.1 | 2.41 | 4.20 | 13.7 | 0.493 | 73 | 7.2 | 8.1 |
+| 16 | 147.9 | 241.1 | 4.02 | 8.70 | 22.6 | 0.541 | 71 | 13.3 | 12.0 |
+| 32 | 248.3 | 415.4 | 4.23 | 8.74 | 32.9 | 0.781 | 93 | 28.3 | 20.5 |
+
+**8-card — TP=8 (1 node, per island)**
+
+| Sessions | ITL avg (ms) | ITL p95 (ms) | TTFT avg (s) | TTFT p95 (s) | E2E avg (s) | Req/s | Output tok/s | Achieved sessions | KV peak % |
+|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 4 | 36.5 | 59.1 | 2.04 | 3.98 | 9.7 | 0.366 | 69 | 3.7 | 36.9 |
+| 8 ⚠️ | 65.1 | 120.3 | 2.67 | 5.86 | 14.2 | 0.438 | 78 | 6.6 | 47.2 |
+| 16 ⚠️ | 288.3 | 473.7 | 10.85 | 22.82 | 49.9 | 0.250 | 36 | 13.1 | 85.6 |
+
+> ⚠️ 16 sessions (8-card, +27 %), 8 sessions (8-card, -25 %) — the measured window is not flat to within 25 %. Shown for completeness, excluded from the capacity conclusions.
+
+### RAG
+
+Retrieval-heavy browsing agent (`browsecompplus`), ISL ~50k
+
+**16-card — DP2 × TP=8 (2 nodes)**
+
+| Sessions | ITL avg (ms) | ITL p95 (ms) | TTFT avg (s) | TTFT p95 (s) | E2E avg (s) | Req/s | Output tok/s | Achieved sessions | KV peak % |
+|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 2 | 34.5 | 56.1 | 2.47 | 4.09 | 12.4 | 0.085 | 25 | 1.1 | 9.0 |
+| 4 | 41.7 | 73.4 | 2.76 | 5.35 | 16.1 | 0.126 | 42 | 2.1 | 12.7 |
+| 8 | 78.1 | 160.5 | 4.08 | 8.90 | 18.5 | 0.270 | 55 | 5.1 | 18.0 |
+| 16 ⚠️ | 185.4 | 349.9 | 4.93 | 11.98 | 36.2 | 0.349 | 60 | 13.3 | 34.4 |
+
+> ⚠️ 16 sessions (16-card, +26 %) — the measured window is not flat to within 25 %. Shown for completeness, excluded from the capacity conclusions.
+
+:::note
+**Achieved sessions** is the mean number of requests in flight over the measured window
+(time-integrated); it is below the nominal session count because a replayed session is
+idle between turns, exactly as recorded. How far below is a property of the workload:
+chat and coding pause a median 0.3 s between turns against a ~28 s request (**83–93 %**
+of nominal in flight), while RAG — a browsing agent — pauses a median 5.3 s against a
+~14 s request (**~53 %**). So a RAG deployment sized in *sessions* holds roughly twice
+as many as the concurrent-request figure suggests. **KV peak** is the highest KV-cache occupancy either rank reached; there were no
+preemptions in any rung.
+:::
+
+## Recommended topology per scenario \{#recommended-topology-per-scenario}
+
+### Sessions sustained at an absolute ITL budget (measured rungs only)
+
+| Scenario | Topology | ITL ≤ 100 ms | ITL ≤ 150 ms | ITL ≤ 200 ms | ITL ≤ 300 ms | Highest rung tested |
+|---|---|--:|--:|--:|--:|--:|
+| chat | 16-card DP2 × TP=8 | **8** | **16** | **32**+ | **32**+ | 32 |
+| chat | 8-card TP=8 (per island) | **8** | **16**+ | **16**+ | **16**+ | 16 |
+| coding | 16-card DP2 × TP=8 | **8** | **16** | **16** | **32**+ | 32 |
+| coding | 8-card TP=8 (per island) | **4**+ | **4**+ | **4**+ | **4**+ | 4 |
+| rag | 16-card DP2 × TP=8 | **8**+ | **8**+ | **8**+ | **8**+ | 8 |
+
+`+` = the highest rung tested still met the budget, so the real limit is above it.
+`< N` = even the lowest rung tested exceeded the budget (censored — not a measured capacity).
+
+### Head-to-head at equal total sessions
+
+One 16-card service vs. two 8-card islands. An island carries half the total sessions, so
+island rung *N* is compared with 16-card rung *2N*. ITL and throughput are comparable; TTFT is not.
+
+| Scenario | Total sessions | 16-card ITL (ms) | 2 × 8-card ITL (ms) | Winner | 16-card req/s | 2 × 8-card req/s |
+|---|--:|--:|--:|---|--:|--:|
+| chat | 8 | 58.9 | 32.7 | **2 × 8-card** (1.80×) | 0.393 | 0.641 |
+| chat | 16 | 107.0 | 52.6 | **2 × 8-card** (2.03×) | 0.474 | 0.895 |
+| chat | 32 | 171.8 | 101.4 | **2 × 8-card** (1.69×) | 0.545 | 0.861 |
+| coding | 8 | 74.7 | 36.5 | **2 × 8-card** (2.05×) | 0.493 | 0.733 |
+
+> Excluded (steady window still drifting — rung too short for the session ramp): chat/agg-dp2tp8@64 (-41%), rag/agg-dp2tp8@16 (26%), coding/agg-tp8dp1@16 (27%), coding/agg-tp8dp1@8 (-25%)
+
+### Verdict
+
+| Scenario | Recommended topology | Measured basis | Ceiling |
+|---|---|---|---|
+| **chat** | **Two 8-card islands** | 1.69–2.03× lower ITL and 58–89 % higher throughput than the 16-card service at 8, 16 and 32 total sessions | ~32 total sessions — at 16 per island the gate binds (throughput flat, KV 60 %) |
+| **coding** | **Two 8-card islands up to ~16 total sessions; one 16-card service above that** | 2.05× lower ITL at 8 total sessions | An island runs out of KV at 16 coding sessions: 86 % KV, ITL 288 ms, TTFT 10.9 s, throughput *halved* vs. the 16-card service |
+| **RAG** | **One 16-card service** (the 8-card cannot run it) | 30 % of RAG requests exceed the 8-card 65536-token window; the 16-card window fits 100 % | 8 sessions measured clean at 78 ms; 16 measured 185 ms but did not clear the stationarity bar |
+
+**Why the split wins where it wins.** Both options use the same silicon, so the gain is
+not extra compute — it is that a cross-node DP2 service couples its two ranks. Every
+prefill step runs eagerly and blocks decode on *both* ranks, so one island's prefill
+bursts cannot disturb the other once they are separate services. Splitting also halves
+the blast radius of a node failure and lets each island be tuned for its own scenario.
+
+**Why it stops winning.** An island has one eighth of the cluster's KV cache
+(375,260 tokens vs 1,416,463) and admits at most `max-num-seqs` = 16 sequences. Chat
+sessions (~23k tokens) fit 16-deep at 60 % KV; coding sessions grow past 28k and reach
+86 % KV, at which point latency roughly quadruples over the rung and throughput halves.
+RAG sessions (~52k, p90 101k) do not fit at all. **The deciding variable is context
+length per session, not the scenario label** — size an island by
+`KV tokens ÷ expected session context`, and keep a margin: the degradation is gradual and
+begins well before the cache is full.
+
+**If you deploy the split**, raise `max-num-seqs` per island only together with KV
+headroom, and re-check `vllm:kv_cache_usage_perc` under your own traffic — the 16-session
+coding rung above shows what running close to the limit costs.
+
+**How to read the comparison.** Both options use the same 16 cards, so the fair question
+is not "which service is faster" but *"for a given number of concurrent sessions, is it
+better to run one 16-card service or two independent 8-card islands?"* Two islands split
+the load, so an island carries half the total sessions — island rung *N* is therefore
+compared against 16-card rung *2N*. The decision rule applied below:
+
+1. **Does the scenario fit on 8 cards at all?** The 8-card deployment is KV-bound to a
+   65536-token window; a scenario whose sessions exceed that is 16-card only, regardless
+   of latency.
+2. **At matched total sessions, which side has lower ITL?** ITL drives how fast tokens
+   stream back to a user and is comparable across the two topologies. (TTFT is not — the
+   two run different prefill chunk sizes.)
+3. **What does each option cost operationally?** Two islands halve the blast radius of a
+   node failure and can be tuned per scenario, but each island admits at most
+   `max-num-seqs` sequences, so a burst on one island queues instead of borrowing
+   capacity from the other. One 16-card service pools all capacity but fails as a unit.
+
+
+## Deploy
+
+Two self-contained InferNex manifests — pick the one matching the topology you chose in
+[Recommended topology per scenario](#recommended-topology-per-scenario):
+
+| Topology | Cards | File |
+|---|--:|---|
+| Aggregated DP2 × TP=8 (cross-node) | 16 | [`qwen3-5-397b-a17b-w8a8-agg-dp2tp8-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets/qwen3-5-397b-a17b-w8a8/qwen3-5-397b-a17b-w8a8-agg-dp2tp8-llmisvc.yaml) |
+| Aggregated TP=8 (single node) | 8 | [`qwen3-5-397b-a17b-w8a8-agg-tp8-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets/qwen3-5-397b-a17b-w8a8/qwen3-5-397b-a17b-w8a8-agg-tp8-llmisvc.yaml) |
+
+The engine image is pinned by digest (`vllm-ascend@sha256:6c183df…`, self-reported
+vLLM 0.23.0) for traceability — mirror that exact build, or substitute the equivalent
+`quay.io/ascend/vllm-ascend:v0.23.0-openeuler` release tag and re-verify before relying
+on the numbers below.
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/assets/qwen3-5-397b-a17b-w8a8
+
+# 1. Stage the ~392 GB W8A8 weights on a PVC reachable by each node, then fill in the
+#    placeholders in the manifest:
+#      <your-namespace>          the namespace to deploy into
+#      <your-registry>           registry holding the vLLM-Ascend and hermes-router images
+#      <node-0> / <node-1>       node hostnames the ranks are pinned to (16-card only)
+#      <weights-pvc-node-0/-1>   PVC(s) holding the weights, one per node
+kubectl apply -f $base/qwen3-5-397b-a17b-w8a8-agg-dp2tp8-llmisvc.yaml
+
+# 2. First start loads ~392 GB of weights, compiles, and captures the decode graphs.
+#    Budget ~12 min before the endpoint answers (749 s measured on the 16-card topology).
+kubectl -n <your-namespace> get llminferenceservice -w
+
+# 3. Call the OpenAI-compatible endpoint.
+curl -s http://<gateway>/<namespace>/qwen35-397b-w8a8-agg/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"qwen3.5-397b-a17b-w8a8","messages":[{"role":"user","content":"hello"}]}'
+```
+
+:::tip
+Both manifests deliberately **omit** `cudagraph_capture_sizes` and keep only
+`{"cudagraph_mode":"FULL_DECODE_ONLY"}`. Leave it that way unless you also change
+`max-num-seqs` — see the caution in [Model configuration](#model-configuration).
+:::
+
+## Caveats
+
+- **Numbers are steady-state, not cold-start.** See [Benchmark method](#benchmark-method):
+  each rung is reported over its second half, once replayed sessions have reached
+  realistic depth and the prefix cache is warm. A freshly started engine serves its first
+  ~600 long-context requests several times slower; size for steady state, but expect the
+  first minutes after a rollout to be worse.
+- **TTFT is not comparable across the two topologies.** The 8-card deployment runs
+  `max-num-batched-tokens` 4096 against the 16-card's 8192, so prefill is chunked
+  differently. ITL, throughput and session capacity are comparable; TTFT is not.
+- **The 8-card topology cannot serve the RAG scenario.** Measured RAG input lengths are
+  mean 52k / p90 101k / max 125k tokens, so **30.5 % of RAG requests exceed the 8-card's
+  65536-token window** — they cannot be served at all, not merely served slowly. Its
+  375,260-token KV cache would also hold only ~7 full RAG contexts. The 16-card window
+  (180224) fits 100 % of the corpus. **RAG requires the 16-card topology.**
+- **Sessions, not requests.** The x-axis is concurrent agent *sessions*; one session has
+  at most one request in flight, and replayed sessions idle between turns exactly as
+  recorded. The idle fraction is workload-specific — chat and coding pause a median 0.3 s
+  between turns, RAG a median 5.3 s — so N RAG sessions occupy only ~0.53 N request slots
+  while N chat sessions occupy ~0.9 N. Request-per-second figures are correspondingly far
+  below what a single-turn benchmark would show at the same nominal concurrency.
+- **Single run per rung.** `numRuns: 1`, so the tables carry no run-to-run spread. ITL is
+  a per-token statistic over thousands of intervals and is stable; **TTFT varies most**
+  between repeats and should be read as an operating range, not a precise value.
+- **Prefix caching is on and the corpus is multi-turn.** The engine reported an **84–89 %
+  prefix-cache hit rate**, so only ~11 % of the ~22k input tokens per request are actually
+  computed. A workload of independent one-shot prompts will show markedly higher TTFT and
+  much lower session capacity at the same nominal input length.
