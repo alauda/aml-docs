@@ -28,7 +28,7 @@ and keep one 16-card service only for RAG.**
 On identical hardware and at the same total number of concurrent sessions, two 8-card
 islands served chat and coding at **1.7–2.1× lower inter-token latency** and **up to 89 %
 higher throughput** than a single 16-card cross-node service — but only while each
-island's KV cache has headroom. **RAG must stay on the 16-card service** (30 % of its
+island's KV cache has headroom. **RAG must stay on the 16-card service** (24 % of its
 requests exceed the window an 8-card deployment can hold), and **coding should move back
 to it above ~16 total sessions**, where an island reaches 86 % KV and latency quadruples.
 Also: do not hand-write `cudagraph_capture_sizes` — see the caution below.
@@ -238,7 +238,7 @@ island rung *N* is compared with 16-card rung *2N*. ITL and throughput are compa
 |---|---|---|---|
 | **chat** | **Two 8-card islands** | 1.69–2.03× lower ITL and 58–89 % higher throughput than the 16-card service at 8, 16 and 32 total sessions | ~32 total sessions — at 16 per island the gate binds (throughput flat, KV 60 %) |
 | **coding** | **Two 8-card islands up to ~16 total sessions; one 16-card service above that** | 2.05× lower ITL at 8 total sessions | An island runs out of KV at 16 coding sessions: 86 % KV, ITL 288 ms, TTFT 10.9 s, throughput *halved* vs. the 16-card service |
-| **RAG** | **One 16-card service** (the 8-card cannot run it) | 30 % of RAG requests exceed the 8-card 65536-token window; the 16-card window fits 100 % | 8 sessions measured clean at 78 ms; 16 measured 185 ms but did not clear the stationarity bar |
+| **RAG** | **One 16-card service** (the 8-card cannot run it) | 24 % of RAG requests exceed the 8-card 65536-token window (p90 91,614, max 126,032); the 16-card window fits 100 % | 8 sessions measured clean at 78 ms; 16 measured 185 ms but did not clear the stationarity bar |
 
 **Why the split wins where it wins.** Both options use the same silicon, so the gain is
 not extra compute — it is that a cross-node DP2 service couples its two ranks. Every
@@ -330,10 +330,18 @@ Both manifests deliberately **omit** `cudagraph_capture_sizes` and keep only
   `max-num-batched-tokens` 4096 against the 16-card's 8192, so prefill is chunked
   differently. ITL, throughput and session capacity are comparable; TTFT is not.
 - **The 8-card topology cannot serve the RAG scenario.** Measured RAG input lengths are
-  mean 52k / p90 101k / max 125k tokens, so **30.5 % of RAG requests exceed the 8-card's
+  mean 47.6k / p90 91.6k / max 126k tokens, so **24 % of RAG requests exceed the 8-card's
   65536-token window** — they cannot be served at all, not merely served slowly. Its
   375,260-token KV cache would also hold only ~7 full RAG contexts. The 16-card window
   (180224) fits 100 % of the corpus. **RAG requires the 16-card topology.**
+- **🔴 The coding result does not prove a 64k window is enough for coding.** No coding
+  request overflowed the 8-card's 65536-token window in this run, but that is a property
+  of the sample, not of the scenario. The corpus threshold for coding is **80k**, set from
+  the p95 peak session context over all 495 `swebench` sessions (75,935 tokens). Each rung
+  here drew only 20 sessions (4 % of the corpus) and sampling is sequential, so the long
+  tail was never exercised — the deepest context reached was 40,291 tokens. The 16-card
+  topology, whose window is 180224, likewise peaked at 39,306. **Size coding deployments
+  against the 80k threshold**, not against the 40k observed here.
 - **Sessions, not requests.** The x-axis is concurrent agent *sessions*; one session has
   at most one request in flight, and replayed sessions idle between turns exactly as
   recorded. The idle fraction is workload-specific — chat and coding pause a median 0.3 s
