@@ -1,0 +1,22 @@
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: ray-default
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata:
+  name: ray-cq
+spec:
+  namespaceSelector: {}
+  preemption:
+    withinClusterQueue: LowerPriority
+  resourceGroups:
+  - coveredResources: [cpu, memory]
+    flavors:
+    - name: ray-default
+      resources:
+      - name: cpu
+        nominalQuota: "16"
+      - name: memory
+        nominalQuota: 64Gi
