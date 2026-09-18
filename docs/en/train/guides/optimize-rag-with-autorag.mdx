@@ -1,0 +1,439 @@
+---
+weight: 85
+---
+
+# Optimize a RAG Application with AutoRAG Pipelines
+
+AutoRAG is a Kubeflow Pipelines workflow from the mirrored `pipelines-components`
+project. It searches retrieval-augmented generation (RAG) configurations for
+your document corpus, ranks the candidates, and writes deployable RAG patterns.
+
+The workflow uses the [ai4rag](https://github.com/IBM/ai4rag) optimization
+engine and talks to [Llama Stack, now OGX](https://github.com/ogx-ai/ogx), for
+embeddings, generation, and vector I/O. You run it on either the shared
+Kubeflow Pipelines service (`kfp-operator`) or a per-namespace
+[Data Science Pipelines Application](../../develop/pipelines/create_dspa.mdx)
+(DSPO). Install only one pipeline operator on a cluster.
+
+This guide walks through a complete loop:
+
+1. Stage documents and a question-answer benchmark in object storage.
+2. Run `documents-rag-optimization-pipeline` to search chunking, embedding,
+   retrieval, and generation settings.
+3. Read the ranked `pattern.json` artifacts.
+4. Run `documents-indexing-pipeline` with the winning indexing settings to
+   build a production vector collection.
+
+A smaller ingestion DAG is included so you can validate document discovery and
+text extraction before you spend OGX inference on the optimizer.
+
+:::note
+The next Alauda AI release packages AutoRAG in the `pipelines-components`
+bundle. AutoGluon pipelines are preloaded by default. AutoRAG stays opt-in
+until OGX, a vector store, and model-serving dependencies are available in the
+project. Compile and upload the pipelines from the mirror if they are not yet
+in the catalog.
+:::
+
+## What AutoRAG produces
+
+```text
+S3 documents + benchmark JSON
+        │
+        ▼
+documents-rag-optimization-pipeline
+        │
+        ├── test-data-loader
+        ├── documents-discovery
+        ├── text-extraction          (Docling)
+        ├── search-space-preparation (OGX models)
+        └── rag-templates-optimization (ai4rag)
+                │
+                ▼
+        ranked RAG patterns
+        ├── pattern.json             (indexing + OGX /v1/responses settings)
+        ├── evaluation metrics
+        ├── leaderboard HTML
+        └── indexing / inference notebooks
+                │
+                ▼
+documents-indexing-pipeline
+        │
+        ▼
+OGX vector collection ready for production RAG
+```
+
+A **RAG template** is a parameterized blueprint. A **RAG pattern** is one
+evaluated configuration of that template: chunking, embeddings, retrieval,
+generation, metrics, and the notebooks you can replay.
+
+## Prerequisites \{#prerequisites\}
+
+| Requirement | Details |
+|---|---|
+| Kubeflow Pipelines 2.16.1 | Alauda `kfp-operator` v26.3.1 or DSPO v2.15.2. See [Use Kubeflow Pipelines](../../develop/pipelines/kubeflow_pipelines.mdx) or [Create a DSPA](../../develop/pipelines/create_dspa.mdx). |
+| AutoRAG runtime image | `RELATED_IMAGE_ODH_AUTORAG_IMAGE`, or `quay.io/opendatahub/odh-autorag:odh-stable` mirrored into your registry. The image is linux/amd64 in the current bundle. |
+| S3-compatible storage | Source documents and the benchmark JSON. This can be a different bucket from the KFP artifact store. |
+| S3 credentials Secret | Created in the namespace where the run executes. |
+| OGX (Llama Stack) | A reachable OGX API with at least one embedding model and one generation model. See [Install Llama Stack](../../ai_applications/components/llama_stack/install.mdx). |
+| Vector I/O provider | A provider registered in OGX, for example `milvus-remote` or `pgvector`. |
+| Compute | The managed optimization pipeline requests 2 CPU / 8 GiB for discovery and loading, and 4 CPU / 16 GiB for text extraction and optimization, with 32 CPU / 64 GiB limits. Start with `preset=speed`. |
+
+The ingestion-only DAG in this guide does not need OGX. Use it to confirm that
+the runtime image, S3 credentials, and corpus are usable before you run
+optimization.
+
+## Prepare documents and a benchmark \{#prepare-data\}
+
+Each AutoRAG run needs two inputs:
+
+- **Documents.** PDF, DOCX, PPTX, Markdown, HTML, or plain text in one S3
+  prefix.
+- **Benchmark JSON.** An array of records with `question`, `correct_answers`,
+  and `correct_answer_document_keys` (ai4rag 0.17; older 0.10 loaders used
+  `correct_answer_document_ids`). The keys must match the object names in the
+  documents prefix so discovery can sample the files that answer the questions.
+
+A tiny Markdown corpus and five questions are in
+[`assets/autorag/`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/assets/autorag).
+Upload them to SeaweedFS, MinIO, or any S3-compatible store the pipeline can
+reach:
+
+```bash
+NS=my-pipeline-namespace
+BUCKET=mlpipeline
+PREFIX=autorag-demo
+ENDPOINT=http://seaweedfs.mlops-demo-e2e:8333
+ACCESS_KEY=minio
+SECRET_KEY=minio123
+
+# From a host or pod that can reach the S3 endpoint.
+aws --endpoint-url "$ENDPOINT" s3 cp \
+  docs/en/train/guides/assets/autorag/acp-rag-overview.md \
+  "s3://$BUCKET/$PREFIX/documents/acp-rag-overview.md"
+aws --endpoint-url "$ENDPOINT" s3 cp \
+  docs/en/train/guides/assets/autorag/benchmark.json \
+  "s3://$BUCKET/$PREFIX/benchmark.json"
+```
+
+Create one Secret for the input bucket. Keep the URI scheme in
+`AWS_S3_ENDPOINT`; the component passes that value to the S3 client.
+
+```bash
+kubectl -n "$NS" create secret generic autorag-input-s3 \
+  --from-literal=AWS_ACCESS_KEY_ID="$ACCESS_KEY" \
+  --from-literal=AWS_SECRET_ACCESS_KEY="$SECRET_KEY" \
+  --from-literal=AWS_S3_ENDPOINT="$ENDPOINT" \
+  --from-literal=AWS_DEFAULT_REGION=us-east-1
+```
+
+Create a second Secret for OGX. The search-space and optimization tasks inject
+these keys as environment variables:
+
+```bash
+kubectl -n "$NS" create secret generic autorag-ogx \
+  --from-literal=OGX_CLIENT_BASE_URL='http://llama-stack.my-project.svc:8321' \
+  --from-literal=OGX_CLIENT_API_KEY='not-used'
+```
+
+Use the in-cluster OGX Service URL. If the OGX distribution does not require
+authentication, set `OGX_CLIENT_API_KEY` to any non-empty placeholder.
+
+## Compile the pipelines \{#compile\}
+
+Clone the Alauda `pipelines-components` mirror and pin the SDK to the version
+shipped by Alauda AI:
+
+```bash
+git clone <pipelines-components-repo-url>
+cd pipelines-components
+
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install 'kfp==2.16.1' 'kfp-kubernetes==2.16.1'
+python -m pip install --no-deps -e .
+```
+
+Point the compiler at the AutoRAG runtime that the cluster can pull. The
+default in the source is `quay.io/opendatahub/odh-autorag:odh-stable`. Replace
+it with the mirrored tag when the cluster cannot reach Quay. Current
+`odh-autorag:odh-stable` images ship **ai4rag 0.17**, which moved data helpers
+to `ai4rag.utils.*`. The ingestion DAG in the helper uses those imports. The
+managed optimization and indexing pipelines in `pipelines-components` still
+import `ai4rag.components.*` from ai4rag 0.10; rebuild the runtime from the
+repo `Containerfile` (ai4rag `~=0.10.1`) before running those compiled YAMLs.
+
+The helper also sets `install_kfp_package=False`. The AutoRAG image already
+includes the KFP SDK, and a live `pip install kfp==2.16.1` fails when PyPI
+only publishes a newer release:
+
+```bash
+export RELATED_IMAGE_ODH_AUTORAG_IMAGE='<registry>/mlops/kubeflow/odh-autorag:<tag>'
+```
+
+From a checkout of this documentation repository, compile the managed
+optimization pipeline, the production indexing pipeline, and the smaller
+ingestion DAG:
+
+```bash
+python docs/en/train/guides/assets/autorag/compile_autorag_pipelines.py \
+  optimization indexing ingestion \
+  --output-dir ./compiled
+```
+
+The helper also compiles `optimization-smoke` and `indexing-smoke` variants
+with lower CPU and memory requests for small clusters. Keep the
+`kfp-components` environment active so the compiler can import AutoRAG
+components from the mirror.
+
+Upload the YAML from the Kubeflow Pipelines UI, or submit it with the KFP SDK
+as shown below.
+
+## Validate document ingestion \{#ingestion\}
+
+Run the ingestion DAG first. It loads the benchmark, lists the documents that
+answer those questions, and extracts Docling JSON. Failures here are S3,
+Secret, image-pull, or Docling issues, not OGX or search-space issues.
+
+```python
+from kfp.client import Client
+
+client = Client(host="<KFP-API>", namespace="my-pipeline-namespace")
+run = client.create_run_from_pipeline_package(
+    "compiled/ingestion.yaml",
+    arguments={
+        "test_data_secret_name": "autorag-input-s3",
+        "test_data_bucket_name": "mlpipeline",
+        "test_data_key": "autorag-demo/benchmark.json",
+        "input_data_secret_name": "autorag-input-s3",
+        "input_data_bucket_name": "mlpipeline",
+        "input_data_key": "autorag-demo/documents",
+        "preset": "speed",
+    },
+    enable_caching=False,
+)
+print(run.run_id)
+```
+
+For the shared Kubeflow Pipelines install, `host` is
+`http://ml-pipeline.kubeflow.svc:8888` from inside the cluster. For a DSPA
+named `sample` in `data-science-project`, use
+`http://ds-pipeline-sample.data-science-project.svc:8888`. From a workstation,
+port-forward the API Service and pass `http://127.0.0.1:8888`.
+
+A successful run writes:
+
+| Task | Artifact | Meaning |
+|---|---|---|
+| `test-data-loader` | `test_data` | Sampled benchmark JSON |
+| `documents-discovery` | `discovered_documents` | `documents_descriptor.json` with bucket, prefix, and file list |
+| `text-extraction` | `extracted_text` | One DoclingDocument JSON file per source document |
+
+Open the run graph and confirm that `extracted_text` contains JSON rather than
+an error log before you start optimization.
+
+## Run RAG optimization \{#optimize\}
+
+If the catalog already contains `documents-rag-optimization-pipeline`, create
+a run from the UI. Otherwise upload `compiled/optimization.yaml`.
+
+| Input | Example | Description |
+|---|---|---|
+| `test_data_secret_name` | `autorag-input-s3` | Secret with `AWS_*` keys for the benchmark object |
+| `test_data_bucket_name` | `mlpipeline` | Bucket that holds the benchmark JSON |
+| `test_data_key` | `autorag-demo/benchmark.json` | Object key of the benchmark |
+| `input_data_secret_name` | `autorag-input-s3` | Secret with `AWS_*` keys for the documents prefix |
+| `input_data_bucket_name` | `mlpipeline` | Bucket that holds the documents |
+| `input_data_key` | `autorag-demo/documents` | Prefix of the source documents |
+| `ogx_secret_name` | `autorag-ogx` | Secret with `OGX_CLIENT_BASE_URL` and `OGX_CLIENT_API_KEY` |
+| `vector_io_provider_id` | `milvus-remote` | Vector I/O provider registered in OGX |
+| `embedding_models` | `["sentence-transformers/nomic-ai/nomic-embed-text-v1.5"]` | Optional. Empty uses the models OGX advertises |
+| `generation_models` | `["qwen3-1-7b"]` | Optional. Empty uses the models OGX advertises |
+| `optimization_metric` | `overall_score` | `faithfulness`, `answer_correctness`, `context_correctness`, `answer_relevance`, or `overall_score` |
+| `optimization_max_rag_patterns` | `2` | Upper bound passed to ai4rag. Use `2` for a smoke run; the default is `8` |
+| `preset` | `speed` | `speed` uses recursive chunking without table parsing. `balanced` enables Docling table layout, hybrid chunking, and LLM contextual enrichment |
+
+SDK submission:
+
+```python
+run = client.create_run_from_pipeline_package(
+    "compiled/optimization.yaml",
+    arguments={
+        "test_data_secret_name": "autorag-input-s3",
+        "test_data_bucket_name": "mlpipeline",
+        "test_data_key": "autorag-demo/benchmark.json",
+        "input_data_secret_name": "autorag-input-s3",
+        "input_data_bucket_name": "mlpipeline",
+        "input_data_key": "autorag-demo/documents",
+        "ogx_secret_name": "autorag-ogx",
+        "vector_io_provider_id": "milvus-remote",
+        "embedding_models": [
+            "sentence-transformers/nomic-ai/nomic-embed-text-v1.5"
+        ],
+        "generation_models": ["qwen3-1-7b"],
+        "optimization_metric": "overall_score",
+        "optimization_max_rag_patterns": 2,
+        "preset": "speed",
+    },
+    enable_caching=False,
+)
+```
+
+The managed pipeline disables task caching. AutoRAG treats the S3 prefix and
+OGX model list as live inputs, so each run must publish a fresh leaderboard.
+
+### Read the ranked patterns \{#patterns\}
+
+When the run succeeds, open the `rag-templates-optimization` task:
+
+| Artifact | File | Use |
+|---|---|---|
+| `rag_patterns` | one directory per pattern, each with `pattern.json` | Deployable configuration |
+| `html_artifact` | leaderboard HTML | Compare metrics across patterns |
+| `component_status` | `component_status.json` | Stage progress for dashboards |
+
+`pattern.json` includes indexing fields (`chunking_method`, `chunk_size`,
+`chunk_overlap`, `embedding_model_id`, `vector_store_id`) and
+`settings.responses_template` for the OGX `/v1/responses` API. Copy the
+indexing fields into the documents indexing pipeline.
+
+Choose a deterministic Unitxt metric (`faithfulness`, `answer_correctness`, or
+`context_correctness`) when you need a repeatable experiment.
+`answer_relevance` uses an LLM judge. `overall_score` aggregates the metrics,
+including the LLM-judge score.
+
+## Index the production corpus \{#index\}
+
+Optimization often samples the corpus. After you pick a pattern, index the
+full document prefix with the same chunking and embedding settings.
+
+| Input | Source |
+|---|---|
+| `ogx_secret_name` | Same OGX Secret as optimization |
+| `embedding_model_id` | `pattern.json` embedding model |
+| `vector_io_provider_id` | Same provider id used for optimization |
+| `input_data_secret_name` / `input_data_bucket_name` / `input_data_key` | Production documents prefix |
+| `vector_store_id` | `settings.vector_store_binding.vector_store_id` to reuse a collection, or omit to create one |
+| `chunking_method` / `chunk_size` / `chunk_overlap` | Indexing fields from `pattern.json` |
+| `distance_metric` | Usually `cosine` |
+| `batch_size` | `20` by default; `0` indexes every document in one batch |
+
+```python
+run = client.create_run_from_pipeline_package(
+    "compiled/indexing.yaml",
+    arguments={
+        "ogx_secret_name": "autorag-ogx",
+        "embedding_model_id": "sentence-transformers/nomic-ai/nomic-embed-text-v1.5",
+        "vector_io_provider_id": "milvus-remote",
+        "input_data_secret_name": "autorag-input-s3",
+        "input_data_bucket_name": "mlpipeline",
+        "input_data_key": "autorag-demo/documents",
+        "chunking_method": "recursive",
+        "chunk_size": 512,
+        "chunk_overlap": 64,
+        "distance_metric": "cosine",
+        "batch_size": 20,
+    },
+    enable_caching=False,
+)
+```
+
+The indexing pipeline discovers documents, extracts text, and writes chunks
+into the OGX vector store. After it succeeds, call OGX `/v1/responses` with
+the `settings.responses_template` from the selected pattern.
+
+## Enable the managed catalog pipeline \{#managed\}
+
+The `pipelines-components` image already contains
+`documents-rag-optimization-pipeline` as a Technology Preview managed
+pipeline. AutoGluon pipelines are enabled by default; add AutoRAG only when
+the project has OGX and a vector store.
+
+**DSPO.** Set the pipeline name on the DSPA:
+
+```yaml
+spec:
+  apiServer:
+    managedPipelines:
+      pipelines:
+        - name: autogluon-tabular-training-pipeline
+        - name: autogluon-timeseries-training-pipeline
+        - name: documents-rag-optimization-pipeline
+```
+
+**kfp-operator.** Add the same name under `spec.managedPipelines.pipelines`
+on the `KubeflowPipelines` custom resource. The current Alauda chart defaults
+to the two AutoGluon pipelines only.
+
+The documents indexing pipeline is alpha and is not in the managed catalog.
+Compile and upload `indexing.yaml` as shown above.
+
+## Compose a custom DAG \{#custom\}
+
+Import individual AutoRAG components when you need a different graph, for
+example ingestion without optimization, or indexing that reuses an already
+extracted corpus. The helper at
+[`assets/autorag/compile_autorag_pipelines.py`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/assets/autorag/compile_autorag_pipelines.py)
+shows the wiring:
+
+| Component | Role |
+|---|---|
+| `publish_component_stage_map` | Writes the static component-to-stage catalog at run start |
+| `test_data_loader` | Downloads and samples the benchmark JSON |
+| `documents_discovery` | Lists and optionally samples source objects |
+| `text_extraction` | Runs Docling and writes DoclingDocument JSON |
+| `search_space_preparation` | Builds the ai4rag search space from OGX models |
+| `rag_templates_optimization` | Explores patterns and writes the leaderboard |
+| `documents_indexing` | Embeds chunks into an OGX vector collection |
+
+Override the runtime image after constructing a task:
+
+```python
+task.set_container_image(os.environ["RELATED_IMAGE_ODH_AUTORAG_IMAGE"])
+```
+
+Review each component `README.md` and `metadata.yaml` in the mirror before
+you change resource tiers or presets. Several AutoRAG assets are still alpha.
+
+## Troubleshooting
+
+- **Image pull fails:** Mirror `odh-autorag` into the cluster registry and set
+  `RELATED_IMAGE_ODH_AUTORAG_IMAGE` before compiling. The current published
+  tag is linux/amd64.
+- **Secret not found:** Create `autorag-input-s3` and `autorag-ogx` in the
+  same namespace as the run. Pipeline ServiceAccounts cannot read Secrets
+  from another namespace.
+- **S3 access denied or empty discovery:** Check the endpoint scheme, bucket,
+  prefix, and that `correct_answer_document_keys` match object names. Discovery
+  samples files named by the benchmark.
+- **`No module named 'ai4rag.components'`:** The running image is ai4rag 0.17
+  or later, but the compiled YAML still uses 0.10 wrappers. Use the ingestion
+  DAG from this guide, or rebuild `odh-autorag` from the pipelines-components
+  `Containerfile` that pins ai4rag `~=0.10.1`.
+- **`No matching distribution found for kfp==2.16.1`:** Compile with
+  `install_kfp_package=False` as the helper does. Do not let the launcher pip
+  install the SDK at pod start.
+- **Text extraction fails:** `preset=speed` disables table-structure parsing
+  and is the right first run. Confirm the AutoRAG image contains Docling
+  models (`DOCLING_ARTIFACTS_PATH`).
+- **Search-space or optimization pods fail immediately:** The OGX Secret is
+  missing, the base URL is not reachable from the run namespace, or OGX does
+  not advertise an embedding or generation model. List models from a pod in
+  the same namespace before rerunning.
+- **Run remains Pending:** Compare node allocatable CPU and memory with the
+  requests in [Prerequisites](#prerequisites). Compile `optimization-smoke`
+  from the helper to lower requests, or start with the ingestion DAG.
+- **DSPA is not reconciled:** DSPO and the shared `kfp-operator` install are
+  mutually exclusive. Use the operator that already serves pipelines on the
+  cluster. See [Data Science Pipelines Operator](../../develop/components/data_science_pipelines/intro.mdx#mutual-exclusion).
+- **Artifacts are missing after pods finish:** The input Secret does not
+  configure KFP persistence. Check the `kfp-launcher` ConfigMap and the
+  artifact-store Secret in the run namespace.
+
+## See also
+
+- [Use Reusable Kubeflow Pipeline Components](../../develop/pipelines/reusable-pipeline-components.mdx) — AutoGluon managed pipelines and the same compile-from-mirror workflow.
+- [Kubeflow Pipelines Execution and Storage Behavior](../../develop/pipelines/kfp-execution-and-storage.mdx) — caching, artifacts, and arm64 notes.
+- [Evaluating RAG with Ragas](../../evaluate_safety/ragas.mdx) — independent RAG quality metrics you can run after indexing.
+- [Install Llama Stack](../../ai_applications/components/llama_stack/install.mdx) — OGX server, PGVector, and Milvus providers.

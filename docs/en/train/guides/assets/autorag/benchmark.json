@@ -1,0 +1,31 @@
+[
+  {
+    "question": "What does AutoRAG optimize in a RAG application?",
+    "correct_answers": [
+      "Retrieval and generation design choices such as chunking, embeddings, and retrieval method"
+    ],
+    "correct_answer_document_keys": ["acp-rag-overview.md"]
+  },
+  {
+    "question": "Which document types can AutoRAG ingest from object storage?",
+    "correct_answers": ["PDF, DOCX, PPTX, Markdown, HTML, and plain text"],
+    "correct_answer_document_keys": ["acp-rag-overview.md"]
+  },
+  {
+    "question": "What API does AutoRAG use for embeddings, generation, and vector I/O?",
+    "correct_answers": ["Llama Stack, now OGX"],
+    "correct_answer_document_keys": ["acp-rag-overview.md"]
+  },
+  {
+    "question": "Which file in an optimized RAG pattern holds deployment settings?",
+    "correct_answers": ["pattern.json"],
+    "correct_answer_document_keys": ["acp-rag-overview.md"]
+  },
+  {
+    "question": "How do you build a production vector collection after optimization?",
+    "correct_answers": [
+      "Run the documents indexing pipeline with the indexing settings from the selected pattern"
+    ],
+    "correct_answer_document_keys": ["acp-rag-overview.md"]
+  }
+]
