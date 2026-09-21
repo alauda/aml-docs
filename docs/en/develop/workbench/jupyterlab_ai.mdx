@@ -83,6 +83,72 @@ Use the provider's documented environment-variable name (for example,
 Workspace service account so that users can access only the credentials they
 are authorized to use.
 
+## Configure a model provider and base URL
+
+Jupyter AI 3 separates the chat host from the persona that talks to a model.
+For a direct model-backed chat, the image must include the optional
+Jupyternaut persona (for example, `jupyter-ai[jupyternaut]`) and the provider
+dependencies it needs. The core `jupyter-ai` package alone does not install
+Jupyternaut or an OpenAI-compatible provider.
+
+The following workflow configures a model exposed by an internal gateway,
+vLLM, or another OpenAI-compatible service. It assumes the endpoint exposes
+the OpenAI API under `/v1`.
+
+1. Ask an administrator to inject the credential through a Secret-backed
+   `OPENAI_API_KEY` environment variable, as shown in the previous section.
+   Do not put a key in a `ConfigMap`, notebook, chat message, or checked-in
+   Jupyter configuration file.
+2. In JupyterLab, open the **Chat** panel and select **Settings** >
+   **Jupyternaut Settings**.
+3. In **Chat model**, add or select the provider model using the LiteLLM model
+   identifier, for example `openai/<model-id>`. Use the model identifier that
+   your gateway advertises; it is not necessarily the name of the model stored
+   on the server.
+4. In **Model parameters**, add `api_base` with the endpoint URL, including
+   the API version path. For example:
+
+   ```text
+   api_base = https://llm-gateway.example.com/v1
+   ```
+
+   A vLLM server commonly exposes this at
+   `http://<vllm-service>:8000/v1`. Use the cluster DNS name and HTTPS endpoint
+   approved for the Workbench namespace instead of a developer laptop address.
+5. Save the settings, choose the custom model in the chat model picker, and
+   send a short non-sensitive test prompt.
+
+`api_base` is the LiteLLM/Jupyternaut parameter for an OpenAI-compatible base
+URL; it is not a generic `baseURL` field. In current Jupyternaut releases, this
+parameter is associated with each custom model. If users select several models
+from the same gateway, configure `api_base` for each model or provide an
+administrator-managed configuration file.
+
+For image-wide defaults, administrators can create a
+`jupyter_jupyter_ai_config.json` file in a directory listed by `jupyter
+--paths`, or start JupyterLab with `--config <config-file-path>`. The following
+example configures the base URL only; keep credentials in the Pod environment
+or mount the entire configuration from a Secret when a provider requires a
+configuration-file key:
+
+```json title=jupyter_jupyter_ai_config.json
+{
+  "AiExtension": {
+    "model_parameters": {
+      "openai/<model-id>": {
+        "api_base": "https://llm-gateway.example.com/v1"
+      }
+    }
+  }
+}
+```
+
+Before publishing a shared Workbench image, restrict the providers that users
+can select. Jupyter AI supports `AiExtension.allowed_providers` and
+`AiExtension.blocked_providers` settings. An allowlist is preferable when a
+cluster has an approved internal gateway, because it prevents accidental use
+of unapproved external providers.
+
 ## Start a Jupyter AI Workbench
 
 1. Create a Workbench and select the **Jupyter | AI Data Science | CPU | Python
@@ -164,5 +230,7 @@ generated code before running it.
 ## References
 
 - [Jupyter AI 3 user guide](https://jupyter-ai.readthedocs.io/en/stable/users/index.html)
+- [Jupyternaut model and configuration guide](https://jupyter-ai.readthedocs.io/en/stable/users/jupyternaut/)
+- [Jupyternaut with vLLM](https://jupyter-ai.readthedocs.io/en/stable/users/jupyternaut/vllm.html)
 - [Jupyter AI magic commands](https://jupyter-ai.readthedocs.io/en/stable/users/magic_commands/index.html)
 - [Bring Your Own Workbench Images](./byo_workbench_images.mdx)
