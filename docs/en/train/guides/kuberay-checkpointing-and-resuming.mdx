@@ -1,0 +1,397 @@
+---
+weight: 75
+---
+
+# Checkpointing and Resuming RayJobs
+
+A distributed Ray Train run that lasts hours will eventually meet a worker crash, a node reboot, a preemption, or an operator deleting the RayCluster at hour five. Without checkpoints, every one of those events costs you the whole run.
+
+KubeRay's `RayJob` has **no checkpoint API of its own**. Nothing in the `RayJob` or `RayCluster` spec writes, finds, or restores a checkpoint. The split is:
+
+| KubeRay / Ray Train gives you | Your training script must do |
+|---|---|
+| Storage that outlives the pod (a PVC or object store you mount as `storage_path`) | Write checkpoints into it with `train.report(..., checkpoint=...)` |
+| Restarting failed workers (`FailureConfig.max_failures`) | Load the latest checkpoint with `train.get_checkpoint()` |
+| Recreating the cluster after it is gone (`RayJob` resubmit) | Restore the experiment with `TorchTrainer.can_restore` / `TorchTrainer.restore` |
+
+Get either column wrong and the failure mode is the same and silent: the job restarts, finds nothing, and cheerfully trains from epoch 0 again.
+
+This guide is the KubeRay counterpart of [Checkpointing and Resuming TrainJobs](./checkpointing-and-resuming.mdx). Use that guide for Kubeflow Trainer v2 `TrainJob`s; use this one when the training job is a KubeRay `RayJob`. For submitting RayJobs through Kueue, see [KubeRay Training with Kueue and Autoscaling](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/kuberay-training-with-kueue-autoscaling.ipynb), then add the checkpoint PVC from this page before you enable preemption.
+
+## Two restore layers
+
+Ray Train has two restore APIs. They look similar and they are not interchangeable:
+
+| What failed | Who retries | Restore API | What it continues |
+|---|---|---|---|
+| A **worker** actor (OOM, node gone, injected exception) while the RayCluster is still up | Ray Train, in-process | `train.get_checkpoint()` plus `FailureConfig(max_failures=N)` | The same experiment directory; new workers pick up the last `train.report` checkpoint |
+| The **RayCluster / RayJob** itself (head gone, `shutdownAfterJobFinishes`, you deleted the job, Kueue evicted the workload) | You, by submitting another RayJob | `TorchTrainer.can_restore(path)` then `TorchTrainer.restore(path)` | The same experiment directory on durable storage; results keep appending |
+
+`resume_from_checkpoint=` is a third thing: it starts a **new** experiment that happens to load weights from an old checkpoint. Iteration counters and logs reset. Use it to fine-tune from a published checkpoint, not to survive a crash.
+
+The script in this guide wires the first two layers so the same image and the same `RAY_TRAIN_RUN_NAME` work for the first submission, an in-cluster worker retry, and a later resubmit after the cluster is gone.
+
+```text
+  worker actor dies
+        │
+        └─ FailureConfig.max_failures ──► Ray Train restarts workers
+                                          train.get_checkpoint() is the last report
+
+  RayJob / RayCluster gone
+        │
+        └─ you apply the same RayJob ──► TorchTrainer.can_restore(storage_path/name)
+                                          TorchTrainer.restore(...) continues the run
+```
+
+## Prerequisites
+
+| Requirement | Details |
+|---|---|
+| Alauda Build of KubeRay Operator | `rayjobs.ray.io` and `rayclusters.ray.io` exist; see [Install KubeRay Operator](../../develop/components/kuberay/install.mdx) |
+| A PVC and a storage class | `kubectl get storageclass`. See [Pick storage that outlives the pod](#pick-storage-that-outlives-the-pod) for access modes |
+| An approved Ray training image | Pin Ray in the image to `RayCluster.spec.rayVersion`. The examples use Ray `2.31.0` |
+| `kubectl` access | Permission to manage `rayjobs`, `rayclusters`, and `persistentvolumeclaims` in your namespace |
+
+## What a checkpoint has to contain
+
+"Resume" is not "reload the weights". A checkpoint that only holds model weights restarts your optimizer from zero — momentum buffers, the learning-rate schedule position, and the step counter are all lost, and the loss curve visibly kinks where it resumed.
+
+A resumable checkpoint holds:
+
+- **Model weights**
+- **Optimizer state** — Adam's moment estimates. Typically ~2x the model size in fp32, and usually the largest part of the checkpoint.
+- **LR scheduler state** — so the schedule continues rather than re-warming.
+- **Step / epoch counter** — where to pick up.
+- **RNG state and data-loader position** — so the resumed run doesn't re-see the same samples in the same order.
+
+Ray Train's `Checkpoint` is only a directory. What you put in it is up to you. HuggingFace Trainer's `checkpoint-N/` directories already contain the list above; a hand-rolled loop that saves only `model.state_dict()` is the most common way to get a "resume" that quietly damages the run.
+
+## Pick storage that outlives the pod \{#pick-storage-that-outlives-the-pod}
+
+Ray Train expects **every worker** to write to the same `RunConfig.storage_path`. An `emptyDir` dies with the pod. A `hostPath` or local-storage class strands the checkpoint on a node the restarted pod may never land on again. A directory that exists only on the head is not enough either: workers upload their own shards.
+
+The access mode depends on how many Ray pods mount the volume at once:
+
+| Ray topology | Access mode | Why |
+|---|---|---|
+| Head only, `num_workers=1` on the head | `ReadWriteOnce` is enough | One pod mounts it at a time |
+| Head + worker pods, or `num_workers > 1` | `ReadWriteMany` is required | Every trainer pod writes to `storage_path` simultaneously |
+
+:::note
+`ReadWriteOnce` means "one **node** at a time", not "one node forever". A network-attached RWO volume (Ceph RBD, EBS, and similar) detaches from the old node and re-attaches wherever the restarted pod is scheduled. That is enough for a single-pod run. Concurrent multi-pod access still needs RWX.
+
+This does not hold for `local-storage` / `topolvm` / `hostPath`, which are physically pinned to one node.
+
+Object storage (`s3://`, MinIO, and similar) is the other valid `storage_path`. Use it when the cluster has no RWX class; pass credentials through a Secret, not the image. See [Ray Train persistent storage](https://docs.ray.io/en/releases-2.31.0/train/user-guides/persistent-storage.html).
+:::
+
+Apply the PVC ([`checkpoint-pvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/assets/kuberay-checkpointing/checkpoint-pvc.yaml)):
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/train/guides/assets/kuberay-checkpointing
+NS=ray-training   # edit to your namespace
+
+kubectl create namespace "$NS" --dry-run=client -o yaml | kubectl apply -f -
+curl -fsSL $base/checkpoint-pvc.yaml | sed "s/<your-namespace>/$NS/" | kubectl apply -f -
+```
+
+Size it for `checkpoint size x num_to_keep`, plus Ray's experiment metadata (`trainer.pkl`, `experiment_state-*.json`, trial directories). Full-weight checkpoints are bigger than people expect — a 7B model with optimizer state is roughly 80 GiB *per checkpoint*. LoRA/QLoRA adapters are a few MB, so the same PVC can keep far more of them.
+
+## Build the training image
+
+The image must contain the Ray and PyTorch versions used by the cluster and the training script. Start with the [`Containerfile`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/kuberay-checkpointing/Containerfile) and replace the base image with an approved, mirrored image:
+
+```bash
+export REGISTRY=registry.example.com/mlops
+export IMAGE="$REGISTRY/ray-checkpoint-training:2.31.0"
+
+nerdctl build -f assets/kuberay-checkpointing/Containerfile \
+  --build-arg BASE_IMAGE=docker-mirrors.alauda.cn/library/python:3.11-slim-bookworm \
+  -t "$IMAGE" assets/kuberay-checkpointing
+nerdctl push "$IMAGE"
+```
+
+For production, build the image in CI, scan it, and pin it by digest in the manifest. Do not install Python dependencies at pod start.
+
+## Make the script checkpoint-aware
+
+[`train_checkpoint.py`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/kuberay-checkpointing/train_checkpoint.py) is the load-bearing part. Three calls do the actual work.
+
+Inside the worker loop, save a directory and report it. Rank 0 writes in standard DDP; every rank writes its own shard for FSDP / DeepSpeed ZeRO:
+
+```python
+with tempfile.TemporaryDirectory() as tmpdir:
+    ckpt = None
+    if train.get_context().get_world_rank() == 0:
+        torch.save(
+            {
+                "model": model.module.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                "epoch": epoch + 1,
+            },
+            os.path.join(tmpdir, "state.pt"),
+        )
+        ckpt = Checkpoint.from_directory(tmpdir)
+    train.report(metrics, checkpoint=ckpt)
+```
+
+On every (re)start, load whatever Ray Train populated:
+
+```python
+checkpoint = train.get_checkpoint()
+if checkpoint:
+    with checkpoint.as_directory() as checkpoint_dir:
+        state = torch.load(os.path.join(checkpoint_dir, "state.pt"))
+        model.load_state_dict(state["model"])
+        optimizer.load_state_dict(state["optimizer"])
+        start_epoch = int(state["epoch"])
+    print(f"[checkpoint] resuming from epoch {start_epoch}", flush=True)
+```
+
+At the driver, restore the experiment if the directory already exists. That is what makes one RayJob manifest work for both the first submission and every resubmit after the cluster is gone:
+
+```python
+experiment_path = os.path.join(storage_path, run_name)
+if TorchTrainer.can_restore(experiment_path):
+    trainer = TorchTrainer.restore(
+        experiment_path,
+        train_loop_per_worker=train_loop_per_worker,
+        train_loop_config=train_loop_config,
+        scaling_config=scaling_config,
+    )
+else:
+    trainer = TorchTrainer(
+        train_loop_per_worker,
+        train_loop_config=train_loop_config,
+        scaling_config=scaling_config,
+        run_config=RunConfig(
+            name=run_name,
+            storage_path=storage_path,
+            failure_config=FailureConfig(max_failures=max_failures),
+            checkpoint_config=CheckpointConfig(num_to_keep=2),
+        ),
+    )
+```
+
+Keep `RunConfig.name` stable (`RAY_TRAIN_RUN_NAME` in the manifest). Changing it creates a new experiment directory and the auto-restore finds nothing.
+
+:::warning
+`FailureConfig.max_failures` defaults to `0`. Without it, a worker crash fails the RayJob immediately even if a checkpoint is on the PVC. Set it high enough to absorb transient node churn, but not so high that a genuinely broken script loops forever.
+:::
+
+## Submit a resumable RayJob
+
+[`rayjob.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/assets/kuberay-checkpointing/rayjob.yaml) embeds the RayCluster, mounts the PVC on **head and workers**, and points `CKPT_DIR` at that mount. Replace the placeholders and apply it:
+
+```bash
+export NAMESPACE=ray-training
+export JOB_NAME=ray-ckpt-$(date +%Y%m%d-%H%M%S)
+export RUN_NAME=sft-run-1   # keep this stable across resubmits
+
+sed -e "s#<your-namespace>#$NAMESPACE#g" \
+    -e "s#<job-name>#$JOB_NAME#g" \
+    -e "s#<run-name>#$RUN_NAME#g" \
+    -e "s#<approved-registry>/mlops/ray-checkpoint-training:<tag>#$IMAGE#g" \
+    assets/kuberay-checkpointing/rayjob.yaml \
+  | kubectl apply -f -
+
+kubectl -n "$NAMESPACE" get rayjob "$JOB_NAME" -w
+```
+
+The load-bearing parts of the manifest:
+
+```yaml
+spec:
+  shutdownAfterJobFinishes: true          # release the cluster; checkpoints live on the PVC
+  entrypoint: python /opt/ray/jobs/train_checkpoint.py
+  rayClusterSpec:
+    headGroupSpec:
+      template:
+        spec:
+          terminationGracePeriodSeconds: 60
+          volumes:
+            - name: ckpt
+              persistentVolumeClaim: { claimName: ray-ckpt }
+          containers:
+            - name: ray-head
+              env:
+                - { name: CKPT_DIR, value: /mnt/ckpt }
+                - { name: RAY_TRAIN_RUN_NAME, value: sft-run-1 }
+                - { name: MAX_FAILURES, value: "3" }
+              volumeMounts:
+                - { name: ckpt, mountPath: /mnt/ckpt }
+    workerGroupSpecs:
+      - groupName: workers
+        template:
+          spec:
+            volumes:
+              - name: ckpt
+                persistentVolumeClaim: { claimName: ray-ckpt }
+            containers:
+              - name: ray-worker
+                volumeMounts:
+                  - { name: ckpt, mountPath: /mnt/ckpt }
+```
+
+Mount the PVC on every group that runs a training worker. Mounting it only on the head is the most common way a "resumable" RayJob silently starts from epoch 0 after a worker restart.
+
+This guide uses `rayClusterSpec` so each job owns its cluster and can be deleted without taking a shared cluster with it. That is also the shape Kueue requires. To attach to an existing cluster instead, keep the same volumeMounts on that cluster's head and workers and point the RayJob at it with `clusterSelector`; see [Train on KubeRay and Track Experiments with MLflow](./kuberay-training-with-mlflow.mdx).
+
+## How each interruption resumes
+
+### A worker crash, with the RayCluster still up
+
+Ray Train shuts the workers down, starts new ones, and populates `train.get_checkpoint()` with the last reported checkpoint, up to `max_failures` times. Watch the RayJob and the driver logs:
+
+```bash
+kubectl -n "$NAMESPACE" get rayjob "$JOB_NAME" \
+  -o jsonpath='{.status.jobStatus}{"\n"}'
+CLUSTER=$(kubectl -n "$NAMESPACE" get rayjob "$JOB_NAME" \
+  -o jsonpath='{.status.rayClusterName}')
+kubectl -n "$NAMESPACE" logs -l "ray.io/cluster=$CLUSTER,ray.io/node-type=head" \
+  -c ray-head --tail=200 -f
+```
+
+The first line after the restart must be `[checkpoint] resuming from epoch N`, not `no prior checkpoint, starting fresh`.
+
+### The RayJob or RayCluster is gone
+
+`shutdownAfterJobFinishes: true`, a head-node failure, a Kueue eviction, or `kubectl delete rayjob` all leave the PVC behind and take the process with them. Submit the same script again with the same `RAY_TRAIN_RUN_NAME`. `TorchTrainer.can_restore` sees the experiment directory and continues it.
+
+Kubernetes forbids re-creating an object that still exists, so either wait for `ttlSecondsAfterFinished` or pick a new `metadata.name` and keep `RAY_TRAIN_RUN_NAME` unchanged:
+
+```bash
+export JOB_NAME=ray-ckpt-$(date +%Y%m%d-%H%M%S)
+# RUN_NAME stays sft-run-1
+sed ... assets/kuberay-checkpointing/rayjob.yaml | kubectl apply -f -
+```
+
+### A deliberate pause
+
+There is no `spec.suspend` resume that keeps the same RayJob object the way Trainer v2 does. Pause by deleting the RayJob (the PVC keeps the experiment). Resume by applying it again with the same `RAY_TRAIN_RUN_NAME`.
+
+For Kueue-managed jobs, Kueue sets `spec.suspend` until quota is available; that is admission, not a training pause. After eviction the next admission is a new cluster, so the restore path is still `TorchTrainer.restore`. Enable preemption only after the drill in [Verify it actually resumes](#verify-it-actually-resumes) passes.
+
+## Per-framework knobs
+
+| Stack | Save cadence | Resume | Notes |
+|---|---|---|---|
+| Ray Train + native PyTorch | Call `train.report(..., checkpoint=)` every N epochs | `train.get_checkpoint()` in the loop; `TorchTrainer.restore` at the driver | Save optimizer + epoch, not just weights |
+| HuggingFace `Trainer` on Ray | `save_strategy="steps"`, `save_steps=N` plus `RayTrainReportCallback` | `train.get_checkpoint()`; `CheckpointConfig(num_to_keep=2)` | Align `logging_strategy` / `save_strategy` / `evaluation_strategy` so the metric you rank checkpoints by is logged at the same step |
+| PyTorch Lightning on Ray | `RayTrainReportCallback` on epoch end | same | `trainer.save_checkpoint(..., weights_only=False)` keeps optimizer state |
+| FSDP / DeepSpeed ZeRO | Each rank writes its own shard | Each rank loads its shard (or a reshardable format) | Do not gather the full model onto rank 0 |
+
+Pick the save cadence from the interruption you can tolerate: the work at risk is at most `save interval x seconds_per_step`. Saving too often is its own tax — a full-weight checkpoint can take tens of seconds of stalled GPU, so on a stable cluster err large and on a preemptible queue err small. Always pair it with `CheckpointConfig(num_to_keep=...)` so the PVC does not grow without bound.
+
+## Multi-node runs
+
+With more than one training worker, two things change:
+
+- **Only rank 0 should write** the checkpoint for standard data-parallel training, or every rank races to write the same path. The sample script already guards with `get_world_rank() == 0`.
+- **All ranks must resume from the same checkpoint.** Ranks that disagree diverge silently rather than crashing.
+
+For sharded strategies (FSDP, DeepSpeed ZeRO), each rank owns a slice of the weights and optimizer state, and gathering it all onto rank 0 is often impossible for large models. That is what [distributed checkpointing](https://docs.ray.io/en/releases-2.31.0/train/user-guides/checkpoints.html#saving-checkpoints-from-multiple-workers-distributed-checkpointing) is for: every rank writes its own shard in parallel. Give shards rank-specific filenames (`model-rank={rank}.pt`) so they do not overwrite each other.
+
+## Verify it actually resumes \{#verify-it-actually-resumes}
+
+Do not wait for a real outage to find out. Run this drill once per new image.
+
+**Worker-crash drill** — proves `train.get_checkpoint()`:
+
+```bash
+# 1. Submit a short run that crashes after the first checkpoint.
+export JOB_NAME=ray-ckpt-crash-$(date +%Y%m%d-%H%M%S)
+export RUN_NAME=drill-worker-crash
+# Uncomment CRASH_AT_EPOCH in rayjob.yaml (and keep TRAIN_EPOCHS > that value), then apply.
+# The script writes a marker on the PVC so the injected crash fires once, not on every retry.
+
+# 2. Wait until the driver has printed a checkpoint, then the injected crash.
+CLUSTER=$(kubectl -n "$NAMESPACE" get rayjob "$JOB_NAME" \
+  -o jsonpath='{.status.rayClusterName}')
+kubectl -n "$NAMESPACE" logs -l "ray.io/cluster=$CLUSTER,ray.io/node-type=head" \
+  -c ray-head --tail=100
+
+# 3. Ray Train retries in-cluster. The next lines must resume, not start fresh.
+```
+
+```text
+[checkpoint] resuming from epoch 2
+```
+
+**Cluster-gone drill** — proves `TorchTrainer.restore`:
+
+```bash
+# 1. Submit, wait for a first checkpoint on the PVC, then delete the job.
+CLUSTER=$(kubectl -n "$NAMESPACE" get rayjob "$JOB_NAME" \
+  -o jsonpath='{.status.rayClusterName}')
+HEAD=$(kubectl -n "$NAMESPACE" get pod \
+  -l "ray.io/cluster=$CLUSTER,ray.io/node-type=head" \
+  -o jsonpath='{.items[0].metadata.name}')
+kubectl -n "$NAMESPACE" exec "$HEAD" -- ls /mnt/ckpt/sft-run-1
+kubectl -n "$NAMESPACE" delete rayjob "$JOB_NAME"
+
+# 2. Submit again with a new metadata.name and the same RAY_TRAIN_RUN_NAME.
+export JOB_NAME=ray-ckpt-$(date +%Y%m%d-%H%M%S)
+sed ... assets/kuberay-checkpointing/rayjob.yaml | kubectl apply -f -
+
+# 3. The new driver's first lines must restore the experiment.
+CLUSTER=$(kubectl -n "$NAMESPACE" get rayjob "$JOB_NAME" \
+  -o jsonpath='{.status.rayClusterName}')
+kubectl -n "$NAMESPACE" logs -l "ray.io/cluster=$CLUSTER,ray.io/node-type=head" \
+  -c ray-head | head -20
+```
+
+```text
+[checkpoint] restoring experiment from /mnt/ckpt/sft-run-1
+[checkpoint] resuming from epoch 3
+```
+
+If step 3 instead prints `starting new experiment` or `no prior checkpoint, starting fresh`, the resume is broken — and it would have been broken during a real preemption too.
+
+:::note
+Listing `/mnt/ckpt/<run-name>/` is the source of truth. Ray's tqdm progress bar overwrites "Saved a checkpoint" log lines, so grepping driver logs for that string is unreliable.
+:::
+
+## Troubleshooting
+
+| Symptom | Cause |
+|---|---|
+| Restarted job trains from epoch 0 | Checkpoint dir is on an `emptyDir`, `CKPT_DIR` / `RAY_TRAIN_RUN_NAME` differs between runs, or the PVC is not mounted on the workers |
+| `TorchTrainer.can_restore` is false after a resubmit | `RunConfig.name` changed, or `storage_path` is a different mount |
+| Worker retry fails immediately | `FailureConfig.max_failures` left at the default `0` |
+| `Permission denied` writing `/mnt/ckpt` | Container UID does not match `fsGroup` on the PVC; the sample sets both to `1000` |
+| Pod `Pending` on resume, volume won't attach | RWO PVC still attached to the old node, or multiple pods against a non-RWX class |
+| PVC full mid-run | `CheckpointConfig.num_to_keep` unset |
+| Loss curve kinks upward on resume | Checkpoint has weights but no optimizer/scheduler state |
+| Final checkpoint missing after preemption | `terminationGracePeriodSeconds` too short to flush `train.report` |
+| Workers cannot see files the head just wrote | PVC is not actually RWX, or `storage_path` points at a node-local disk |
+
+## Production checklist
+
+- Pin the training image by digest and keep Ray, PyTorch, and the KubeRay CRD versions compatible.
+- Mount the checkpoint volume on every head and worker group. Set `RunConfig.storage_path` to that mount (or to object storage).
+- Keep `RAY_TRAIN_RUN_NAME` stable for a logical run; change it only when you want a new experiment.
+- Set `FailureConfig.max_failures` and `CheckpointConfig.num_to_keep`. Leave neither at the default if the job is long-running.
+- Size the PVC from a representative checkpoint, not from the model-weight file size.
+- Use Kueue to enforce quotas only after the restore drill passes. See [KubeRay Training with Kueue and Autoscaling](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/kuberay-training-with-kueue-autoscaling.ipynb).
+- Configure `shutdownAfterJobFinishes` and a TTL so failed clusters do not hold nodes; the PVC is what must survive, not the RayCluster.
+
+## Clean up
+
+Delete completed jobs when they are no longer needed. Keep the PVC until you no longer want to resume:
+
+```bash
+kubectl -n "$NAMESPACE" delete rayjob "$JOB_NAME" --ignore-not-found
+# kubectl -n "$NAMESPACE" delete pvc ray-ckpt   # only when the run is finished for good
+```
+
+## References
+
+- [Alauda Build of KubeRay Operator](../../develop/components/kuberay/intro.mdx)
+- [Install KubeRay Operator](../../develop/components/kuberay/install.mdx)
+- [Checkpointing and Resuming TrainJobs](./checkpointing-and-resuming.mdx)
+- [Train on KubeRay and Track Experiments with MLflow](./kuberay-training-with-mlflow.mdx)
+- [KubeRay Training with Kueue and Autoscaling](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/kuberay-training-with-kueue-autoscaling.ipynb)
+- [Ray Train: Saving and Loading Checkpoints](https://docs.ray.io/en/releases-2.31.0/train/user-guides/checkpoints.html)
+- [Ray Train: Handling Failures and Node Preemption](https://docs.ray.io/en/releases-2.31.0/train/user-guides/fault-tolerance.html)
+- [Ray Train: Configuring Persistent Storage](https://docs.ray.io/en/releases-2.31.0/train/user-guides/persistent-storage.html)

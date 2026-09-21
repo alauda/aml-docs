@@ -14,6 +14,7 @@ End-to-end recipes for training and fine-tuning models on Alauda AI.
 | Fine-tune a YOLOv5 object-detection model and deploy it with Triton | Kubeflow Trainer v2 + Triton Inference Server | [Train, Fine-Tune, and Deploy YOLOv5](./yolov5-training-and-triton-deployment.mdx) |
 | Reusable templates, repeatable runs, optional Kueue quotas | Kubeflow Trainer v2 + LlamaFactory | [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx) |
 | Survive crashes, preemption, or a pause without losing hours of training | Checkpoint PVC + `resume_from_checkpoint` + `maxRestarts` | [Checkpointing and Resuming TrainJobs](./checkpointing-and-resuming.mdx) |
+| Survive crashes, preemption, or a resubmit of a KubeRay training job | Checkpoint PVC + Ray Train `storage_path` + `TorchTrainer.restore` | [Checkpointing and Resuming RayJobs](./kuberay-checkpointing-and-resuming.mdx) |
 | Mix training with online inference, yield GPU back on demand | Kueue cohort + preemption + checkpoint resume | [Preemptible TrainJobs with Kueue](./preemptible-trainjobs-with-kueue.mdx) |
 | Run a fine-tune on a *slice* of a GPU instead of a whole card | Dynamic Resource Allocation (DRA) MIG slice + Trainer v2 | [GPU Slicing with Dynamic Resource Allocation (DRA)](./gpu-slicing-with-dra.mdx) |
 | A curated set of `TrainingRuntime` images (CUDA / CANN) | Trainer v2 runtime catalog | [Training Runtime Images](./training-runtimes.mdx) |

@@ -151,8 +151,8 @@ The tracking server must use durable PostgreSQL and an S3-compatible artifact st
 
 - Pin the training image by digest and keep Ray, PyTorch, and the KubeRay CRD versions compatible.
 - Size worker CPU, memory, accelerator, and ephemeral-storage requests from a representative run. Leave headroom for the Ray object store and spill directory.
-- Use Kueue or another cluster scheduler to enforce quotas and queue jobs. Add checkpointing so a preempted job can resume rather than restart from epoch zero.
-- Write checkpoints and datasets to durable object storage or a RWX PVC. Do not rely on the container filesystem or an `emptyDir` for outputs.
+- Use Kueue or another cluster scheduler to enforce quotas and queue jobs. Add [checkpointing](./kuberay-checkpointing-and-resuming.mdx) so a preempted job can resume rather than restart from epoch zero.
+- Write checkpoints and datasets to durable object storage or a RWX PVC. Do not rely on the container filesystem or an `emptyDir` for outputs. Follow [Checkpointing and Resuming RayJobs](./kuberay-checkpointing-and-resuming.mdx) for the Ray Train `storage_path` + restore pattern.
 - Use a unique MLflow run name and job name, and log the source revision, dataset version, image digest, and configuration as tags or parameters.
 - Keep `shutdownAfterJobFinishes` aligned with your retention policy. When reusing an existing cluster as this guide does, leave it `false` and delete completed `RayJob` objects with your retention controller; use a TTL only for jobs whose cluster is shut down after completion.
 - Restrict the `mlflow-token` Secret with namespace RBAC, rotate it before expiry, and use a dedicated non-personal account.
@@ -175,5 +175,6 @@ Keep the MLflow run and durable artifacts. They are independent of the RayCluste
 - [Install KubeRay Operator](../../develop/components/kuberay/install.mdx)
 - [Ray on Kubernetes](https://docs.ray.io/en/latest/cluster/kubernetes/index.html)
 - [Ray Train](https://docs.ray.io/en/latest/train/train.html)
+- [Checkpointing and Resuming RayJobs](./kuberay-checkpointing-and-resuming.mdx)
 - [MLflow on Alauda AI](../../develop/components/mlflow/intro.mdx)
 - [Using the MLflow Python SDK with Authentication and RBAC](../../develop/experiment_tracking/mlflow-python-sdk.mdx)
