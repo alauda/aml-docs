@@ -98,8 +98,20 @@ To make a direct model available across all Workbenches using an image:
 2. Inject its credential through a Secret-backed Pod environment variable, for
    example `OPENAI_API_KEY`. Do not put keys in a `ConfigMap`, notebook, chat
    message, or checked-in Jupyter configuration file.
-3. Add a non-secret `jupyter_jupyter_ai_config.json` file to a directory listed
-   by `jupyter --paths`, or start JupyterLab with `--config <config-file-path>`.
+3. Add a non-secret `jupyter_jupyter_ai_config.json` file to a Jupyter
+   configuration directory, or start JupyterLab with
+   `--config <config-file-path>`. For Alauda-provided Workbench images, the
+   configuration directories are:
+
+   ```text
+   /opt/app-root/etc/jupyter
+   /opt/app-root/src/.jupyter
+   /usr/local/etc/jupyter
+   /etc/jupyter
+   ```
+
+   Run `jupyter --paths` in the running image to verify the effective
+   configuration search order before choosing the location.
 4. Recreate or restart Workbenches after changing their image or mounted
    configuration.
 
