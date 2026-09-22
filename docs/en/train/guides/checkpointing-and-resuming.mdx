@@ -16,7 +16,7 @@ Kubeflow Trainer v2 has **no checkpoint API of its own**. Nothing in the `TrainJ
 
 Get either column wrong and the failure mode is the same and silent: the job restarts, finds nothing, and cheerfully trains from step 0 again.
 
-This guide covers the mechanics. For the specific case of *deliberately* preempting training to give an `InferenceService` its GPU back, see [Preemptible TrainJobs with Kueue](./preemptible-trainjobs-with-kueue.mdx), which builds on everything here.
+This guide covers the mechanics for Kubeflow Trainer v2 `TrainJob`s. If the training job is a KubeRay `RayJob`, see [Checkpointing and Resuming RayJobs](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/kuberay-checkpointing-and-resuming.ipynb) instead — KubeRay has no `TrainJob` / `TrainingRuntime`, and the restore APIs are Ray Train's. For the specific case of *deliberately* preempting a TrainJob to give an `InferenceService` its GPU back, see [Preemptible TrainJobs with Kueue](./preemptible-trainjobs-with-kueue.mdx), which builds on everything here.
 
 ## Prerequisites
 
