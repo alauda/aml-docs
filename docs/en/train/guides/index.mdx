@@ -21,6 +21,7 @@ End-to-end recipes for training and fine-tuning models on Alauda AI.
 | One-shot quick start of distributed PyTorch on Trainer v2 | `ClusterTrainingRuntime` + MNIST | [Kubeflow Trainer Quick Start](./kubeflow-trainer-quick-start.md) |
 | Production SFT / OSFT with automatic memory management | `training_hub` | [Fine-tuning LLMs with Training Hub](./training-hub-fine-tuning.mdx) |
 | Interactive exploration, custom scripts, VolcanoJob submission | Workbench Notebook | [Fine-tuning LLMs using Workbench](./fine-tuning-using-notebooks.mdx) |
+| Turn PDFs into SFT JSONL from a Workbench | Docling + SDG Hub + LiteLLM teacher | [Prepare Fine-Tuning Data with Docling and SDG Hub](./prepare-finetune-data-with-docling-and-sdg.mdx) |
 | Full-parameter SFT / pretraining on Ascend NPU | Workbench `PyTorch CANN` / `MindSpore CANN` | [Fine-tune and Pretrain on Ascend NPU](./fine-tune-and-pretrain-llms-on-ascend-npu.mdx) |
 | Track a KFP run's parameters and metrics in MLflow | KFP component + MLflow SDK | [Kubeflow Pipeline + MLflow Integration](../../develop/experiment_tracking/pipelines-mlflow-integration.mdx) |
 | Build features offline, materialize them online, and serve a model with Feast | Feast Operator + KServe | [Feast Offline-to-Online Inference](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/feast-offline-to-online-inference.ipynb) |
@@ -45,7 +46,9 @@ git -C aml-docs sparse-checkout set --no-cone \
   /docs/en/train/guides/kuberay-training-with-mlflow.ipynb \
   /docs/en/train/guides/assets/kuberay-training-with-mlflow/ \
   /docs/en/train/guides/kuberay-checkpointing-and-resuming.ipynb \
-  /docs/en/train/guides/assets/kuberay-checkpointing/
+  /docs/en/train/guides/assets/kuberay-checkpointing/ \
+  /docs/en/train/guides/prepare-finetune-data-with-docling-and-sdg.ipynb \
+  /docs/en/train/guides/assets/docling-sdg/
 cd aml-docs/docs/en/train/guides
 ```
 :::

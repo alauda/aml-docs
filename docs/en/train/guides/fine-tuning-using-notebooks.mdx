@@ -43,6 +43,8 @@ model record is required.
 Use the [sample identity dataset](/identity-alauda-main.zip) which teaches the model to answer "Who are you?". Upload the unzipped files to a PVC or S3 location accessible to the training job, and set `DATASET_URI` to that location. The dataset layout must match the fine-tuning framework.
 
 > The dataset format must match what the fine-tuning framework expects.
+>
+> To build that JSONL from PDFs or Office files, convert with Docling and generate synthetic Q&A with SDG Hub in the same workbench — see [Prepare Fine-Tuning Data with Docling and SDG Hub](./prepare-finetune-data-with-docling-and-sdg.mdx).
 
 ### HuggingFace `datasets` format
 

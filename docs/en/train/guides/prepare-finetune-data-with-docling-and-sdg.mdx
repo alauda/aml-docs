@@ -1,0 +1,286 @@
+---
+weight: 85
+---
+
+# Prepare Fine-Tuning Data with Docling and SDG Hub
+
+Open Data Hub and OpenShift AI treat document conversion and synthetic data as two
+steps in the same model-customization path:
+
+1. **[Docling](https://github.com/docling-project/docling)** turns PDFs, Office
+   files, HTML, and similar sources into structured Markdown or JSON.
+2. **[SDG Hub](https://github.com/Red-Hat-AI-Innovation-Team/sdg_hub)** runs a
+   YAML *flow* of composable blocks against those documents and writes synthetic
+   Q&A or chat turns.
+3. You fine-tune on the resulting JSONL with
+   [Training Hub](./training-hub-fine-tuning.mdx) or
+   [a Workbench VolcanoJob](./fine-tuning-using-notebooks.mdx).
+
+This guide runs both libraries **inside an Alauda AI Workbench**. Neither package
+is preinstalled on the built-in images. For thousands of PDFs, do not grow the
+workbench — use the Ray Data / Kubeflow Pipelines paths at the end.
+
+```text
+PDF / DOCX / HTML
+        │  Docling (workbench, or Ray Data for scale)
+        ▼
+Markdown / DoclingDocument JSON
+        │  SDG Hub flow (LiteLLM → in-cluster InferenceService)
+        ▼
+JSONL  (chat messages or instruction/output)
+        │  training_hub.sft / LLaMA-Factory / Trainer v2
+        ▼
+Fine-tuned model
+```
+
+A runnable notebook that follows the same steps lives next to this page:
+
+- [Prepare Fine-Tuning Data with Docling and SDG Hub](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/prepare-finetune-data-with-docling-and-sdg.ipynb)
+
+Keep the notebook and `assets/docling-sdg/` together when you download them:
+
+```bash
+git clone --depth 1 --filter=blob:none --sparse https://github.com/alauda/aml-docs.git
+git -C aml-docs sparse-checkout set --no-cone \
+  /docs/en/train/guides/prepare-finetune-data-with-docling-and-sdg.ipynb \
+  /docs/en/train/guides/assets/docling-sdg/
+cd aml-docs/docs/en/train/guides
+```
+
+## Prerequisites \{#prerequisites}
+
+| Requirement | Details |
+|---|---|
+| Workbench | **Standard Data Science** (`Python 3.12`). See [Create Workbench](../../develop/workbench/create_workbench.mdx). The workbench itself can stay CPU-only. |
+| Persistent storage | A workspace PVC for source documents, Docling cache, SDG checkpoints, and the output JSONL. Packages installed only in the container filesystem disappear when the workbench is recreated. |
+| Teacher LLM | An OpenAI-compatible chat endpoint that LiteLLM can call. An in-cluster vLLM `InferenceService` is the usual choice — see [Find your model endpoint](../../ai_applications/deploy_agent_with_agentruntime.mdx#find-your-model-endpoint-and-name). |
+| Network | PyPI or an internal index to install `docling` and `sdg-hub`, plus Hugging Face (or a mirrored cache) for Docling layout models. |
+| Optional, for scale | [KubeRay Operator](../../develop/components/kuberay/install.mdx) for Ray Data PDF batches; [Kubeflow Pipelines](../../develop/pipelines/reusable-pipeline-components.mdx) for the SDG Hub KFP component. |
+
+Built-in Workbench images do **not** ship Docling, SDG Hub, `tesseract`, or `qpdf`.
+Scanned PDFs that need OCR therefore require extra system libraries or a
+[custom workbench image](../../develop/workbench/byo_workbench_images.mdx).
+
+## Install in the Workbench \{#install}
+
+Open a JupyterLab terminal in the workbench. Pin the packages in a virtual
+environment on the workspace PVC so a pod restart does not wipe them.
+
+```bash
+python -m venv /opt/app-root/src/venvs/docling-sdg
+source /opt/app-root/src/venvs/docling-sdg/bin/activate
+python -m pip install -U pip
+pip install 'docling>=2.70' 'sdg-hub>=0.7'
+# Optional: document-parsing extras used by SDG Hub example notebooks
+# pip install 'sdg-hub[examples]'
+```
+
+Register the venv as a Jupyter kernel so notebook cells use it:
+
+```bash
+python -m pip install ipykernel
+python -m ipykernel install --user --name docling-sdg --display-name "Python (Docling + SDG)"
+```
+
+In JupyterLab, switch the notebook kernel to **Python (Docling + SDG)**.
+
+Air-gapped clusters: download wheels on a connected machine, upload them with
+the JupyterLab **Upload Files** button, and install as in
+[Install a Python Wheel File Offline](../../develop/workbench/create_workbench.mdx).
+Docling also downloads layout and table models on first convert. Prefetch them
+and point the cache at the PVC:
+
+```bash
+export HF_HOME=/opt/app-root/src/.cache/huggingface
+export DOCLING_CACHE_DIR=/opt/app-root/src/.cache/docling
+```
+
+`docling` 2.70 and later need Python 3.10+. Standard Data Science is 3.12, which
+is fine. Do not install into the Minimal Python image unless you add the rest of
+the data-science stack yourself.
+
+## Convert documents with Docling \{#docling}
+
+Docling is the Python library Open Data Hub documents under *Prepare your data
+for AI consumption*. The in-workbench path is a `DocumentConverter` over files
+on the PVC. That is enough for a few dozen native-digital PDFs. CPU cost is
+typically 5–60 seconds per file.
+
+```python
+import json
+from pathlib import Path
+from docling.document_converter import DocumentConverter
+
+src = Path("/opt/app-root/src/data/source")
+out = Path("/opt/app-root/src/data/docling")
+out.mkdir(parents=True, exist_ok=True)
+
+converter = DocumentConverter()
+for path in sorted(src.glob("*.pdf")):
+    result = converter.convert(str(path))
+    (out / f"{path.stem}.md").write_text(result.document.export_to_markdown())
+    (out / f"{path.stem}.json").write_text(
+        json.dumps(result.document.export_to_dict(), ensure_ascii=False)
+    )
+```
+
+The CLI is equivalent for a one-off file:
+
+```bash
+docling /opt/app-root/src/data/source/policy.pdf \
+  --output /opt/app-root/src/data/docling
+```
+
+Use Markdown (or plain text) as the SDG `document` column. Keep the JSON when
+you need tables, bounding boxes, or a later RAG index — AutoRAG's
+`text-extraction` stage writes the same `DoclingDocument` JSON. See
+[Optimize a RAG Application with AutoRAG Pipelines](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/optimize-rag-with-autorag.ipynb).
+
+ODH's notebooks under
+[`opendatahub-io/data-processing`](https://github.com/opendatahub-io/data-processing/tree/main/notebooks)
+cover convert, chunk, field extraction, and subset selection. Clone that
+repository in JupyterLab if you need those recipes; this page only converts far
+enough to feed SDG Hub and then SFT.
+
+## Generate synthetic data with SDG Hub \{#sdg}
+
+[SDG Hub](https://ai-innovation.team/sdg_hub/docs/) is a block-and-flow library.
+A *block* does one thing (build a prompt, call an LLM, parse the reply). A
+*flow* is a YAML list of blocks. OpenShift AI 3.5's *Generate synthetic data*
+chapter clones [`sdg_hub/examples`](https://github.com/Red-Hat-AI-Innovation-Team/sdg_hub/tree/main/examples)
+and runs those notebooks from a workbench. The same install works here.
+
+Point LiteLLM at an in-cluster teacher. The `hosted_vllm/` provider prefix
+tells LiteLLM to use an OpenAI-compatible `/v1` base URL:
+
+```python
+import os
+
+os.environ.setdefault("LITELLM_REQUEST_TIMEOUT", "600")
+
+SDG_MODEL = os.environ.get("SDG_MODEL", "hosted_vllm/qwen3")
+SDG_API_BASE = os.environ.get(
+    "SDG_API_BASE",
+    "http://qwen3-predictor.my-namespace.svc.cluster.local/v1",
+)
+SDG_API_KEY = os.environ.get("SDG_API_KEY", "not-needed")
+```
+
+Discover built-in flows, then either load one by id or load a custom YAML. The
+knowledge-tuning flow `epic-jade-656` (Extractive Summary Knowledge Tuning) is
+the ODH default for domain Q&A, but it expects extra in-context columns
+(`document_outline`, `icl_document`, `icl_query_1` …) and a teacher that can
+hold concurrency of about 50. Start with a three-block flow instead, then
+switch to a registry flow once the teacher and schema are in place.
+
+[`assets/docling-sdg/flow.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/docling-sdg/flow.yaml)
+is that three-block flow: prompt → `LLMChatBlock` → extract. Required columns
+are `document` and `domain`.
+
+```python
+from datasets import Dataset
+from sdg_hub import Flow, FlowRegistry
+
+FlowRegistry.discover_flows()
+
+flow = Flow.from_yaml("assets/docling-sdg/flow.yaml")
+flow.set_model_config(model=SDG_MODEL, api_base=SDG_API_BASE, api_key=SDG_API_KEY)
+
+dataset = Dataset.from_dict({
+    "document": [Path("data/docling/policy.md").read_text()],
+    "domain": ["internal-policy"],
+})
+
+probe = flow.dry_run(dataset, sample_size=1, enable_time_estimation=True, max_concurrency=4)
+print(probe["final_dataset"]["columns"])
+
+result = flow.generate(
+    dataset,
+    max_concurrency=8,
+    checkpoint_dir="/opt/app-root/src/data/sdg-ckpt",
+    save_freq=50,
+)
+```
+
+Always `dry_run` before `generate`. Knowledge-tuning notebooks on a 266-article
+corpus take hours even with a 50-way concurrent teacher; `enable_time_estimation`
+prints a projection so you can size `NUMBER_OF_SUMMARIES` and concurrency
+before you pay for the full run.
+
+For the extractive-summary knowledge-tuning flow, follow
+[`examples/knowledge_tuning`](https://github.com/Red-Hat-AI-Innovation-Team/sdg_hub/tree/main/examples/knowledge_tuning)
+in the SDG Hub repo: parse with Docling, then generate several augmentations
+per document (thematic summaries, relationships, atomic facts) and three Q&A
+pairs per summary. That is the path OpenShift AI documents for injecting
+proprietary facts into an instruction-tuned model.
+
+## Write a fine-tuning JSONL \{#jsonl}
+
+[Training Hub](./training-hub-fine-tuning.mdx#data-format) wants one chat object
+per line. Map the SDG output columns onto `messages`:
+
+```python
+import json
+
+out_path = Path("/opt/app-root/src/data/sft/train.jsonl")
+out_path.parent.mkdir(parents=True, exist_ok=True)
+
+with out_path.open("w") as fh:
+    for row in result:
+        question = row["question"].strip()
+        answer = row.get("answer") or row["document"]
+        fh.write(json.dumps({
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant for this team's documents."},
+                {"role": "user", "content": question},
+                {"role": "assistant", "content": answer},
+            ]
+        }, ensure_ascii=False) + "\n")
+```
+
+Pass `data_path=str(out_path)` to `training_hub.sft(...)` or
+`training_hub.osft(...)`. For LLaMA-Factory, keep the same JSONL and point
+`dataset` at it as in [Fine-tuning LLMs using Workbench](./fine-tuning-using-notebooks.mdx).
+
+A second JSONL of raw document text (`{"text": "..."}`) is the CPT corpus if you
+want **CPT → SFT** instead of SFT alone — see
+[Continued pre-training](./training-hub-fine-tuning.mdx#cpt).
+
+## Scale beyond one workbench \{#scale}
+
+| Volume | Tool | When to use it |
+|---|---|---|
+| Tens of native-digital PDFs | Docling in the workbench | Interactive, CPU-only, no extra operators |
+| Thousands of PDFs | Ray Data + Docling on KubeRay | ODH example: [`ray-cluster-docling-batch-processing.ipynb`](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/ray/data/docling/ray-cluster-docling-batch-processing.ipynb). Needs a RWX PVC, a Ray+Docling image, and [CodeFlare SDK](../../develop/distributed_workloads/codeflare-sdk-tutorial.mdx). |
+| Repeatable SDG in CI | KFP `sdg_hub` component | Beta component in `pipelines-components`. Compile `pipelines/data_processing/sdg/pipeline.py`, upload the YAML, pass `model` / `flow_id` or a flow ConfigMap. Same LiteLLM endpoint as the notebook. |
+| Complex layouts / image captions | Docling VLM pipeline | ODH [`docling-vlm`](https://github.com/opendatahub-io/data-processing/blob/stable/kubeflow-pipelines/docling-vlm/README.md) KFP example. Needs a GPU runtime image. |
+
+The Ray batch path mounts one RWX PVC on every worker, runs each PDF inside a
+subprocess so a hung converter can be killed, and writes Markdown + JSON back
+to the same volume. Do not schedule Docling actors on the Ray head.
+
+The KFP SDG path is what OpenShift AI documents after the workbench notebooks:
+a ConfigMap for the flow YAML, a Secret for the teacher API key, then a
+pipeline run. Alauda's mirrored component is
+[`pipelines-components/components/data_processing/sdg`](https://github.com/alauda/pipelines-components)
+(stability: beta).
+
+## Troubleshooting \{#troubleshooting}
+
+| Symptom | Cause |
+|---|---|
+| `pip install docling` fails on UBI9 with missing `tesseract` / `qpdf` | OCR extras are not in the Workbench image. Skip OCR, or bake those RPMs into a [BYO image](../../develop/workbench/byo_workbench_images.mdx). |
+| First `convert()` hangs or downloads from Hugging Face | Layout models are not cached. Set `HF_HOME` / `DOCLING_CACHE_DIR` on the PVC, or prefetch the models. |
+| `FlowValidationError: model config` | `set_model_config()` was skipped. LiteLLM needs `model` and, for vLLM, `api_base`. |
+| `MissingColumnError` | The dataset is missing a flow `required_columns` field. Print `flow.get_dataset_requirements()`. |
+| Teacher `401` / `404` | `SDG_API_BASE` must be the predictor Service `…/v1`, and `SDG_MODEL` must match a name the server lists at `/v1/models`. |
+| Knowledge-tuning run times out | Raise `LITELLM_REQUEST_TIMEOUT`, lower `NUMBER_OF_SUMMARIES`, or use a teacher that can sustain ≥50 concurrent requests. |
+| Workbench OOM during PDF convert | Move the job to Ray Data. A single Docling actor wants several GB and multiple CPUs. |
+
+## Next steps \{#next-steps}
+
+- [Fine-tuning LLMs with Training Hub](./training-hub-fine-tuning.mdx) — `sft` / `osft` / `lora_sft` on the JSONL.
+- [Fine-tuning LLMs using Workbench](./fine-tuning-using-notebooks.mdx) — LLaMA-Factory VolcanoJob.
+- [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx) — cluster `TrainJob` with a `dataset-initializer`.
+- [Optimize a RAG Application with AutoRAG Pipelines](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/optimize-rag-with-autorag.ipynb) — Docling as a pipeline stage rather than a workbench library.
+- Upstream: [Docling](https://docling-project.github.io/docling/), [SDG Hub docs](https://ai-innovation.team/sdg_hub/docs/), OpenShift AI 3.5 *Prepare your data* / *Generate synthetic data*.

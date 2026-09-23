@@ -26,4 +26,10 @@ autorag
 ai4rag
 docling
 Docling
+DoclingDocument
 DSPO
+JSONL
+LiteLLM
+sdg
+SDG
+FlowRegistry
