@@ -1,14 +1,16 @@
 ---
-weight: 45
+weight: 86
 ---
 
 # Run Ray Data Pipelines from pipelines-components
 
-The Alauda `pipelines-components` mirror includes one Ray Data group:
-[`pdf_documents_processing_rag_pipeline`](https://github.com/alauda/pipelines-components).
-That pipeline is **experimental**. It is not preloaded next to the AutoGluon
-managed pipelines. Compile it from a Workbench, upload the YAML, and run it
-against KubeRay.
+The next Alauda AI release packages reusable components from the mirrored
+`pipelines-components` project for Kubeflow Pipelines 2.16.1. AutoGluon
+pipelines can be preloaded by the operator. The Ray Data group is
+**experimental** and is **not** preloaded. Compile it the same way as any
+other custom asset: clone the mirror Alauda supplies, install
+`kfp-components` editable, and upload the YAML. See
+[Use Reusable Kubeflow Pipeline Components](../../develop/pipelines/reusable-pipeline-components.mdx).
 
 Ray Data itself never appears as a KFP task. The `parse_and_chunk` component
 submits a KubeRay `RayJob`. The job builds a `ray.data` dataset of PDF paths,
@@ -30,10 +32,10 @@ LLM InferenceService
 
 A compile-and-upload notebook lives next to this page:
 
-- [Compile and Run the Ray Data RAG Pipeline](https://github.com/alauda/aml-docs/tree/master/docs/en/develop/pipelines/run-ray-data-pipelines.ipynb)
+- [Compile and Run the Ray Data RAG Pipeline](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/run-ray-data-pipelines.ipynb)
 
 For a few dozen PDFs, convert them in a Workbench instead:
-[Prepare Fine-Tuning Data with Docling and SDG Hub](../../train/guides/prepare-finetune-data-with-docling-and-sdg.mdx).
+[Prepare Fine-Tuning Data with Docling and SDG Hub](./prepare-finetune-data-with-docling-and-sdg.mdx).
 For RAG *search* over chunking and retrieval settings, use
 [Optimize a RAG Application with AutoRAG Pipelines](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/optimize-rag-with-autorag.ipynb).
 
@@ -41,16 +43,16 @@ For RAG *search* over chunking and retrieval settings, use
 
 | Requirement | Details |
 |---|---|
-| Kubeflow Pipelines 2.16.1 | Alauda `kfp-operator` v26.3.1 or DSPO v2.15.2. See [Use Reusable Kubeflow Pipeline Components](./reusable-pipeline-components.mdx). |
-| KubeRay Operator | Cluster plugin. See [Install KubeRay Operator](../components/kuberay/install.mdx). The pipeline ServiceAccount must be able to create `rayjobs.ray.io` in the run namespace. |
-| Workbench | **Standard Data Science** (`Python 3.12`) so you can compile with `kfp==2.16.1`. See [Create Workbench](../workbench/create_workbench.mdx). |
+| Kubeflow Pipelines 2.16.1 | Alauda `kfp-operator` v26.3.1 or DSPO v2.15.2. See [Use Reusable Kubeflow Pipeline Components](../../develop/pipelines/reusable-pipeline-components.mdx). |
+| KubeRay Operator | Cluster plugin. See [Install KubeRay Operator](../../develop/components/kuberay/install.mdx). The pipeline ServiceAccount must be able to create `rayjobs.ray.io` in the run namespace. |
+| Workbench | **Standard Data Science** (`Python 3.12`) so you can compile with `kfp==2.16.1`. See [Create Workbench](../../develop/workbench/create_workbench.mdx). |
 | RWX PVC | Holds the input PDFs. `parse_and_chunk` mounts it read-only on the Ray head and every worker. |
 | S3-compatible bucket | Intermediate chunk JSONL. Create a Secret with keys `access_key` and `secret_key` (not `AWS_ACCESS_KEY_ID`). |
-| Ray + Docling image | `ray_image` must already contain Ray and Docling. Mirror it into the cluster registry; do not use the upstream `quay.io/rhoai-szaher/docling-ray:latest` default in production. |
+| Ray + Docling image | `ray_image` must already contain Ray and Docling. Mirror it into the cluster registry. |
 | Optional, for the full RAG DAG | A reachable Milvus 2.4+ service, a Hugging Face token Secret (`token`), a model-cache PVC, and a [Hardware Profile](../../administer/hardware_profile/cpu_and_gpu_profiles.mdx) in the namespace you pass as `llm_hardware_profile_namespace`. |
 
-The component runtime image defaults to a Red Hat ODH CPU datascience image.
-Replace it with the Alauda-mirrored runtime for your cluster, or set
+The component runtime image defaults to an ODH CPU datascience image. Replace
+it with the Alauda-mirrored runtime for your cluster, or set
 `RELATED_IMAGE_RAG_BASE_RUNTIME` when you compile.
 
 Kueue: leave `bypass_kueue=false` (the default) when the namespace has a Local
@@ -87,8 +89,10 @@ directories are included; `num_files=0` processes every `*.pdf`.
 
 ## Compile from a Workbench \{#compile}
 
-Clone the mirror and pin the SDK to the version Alauda ships. Replace
-`<pipelines-components-repo-url>` with the address for your environment:
+The `kfp-components` package is not published to PyPI. Clone the Alauda mirror
+and install it in a Python 3.11 or later virtual environment. Pin the SDK to the
+version shipped by Alauda AI. Replace `<pipelines-components-repo-url>` with the
+repository address supplied by Alauda for the environment:
 
 ```bash
 git clone <pipelines-components-repo-url>
@@ -192,7 +196,7 @@ Additional run inputs for the model chain:
 | `llm_model_name` | a model id your cluster is allowed to pull | Cached on `model_cache_pvc` |
 | `model_cache_pvc` | `model-cache-pvc` | Created before the run |
 | `llm_hardware_profile_name` | `gpu-profile` | Must exist |
-| `llm_hardware_profile_namespace` | the namespace that holds the Hardware Profile | Do not copy the upstream `redhat-ods-applications` default |
+| `llm_hardware_profile_namespace` | the namespace that holds the Hardware Profile | Use the Hardware Profile namespace on this cluster |
 | `milvus_host` | `milvus.milvus.svc.cluster.local` | In-cluster DNS, no scheme |
 | `drop_existing` | `true` | Recreates the collection |
 
@@ -223,6 +227,9 @@ subprocess so one stuck PDF does not kill the actor. This is the same pattern
 the Workbench Docling guide points at for thousands of files; you do not write
 this script yourself when you use the component.
 
+A CPU-only smoke of that actor-pool shape (no Docling, no PDF PVC) is
+[`assets/ray-data-pipelines/rayjob-smoke.yaml`](https://github.com/alauda/aml-docs/blob/master/docs/en/train/guides/assets/ray-data-pipelines/rayjob-smoke.yaml).
+
 ## Troubleshooting \{#troubleshooting}
 
 | Symptom | Cause |
@@ -237,8 +244,7 @@ this script yourself when you use the component.
 
 ## Next steps \{#next-steps}
 
-- [Use Reusable Kubeflow Pipeline Components](./reusable-pipeline-components.mdx) — AutoGluon managed pipelines and how to import other mirror assets.
-- [Prepare Fine-Tuning Data with Docling and SDG Hub](../../train/guides/prepare-finetune-data-with-docling-and-sdg.mdx) — interactive Docling before you need Ray Data.
+- [Use Reusable Kubeflow Pipeline Components](../../develop/pipelines/reusable-pipeline-components.mdx) — AutoGluon managed pipelines and how to import other mirror assets.
+- [Prepare Fine-Tuning Data with Docling and SDG Hub](./prepare-finetune-data-with-docling-and-sdg.mdx) — interactive Docling before you need Ray Data.
 - [Optimize a RAG Application with AutoRAG Pipelines](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/optimize-rag-with-autorag.ipynb) — search RAG settings instead of a fixed HybridChunker.
-- [CodeFlare SDK Tutorial](../distributed_workloads/codeflare-sdk-tutorial.mdx) — submit a RayJob from a notebook without KFP.
-- Upstream component (Apache-2.0): [`pipelines-components` `parse_and_chunk`](https://github.com/alauda/pipelines-components).
+- [CodeFlare SDK Tutorial](../../develop/distributed_workloads/codeflare-sdk-tutorial.mdx) — submit a RayJob from a notebook without KFP.

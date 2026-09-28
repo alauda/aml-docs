@@ -18,7 +18,8 @@ case "${E2E_SKIP_RC}" in
   *) [ "${E2E_SKIP_RC}" -ge 0 ] && [ "${E2E_SKIP_RC}" -le 255 ] || E2E_SKIP_RC=77 ;;
 esac
 
-# Required per case: GPU_NAMESPACE, NPU_NAMESPACE, or FEAST_NAMESPACE.
+# Required per case: GPU_NAMESPACE, NPU_NAMESPACE, FEAST_NAMESPACE, or
+# RAY_DATA_NAMESPACE (C17).
 # Feast C16 also requires FEAST_IMAGE and FEAST_SPARK_IMAGE; its durable-store
 # Secret names default to feast-data-stores and feast-s3-credentials.
 # Optional kube target: GPU_CONTEXT/GPU_KUBECONFIG/NPU_CONTEXT/NPU_KUBECONFIG.
@@ -43,6 +44,11 @@ FEAST_DATA_STORES_SECRET="${FEAST_DATA_STORES_SECRET:-feast-data-stores}"
 FEAST_S3_CREDENTIALS_SECRET="${FEAST_S3_CREDENTIALS_SECRET:-feast-s3-credentials}"
 FEAST_STORAGE_CLASS="${FEAST_STORAGE_CLASS:-}"
 FEAST_KEEP_RESOURCES="${FEAST_KEEP_RESOURCES:-0}"
+RAY_DATA_CONTEXT="${RAY_DATA_CONTEXT:-${GPU_CONTEXT:-}}"
+RAY_DATA_KUBECONFIG="${RAY_DATA_KUBECONFIG:-${GPU_KUBECONFIG:-}}"
+RAY_DATA_NAMESPACE="${RAY_DATA_NAMESPACE:-${GPU_NAMESPACE:-}}"
+RAY_DATA_IMAGE="${RAY_DATA_IMAGE:-}"
+RAY_DATA_KEEP_RESOURCES="${RAY_DATA_KEEP_RESOURCES:-0}"
 
 # Rewrite docker.io references to a mirror that the cluster can actually reach.
 # Args: mirror_host. Reads stdin, writes patched YAML to stdout.
@@ -94,6 +100,7 @@ _kubectl_with_env() {
 gpu_kc() { _kubectl_with_env "${GPU_KUBECONFIG}" "${GPU_CONTEXT}" "$@"; }
 npu_kc() { _kubectl_with_env "${NPU_KUBECONFIG}" "${NPU_CONTEXT}" "$@"; }
 feast_kc() { _kubectl_with_env "${FEAST_KUBECONFIG}" "${FEAST_CONTEXT}" "$@"; }
+ray_data_kc() { _kubectl_with_env "${RAY_DATA_KUBECONFIG}" "${RAY_DATA_CONTEXT}" "$@"; }
 
 yaml_scalar_field() {
   local indent="$1" name="$2" value="${3:-}"

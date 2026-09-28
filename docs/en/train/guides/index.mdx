@@ -31,7 +31,7 @@ End-to-end recipes for training and fine-tuning models on Alauda AI.
 | Train tabular or time-series models with reusable AutoGluon assets | Managed KFP pipelines or composable components | [Use Reusable Kubeflow Pipeline Components](../../develop/pipelines/reusable-pipeline-components.mdx) |
 | Use KFP caching, parallel loops, and persistent typed artifacts | KFP 2.16.1 execution mechanisms | [Kubeflow Pipelines Execution and Storage Behavior](../../develop/pipelines/kfp-execution-and-storage.mdx) |
 | Daily fine-tune → evaluate → compare loop with MLflow + TrustyAI | KFP Recurring Run + MLflow Model Registry + `LMEvalJob` | [Daily Fine-Tuning Pipeline with MLflow and TrustyAI](./fine-tuning-pipeline-with-mlflow-trustyai.mdx) |
-| Parse thousands of PDFs with Ray Data and optional Milvus ingest | KFP `parse_and_chunk` RayJob from `pipelines-components` | [Run Ray Data Pipelines from pipelines-components](../../develop/pipelines/run-ray-data-pipelines.mdx) |
+| Parse thousands of PDFs with Ray Data and optional Milvus ingest | KFP `parse_and_chunk` RayJob from `pipelines-components` | [Run Ray Data Pipelines from pipelines-components](./run-ray-data-pipelines.mdx) |
 | Search RAG chunking, embeddings, and retrieval settings for a document corpus | KFP AutoRAG pipelines + OGX (Llama Stack) | [Optimize a RAG Application with AutoRAG Pipelines](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/optimize-rag-with-autorag.ipynb) |
 
 :::note
@@ -49,7 +49,9 @@ git -C aml-docs sparse-checkout set --no-cone \
   /docs/en/train/guides/kuberay-checkpointing-and-resuming.ipynb \
   /docs/en/train/guides/assets/kuberay-checkpointing/ \
   /docs/en/train/guides/prepare-finetune-data-with-docling-and-sdg.ipynb \
-  /docs/en/train/guides/assets/docling-sdg/
+  /docs/en/train/guides/assets/docling-sdg/ \
+  /docs/en/train/guides/run-ray-data-pipelines.ipynb \
+  /docs/en/train/guides/assets/ray-data-pipelines/
 cd aml-docs/docs/en/train/guides
 ```
 :::
