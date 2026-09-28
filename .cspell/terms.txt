@@ -33,3 +33,6 @@ LiteLLM
 sdg
 SDG
 FlowRegistry
+HybridChunker
+map_batches
+ActorPoolStrategy

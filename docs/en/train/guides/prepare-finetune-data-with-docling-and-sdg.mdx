@@ -250,7 +250,7 @@ want **CPT → SFT** instead of SFT alone — see
 | Volume | Tool | When to use it |
 |---|---|---|
 | Tens of native-digital PDFs | Docling in the workbench | Interactive, CPU-only, no extra operators |
-| Thousands of PDFs | Ray Data + Docling on KubeRay | Needs a RWX PVC, a Ray+Docling image, and [CodeFlare SDK](../../develop/distributed_workloads/codeflare-sdk-tutorial.mdx). See the [ODH data-processing](https://github.com/opendatahub-io/data-processing) notebooks and KFP examples. |
+| Thousands of PDFs | Ray Data + Docling on KubeRay | Compile the experimental `parse_and_chunk` component. See [Run Ray Data Pipelines from pipelines-components](../../develop/pipelines/run-ray-data-pipelines.mdx). Needs a RWX PVC, a Ray+Docling image, and [KubeRay](../../develop/components/kuberay/install.mdx). |
 | Repeatable SDG in CI | KFP `sdg_hub` component | Beta component in `pipelines-components`. Compile `pipelines/data_processing/sdg/pipeline.py`, upload the YAML, pass `model` / `flow_id` or a flow ConfigMap. Use the same OpenAI-compatible teacher as the notebook. |
 | Complex layouts / image captions | Docling VLM pipeline | ODH [`docling-vlm`](https://github.com/opendatahub-io/data-processing/blob/stable/kubeflow-pipelines/docling-vlm/README.md) KFP example. Needs a GPU runtime image. |
 
