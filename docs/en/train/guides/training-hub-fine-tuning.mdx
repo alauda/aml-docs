@@ -49,6 +49,8 @@ Each line is a conversation:
 
 Roles: `system`, `user`, `assistant`, `pretraining`. Masking:
 
+To produce this JSONL from PDFs or Office files in a Workbench, convert with Docling and generate synthetic Q&A with SDG Hub — see [Prepare Fine-Tuning Data with Docling and SDG Hub](./prepare-finetune-data-with-docling-and-sdg.mdx).
+
 - **SFT (default)** — only `assistant` content contributes to loss. Add `"unmask": true` to a sample to include all non-system content.
 - **OSFT** — controlled by `unmask_messages` (default `False`).
 
