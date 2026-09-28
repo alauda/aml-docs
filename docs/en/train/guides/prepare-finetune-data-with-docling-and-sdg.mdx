@@ -4,8 +4,8 @@ weight: 85
 
 # Prepare Fine-Tuning Data with Docling and SDG Hub
 
-Open Data Hub and OpenShift AI treat document conversion and synthetic data as two
-steps in the same model-customization path:
+Open Data Hub treats document conversion and synthetic data as two steps in the
+same model-customization path:
 
 1. **[Docling](https://github.com/docling-project/docling)** turns PDFs, Office
    files, HTML, and similar sources into structured Markdown or JSON.
@@ -25,7 +25,7 @@ PDF / DOCX / HTML
         │  Docling (workbench, or Ray Data for scale)
         ▼
 Markdown / DoclingDocument JSON
-        │  SDG Hub flow (LiteLLM → in-cluster InferenceService)
+        │  SDG Hub flow (OpenAI-compatible API or InferenceService)
         ▼
 JSONL  (chat messages or instruction/output)
         │  training_hub.sft / LLaMA-Factory / Trainer v2
@@ -53,7 +53,7 @@ cd aml-docs/docs/en/train/guides
 |---|---|
 | Workbench | **Standard Data Science** (`Python 3.12`). See [Create Workbench](../../develop/workbench/create_workbench.mdx). The workbench itself can stay CPU-only. |
 | Persistent storage | A workspace PVC for source documents, Docling cache, SDG checkpoints, and the output JSONL. Packages installed only in the container filesystem disappear when the workbench is recreated. |
-| Teacher LLM | An OpenAI-compatible chat endpoint that LiteLLM can call. An in-cluster vLLM `InferenceService` is the usual choice — see [Find your model endpoint](../../ai_applications/deploy_agent_with_agentruntime.mdx#find-your-model-endpoint-and-name). |
+| Teacher LLM | An OpenAI-compatible chat API (`/v1/chat/completions`). Use an in-cluster `InferenceService` or any compatible external endpoint. See [Find your model endpoint](../../ai_applications/deploy_agent_with_agentruntime.mdx#find-your-model-endpoint-and-name). |
 | Network | PyPI or an internal index to install `docling` and `sdg-hub`, plus Hugging Face (or a mirrored cache) for Docling layout models. |
 | Optional, for scale | [KubeRay Operator](../../develop/components/kuberay/install.mdx) for Ray Data PDF batches; [Kubeflow Pipelines](../../develop/pipelines/reusable-pipeline-components.mdx) for the SDG Hub KFP component. |
 
@@ -101,8 +101,8 @@ the data-science stack yourself.
 
 ## Convert documents with Docling \{#docling}
 
-Docling is the Python library Open Data Hub documents under *Prepare your data
-for AI consumption*. The in-workbench path is a `DocumentConverter` over files
+Docling is the Python library Open Data Hub uses to prepare unstructured data
+for model consumption. The in-workbench path is a `DocumentConverter` over files
 on the PVC. That is enough for a few dozen native-digital PDFs. CPU cost is
 typically 5–60 seconds per file.
 
@@ -144,21 +144,20 @@ enough to feed SDG Hub and then SFT.
 
 ## Generate synthetic data with SDG Hub \{#sdg}
 
-[SDG Hub](https://ai-innovation.team/sdg_hub/docs/) is a block-and-flow library.
-A *block* does one thing (build a prompt, call an LLM, parse the reply). A
-*flow* is a YAML list of blocks. OpenShift AI 3.5's *Generate synthetic data*
-chapter clones [`sdg_hub/examples`](https://github.com/Red-Hat-AI-Innovation-Team/sdg_hub/tree/main/examples)
+[SDG Hub](https://github.com/Red-Hat-AI-Innovation-Team/sdg_hub) is a
+block-and-flow library. A *block* does one thing (build a prompt, call an LLM,
+parse the reply). A *flow* is a YAML list of blocks. Open Data Hub clones
+[`sdg_hub/examples`](https://github.com/Red-Hat-AI-Innovation-Team/sdg_hub/tree/main/examples)
 and runs those notebooks from a workbench. The same install works here.
 
-Point LiteLLM at an in-cluster teacher. The `hosted_vllm/` provider prefix
-tells LiteLLM to use an OpenAI-compatible `/v1` base URL:
+Configure SDG Hub with an OpenAI-compatible teacher. Provide either an in-cluster
+`InferenceService` predictor URL or any other `/v1` chat endpoint you control.
+`SDG_MODEL` must match a model name the server lists at `/v1/models`.
 
 ```python
 import os
 
-os.environ.setdefault("LITELLM_REQUEST_TIMEOUT", "600")
-
-SDG_MODEL = os.environ.get("SDG_MODEL", "hosted_vllm/qwen3")
+SDG_MODEL = os.environ.get("SDG_MODEL", "qwen3")
 SDG_API_BASE = os.environ.get(
     "SDG_API_BASE",
     "http://qwen3-predictor.my-namespace.svc.cluster.local/v1",
@@ -211,8 +210,8 @@ For the extractive-summary knowledge-tuning flow, follow
 [`examples/knowledge_tuning`](https://github.com/Red-Hat-AI-Innovation-Team/sdg_hub/tree/main/examples/knowledge_tuning)
 in the SDG Hub repo: parse with Docling, then generate several augmentations
 per document (thematic summaries, relationships, atomic facts) and three Q&A
-pairs per summary. That is the path OpenShift AI documents for injecting
-proprietary facts into an instruction-tuned model.
+pairs per summary. That is the Open Data Hub path for injecting proprietary
+facts into an instruction-tuned model.
 
 ## Write a fine-tuning JSONL \{#jsonl}
 
@@ -251,15 +250,15 @@ want **CPT → SFT** instead of SFT alone — see
 | Volume | Tool | When to use it |
 |---|---|---|
 | Tens of native-digital PDFs | Docling in the workbench | Interactive, CPU-only, no extra operators |
-| Thousands of PDFs | Ray Data + Docling on KubeRay | ODH example: [`ray-cluster-docling-batch-processing.ipynb`](https://github.com/red-hat-data-services/red-hat-ai-examples/blob/main/examples/ray/data/docling/ray-cluster-docling-batch-processing.ipynb). Needs a RWX PVC, a Ray+Docling image, and [CodeFlare SDK](../../develop/distributed_workloads/codeflare-sdk-tutorial.mdx). |
-| Repeatable SDG in CI | KFP `sdg_hub` component | Beta component in `pipelines-components`. Compile `pipelines/data_processing/sdg/pipeline.py`, upload the YAML, pass `model` / `flow_id` or a flow ConfigMap. Same LiteLLM endpoint as the notebook. |
+| Thousands of PDFs | Ray Data + Docling on KubeRay | Needs a RWX PVC, a Ray+Docling image, and [CodeFlare SDK](../../develop/distributed_workloads/codeflare-sdk-tutorial.mdx). See the [ODH data-processing](https://github.com/opendatahub-io/data-processing) notebooks and KFP examples. |
+| Repeatable SDG in CI | KFP `sdg_hub` component | Beta component in `pipelines-components`. Compile `pipelines/data_processing/sdg/pipeline.py`, upload the YAML, pass `model` / `flow_id` or a flow ConfigMap. Use the same OpenAI-compatible teacher as the notebook. |
 | Complex layouts / image captions | Docling VLM pipeline | ODH [`docling-vlm`](https://github.com/opendatahub-io/data-processing/blob/stable/kubeflow-pipelines/docling-vlm/README.md) KFP example. Needs a GPU runtime image. |
 
 The Ray batch path mounts one RWX PVC on every worker, runs each PDF inside a
 subprocess so a hung converter can be killed, and writes Markdown + JSON back
 to the same volume. Do not schedule Docling actors on the Ray head.
 
-The KFP SDG path is what OpenShift AI documents after the workbench notebooks:
+The KFP SDG path is the Open Data Hub follow-on after the workbench notebooks:
 a ConfigMap for the flow YAML, a Secret for the teacher API key, then a
 pipeline run. Alauda's mirrored component is
 [`pipelines-components/components/data_processing/sdg`](https://github.com/alauda/pipelines-components)
@@ -271,10 +270,10 @@ pipeline run. Alauda's mirrored component is
 |---|---|
 | `pip install docling` fails on UBI9 with missing `tesseract` / `qpdf` | OCR extras are not in the Workbench image. Skip OCR, or bake those RPMs into a [BYO image](../../develop/workbench/byo_workbench_images.mdx). |
 | First `convert()` hangs or downloads from Hugging Face | Layout models are not cached. Set `HF_HOME` / `DOCLING_CACHE_DIR` on the PVC, or prefetch the models. |
-| `FlowValidationError: model config` | `set_model_config()` was skipped. LiteLLM needs `model` and, for vLLM, `api_base`. |
+| `FlowValidationError: model config` | `set_model_config()` was skipped. Pass `model` and `api_base` for an OpenAI-compatible teacher. |
 | `MissingColumnError` | The dataset is missing a flow `required_columns` field. Print `flow.get_dataset_requirements()`. |
 | Teacher `401` / `404` | `SDG_API_BASE` must be the predictor Service `…/v1`, and `SDG_MODEL` must match a name the server lists at `/v1/models`. |
-| Knowledge-tuning run times out | Raise `LITELLM_REQUEST_TIMEOUT`, lower `NUMBER_OF_SUMMARIES`, or use a teacher that can sustain ≥50 concurrent requests. |
+| Knowledge-tuning run times out | Lower `NUMBER_OF_SUMMARIES`, raise the HTTP timeout on the teacher, or use an endpoint that can sustain ≥50 concurrent requests. |
 | Workbench OOM during PDF convert | Move the job to Ray Data. A single Docling actor wants several GB and multiple CPUs. |
 
 ## Next steps \{#next-steps}
@@ -283,4 +282,6 @@ pipeline run. Alauda's mirrored component is
 - [Fine-tuning LLMs using Workbench](./fine-tuning-using-notebooks.mdx) — LLaMA-Factory VolcanoJob.
 - [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx) — cluster `TrainJob` with a `dataset-initializer`.
 - [Optimize a RAG Application with AutoRAG Pipelines](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/optimize-rag-with-autorag.ipynb) — Docling as a pipeline stage rather than a workbench library.
-- Upstream: [Docling](https://docling-project.github.io/docling/), [SDG Hub docs](https://ai-innovation.team/sdg_hub/docs/), OpenShift AI 3.5 *Prepare your data* / *Generate synthetic data*.
+- Upstream: [Docling](https://github.com/docling-project/docling) (MIT),
+  [SDG Hub](https://github.com/Red-Hat-AI-Innovation-Team/sdg_hub) (Apache-2.0),
+  [Open Data Hub data-processing](https://github.com/opendatahub-io/data-processing) (Apache-2.0).
