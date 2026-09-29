@@ -34,6 +34,7 @@ scheduling) see [Deploy](../../deploy/index.mdx).
 | DeepSeek-V4-Flash (W8A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W8A8 | Ascend 910B3 ×16 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W8A8)](./deepseek-v4-flash-w8a8.mdx) |
 | MiniMax-M2.5 (W8A8) | `minimax_m2` MoE (full-attn, 256-expert) | 230B-A10B | W8A8 (QuaRot) | Ascend 910B3 ×16 | vLLM-Ascend v0.23.0 | [MiniMax-M2.5 (W8A8)](./minimax-m2.5-w8a8.mdx) |
 | Gemma-4-31B-it | `gemma4` dense multimodal | 31B | BF16 | Ascend 910B3 ×8 | vLLM-Ascend nightly-main (0721) | [Gemma-4-31B-it](./gemma4-31b-it.mdx) |
+| Qwen3.5-397B-A17B (W8A8) | `qwen3_5_moe` hybrid MoE (512-expert, 15/60 full-attn, MTP) | 397B-A17B | W8A8 | Ascend 910B3 ×16 / ×8 | vLLM-Ascend 0.23.0 | [Qwen3.5-397B-A17B (W8A8)](./qwen3-5-397b-a17b-w8a8.mdx) |
 
 The two Qwen models and DeepSeek-V4-Flash (W4A8) were validated on Ascend 910B4 (32 GB/card),
 driven through KServe `LLMInferenceService` with load-aware routing (InferNex-Bridge +
@@ -58,6 +59,13 @@ Gemma-4-31B-it is a dense BF16 model validated as a **P4+D4 composite service** 
 two 910B3 nodes: TP4 Prefill and TP4 Decode exchange KV through Ascend Direct transport.
 It uses eight NPUs in total; its figures are an operating envelope for that P/D service,
 not a comparison with a four-card aggregated replica.
+
+Qwen3.5-397B-A17B (W8A8, ~392 GB, 397B-A17B) is the first model in this guide validated
+in **two topologies on the same hardware** — a 16-card DP2 × TP=8 cross-node aggregation
+and an 8-card single-node TP=8 aggregation — and the first driven by a **replay of real
+agent sessions** (Exgentic v2) swept over concurrent sessions rather than fixed-length
+synthetic prompts. Its page therefore carries a per-scenario topology recommendation
+instead of a single operating point.
 
 ## Runtime images
 
@@ -85,6 +93,15 @@ DeepSeek-V4-Flash (W8A8) and MiniMax-M2.5 (W8A8) are the exceptions — they wer
 Gemma-4-31B-it uses both scenarios and the same concurrency sweep, but is sent directly
 to its P4+D4 proxy because the MaaS backend was still attached to the older aggregate
 service at measurement time.
+
+:::note
+**Qwen3.5-397B-A17B (W8A8) does not use these two scenarios.** It was measured with a
+newer harness that replays **real agent sessions** (Exgentic v2, `claude_code`) across
+three workload profiles — chat, coding and RAG — and sweeps **concurrent sessions**
+rather than requests, with output length taken from the recording instead of pinned to
+128 tokens. Its numbers are therefore not comparable with the table below; see its own
+page.
+:::
 
 | Scenario | What it models | Dataset | Request shape |
 |---|---|---|---|
