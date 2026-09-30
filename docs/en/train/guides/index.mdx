@@ -19,6 +19,8 @@ End-to-end recipes for training and fine-tuning models on Alauda AI.
 | Run a fine-tune on a *slice* of a GPU instead of a whole card | Dynamic Resource Allocation (DRA) MIG slice + Trainer v2 | [GPU Slicing with Dynamic Resource Allocation (DRA)](./gpu-slicing-with-dra.mdx) |
 | A curated set of `TrainingRuntime` images (CUDA / CANN) | Trainer v2 runtime catalog | [Training Runtime Images](./training-runtimes.mdx) |
 | One-shot quick start of distributed PyTorch on Trainer v2 | `ClusterTrainingRuntime` + MNIST | [Kubeflow Trainer Quick Start](./kubeflow-trainer-quick-start.md) |
+| Run a two-node PyTorch DDP job directly with Kubernetes JobSet | Indexed Job + stable pod DNS + `torchrun` | [Run Distributed PyTorch Training with JobSet](./run-distributed-training-with-jobset.mdx) |
+| Run an OpenMPI workload on Trainer v2 | MPI-enabled `TrainingRuntime` + `TrainJob` | [Run MPI Training with Kubeflow Trainer v2](./run-mpi-training-with-trainer-v2.mdx) |
 | Production SFT / OSFT with automatic memory management | `training_hub` | [Fine-tuning LLMs with Training Hub](./training-hub-fine-tuning.mdx) |
 | Interactive exploration, custom scripts, VolcanoJob submission | Workbench Notebook | [Fine-tuning LLMs using Workbench](./fine-tuning-using-notebooks.mdx) |
 | Turn PDFs into SFT JSONL from a Workbench | Docling + SDG Hub + OpenAI-compatible teacher | [Prepare Fine-Tuning Data with Docling and SDG Hub](./prepare-finetune-data-with-docling-and-sdg.mdx) |
