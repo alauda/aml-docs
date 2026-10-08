@@ -1,0 +1,63 @@
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainingRuntime
+metadata:
+  name: openmpi-trainingruntime
+  labels:
+    trainer.kubeflow.org/framework: mpi
+spec:
+  mlPolicy:
+    numNodes: 1
+    mpi:
+      numProcPerNode: 1
+      mpiImplementation: OpenMPI
+      sshAuthMountPath: /home/mpiuser/.ssh
+      runLauncherAsNode: true
+  template:
+    spec:
+      network:
+        publishNotReadyAddresses: true
+      successPolicy:
+        operator: All
+        targetReplicatedJobs:
+          - launcher
+      replicatedJobs:
+        - name: node
+          template:
+            spec:
+              template:
+                spec:
+                  securityContext:
+                    fsGroup: 1000
+                  containers:
+                    - name: node
+                      image: mpioperator/mpi-pi:v0.6.0-openmpi
+                      command:
+                        - /usr/sbin/sshd
+                      args:
+                        - -De
+                        - -f
+                        - /home/mpiuser/.sshd_config
+                      readinessProbe:
+                        tcpSocket:
+                          port: 2222
+                        initialDelaySeconds: 5
+                      securityContext:
+                        runAsUser: 1000
+        - name: launcher
+          dependsOn:
+            - name: node
+              status: Ready
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              template:
+                spec:
+                  securityContext:
+                    fsGroup: 1000
+                  containers:
+                    - name: node
+                      image: mpioperator/mpi-pi:v0.6.0-openmpi
+                      securityContext:
+                        runAsUser: 1000
