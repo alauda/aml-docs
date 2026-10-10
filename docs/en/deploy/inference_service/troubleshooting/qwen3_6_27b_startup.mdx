@@ -1,0 +1,100 @@
+---
+weight: 30
+---
+
+# Qwen3.6-27B Inference Service Fails to Start Without Tensor Parallelism
+
+## Problem Description
+
+When you deploy the Qwen3.6-27B model as a vLLM inference service on two Ascend NPUs, the service may fail during startup. The Pod is created, but the vLLM container does not become ready and the engine core exits.
+
+The logs can contain one or more of the following messages:
+
+```text
+ValueError: No available memory for the cache blocks.
+Try increasing `gpu_memory_utilization` when initializing the engine.
+```
+
+```text
+RuntimeError: NPU out of memory. Tried to allocate ... MiB
+```
+
+The final error is often reported by the API server as:
+
+```text
+RuntimeError: Engine core initialization failed. See root cause above.
+```
+
+## Root Cause
+
+In a deployment where the selected model weights and runtime memory do not fit on one NPU, tensor parallelism distributes the weights across multiple NPUs. Whether Qwen3.6-27B requires two or more NPUs depends on dtype, quantization, and device memory. Confirm that the effective tensor parallel size is `1` before applying this diagnosis. Allocating two NPUs to the Pod does not automatically enable tensor parallelism in vLLM. If `--tensor-parallel-size` is omitted, vLLM uses its default tensor parallel size of `1` and attempts to load the model on a single NPU.
+
+That single NPU can run out of memory while loading the model weights. Depending on the point at which initialization fails, vLLM may report a weight-loading OOM or report that no memory is available for KV-cache blocks. The `gpu_memory_utilization` setting controls the per-instance device-memory budget for weights, activations, and KV cache; changing it does not distribute model weights across NPUs and does not fix a missing tensor-parallel configuration.
+
+## Solution
+
+Set the tensor parallel size to the number of NPUs that the inference service exposes on the node. For a service that requests two NPUs, add the following argument to the vLLM startup command:
+
+```text
+--tensor-parallel-size=2
+```
+
+For example, the relevant part of an `InferenceService` specification is:
+
+```yaml
+spec:
+  predictor:
+    model:
+      args:
+        - --tensor-parallel-size=2
+      resources:
+        limits:
+          huawei.com/Ascend910B4-1: '2'
+        requests:
+          huawei.com/Ascend910B4-1: '2'
+```
+
+Use the resource key configured by your cluster. The important requirements are:
+
+- The Pod must have two visible NPUs on the same node.
+- `--tensor-parallel-size` must be set to `2`.
+- The tensor parallel size must not exceed the number of NPUs visible to the container.
+
+Ensure the runtime forwards `model.args` to vLLM (for a shell wrapper, preserve `"$@"`). If your runtime instead builds the startup command in `model.command`, append `--tensor-parallel-size=2` to its existing vLLM invocation. Preserve Ascend toolkit initialization, model-path resolution, port `8080`, served-model names, and all other required arguments. Do not replace the complete command with a minimal vLLM invocation.
+
+Apply the updated resource and wait for the new revision to roll out:
+
+```bash
+kubectl apply -f qwen3-6-27b.yaml -n <namespace>
+kubectl get pods -n <namespace> -w
+```
+
+## Verify the Configuration
+
+Confirm that the service requests two NPUs and that the generated vLLM command contains the tensor parallel argument:
+
+```bash
+kubectl get inferenceservice <inference-service-name> -n <namespace> -o yaml
+kubectl get pod -n <namespace> -l serving.kserve.io/inferenceservice=<inference-service-name> -o yaml
+```
+
+Inspect the Pod logs and confirm that the model loads successfully:
+
+```bash
+kubectl logs -n <namespace> <pod-name> -c <container-name>
+```
+
+After the model finishes loading, verify that the `InferenceService` reports `Ready` and serves a test request. A Pod being `Running` alone does not establish readiness. You can then tune `--gpu-memory-utilization` for KV-cache capacity if required. Do not use that parameter as a substitute for `--tensor-parallel-size=2`.
+
+## If the Service Still Fails
+
+After adding tensor parallelism, check the following items:
+
+1. Confirm that both NPUs are scheduled to the same Pod and node.
+2. Check `npu-smi info` on the node for memory used by other processes or stale vLLM workers.
+3. Confirm that the runtime, model revision, dtype, and quantization settings match the configuration that was tested successfully.
+4. If both NPUs are fully used by the model and KV cache still cannot be allocated, reduce `--max-model-len` or set a lower workload limit. If model weights alone do not fit, use a quantized or smaller model, or provide more NPUs.
+
+## Summary
+
+For Qwen3.6-27B on a two-NPU node, requesting two NPUs is not sufficient by itself. Configure vLLM with `--tensor-parallel-size=2` so that the model weights are sharded across both NPUs. When the effective TP size is `1` and a single NPU cannot hold the workload, these errors can be caused by the missing tensor parallel setting. They can also have other memory-related causes; TP=2 is not a guarantee that every model configuration fits.

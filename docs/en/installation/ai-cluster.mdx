@@ -282,7 +282,7 @@ The main `kserve` component settings:
 | `values.defaultDeploymentMode` | Deployment mode for inference services: `RawDeployment` (`Standard`) or `Knative` for serverless features like scale-to-zero. | `RawDeployment` |
 | `values.domain` | Domain used by the ingress gateway to expose inference-service endpoints. Use a wildcard domain, e.g., `*.example.com`. | None |
 | `values.ingressGateway` | Ingress gateway bound to KServe, in the form `<namespace>/<gateway-name>`. | `knative-serving/knative-ingress-gateway` |
-| `values.kserve.storage.uidModelcar` | UID used for Modelcar workloads. Set to `0` when you plan to use `vLLM-ascend`; the default is `1000`. | `1000` |
+| `values.kserve.storage.uidModelcar` | UID used for Modelcar workloads. Keep the default `1000` for non-root workloads; set it to `0` only when a validated `vLLM-ascend` multi-NPU deployment requires root mode. | `1000` |
 
 The gateway presets configure the AI gateway stack that fronts inference traffic:
 
@@ -693,9 +693,11 @@ spec:
 The specific path should be consistent with the collection configuration of `Alauda Container Platform Log Collector`.
 :::
 
-### 2. Set KServe Modelcar UID for vLLM-ascend
+### 2. Set KServe Modelcar UID for root-mode vLLM-ascend
 
-If you plan to use `vLLM-ascend`, set KServe Modelcar UID to `0` (the default is `1000`) in the `default` `AmlCluster`:
+If a validated multi-NPU `vLLM-ascend` deployment cannot initialize with the
+default non-root UID `1000`, set KServe Modelcar UID to `0` in the `default`
+`AmlCluster`:
 
 ```yaml
 spec:
@@ -708,3 +710,6 @@ spec:
 ```
 
 This setting is cluster-level and affects all Modelcar workloads in the Alauda AI installation cluster.
+
+For the complete root-mode procedure and rollback steps, see [Run Multi-NPU
+vLLM Ascend Inference as Root](../deploy/inference_service/guides/vllm_ascend_root_mode.mdx).

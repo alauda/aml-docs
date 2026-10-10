@@ -1,0 +1,226 @@
+---
+weight: 115
+i18n:
+  title:
+    en: Run Multi-NPU vLLM Ascend Inference as Root
+---
+
+# Run Multi-NPU vLLM Ascend Inference as Root
+
+## Overview
+
+Some `vLLM-ascend` images cannot initialize multi-NPU inference reliably when the Modelcar and serving container run as UID `1000`. The failure is commonly seen with tensor parallelism greater than one, for example Qwen3.6-27B with `--tensor-parallel-size=2` on two Ascend NPUs.
+
+When testing confirms that the same service starts with the Modelcar and serving container running as root (UID `0`), root mode can be used as a compatibility workaround. This guide shows how to configure that mode for a multi-NPU `InferenceService`.
+
+:::warning
+Root mode is a compatibility workaround for images or driver integrations that do not yet work with UID `1000`. It changes the UID used by Modelcar workloads at the cluster level. Use a dedicated runtime, apply the smallest namespace security policy that allows the workload, and restore the non-root configuration when root mode is no longer needed.
+:::
+
+This guide does not replace tensor parallel configuration. The service must still request the required number of NPUs and pass a matching `--tensor-parallel-size` value to vLLM.
+
+## When to Use Root Mode
+
+Use root mode only when all of the following conditions apply:
+
+- The service runs on Ascend NPUs and uses multi-NPU inference (`TP > 1`).
+- The selected `vLLM-ascend` image has been tested with the required model and hardware.
+- The service fails with UID `1000` during distributed initialization, while the same workload starts with UID `0`.
+- The service owner accepts the cluster-level effect of changing the Modelcar UID.
+
+Typical symptoms include:
+
+```text
+ERR02200 DIST call hccl api failed
+HcclGetCommAsyncError
+Engine core initialization failed. See root cause above.
+```
+
+These messages indicate a distributed initialization or device-access failure. They do not prove that root is the correct long-term fix. Record the runtime image, driver, CANN, `torch_npu`, vLLM, and vLLM Ascend versions so the issue can be reported to the image or device integration owner.
+
+## Configuration Scope
+
+Root mode requires aligned settings in four places:
+
+| Setting                          | Location                              | Root-mode value                                   |
+| -------------------------------- | ------------------------------------- | ------------------------------------------------- |
+| Modelcar UID                     | `AmlCluster`                          | `uidModelcar: 0`                                  |
+| Container UID                    | Root-specific `ClusterServingRuntime` | `runAsUser: 0`                                    |
+| Non-root restriction             | Root-specific `ClusterServingRuntime` | Remove `runAsNonRoot: true`, or set it to `false` |
+| Namespace Pod Security Admission | Namespace containing the service      | `baseline` in the normal case                     |
+
+`uidModelcar` is a cluster-level setting. It affects Modelcar workloads in the cluster, not only the inference service described in this guide. Plan the change with the owners of other Modelcar workloads.
+
+## Prerequisites
+
+- A namespace where you can create or update an `InferenceService`.
+- An Ascend node with the number of NPUs required by the model. For TP=2, two NPUs must be visible to the same Pod.
+- A `vLLM-ascend` runtime image that supports the target model and Ascend software stack.
+- An existing `ClusterServingRuntime` that you can copy into a root-specific runtime.
+- Cluster administrator access to update `AmlCluster` and the namespace Pod Security Admission settings.
+
+## Configure the Namespace Security Policy
+
+Set the namespace's Pod Security Admission **Enforce** level to `baseline` before creating the root-mode service. In the platform console, open **Project** > **Namespace**, select the target namespace, and update its Pod Security Admission settings.
+
+Use `privileged` only when the generated Pod contains a requirement that `baseline` rejects, such as host namespaces or other explicitly privileged settings. Running as UID `0` alone does not require setting the namespace to `privileged`.
+
+The `Audit` and `Warn` levels do not decide whether the Pod is admitted. Check the `Enforce` level when a Pod is rejected by Pod Security Admission.
+
+## Set the Modelcar UID in AmlCluster
+
+Update the `AmlCluster` resource so KServe Modelcar uses UID `0`:
+
+```yaml
+spec:
+  components:
+    kserve:
+      values:
+        kserve:
+          storage:
+            uidModelcar: 0
+```
+
+Apply the change to the existing `default` `AmlCluster` using your cluster's
+normal administration workflow. Do not create a second `AmlCluster`. Verify
+that the controller has reconciled the new value before rolling out the
+inference service:
+
+```bash
+kubectl get amlcluster default
+```
+
+:::warning
+Do not change this value casually on a shared cluster. The platform default is UID `1000`; changing it to `0` also changes newly generated Modelcar workloads for other services.
+:::
+
+## Create a Root-Specific ClusterServingRuntime
+
+Copy the existing Ascend runtime and give the copy a distinct name. Keep the model path handling, Ascend toolkit initialization, shared-memory volume, probes, and image version from the validated runtime. Merge the following fragment into the complete copied runtime; it is not a standalone manifest. Preserve `supportedModelFormats`, `protocolVersions`, and the other runtime fields. For a starting configuration, see the [custom Ascend runtime example](./custom_inference_runtime.mdx#vllm-ascend-ascend-npu), and choose an image that supports your model. Change the container security context as follows:
+
+```yaml
+apiVersion: serving.kserve.io/v1alpha1
+kind: ClusterServingRuntime
+metadata:
+  name: aml-vllm-ascend-root
+  labels:
+    aml.cpaas.io/runtime-type: vllm
+    cpaas.io/accelerator-type: ascend
+spec:
+  containers:
+    - name: kserve-container
+      image: quay.io/ascend/vllm-ascend:<validated-tag>
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        privileged: false
+        runAsNonRoot: false
+        runAsUser: 0
+        seccompProfile:
+          type: RuntimeDefault
+```
+
+When adapting an existing non-root runtime:
+
+- Remove `runAsNonRoot: true`, or set it to `false`.
+- Replace `runAsUser: 1000` with `runAsUser: 0`.
+- Container-level security context fields take precedence over the corresponding Pod-level fields. If a container omits `runAsNonRoot`, it inherits the Pod-level setting. Inspect every generated container, including Modelcar, for an inherited non-root restriction that conflicts with UID `0`.
+- Keep `HOME` pointed to a writable path such as `/tmp` when the image writes caches or temporary files.
+- Do not remove `seccompProfile`, dropped capabilities, or other restrictions unless the validated image requires them and the namespace policy permits the change.
+
+Keep the runtime command's `"$@"` forwarding so service-specific vLLM arguments
+reach the server. Set the TP value in the `InferenceService` `model.args` field
+shown below. Do not define conflicting tensor parallel values in both the
+runtime command and the service.
+
+## Create the InferenceService
+
+Select the root-specific runtime and request two NPUs for a TP=2 deployment. The exact Ascend resource key depends on the cluster:
+
+```yaml
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: qwen3-6-27b
+  namespace: <namespace>
+  annotations:
+    aml-model-repo: Qwen3.6-27B
+    serving.kserve.io/deploymentMode: Standard
+  labels:
+    aml.cpaas.io/runtime-type: vllm
+spec:
+  predictor:
+    model:
+      args:
+        - --tensor-parallel-size=2
+        - --gpu-memory-utilization=0.7
+      modelFormat:
+        name: transformers
+      protocolVersion: v2
+      resources:
+        limits:
+          huawei.com/Ascend910B4-1: '2'
+          memory: 32Gi
+        requests:
+          huawei.com/Ascend910B4-1: '2'
+          memory: 32Gi
+      runtime: aml-vllm-ascend-root
+      storageUri: oci://<registry>/<repository>:<tag>
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+```
+
+For root-mode Modelcar deployments, do not add `fsGroup: 1000` or `supplementalGroups: [1000]` solely to force the non-root device-permission model. Keep those fields only when the storage backend or another workload requirement needs them.
+
+The `--gpu-memory-utilization` value is an example. It controls the per-instance device-memory budget for model weights, activations, and KV cache; it does not replace `--tensor-parallel-size=2` and does not resolve a UID or HCCL initialization failure.
+
+## Deploy and Verify
+
+Save the complete merged runtime as `vllm-ascend-root-runtime.yaml` and the service as `qwen3-6-27b.yaml`. Replace the image tag, namespace, model URI, and resource key with values validated for your environment, then apply:
+
+```bash
+kubectl apply -f vllm-ascend-root-runtime.yaml
+kubectl apply -f qwen3-6-27b.yaml -n <namespace>
+kubectl get pods -n <namespace> -w
+```
+
+Inspect the generated Pod and verify the effective settings:
+
+```bash
+kubectl get pod <pod-name> -n <namespace> -o yaml
+kubectl get inferenceservice qwen3-6-27b -n <namespace> -o yaml
+kubectl logs <pod-name> -n <namespace> -c kserve-container
+```
+
+Confirm all of the following:
+
+- The Pod requests and receives two NPUs on the same node.
+- The serving container runs as UID `0` (`id -u` returns `0`).
+- The generated vLLM arguments contain exactly `--tensor-parallel-size=2`.
+- The logs show successful HCCL/distributed initialization and model loading.
+- The `InferenceService` reaches `Ready` and serves a test request.
+
+If the Pod is rejected before startup, inspect the namespace events for a PSA violation. If the Pod starts but HCCL still fails, collect the first worker error and the complete software-version matrix before changing more security settings.
+
+## Restore Non-Root Mode
+
+When the image or vLLM Ascend integration supports UID `1000`, restore the safer default:
+
+1. Set `uidModelcar` back to `1000` in `AmlCluster`.
+2. Wait for the Modelcar configuration to reconcile. Switch affected services to the standard non-root `ClusterServingRuntime` with `runAsNonRoot: true` and `runAsUser: 1000`, restoring required device and storage group settings from the [non-root example](./custom_inference_runtime.mdx#vllm-ascend-ascend-npu).
+3. Roll out the affected services and verify the effective UID of their replacement containers, service readiness, and a test request.
+4. Restore the namespace PSA level required by your workloads after confirming that replacement Pods comply with it.
+5. Remove the root-specific runtime after no service uses it.
+
+## Report the Compatibility Issue
+
+When reporting a UID `1000` failure, include the model, TP size, NPU model and count, runtime image digest, CANN and driver versions, vLLM and vLLM Ascend versions, effective Pod security context, and the first HCCL/DIST error. This information distinguishes a device-permission problem from a model, memory, or distributed-topology problem.
+
+## Related Documentation
+
+- [Configure vLLM-ascend in a custom inference runtime](./custom_inference_runtime.mdx#vllm-ascend-ascend-npu)
+- [Troubleshoot Qwen3.6-27B startup failures caused by missing tensor parallelism](../troubleshooting/qwen3_6_27b_startup.mdx)
+- [Install and configure an AI cluster](../../../installation/ai-cluster.mdx)
