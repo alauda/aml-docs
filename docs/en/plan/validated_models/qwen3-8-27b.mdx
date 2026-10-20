@@ -122,10 +122,13 @@ preemptions); without speculative decoding the same budget holds 6.
 
 **Concurrent requests under an agent workload**
 
-This answers "how many requests can one card process at the same time" under a real
-agent replay workload (`swebench`) whose inputs are similar to the target production
-agent's real usage (per-call input median ~12.5k, p90 ~25k, p99 ~40k tokens; 3–4 model
-calls per question). The Exgentic v2 corpus subset `openai_solo` × `swebench` was
+This answers "how many requests can one card process at the same time" for an agent
+workload shaped like the target production agent's real usage. That agent makes 3–4
+model calls per question; per-call input is median ~11.5k / p90 ~21k tokens on tool turns
+and ~15k / ~30k on the final turn, and output is ~100–300 tokens on tool turns and median
+~1.1k (including thinking) on the final turn. The replayed workload is a real agent corpus
+with similar inputs: Exgentic v2 `openai_solo` × `swebench`, per-call input median
+~11–16k / p90 ~20–38k tokens as received by the engine, output median 42–96 tokens. It was
 replayed with `timingMode: agentic_replay` (recorded call gaps, lanes starting at 25–75% of
 each trajectory, per-session cache-bust), 15 minutes per tier. Because the number of
 requests actually in flight varies a lot between sessions, every request is grouped by

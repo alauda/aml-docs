@@ -68,7 +68,9 @@ not a comparison with a four-card aggregated replica.
 
 Qwen3.8-27B (RedHat NVFP4 + DFlash2 speculative decoding) runs on **one NVIDIA RTX PRO
 6000 Blackwell** with the GPU memory budget capped at 84 GB to emulate an RTX PRO 6000D.
-Under a multi-turn agent workload with ~11–16k-token inputs it processes **up to 8
+The target production agent makes 3–4 model calls per question with a median per-call
+input of ~11.5k tokens (~15k on the final turn); replaying a real agent corpus with
+similar inputs (Exgentic `swebench`, median ~11–16k), the card processes **up to 8
 requests at the same time** with TTFT p90 ≤ 0.7 s and ~50 tok/s per request; at 13+ the
 KV cache fills.
 
