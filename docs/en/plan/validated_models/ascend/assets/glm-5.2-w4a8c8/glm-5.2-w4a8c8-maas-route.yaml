@@ -1,0 +1,38 @@
+# Publish glm52-pd on MaaS through the KServe ingress gateway route, so requests take
+#   MaaS → KServe gateway → InferencePool → EPP (picks P and D) → P→D proxy.
+#
+# Do not use the console "publish inference service" flow for this service: it points MaaS
+# at <llmisvc>-kserve-workload-svc, which skips the EPP. Do not point MaaS at the
+# InferencePool directly either: on that path request bodies above 4 MB fail with HTTP 500
+# (the EPP gRPC message limit), and 1M-token bodies are 2–4 MB.
+#
+# Before applying: set the endpoint to your KServe ingress gateway Service (its name carries
+# a hash suffix: kubectl -n envoy-gateway-system get svc | grep kserve-ingress-gateway), and
+# replace the namespace `demo` in both maas.alauda.io/endpoint and spec.schema.prefix.
+# After applying: add aml-maas/glm52-pd to a MaaS subscription, or no API key can reach it.
+apiVersion: aigateway.envoyproxy.io/v1alpha1
+kind: AIServiceBackend
+metadata:
+  name: glm52-pd
+  namespace: aml-maas
+  annotations:
+    maas.alauda.io/endpoint: http://<kserve-ingress-gateway-svc>.envoy-gateway-system.svc.cluster.local/demo/glm52-pd/v1
+spec:
+  schema:
+    name: OpenAI
+    prefix: demo/glm52-pd/v1
+  backendRef:
+    group: gateway.envoyproxy.io
+    kind: Backend
+    name: glm52-pd
+---
+apiVersion: maas.alauda.io/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: glm52-pd
+  namespace: aml-maas
+spec:
+  modelRef:
+    kind: AIServiceBackend
+    name: glm52-pd
+  modelName: glm-52

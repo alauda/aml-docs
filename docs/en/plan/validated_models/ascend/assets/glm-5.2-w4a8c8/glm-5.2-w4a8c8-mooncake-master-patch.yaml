@@ -1,0 +1,56 @@
+# Merge patch for InferNexService/glm52-pd: run the mooncake master from the engine image,
+# so master and clients share one Mooncake version (0.3.11.post1 in vLLM-Ascend v0.23.0).
+# The Bridge's default master image carries an older Mooncake. mooncake_master links the
+# host's libascend_hal.so, hence the driver mounts.
+#
+# Apply this once the Bridge has created the InferNexService, and repeat until the master
+# Deployment shows the engine image (right after creation the Bridge may still overwrite it).
+# Re-apply after every `kubectl apply` of the LLMInferenceService; on an unchanged spec the
+# patch is a no-op and does not restart the master. Keep the image below equal to the engine
+# image in the LLMInferenceService (repoint both for a local registry):
+#   kubectl -n demo patch infernexservice glm52-pd --type=merge \
+#     --patch-file glm-5.2-w4a8c8-mooncake-master-patch.yaml
+#   kubectl -n demo get deploy glm52-pd-mooncake-master \
+#     -o jsonpath='{.spec.template.spec.containers[0].image}'
+#
+# Eviction: at 90 % pool usage the master deletes 10 % of objects, least recently read first.
+#
+# One mooncake-master-service / redis-service pair exists per namespace and points at
+# whichever service reconciled last: do not run a second mooncake-enabled
+# LLMInferenceService in the same namespace.
+spec:
+  components:
+    mooncake:
+      enabled: true
+      master:
+        replicas: 1
+        servicePort: 30089
+        template:
+          metadata:
+            labels:
+              openfuyao.com/kvmanager: mooncake
+          spec:
+            tolerations:
+              - operator: Exists
+            containers:
+              - name: mooncake-master
+                image: quay.io/ascend/vllm-ascend@sha256:6c183dfa86cf13ea5fa54ac8f0bcf7316c5b91e7f9774c26dc282dfd94da8ef9  # v0.23.0-openeuler, arm64
+                imagePullPolicy: IfNotPresent
+                command: ["/bin/bash", "-c"]
+                args:
+                  - |
+                    export LD_LIBRARY_PATH="/usr/local/Ascend/driver/lib64:/usr/local/Ascend/driver/lib64/driver:/usr/local/lib:${LD_LIBRARY_PATH:-}"
+                    exec mooncake_master --port 50051 --metrics_port 9003 \
+                      --eviction_high_watermark_ratio 0.9 --eviction_ratio 0.1
+                ports:
+                  - { name: rpc, containerPort: 50051 }
+                  - { name: http, containerPort: 9003 }
+                resources:
+                  requests: { cpu: "2", memory: 4Gi }
+                  limits: { cpu: "8", memory: 16Gi }
+                volumeMounts:
+                  - { name: ascend-driver-lib64, mountPath: /usr/local/Ascend/driver/lib64, readOnly: true }
+                  - { name: ascend-driver-version, mountPath: /usr/local/Ascend/driver/version.info, readOnly: true }
+            volumes:
+              - { name: ascend-driver-lib64, hostPath: { path: /usr/local/Ascend/driver/lib64, type: Directory } }
+              - { name: ascend-driver-version, hostPath: { path: /usr/local/Ascend/driver/version.info, type: File } }
