@@ -1,0 +1,92 @@
+# =============================================================================
+# Qwen3.8-27B · RedHat NVFP4 + BF16 KV + DFlash2 speculative decoding
+# 1 × NVIDIA RTX PRO 6000 Blackwell · KServe LLMInferenceService (no InferNex, no EPP)
+#
+# The validated deployment: community vLLM v0.31.0 is brought in through an
+# LLMInferenceServiceConfig that overrides only the main container image; the command,
+# probes and routing come from the platform's default LLMInferenceService templates.
+# Download the weights first with qwen3-8-27b-download.yaml (same namespace).
+#
+# --gpu-memory-utilization=0.805 reproduces the validated 84 GB budget on a 96 GB card
+# (= 0.92 of an 84 GB RTX PRO 6000D × 84/96). On an RTX PRO 6000D use 0.92.
+# Change engine arguments with the service stopped (annotation serving.kserve.io/stop):
+# a single-GPU rolling update cannot schedule the new Pod next to the old one.
+# =============================================================================
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceServiceConfig
+metadata:
+  name: vllm-v0-31-0
+  namespace: zgsu-ns1
+spec:
+  template:
+    containers:
+      - name: main
+        # vLLM v0.31.0 (CUDA 13.0.2); needs an NVIDIA driver with CUDA 13 support (validated on 580.126.09)
+        image: docker.io/vllm/vllm-openai:v0.31.0@sha256:c1c9f6fd5c109ba7f0546a59f5b2f15fb87f64c77782e90a27b648b42a8e67c3
+---
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceService
+metadata:
+  name: qwen38-27b
+  namespace: zgsu-ns1
+  annotations:
+    cpaas.io/accelerator: cuda
+spec:
+  model:
+    uri: pvc://qwen38-27b-models/Qwen3.8-27B-NVFP4
+    name: qwen3.8-27b # served model name
+  baseRefs:
+    - name: vllm-v0-31-0
+  replicas: 1
+  router:
+    # No scheduler: no EPP is deployed for a single replica; the gateway routes straight to the engine.
+    gateway: {}
+    route: {}
+  template:
+    tolerations:
+      - { key: nvidia.com/gpu, operator: Exists, effect: NoSchedule }
+    securityContext: { fsGroup: 1000, fsGroupChangePolicy: OnRootMismatch }
+    containers:
+      - name: main
+        args:
+          - --max-model-len=131072
+          - --gpu-memory-utilization=0.805
+          - --language-model-only
+          # Prefix caching is on by default; with the 784-token hybrid block size each step prefills 7,840 tokens.
+          - --max-num-batched-tokens=8192
+          # vLLM defaults to 1024 sequences on >= 70 GB cards and reserves sampler / CUDA-graph memory for all of them.
+          - --max-num-seqs=32
+          # Qwen3.5-family checkpoints do not load KV scales (vLLM #54623); KV stays BF16.
+          - --kv-cache-dtype=bfloat16
+          - --enable-auto-tool-choice
+          - --tool-call-parser=qwen3_coder
+          - --reasoning-parser=qwen3
+          # DFlash2 draft model (incoai/Qwen3.8-27B-DFlash2), 7 tokens per draft (= block size 8 - 1).
+          # To use the checkpoint's own MTP head instead: '{"method":"mtp","num_speculative_tokens":5}'.
+          # The template builds the command with eval, so the JSON needs the extra single quotes.
+          - "--speculative-config='{\"method\":\"dflash\",\"model\":\"/home/.cache/Qwen3.8-27B-DFlash2\",\"num_speculative_tokens\":7}'"
+        env:
+          - { name: TRITON_CACHE_DIR, value: /home/.cache/triton }
+          # vLLM closes idle HTTP connections after 5 s; the MaaS gateway (Envoy) reuses idle upstream
+          # connections and answers 503 (flag UC) when it picks one vLLM just closed. Keep vLLM's longer.
+          - { name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE, value: "3700" }
+        resources:
+          requests: { cpu: "4", memory: 24Gi, nvidia.com/gpu: "1" }
+          limits: { cpu: "7", memory: 48Gi, nvidia.com/gpu: "1" }
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+        volumeMounts:
+          - { name: vllm-cache, mountPath: /home/.cache }
+        # First start compiles SM120 kernels; the default 10-minute startup budget is too short.
+        startupProbe:
+          failureThreshold: 240
+        readinessProbe:
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          timeoutSeconds: 10
+    volumes:
+      - name: vllm-cache
+        persistentVolumeClaim: { claimName: qwen38-27b-cache }

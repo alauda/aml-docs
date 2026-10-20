@@ -1,0 +1,112 @@
+# =============================================================================
+# Qwen3.8-27B (RedHat NVFP4) + DFlash2 draft model · download to the GPU node
+#
+# Two TopoLVM PVCs (WaitForFirstConsumer) and one Job that pulls both checkpoints at
+# pinned revisions and verifies every LFS file against the sha256 recorded on Hugging
+# Face. Both PVCs bind to the node the Job runs on, and the LLMInferenceService then
+# follows them to that node.
+#
+#   qwen38-27b-models  RedHatAI/Qwen3.8-27B-NVFP4@2889dde   (24.69 GB, Apache 2.0)
+#   qwen38-27b-cache   incoai/Qwen3.8-27B-DFlash2@015e795   (3.85 GB, Apache 2.0)
+#                      + vLLM compile caches (kept across Pod restarts)
+#
+# The draft model sits on the cache PVC on purpose: mounting the model PVC a second
+# time in the serving Pod hangs it in ContainerCreating.
+#
+# Before applying: set the namespace, and label the GPU node you want to use with
+#   kubectl label node <gpu-node> validated-model=qwen3-8-27b
+# The GPU node in the validated cluster carries the taint nvidia.com/gpu=true:NoSchedule.
+# =============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qwen38-27b-models
+  namespace: zgsu-ns1
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: topolvm
+  resources:
+    requests:
+      storage: 40Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qwen38-27b-cache
+  namespace: zgsu-ns1
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: topolvm
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: qwen38-27b-download
+  namespace: zgsu-ns1
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      tolerations:
+        - { key: nvidia.com/gpu, operator: Exists, effect: NoSchedule }
+      nodeSelector:
+        validated-model: qwen3-8-27b
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000 # fresh volumes are root-owned; fsGroup lets uid 1000 write
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: download
+          # The serving image itself (it ships huggingface_hub); this also pre-pulls it onto the node.
+          image: docker.io/vllm/vllm-openai:v0.31.0@sha256:c1c9f6fd5c109ba7f0546a59f5b2f15fb87f64c77782e90a27b648b42a8e67c3
+          command: [python3, -c]
+          args:
+            - |
+              import hashlib, os
+              from huggingface_hub import HfApi, snapshot_download
+              CKPTS = [
+                  ("RedHatAI/Qwen3.8-27B-NVFP4", "2889ddeeda282f17fc9e159a42125e535159a5e5", "/models/Qwen3.8-27B-NVFP4"),
+                  ("incoai/Qwen3.8-27B-DFlash2", "015e795645c74b1a0eeef3b570031fb62e769bc5", "/cache/Qwen3.8-27B-DFlash2"),
+              ]
+              api = HfApi()
+              for repo, rev, path in CKPTS:
+                  snapshot_download(repo, revision=rev, local_dir=path, max_workers=8)
+                  info = api.model_info(repo, revision=rev, files_metadata=True)
+                  n = 0
+                  for s in info.siblings:
+                      if not s.lfs:
+                          continue
+                      h = hashlib.sha256()
+                      with open(os.path.join(path, s.rfilename), "rb") as f:
+                          for block in iter(lambda: f.read(1 << 24), b""):
+                              h.update(block)
+                      assert h.hexdigest() == s.lfs.sha256, f"sha256 mismatch: {repo} {s.rfilename}"
+                      n += 1
+                  print(f"OK {repo}@{rev[:7]}: {len(info.siblings)} files, {n} LFS files sha256 verified", flush=True)
+          env:
+            - { name: HOME, value: /tmp }
+            - { name: HF_HOME, value: /tmp/hf }
+          resources:
+            requests: { cpu: "1", memory: 2Gi }
+            limits: { cpu: "4", memory: 16Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: models, mountPath: /models }
+            - { name: cache, mountPath: /cache }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: models
+          persistentVolumeClaim: { claimName: qwen38-27b-models }
+        - name: cache
+          persistentVolumeClaim: { claimName: qwen38-27b-cache }
+        - name: tmp
+          emptyDir: {}

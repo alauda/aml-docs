@@ -24,6 +24,12 @@ DeepSeek-V4-Flash and MiniMax-M2.5 use larger MoE topologies, up to a 16-card
 DP2 × TP=8 cross-node aggregation). For the runtime model (KServe, ModelCar storage,
 scheduling) see [Deploy](../../deploy/index.mdx).
 
+Qwen3.8-27B is the first model validated on **NVIDIA**: a single RTX PRO 6000 Blackwell
+with community vLLM, deployed as a plain KServe `LLMInferenceService` (no InferNex) behind
+the MaaS gateway. Its benchmarks use a different method (Exgentic agent replay, grouped by
+requests in flight) and are reported on its own page; they are not comparable with the
+Ascend scenarios below.
+
 ## Validated models
 
 | Model | Type | Params | dtype | Device | Engine | Per-page |
@@ -34,6 +40,7 @@ scheduling) see [Deploy](../../deploy/index.mdx).
 | DeepSeek-V4-Flash (W8A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W8A8 | Ascend 910B3 ×16 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W8A8)](./deepseek-v4-flash-w8a8.mdx) |
 | MiniMax-M2.5 (W8A8) | `minimax_m2` MoE (full-attn, 256-expert) | 230B-A10B | W8A8 (QuaRot) | Ascend 910B3 ×16 | vLLM-Ascend v0.23.0 | [MiniMax-M2.5 (W8A8)](./minimax-m2.5-w8a8.mdx) |
 | Gemma-4-31B-it | `gemma4` dense multimodal | 31B | BF16 | Ascend 910B3 ×8 | vLLM-Ascend nightly-main (0721) | [Gemma-4-31B-it](./gemma4-31b-it.mdx) |
+| Qwen3.8-27B (NVFP4, NVIDIA) | `qwen3_5` hybrid (GDN + MTP) | 27B | NVFP4 | NVIDIA RTX PRO 6000 ×1 | vLLM v0.31.0 | [Qwen3.8-27B (NVFP4, NVIDIA)](./qwen3-8-27b.mdx) |
 
 The two Qwen models and DeepSeek-V4-Flash (W4A8) were validated on Ascend 910B4 (32 GB/card),
 driven through KServe `LLMInferenceService` with load-aware routing (InferNex-Bridge +
@@ -59,6 +66,12 @@ two 910B3 nodes: TP4 Prefill and TP4 Decode exchange KV through Ascend Direct tr
 It uses eight NPUs in total; its figures are an operating envelope for that P/D service,
 not a comparison with a four-card aggregated replica.
 
+Qwen3.8-27B (RedHat NVFP4 + DFlash2 speculative decoding) runs on **one NVIDIA RTX PRO
+6000 Blackwell** with the GPU memory budget capped at 84 GB to emulate an RTX PRO 6000D.
+Under a multi-turn agent workload with ~11–16k-token inputs it processes **up to 8
+requests at the same time** with TTFT p90 ≤ 0.7 s and ~50 tok/s per request; at 13+ the
+KV cache fills.
+
 ## Runtime images
 
 | Engine | Device | Image (validated tag) | Used by | Notes |
@@ -68,6 +81,7 @@ not a comparison with a four-card aggregated replica.
 | vLLM-Ascend nightly-main (dated snapshot) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-main-openeuler-0709` | DeepSeek-V4-Flash (W8A8) | A **later** `nightly-main` snapshot (vLLM 0.23.0) that carries the DP2 cross-node graph + DSA-CP prefix-cache fixes the W8A8 cross-node deployment needs. Pin a **dated** snapshot like this one, not the moving `nightly-main` tag. |
 | vLLM-Ascend v0.23.0 (release-pinned) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:v0.23.0-openeuler` | MiniMax-M2.5 (W8A8) | The **release-pinned** `nightly-releases-v0.23.0-openeuler` build (vLLM 0.23.0), carrying the `minimax_m2` MoE stack + tool-call/reasoning parsers **and** vLLM #11505 (streaming tool-call arguments held until the closing `</parameter>`). Prefer this dated **release** tag over the moving `nightly-main`. |
 | vLLM-Ascend nightly-main (dated snapshot) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-main-openeuler-0721` | Gemma-4-31B-it | vLLM 0.25.1 / CANN 9.0.1 snapshot used by the validated P4+D4 service. Keep this exact image for the known-good Gemma baseline; it is not a current-version recommendation. |
+| vLLM v0.31.0 (community) | NVIDIA GPU | `docker.io/vllm/vllm-openai:v0.31.0` (`sha256:c1c9f6fd…`) | Qwen3.8-27B (NVFP4, NVIDIA) | CUDA 13.0.2, amd64; needs a driver with CUDA 13 support (validated on 580.126.09). Brought in by an `LLMInferenceServiceConfig` that overrides only the image of the platform's default template. |
 
 :::tip
 The Ascend CANN images are arm64. Always match the runtime image's CANN version to
@@ -109,7 +123,7 @@ ingress**.
 
 ## Deploy a validated model
 
-Each model page links self-contained YAMLs under
+Each Ascend model page links self-contained YAMLs under
 [`assets/`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets)
 that hold the real InferNex deployment — a KServe `LLMInferenceService`
 (`infernex.io/runtime: true`) plus the two `LLMInferenceServiceConfig` objects
@@ -142,6 +156,9 @@ curl -s http://<gateway>/<namespace>/qwen3-32b-agg-base/v1/chat/completions \
   namespace; the `LLMInferenceService` lives in your deployment namespace.
 - Resource keys are for **Ascend 910B4** (`huawei.com/Ascend910`). Adjust the resource
   key, image, and version fields for your actual NPU model.
+- Qwen3.8-27B (NVIDIA) is the exception to the two points above: no InferNex, resource key
+  `nvidia.com/gpu`, and the weights are downloaded into a PVC instead of a ModelCar — see
+  [its page](./qwen3-8-27b.mdx).
 - The ModelCar images are **public on Docker Hub** under
   [`alaudadockerhub`](https://hub.docker.com/u/alaudadockerhub) — the manifests pull them
   with no credentials. Mirror them to your own registry and repoint `model.uri` if you
