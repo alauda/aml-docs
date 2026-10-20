@@ -23,6 +23,7 @@ was capped at **84 GB** to emulate an RTX PRO 6000D. Context length **128k**.
 | Architecture | `qwen3_5` — Gated DeltaNet linear attention (48 layers) + full attention (16 layers) + native MTP; multimodal-capable, served text-only (`--language-model-only`) |
 | Checkpoint | [`RedHatAI/Qwen3.8-27B-NVFP4`](https://huggingface.co/RedHatAI/Qwen3.8-27B-NVFP4) @ `2889ddee` (24.69 GB): MLP in NVFP4 (W4A4); attention, GDN projections and layers 56–63 in FP8 |
 | Draft model | [`incoai/Qwen3.8-27B-DFlash2`](https://huggingface.co/incoai/Qwen3.8-27B-DFlash2) @ `015e7956` (3.85 GB), 7 tokens per draft |
+| ModelCar images | `docker.io/alaudadockerhub/modelcar-qwen3.8-27b-nvfp4:v0.1.0` (checkpoint) and `docker.io/alaudadockerhub/modelcar-qwen3.8-27b-dflash2:v0.1.0` (draft model): Cosign-signed, amd64 + arm64, every file byte-identical to the revisions above (sha256-checked) |
 | License | Apache 2.0 (base model, NVFP4 checkpoint and draft model) |
 | Published accuracy retention | ~99% of the original (e.g. SWE-Bench 78.0 vs 78.8, per the checkpoint card) |
 
@@ -57,17 +58,28 @@ that overrides only the container image.
 
 ## Deploy
 
-| Step | File |
+The weights come from two ModelCars on Docker Hub: the checkpoint is the service's
+`model.uri`, and an init container copies the draft model out of its own ModelCar into an
+`emptyDir` (an `LLMInferenceService` takes a single `model.uri`).
+
+| Spec | File |
 |---|---|
-| 1. Download the checkpoint and the draft model (PVCs + Job, sha256-verified) | [`qwen3-8-27b-download.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets/qwen3-8-27b/qwen3-8-27b-download.yaml) |
-| 2. Engine image config + `LLMInferenceService` | [`qwen3-8-27b-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets/qwen3-8-27b/qwen3-8-27b-llmisvc.yaml) |
+| Compile-cache PVC + engine image config + `LLMInferenceService` | [`qwen3-8-27b-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets/qwen3-8-27b/qwen3-8-27b-llmisvc.yaml) |
+
+| Image | Digest |
+|---|---|
+| `docker.io/alaudadockerhub/modelcar-qwen3.8-27b-nvfp4:v0.1.0` | `sha256:29e36f5bf1d731e3ee175f75ba00821292e21bc6323cfd659533fe702f927aac` |
+| `docker.io/alaudadockerhub/modelcar-qwen3.8-27b-dflash2:v0.1.0` | `sha256:ab910d1dce269083ea6b6427ce952fefd225d33e03ae60714c5ba6f391d5908a` |
 
 ```bash
+# verify both ModelCar signatures (public key from this repository)
+curl -sO https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/cosign.pub
+for img in modelcar-qwen3.8-27b-nvfp4 modelcar-qwen3.8-27b-dflash2; do
+  cosign verify --key cosign.pub --insecure-ignore-tlog=true docker.io/alaudadockerhub/$img:v0.1.0
+done
+
 base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/assets/qwen3-8-27b
-# edit the namespace first; label the GPU node the PVCs should land on:
-kubectl label node <gpu-node> validated-model=qwen3-8-27b
-kubectl apply -f $base/qwen3-8-27b-download.yaml
-kubectl -n <your-namespace> wait --for=condition=complete job/qwen38-27b-download --timeout=2h
+# edit the namespace first, then:
 kubectl apply -f $base/qwen3-8-27b-llmisvc.yaml
 kubectl -n <your-namespace> get llminferenceservice qwen38-27b -w
 
@@ -77,9 +89,17 @@ curl -s https://<maas-host>/v1/chat/completions \
   -d '{"model":"qwen3.8-27b","messages":[{"role":"user","content":"hello"}]}'
 ```
 
-The first start takes about 9.5 minutes (weights ~3 min from the local disk, then kernel
-compilation, CUDA-graph capture and FlashInfer tuning); the compile cache on
-`qwen38-27b-cache` makes later starts skip compilation.
+With the weights on a local disk the first start took about 9.5 minutes (weights ~3 min,
+then kernel compilation, CUDA-graph capture and FlashInfer tuning); with the ModelCars add
+the first image pull (~16.3 GiB compressed for the checkpoint, ~2.8 GiB for the draft
+model). The compile cache on `qwen38-27b-cache` makes later starts skip compilation.
+
+:::note
+The function checks and benchmarks on this page were run with the same files served from a
+PVC. The ModelCars carry byte-identical files (the sha256 of every file was checked against
+the pinned Hugging Face revisions), but this ModelCar manifest — including the init-container
+copy of the draft model — has not yet been run on the GPU.
+:::
 
 :::warning
 - With speculative decoding on, vLLM rejects `min_p` and `logit_bias` (HTTP 400).
