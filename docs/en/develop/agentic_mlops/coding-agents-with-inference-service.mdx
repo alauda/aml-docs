@@ -111,7 +111,7 @@ The table below shows parser pairs for reference. Parser names are version-speci
 | --- | --- | --- | --- |
 | Qwen3 / Qwen3.6 reasoning (`Qwen/Qwen3*`) | Check the current vLLM docs for the exact Qwen variant | `qwen3` | Reasoning is on by default; disable it with `chat_template_kwargs` if needed |
 | GLM-5.2 (Zhipu AI) | Check the current vLLM docs for the GLM variant | Check the current vLLM docs for the GLM variant | Hybrid reasoning; the tool-call and reasoning parsers share the GLM family value |
-| Deepseek-v4 (`deepseek_v4`) | Check the current vLLM docs for the DeepSeek variant | Check the current vLLM docs for the DeepSeek variant | Reasoning-mode builds only; see the [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/deepseek-v4-flash-w4a8.mdx) recipe |
+| Deepseek-v4 (`deepseek_v4`) | Check the current vLLM docs for the DeepSeek variant | Check the current vLLM docs for the DeepSeek variant | Reasoning-mode builds only; see the [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/ascend/deepseek-v4-flash-w4a8.mdx) recipe |
 
 The exact `--tool-call-parser` / `--reasoning-parser` values for these families depend on the vLLM version — read the model card and the [vLLM tool calling documentation](https://docs.vllm.ai/en/latest/features/tool_calling.html) before committing, and verify tool calls round-trip end-to-end.
 
@@ -296,10 +296,10 @@ As a best practice, build on-premise coding agents on the following five model f
 | Model | Type | Why it works for coding agents | Fit & notes |
 | --- | --- | --- | --- |
 | **GLM-5.2** (Zhipu AI) | Large MoE | Frontier agentic reasoning and multi-step tool use; excels at long, planned edits that span many files. | Heaviest of the set — serve quantized (GGUF / ModelSlim) or tensor-parallel across multiple accelerators. |
-| **Qwen3.6-27B-MTP** (Qwen) | Dense `qwen3_5` hybrid + MTP | Strong general-purpose coding; the native multi-token-prediction head speeds up decode for snappier interactive turns. | W8A8 validated on Ascend → [Qwen3.6-27B (W8A8)](../../plan/validated_models/qwen3-6-27b-w8a8.mdx). ~33–36 GB quantized. |
+| **Qwen3.6-27B-MTP** (Qwen) | Dense `qwen3_5` hybrid + MTP | Strong general-purpose coding; the native multi-token-prediction head speeds up decode for snappier interactive turns. | W8A8 validated on Ascend → [Qwen3.6-27B (W8A8)](../../plan/validated_models/ascend/qwen3-6-27b-w8a8.mdx). ~33–36 GB quantized. |
 | **Qwen3.6-35B-A3B** (Qwen) | MoE, ~3B active | Best quality-per-VRAM in the set: activates only ~3B parameters per token while carrying a 35B knowledge base. | Runs comfortably on a single 24 GB GPU — the recommended default for most users. |
 | **Gemma4-12B-it / Gemma4-31B-it** (Google) | Dense, instruction-tuned | Clean instruction following and dependable tool calls. 12B fits mid-range GPUs; 31B raises quality on 40–48 GB cards. | Pick **12B** for latency, **31B** for quality. |
-| **Deepseek-v4** (DeepSeek) | Large MoE (MLA + DSA + MTP) | Frontier-grade coding and agentic planning; the sparse MoE keeps active parameters low despite a large expert pool. | Heavy — serve quantized or multi-GPU/-card. W4A8 validated on Ascend → [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/deepseek-v4-flash-w4a8.mdx). |
+| **Deepseek-v4** (DeepSeek) | Large MoE (MLA + DSA + MTP) | Frontier-grade coding and agentic planning; the sparse MoE keeps active parameters low despite a large expert pool. | Heavy — serve quantized or multi-GPU/-card. W4A8 validated on Ascend → [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/ascend/deepseek-v4-flash-w4a8.mdx). |
 
 Confirm the matching vLLM `--tool-call-parser` (and `--reasoning-parser` for the reasoning-capable families) against the vLLM version you run — see [Enable tool calling on the runtime](#enable-tool-calling-on-the-runtime).
 
@@ -328,8 +328,8 @@ Two quantization paths cover the accelerators Alauda AI runs on. Pick the build 
 
 | Model | ModelSlim format | Topology | Recipe |
 | --- | --- | --- | --- |
-| Qwen3.6-27B | W8A8 (~33 GB) | Ascend 910B4 ×8 (2 × TP=4) | [Qwen3.6-27B (W8A8)](../../plan/validated_models/qwen3-6-27b-w8a8.mdx) |
-| DeepSeek-V4-Flash | W4A8 (~151 GB) | Ascend 910B4 ×8 (1 × TP=8) | [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/deepseek-v4-flash-w4a8.mdx) |
+| Qwen3.6-27B | W8A8 (~33 GB) | Ascend 910B4 ×8 (2 × TP=4) | [Qwen3.6-27B (W8A8)](../../plan/validated_models/ascend/qwen3-6-27b-w8a8.mdx) |
+| DeepSeek-V4-Flash | W4A8 (~151 GB) | Ascend 910B4 ×8 (1 × TP=8) | [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/ascend/deepseek-v4-flash-w4a8.mdx) |
 
 To quantize your own weights on NPU, use the ModelSlim workbench image and its verification notebook (see [Create a Workbench](../workbench/create_workbench.mdx)).
 
@@ -382,7 +382,7 @@ Two of the recommended models — `Qwen3.6-27B-MTP` and `Deepseek-v4` — ship a
 --speculative-config '{"method":"mtp","num_speculative_tokens":1}'
 ```
 
-Confirm the exact `method` against your vLLM version, and treat the full recipe — including the MTP guardrails these need on Ascend (disabled prefix caching, a capped `--max-num-seqs`, `enforce_eager`) — as the source of truth: [Qwen3.6-27B (W8A8)](../../plan/validated_models/qwen3-6-27b-w8a8.mdx) and [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/deepseek-v4-flash-w4a8.mdx). For other speculative methods (EAGLE-3, N-gram) and end-to-end verification and rollback, see [Speculative Decoding for vLLM Inference Services](../../deploy/inference_service/guides/vllm_speculative_decoding.mdx).
+Confirm the exact `method` against your vLLM version, and treat the full recipe — including the MTP guardrails these need on Ascend (disabled prefix caching, a capped `--max-num-seqs`, `enforce_eager`) — as the source of truth: [Qwen3.6-27B (W8A8)](../../plan/validated_models/ascend/qwen3-6-27b-w8a8.mdx) and [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/ascend/deepseek-v4-flash-w4a8.mdx). For other speculative methods (EAGLE-3, N-gram) and end-to-end verification and rollback, see [Speculative Decoding for vLLM Inference Services](../../deploy/inference_service/guides/vllm_speculative_decoding.mdx).
 
 **llama.cpp (GGUF).** When serving an MTP-enabled GGUF build (for example the Unsloth `-MTP` weights), turn on the draft-MTP path with `--spec-type draft-mtp`. Verify the flag against your llama.cpp build — MTP support and flag names change across releases.
 

@@ -24,16 +24,23 @@ DeepSeek-V4-Flash and MiniMax-M2.5 use larger MoE topologies, up to a 16-card
 DP2 × TP=8 cross-node aggregation). For the runtime model (KServe, ModelCar storage,
 scheduling) see [Deploy](../../deploy/index.mdx).
 
+Qwen3.8-27B is the first model validated on **NVIDIA**: a single RTX PRO 6000 Blackwell
+with community vLLM, deployed as a plain KServe `LLMInferenceService` (no InferNex) behind
+the MaaS gateway. Its benchmarks use a different method (Exgentic agent replay, grouped by
+requests in flight) and are reported on its own page; they are not comparable with the
+Ascend scenarios below.
+
 ## Validated models
 
 | Model | Type | Params | dtype | Device | Engine | Per-page |
 |---|---|---|---|---|---|---|
-| Qwen3-32B | Qwen3 dense | 32B | BF16 | Ascend 910B4 ×8 | vLLM-Ascend v0.18.0 | [Qwen3-32B](./qwen3-32b.mdx) |
-| Qwen3.6-27B (W8A8) | `qwen3_5` hybrid (GDN + MTP) | 27.78B | W8A8 | Ascend 910B4 ×8 | vLLM-Ascend nightly | [Qwen3.6-27B (W8A8)](./qwen3-6-27b-w8a8.mdx) |
-| DeepSeek-V4-Flash (W4A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W4A8 | Ascend 910B4 ×8 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W4A8)](./deepseek-v4-flash-w4a8.mdx) |
-| DeepSeek-V4-Flash (W8A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W8A8 | Ascend 910B3 ×16 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W8A8)](./deepseek-v4-flash-w8a8.mdx) |
-| MiniMax-M2.5 (W8A8) | `minimax_m2` MoE (full-attn, 256-expert) | 230B-A10B | W8A8 (QuaRot) | Ascend 910B3 ×16 | vLLM-Ascend v0.23.0 | [MiniMax-M2.5 (W8A8)](./minimax-m2.5-w8a8.mdx) |
-| Gemma-4-31B-it | `gemma4` dense multimodal | 31B | BF16 | Ascend 910B3 ×8 | vLLM-Ascend nightly-main (0721) | [Gemma-4-31B-it](./gemma4-31b-it.mdx) |
+| Qwen3-32B | Qwen3 dense | 32B | BF16 | Ascend 910B4 ×8 | vLLM-Ascend v0.18.0 | [Qwen3-32B](./ascend/qwen3-32b.mdx) |
+| Qwen3.6-27B (W8A8) | `qwen3_5` hybrid (GDN + MTP) | 27.78B | W8A8 | Ascend 910B4 ×8 | vLLM-Ascend nightly | [Qwen3.6-27B (W8A8)](./ascend/qwen3-6-27b-w8a8.mdx) |
+| DeepSeek-V4-Flash (W4A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W4A8 | Ascend 910B4 ×8 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W4A8)](./ascend/deepseek-v4-flash-w4a8.mdx) |
+| DeepSeek-V4-Flash (W8A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W8A8 | Ascend 910B3 ×16 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W8A8)](./ascend/deepseek-v4-flash-w8a8.mdx) |
+| MiniMax-M2.5 (W8A8) | `minimax_m2` MoE (full-attn, 256-expert) | 230B-A10B | W8A8 (QuaRot) | Ascend 910B3 ×16 | vLLM-Ascend v0.23.0 | [MiniMax-M2.5 (W8A8)](./ascend/minimax-m2.5-w8a8.mdx) |
+| Gemma-4-31B-it | `gemma4` dense multimodal | 31B | BF16 | Ascend 910B3 ×8 | vLLM-Ascend nightly-main (0721) | [Gemma-4-31B-it](./ascend/gemma4-31b-it.mdx) |
+| Qwen3.8-27B (NVFP4) | `qwen3_5` hybrid (GDN + MTP) | 27B | NVFP4 | NVIDIA RTX PRO 6000 ×1 | vLLM v0.31.0 | [Qwen3.8-27B (NVFP4)](./nvidia/qwen3-8-27b.mdx) |
 
 The two Qwen models and DeepSeek-V4-Flash (W4A8) were validated on Ascend 910B4 (32 GB/card),
 driven through KServe `LLMInferenceService` with load-aware routing (InferNex-Bridge +
@@ -59,6 +66,12 @@ two 910B3 nodes: TP4 Prefill and TP4 Decode exchange KV through Ascend Direct tr
 It uses eight NPUs in total; its figures are an operating envelope for that P/D service,
 not a comparison with a four-card aggregated replica.
 
+Qwen3.8-27B (NVFP4 + DFlash2 speculative decoding) runs on **one NVIDIA RTX PRO 6000
+Blackwell** with the GPU memory budget capped at 84 GB to emulate an RTX PRO 6000D. On a
+real agent replay whose per-call input and output lengths are close to Alauda Hyperflux's
+use (Exgentic `swebench`, median input ~11–16k tokens), the card processes **up to 8
+requests at the same time** with TTFT p90 ≤ 0.7 s and ~50 tok/s per request.
+
 ## Runtime images
 
 | Engine | Device | Image (validated tag) | Used by | Notes |
@@ -68,6 +81,7 @@ not a comparison with a four-card aggregated replica.
 | vLLM-Ascend nightly-main (dated snapshot) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-main-openeuler-0709` | DeepSeek-V4-Flash (W8A8) | A **later** `nightly-main` snapshot (vLLM 0.23.0) that carries the DP2 cross-node graph + DSA-CP prefix-cache fixes the W8A8 cross-node deployment needs. Pin a **dated** snapshot like this one, not the moving `nightly-main` tag. |
 | vLLM-Ascend v0.23.0 (release-pinned) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:v0.23.0-openeuler` | MiniMax-M2.5 (W8A8) | The **release-pinned** `nightly-releases-v0.23.0-openeuler` build (vLLM 0.23.0), carrying the `minimax_m2` MoE stack + tool-call/reasoning parsers **and** vLLM #11505 (streaming tool-call arguments held until the closing `</parameter>`). Prefer this dated **release** tag over the moving `nightly-main`. |
 | vLLM-Ascend nightly-main (dated snapshot) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-main-openeuler-0721` | Gemma-4-31B-it | vLLM 0.25.1 / CANN 9.0.1 snapshot used by the validated P4+D4 service. Keep this exact image for the known-good Gemma baseline; it is not a current-version recommendation. |
+| vLLM v0.31.0 (community) | NVIDIA GPU | `docker.io/vllm/vllm-openai:v0.31.0` (`sha256:c1c9f6fd…`) | Qwen3.8-27B (NVFP4) | CUDA 13.0.2, amd64; needs a driver with CUDA 13 support (validated on 580.126.09). Brought in by an `LLMInferenceServiceConfig` that overrides only the image of the platform's default template. |
 
 :::tip
 The Ascend CANN images are arm64. Always match the runtime image's CANN version to
@@ -109,15 +123,15 @@ ingress**.
 
 ## Deploy a validated model
 
-Each model page links self-contained YAMLs under
-[`assets/`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets)
+Each Ascend model page links self-contained YAMLs under
+[`ascend/assets/`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets)
 that hold the real InferNex deployment — a KServe `LLMInferenceService`
 (`infernex.io/runtime: true`) plus the two `LLMInferenceServiceConfig` objects
 (engine template + hermes-router/EPP template) that the InferNex-Bridge reconciles
 into the running instances.
 
 ```bash
-base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/assets
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/ascend/assets
 
 # 1. Edit the file first: set the namespace and the image tag (match your CANN /
 #    host driver). model.uri already points at the public ModelCar on Docker Hub
@@ -142,6 +156,9 @@ curl -s http://<gateway>/<namespace>/qwen3-32b-agg-base/v1/chat/completions \
   namespace; the `LLMInferenceService` lives in your deployment namespace.
 - Resource keys are for **Ascend 910B4** (`huawei.com/Ascend910`). Adjust the resource
   key, image, and version fields for your actual NPU model.
+- Qwen3.8-27B (NVFP4) is the exception to the two points above: no InferNex and resource
+  key `nvidia.com/gpu`; its checkpoint and draft model are two separate ModelCars — see
+  [its page](./nvidia/qwen3-8-27b.mdx).
 - The ModelCar images are **public on Docker Hub** under
   [`alaudadockerhub`](https://hub.docker.com/u/alaudadockerhub) — the manifests pull them
   with no credentials. Mirror them to your own registry and repoint `model.uri` if you
@@ -162,13 +179,15 @@ cosign verify --key cosign.pub --insecure-ignore-tlog=true \
   docker.io/alaudadockerhub/modelcar-qwen3-32b:v0.1.0
 ```
 
-The three signed images and their digests:
+The signed images and their digests:
 
 | Image | Digest |
 |---|---|
 | `docker.io/alaudadockerhub/modelcar-qwen3-32b:v0.1.0` | `sha256:eccffdb567038196638eb7e1c6bb9572d8bcc7829d11fcdfa17f2c43fbca0c6e` |
 | `docker.io/alaudadockerhub/modelcar-qwen3-6-27b-w8a8:v0.1.0` | `sha256:5eb8841a29a4f3d659f8cef25c7f8b16208b32265db23354dae79c4c04e8ef79` |
 | `docker.io/alaudadockerhub/modelcar-deepseek-v4-flash-w4a8-mtp:v0.1.0` | `sha256:ef57a46726bec9c6505504262beaa55ec6c45d595a1726ab90d594f42606c6be` |
+| `docker.io/alaudadockerhub/modelcar-qwen3.8-27b-nvfp4:v0.1.0` | `sha256:29e36f5bf1d731e3ee175f75ba00821292e21bc6323cfd659533fe702f927aac` |
+| `docker.io/alaudadockerhub/modelcar-qwen3.8-27b-dflash2:v0.1.0` | `sha256:ab910d1dce269083ea6b6427ce952fefd225d33e03ae60714c5ba6f391d5908a` |
 
 :::note
 DeepSeek-V4-Flash (**W8A8**) and MiniMax-M2.5 (**W8A8**) are not in this Cosign table —
@@ -176,8 +195,8 @@ their ModelCars are distributed as **OCI Image Layout tars** (not signed registr
 so there is no Cosign signature to verify. Integrity is content-addressed instead: each
 tar's `index.json` carries the image digest and every blob under `blobs/sha256/` is
 verified against its own digest on import (`skopeo copy` checks this). See the
-[DeepSeek-V4-Flash (W8A8)](./deepseek-v4-flash-w8a8.mdx) and
-[MiniMax-M2.5 (W8A8)](./minimax-m2.5-w8a8.mdx) pages.
+[DeepSeek-V4-Flash (W8A8)](./ascend/deepseek-v4-flash-w8a8.mdx) and
+[MiniMax-M2.5 (W8A8)](./ascend/minimax-m2.5-w8a8.mdx) pages.
 :::
 
 `--insecure-ignore-tlog=true` is required because these were signed with

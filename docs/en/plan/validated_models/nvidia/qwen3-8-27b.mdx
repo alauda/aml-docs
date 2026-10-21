@@ -1,0 +1,157 @@
+---
+weight: 70
+i18n:
+  title:
+    en: Qwen3.8-27B (NVFP4)
+    zh: Qwen3.8-27B (NVFP4)
+---
+
+# Qwen3.8-27B (NVFP4)
+
+`qwen3_5`-architecture dense model — a Gated DeltaNet linear-attention hybrid (48 of 64
+layers are linear attention) with a native MTP head, 27B parameters, served as an
+**NVFP4** checkpoint (~25 GB) with **DFlash2 speculative decoding**. Validated on a single
+**NVIDIA RTX PRO 6000 Blackwell** with community **vLLM v0.31.0**, deployed as a plain
+KServe `LLMInferenceService` behind the Alauda AI **MaaS gateway**. The GPU memory budget
+was capped at **84 GB** to emulate an RTX PRO 6000D. Context length **128k**.
+
+## Model identity
+
+| Field | Value |
+|---|---|
+| Publisher | Qwen (Alibaba) |
+| Architecture | `qwen3_5` — Gated DeltaNet linear attention (48 layers) + full attention (16 layers) + native MTP; multimodal-capable, served text-only (`--language-model-only`) |
+| Checkpoint | [`RedHatAI/Qwen3.8-27B-NVFP4`](https://huggingface.co/RedHatAI/Qwen3.8-27B-NVFP4) @ `2889ddee` (24.69 GB): MLP in NVFP4 (W4A4); attention, GDN projections and layers 56–63 in FP8 |
+| Draft model | [`incoai/Qwen3.8-27B-DFlash2`](https://huggingface.co/incoai/Qwen3.8-27B-DFlash2) @ `015e7956` (3.85 GB), 7 tokens per draft |
+| ModelCar images | `docker.io/alaudadockerhub/modelcar-qwen3.8-27b-nvfp4:v0.1.0` (checkpoint) and `docker.io/alaudadockerhub/modelcar-qwen3.8-27b-dflash2:v0.1.0` (draft model): Cosign-signed, amd64 + arm64, every file byte-identical to the revisions above (sha256-checked) |
+| License | Apache 2.0 (base model, NVFP4 checkpoint and draft model) |
+| Published accuracy retention | ~99% of the original (e.g. SWE-Bench 78.0 vs 78.8, per the checkpoint card) |
+
+## Validated hardware × stack
+
+| Platform | Engine | Version / config | Status |
+|---|---|---|---|
+| NVIDIA RTX PRO 6000 Blackwell 96 GB × 1 (SM120), capped to 84 GB; AWS g7e.2xlarge | vLLM (community) | `docker.io/vllm/vllm-openai:v0.31.0` (CUDA 13.0.2), NVIDIA driver 580.126.09 | ✅ function checks and Exgentic agent-replay benchmark, through MaaS |
+
+:::note
+The speed numbers were measured on the standard **96 GB** RTX PRO 6000 with the memory
+budget scaled down to **84 GB** (`--gpu-memory-utilization=0.805`). This reproduces the
+KV capacity of an RTX PRO 6000D, **not its compute or bandwidth**, which are lower —
+re-measure on a real 6000D before quoting 6000D speeds. Alauda AI's bundled vLLM (0.23.0)
+was not used: the community v0.31.0 image is brought in by an `LLMInferenceServiceConfig`
+that overrides only the container image.
+:::
+
+## Model configuration
+
+| Parameter | Value |
+|---|---|
+| `max-model-len` | 131072 |
+| `gpu-memory-utilization` | 0.805 (84 GB budget on a 96 GB card; use 0.92 on an RTX PRO 6000D) |
+| `max-num-seqs` | 32 |
+| `max-num-batched-tokens` | 8192 (prefix caching on; hybrid block size 784 → 7,840 tokens per step) |
+| KV cache dtype | BF16 (Qwen3.5-family checkpoints do not load KV scales, vLLM #54623) |
+| Speculative decoding | DFlash2, `num_speculative_tokens=7` |
+| KV capacity | 515k tokens with DFlash2 (812k without speculative decoding) |
+| Tool calls / reasoning | `--enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser qwen3` |
+| HTTP keep-alive | `VLLM_HTTP_TIMEOUT_KEEP_ALIVE=3700` (longer than the gateway's idle reuse; avoids 503 `UC`) |
+
+## Deploy
+
+The weights come from two ModelCars on Docker Hub: the checkpoint is the service's
+`model.uri`, and an init container copies the draft model out of its own ModelCar into an
+`emptyDir` (an `LLMInferenceService` takes a single `model.uri`).
+
+| Spec | File |
+|---|---|
+| Compile-cache PVC + engine image config + `LLMInferenceService` | [`qwen3-8-27b-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/nvidia/assets/qwen3-8-27b/qwen3-8-27b-llmisvc.yaml) |
+
+| Image | Digest |
+|---|---|
+| `docker.io/alaudadockerhub/modelcar-qwen3.8-27b-nvfp4:v0.1.0` | `sha256:29e36f5bf1d731e3ee175f75ba00821292e21bc6323cfd659533fe702f927aac` |
+| `docker.io/alaudadockerhub/modelcar-qwen3.8-27b-dflash2:v0.1.0` | `sha256:ab910d1dce269083ea6b6427ce952fefd225d33e03ae60714c5ba6f391d5908a` |
+
+```bash
+# verify both ModelCar signatures (public key from this repository)
+curl -sO https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/cosign.pub
+for img in modelcar-qwen3.8-27b-nvfp4 modelcar-qwen3.8-27b-dflash2; do
+  cosign verify --key cosign.pub --insecure-ignore-tlog=true docker.io/alaudadockerhub/$img:v0.1.0
+done
+
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/nvidia/assets/qwen3-8-27b
+# edit the namespace first, then:
+kubectl apply -f $base/qwen3-8-27b-llmisvc.yaml
+kubectl -n <your-namespace> get llminferenceservice qwen38-27b -w
+
+curl -s https://<maas-host>/v1/chat/completions \
+  -H "Authorization: Bearer $MAAS_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"qwen3.8-27b","messages":[{"role":"user","content":"hello"}]}'
+```
+
+With the weights on a local disk the first start took about 9.5 minutes (weights ~3 min,
+then kernel compilation, CUDA-graph capture and FlashInfer tuning); with the ModelCars add
+the first image pull (~16.3 GiB compressed for the checkpoint, ~2.8 GiB for the draft
+model). The compile cache on `qwen38-27b-cache` makes later starts skip compilation.
+
+:::note
+The function checks and benchmarks on this page were run with the same files served from a
+PVC. The ModelCars carry byte-identical files (the sha256 of every file was checked against
+the pinned Hugging Face revisions), but this ModelCar manifest — including the init-container
+copy of the draft model — has not yet been run on the GPU.
+:::
+
+:::warning
+- With speculative decoding on, vLLM rejects `min_p` and `logit_bias` (HTTP 400).
+- The answer text starts with `"\n\n"` after the reasoning parser splits the thinking off;
+  strip leading whitespace in the client.
+- `nvidia-smi` reached **82,013 MiB** under full KV load — about 3.1 GiB above the 84 GB
+  plan (vLLM does not budget some GDN scratch buffers, #54775). An RTX PRO 6000D still has
+  ~3.5 GiB left; to stay strictly inside 84 GB, lower `--gpu-memory-utilization` to 0.785.
+:::
+
+## Function checks
+
+All through the MaaS gateway, on the deployed manifest above:
+
+| Check | Result |
+|---|---|
+| Tool calls (streaming and non-streaming) | 10/10 and 10/10, missing required arguments 0 |
+| Reasoning separated from the answer | 3/3 |
+| `/v1/responses` (plain answer and tool call, streaming and non-streaming) | 12/12 |
+| 40 real agent requests from the Exgentic corpus, tool definitions sent as recorded | 37 returned tool calls (49 calls): missing required arguments 0, invalid JSON 0, unknown tool 0 |
+
+## Benchmark results
+
+**Workload.** The benchmark replays real agent trajectories whose per-call input and output
+lengths (ISL / OSL) are close to how **Alauda Hyperflux** uses this model: it makes 3–4
+model calls per question, and the Exgentic v2 subset `openai_solo` × `swebench` has the
+closest input lengths of the corpus.
+
+| Load | Per-call input (ISL) p50 / p90 | Output (OSL) p50 / p90 |
+|---|--:|--:|
+| Alauda Hyperflux, tool-calling turns | ~11.5k / ~21k | ~100–300 |
+| Alauda Hyperflux, final turn | ~15k / ~30k | ~1.1k / ~3.6k (including thinking) |
+| Replayed: Exgentic v2 `openai_solo` × `swebench` | ~11–16k / ~20–38k | 42–96 / 230–380 |
+
+The corpus outputs are shorter than Hyperflux's final answers, so the decode side is
+somewhat lighter than production.
+
+**Method.** `aiperf 0.12.0` (NVIDIA image) through the MaaS gateway, `timingMode:
+agentic_replay` (recorded gaps between calls, sessions start at 25–75% of their trajectory,
+per-session cache-bust), 15 minutes per tier, token counts as reported by the engine, 0
+errors. The number of requests actually in flight varies a lot between sessions, so every
+request is grouped by the time-averaged number of requests in flight during its lifetime
+(the first 120 s of each tier excluded).
+
+| Requests in flight | Requests | TTFT p50 / p90 | First answer token (after thinking) p50 / p90 | ITL p50 / p90 | Per-request output p50 (slowest 10%) | Input p50 | Output p50 / p90 |
+|--:|--:|--:|--:|--:|--:|--:|--:|
+| 1–2 | 1,367 | 0.24 / 0.37 s | 0.62 / 1.60 s | 11.1 / 18.2 ms | 89.8 (54.9) tok/s | 11,205 | 42 / 263 |
+| 3–4 | 580 | 0.30 / 0.52 s | 0.81 / 2.09 s | 14.1 / 22.5 ms | 71.0 (44.4) tok/s | 11,773 | 42 / 233 |
+| 5–6 | 557 | 0.40 / 0.64 s | 1.25 / 3.11 s | 19.0 / 27.8 ms | 52.6 (36.0) tok/s | 14,765 | 88 / 288 |
+| **7–8** | 891 | **0.44 / 0.68 s** | 1.36 / 3.90 s | 20.2 / 28.9 ms | **49.5 (34.6) tok/s** | 16,494 | 96 / 377 |
+
+**One card processes up to 8 requests at the same time** with TTFT p90 ≤ 0.7 s and ~50 tok/s
+per request (slowest 10% ~35 tok/s). Treat 8 as the ceiling for this workload: above it the
+515k-token KV cache fills and cached history is evicted between turns. Quote the result as
+concurrent **requests**, not users or sessions.
