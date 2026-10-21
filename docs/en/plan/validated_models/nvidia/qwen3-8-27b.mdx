@@ -9,8 +9,8 @@ i18n:
 # Qwen3.8-27B (NVFP4)
 
 `qwen3_5`-architecture dense model — a Gated DeltaNet linear-attention hybrid (48 of 64
-layers are linear attention) with a native MTP head, 27B parameters, served as
-**RedHat NVFP4** (~25 GB) with **DFlash2 speculative decoding**. Validated on a single
+layers are linear attention) with a native MTP head, 27B parameters, served as an
+**NVFP4** checkpoint (~25 GB) with **DFlash2 speculative decoding**. Validated on a single
 **NVIDIA RTX PRO 6000 Blackwell** with community **vLLM v0.31.0**, deployed as a plain
 KServe `LLMInferenceService` behind the Alauda AI **MaaS gateway**. The GPU memory budget
 was capped at **84 GB** to emulate an RTX PRO 6000D. Context length **128k**.
@@ -19,7 +19,7 @@ was capped at **84 GB** to emulate an RTX PRO 6000D. Context length **128k**.
 
 | Field | Value |
 |---|---|
-| Publisher | Qwen (Alibaba); NVFP4 quantization by Red Hat AI |
+| Publisher | Qwen (Alibaba) |
 | Architecture | `qwen3_5` — Gated DeltaNet linear attention (48 layers) + full attention (16 layers) + native MTP; multimodal-capable, served text-only (`--language-model-only`) |
 | Checkpoint | [`RedHatAI/Qwen3.8-27B-NVFP4`](https://huggingface.co/RedHatAI/Qwen3.8-27B-NVFP4) @ `2889ddee` (24.69 GB): MLP in NVFP4 (W4A4); attention, GDN projections and layers 56–63 in FP8 |
 | Draft model | [`incoai/Qwen3.8-27B-DFlash2`](https://huggingface.co/incoai/Qwen3.8-27B-DFlash2) @ `015e7956` (3.85 GB), 7 tokens per draft |
@@ -31,7 +31,7 @@ was capped at **84 GB** to emulate an RTX PRO 6000D. Context length **128k**.
 
 | Platform | Engine | Version / config | Status |
 |---|---|---|---|
-| NVIDIA RTX PRO 6000 Blackwell 96 GB × 1 (SM120), capped to 84 GB; AWS g7e.2xlarge | vLLM (community) | `docker.io/vllm/vllm-openai:v0.31.0` (CUDA 13.0.2), NVIDIA driver 580.126.09 | ✅ function checks, single-stream / long-input / full-128k, Exgentic agent replay capacity, through MaaS |
+| NVIDIA RTX PRO 6000 Blackwell 96 GB × 1 (SM120), capped to 84 GB; AWS g7e.2xlarge | vLLM (community) | `docker.io/vllm/vllm-openai:v0.31.0` (CUDA 13.0.2), NVIDIA driver 580.126.09 | ✅ function checks and Exgentic agent-replay benchmark, through MaaS |
 
 :::note
 The speed numbers were measured on the standard **96 GB** RTX PRO 6000 with the memory
@@ -123,39 +123,26 @@ All through the MaaS gateway, on the deployed manifest above:
 
 ## Benchmark results
 
-`aiperf 0.12.0` (NVIDIA image), all through the MaaS gateway. Token counts use the
-engine-reported usage.
+**Workload.** The benchmark replays real agent trajectories whose per-call input and output
+lengths (ISL / OSL) are close to how **Alauda Hyperflux** uses this model: it makes 3–4
+model calls per question, and the Exgentic v2 subset `openai_solo` × `swebench` has the
+closest input lengths of the corpus.
 
-**Single stream and long input**
+| Load | Per-call input (ISL) p50 / p90 | Output (OSL) p50 / p90 |
+|---|--:|--:|
+| Alauda Hyperflux, tool-calling turns | ~11.5k / ~21k | ~100–300 |
+| Alauda Hyperflux, final turn | ~15k / ~30k | ~1.1k / ~3.6k (including thinking) |
+| Replayed: Exgentic v2 `openai_solo` × `swebench` | ~11–16k / ~20–38k | 42–96 / 230–380 |
 
-| Workload | TTFT p50 | ITL p50 | Per-request output p50 | Tokens per step |
-|---|--:|--:|--:|--:|
-| Random prompt, 1k in / 1k out, 20 requests | 110 ms | 8.2 ms | 122.6 tok/s (55.1 without speculative decoding) | — |
-| Agent replay, 1 session, 15 min (Exgentic `claude_code` × `browsecompplus`) | 0.65 s | 12.1 ms | 82.5 tok/s (51.8 without) | 4.3 |
-| Agent replay, 4 sessions, 15 min | 0.74 s | 15.8 ms | 63.3 tok/s (40.5 without) | 4.0 |
-| 127k input, 256 out, 20 requests | 19.8 s | 35.2 ms | 28.4 tok/s (42.1 without) | 2.9 |
+The corpus outputs are shorter than Hyperflux's final answers, so the decode side is
+somewhat lighter than production.
 
-Near 128k input the cost of verifying 8 tokens per step outweighs the accepted drafts,
-so DFlash2 is ~31% slower there than no speculation. **Full-128k requests (~126k in /
-1k out): 3 run at once with DFlash2** (vLLM's own estimate 3.93; KV peak 71%, 0
-preemptions); without speculative decoding the same budget holds 6.
-
-**Concurrent requests under an agent workload**
-
-This answers "how many requests can one card process at the same time" for an agent
-workload shaped like the target production agent's real usage. That agent makes 3–4
-model calls per question; per-call input is median ~11.5k / p90 ~21k tokens on tool turns
-and ~15k / ~30k on the final turn, and output is ~100–300 tokens on tool turns and median
-~1.1k (including thinking) on the final turn. The replayed workload is a real agent corpus
-with similar inputs: Exgentic v2 `openai_solo` × `swebench`, per-call input median
-~11–16k / p90 ~20–38k tokens as received by the engine, output median 42–96 tokens. It was
-replayed with `timingMode: agentic_replay` (recorded call gaps, lanes starting at 25–75% of
-each trajectory, per-session cache-bust), 15 minutes per tier. Because the number of
-requests actually in flight varies a lot between sessions, every request is grouped by
-the time-averaged number of requests in flight during its lifetime (first 120 s of each
-tier excluded). Six tiers, 0 errors: sessions recorded with `DeepSeek-V3.2` at 8 and 16
-concurrent sessions (realistic ~0.9 s gaps between calls) plus sessions recorded with
-`claude-opus-4-5` at 4 / 8 / 12 / 16 (closest input lengths, low in-flight load).
+**Method.** `aiperf 0.12.0` (NVIDIA image) through the MaaS gateway, `timingMode:
+agentic_replay` (recorded gaps between calls, sessions start at 25–75% of their trajectory,
+per-session cache-bust), 15 minutes per tier, token counts as reported by the engine, 0
+errors. The number of requests actually in flight varies a lot between sessions, so every
+request is grouped by the time-averaged number of requests in flight during its lifetime
+(the first 120 s of each tier excluded).
 
 | Requests in flight | Requests | TTFT p50 / p90 | First answer token (after thinking) p50 / p90 | ITL p50 / p90 | Per-request output p50 (slowest 10%) | Input p50 | Output p50 / p90 |
 |--:|--:|--:|--:|--:|--:|--:|--:|
@@ -163,24 +150,8 @@ concurrent sessions (realistic ~0.9 s gaps between calls) plus sessions recorded
 | 3–4 | 580 | 0.30 / 0.52 s | 0.81 / 2.09 s | 14.1 / 22.5 ms | 71.0 (44.4) tok/s | 11,773 | 42 / 233 |
 | 5–6 | 557 | 0.40 / 0.64 s | 1.25 / 3.11 s | 19.0 / 27.8 ms | 52.6 (36.0) tok/s | 14,765 | 88 / 288 |
 | **7–8** | 891 | **0.44 / 0.68 s** | 1.36 / 3.90 s | 20.2 / 28.9 ms | **49.5 (34.6) tok/s** | 16,494 | 96 / 377 |
-| 9–12 | — | not measured | | | | | |
-| 13–16 | 638 | 3.34 / 8.21 s | 7.70 / 18.0 s | 92.0 / 160 ms | 10.9 (6.3) tok/s | 14,346 | 92 / 347 |
 
-**Up to 8 requests at the same time the service stays responsive** (TTFT p90 ≤ 0.7 s,
-~50 tok/s per request). At 13–16 the KV cache fills (96%), prefix-cache hits drop from
-~90% to 28% because cached history is evicted between turns, and every request slows to
-~11 tok/s. DFlash2 acceptance stayed at 33–38% (3.3–3.7 tokens per step) across tiers.
-
-:::note
-**How to read these.** Quote this result as concurrent **requests**, not users or
-sessions: a replayed session spends part of its time waiting on recorded tool calls, so
-the same session count produces very different in-flight load. The corpus outputs are
-short (median 42–96 tokens) compared with a final agent answer that includes thinking
-(often 1k+ tokens), so the decode side is lighter than such traffic. Two corpus details
-shaped the selection: `tool_calling_with_shortlisting` × `appworld` replays the full
-468-tool catalogue on every call (inputs ~3× the recording), and sessions recorded with
-`claude-opus-4-5`, `gemini-3-pro-preview` and `gpt-5.2` store zero call durations, so the
-recorded gaps include the source model's own latency and replay leaves those sessions
-mostly idle. With ~30k-token inputs (the `appworld` subset) the picture is the same: ≤ 8
-in flight comfortable, KV full and preemptions from ~17.
-:::
+**One card processes up to 8 requests at the same time** with TTFT p90 ≤ 0.7 s and ~50 tok/s
+per request (slowest 10% ~35 tok/s). Treat 8 as the ceiling for this workload: above it the
+515k-token KV cache fills and cached history is evicted between turns. Quote the result as
+concurrent **requests**, not users or sessions.

@@ -66,13 +66,11 @@ two 910B3 nodes: TP4 Prefill and TP4 Decode exchange KV through Ascend Direct tr
 It uses eight NPUs in total; its figures are an operating envelope for that P/D service,
 not a comparison with a four-card aggregated replica.
 
-Qwen3.8-27B (RedHat NVFP4 + DFlash2 speculative decoding) runs on **one NVIDIA RTX PRO
-6000 Blackwell** with the GPU memory budget capped at 84 GB to emulate an RTX PRO 6000D.
-The target production agent makes 3–4 model calls per question with a median per-call
-input of ~11.5k tokens (~15k on the final turn); replaying a real agent corpus with
-similar inputs (Exgentic `swebench`, median ~11–16k), the card processes **up to 8
-requests at the same time** with TTFT p90 ≤ 0.7 s and ~50 tok/s per request; at 13+ the
-KV cache fills.
+Qwen3.8-27B (NVFP4 + DFlash2 speculative decoding) runs on **one NVIDIA RTX PRO 6000
+Blackwell** with the GPU memory budget capped at 84 GB to emulate an RTX PRO 6000D. On a
+real agent replay whose per-call input and output lengths are close to Alauda Hyperflux's
+use (Exgentic `swebench`, median input ~11–16k tokens), the card processes **up to 8
+requests at the same time** with TTFT p90 ≤ 0.7 s and ~50 tok/s per request.
 
 ## Runtime images
 

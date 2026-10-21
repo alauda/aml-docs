@@ -1,5 +1,5 @@
 # =============================================================================
-# Qwen3.8-27B · RedHat NVFP4 + BF16 KV + DFlash2 speculative decoding
+# Qwen3.8-27B · NVFP4 + BF16 KV + DFlash2 speculative decoding
 # 1 × NVIDIA RTX PRO 6000 Blackwell · KServe LLMInferenceService (no InferNex, no EPP)
 #
 # Community vLLM v0.31.0 is brought in through an LLMInferenceServiceConfig that overrides
