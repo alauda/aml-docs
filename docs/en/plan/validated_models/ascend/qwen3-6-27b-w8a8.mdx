@@ -76,10 +76,10 @@ plus the `LLMInferenceService`, 2 replicas × TP=4):
 
 | Spec | File |
 |---|---|
-| agg-base (load-balancing) | [`qwen3-6-27b-w8a8-agg-base-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets/qwen3-6-27b-w8a8/qwen3-6-27b-w8a8-agg-base-llmisvc.yaml) |
+| agg-base (load-balancing) | [`qwen3-6-27b-w8a8-agg-base-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets/qwen3-6-27b-w8a8/qwen3-6-27b-w8a8-agg-base-llmisvc.yaml) |
 
 ```bash
-base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/assets/qwen3-6-27b-w8a8
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/ascend/assets/qwen3-6-27b-w8a8
 # edit namespace / model.uri registry / image tag first, then:
 kubectl apply -f $base/qwen3-6-27b-w8a8-agg-base-llmisvc.yaml
 ```

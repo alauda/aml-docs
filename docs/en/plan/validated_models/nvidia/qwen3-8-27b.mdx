@@ -64,7 +64,7 @@ The weights come from two ModelCars on Docker Hub: the checkpoint is the service
 
 | Spec | File |
 |---|---|
-| Compile-cache PVC + engine image config + `LLMInferenceService` | [`qwen3-8-27b-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets/qwen3-8-27b/qwen3-8-27b-llmisvc.yaml) |
+| Compile-cache PVC + engine image config + `LLMInferenceService` | [`qwen3-8-27b-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/nvidia/assets/qwen3-8-27b/qwen3-8-27b-llmisvc.yaml) |
 
 | Image | Digest |
 |---|---|
@@ -78,7 +78,7 @@ for img in modelcar-qwen3.8-27b-nvfp4 modelcar-qwen3.8-27b-dflash2; do
   cosign verify --key cosign.pub --insecure-ignore-tlog=true docker.io/alaudadockerhub/$img:v0.1.0
 done
 
-base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/assets/qwen3-8-27b
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/nvidia/assets/qwen3-8-27b
 # edit the namespace first, then:
 kubectl apply -f $base/qwen3-8-27b-llmisvc.yaml
 kubectl -n <your-namespace> get llminferenceservice qwen38-27b -w

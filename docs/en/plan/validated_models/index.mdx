@@ -34,13 +34,13 @@ Ascend scenarios below.
 
 | Model | Type | Params | dtype | Device | Engine | Per-page |
 |---|---|---|---|---|---|---|
-| Qwen3-32B | Qwen3 dense | 32B | BF16 | Ascend 910B4 ×8 | vLLM-Ascend v0.18.0 | [Qwen3-32B](./qwen3-32b.mdx) |
-| Qwen3.6-27B (W8A8) | `qwen3_5` hybrid (GDN + MTP) | 27.78B | W8A8 | Ascend 910B4 ×8 | vLLM-Ascend nightly | [Qwen3.6-27B (W8A8)](./qwen3-6-27b-w8a8.mdx) |
-| DeepSeek-V4-Flash (W4A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W4A8 | Ascend 910B4 ×8 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W4A8)](./deepseek-v4-flash-w4a8.mdx) |
-| DeepSeek-V4-Flash (W8A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W8A8 | Ascend 910B3 ×16 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W8A8)](./deepseek-v4-flash-w8a8.mdx) |
-| MiniMax-M2.5 (W8A8) | `minimax_m2` MoE (full-attn, 256-expert) | 230B-A10B | W8A8 (QuaRot) | Ascend 910B3 ×16 | vLLM-Ascend v0.23.0 | [MiniMax-M2.5 (W8A8)](./minimax-m2.5-w8a8.mdx) |
-| Gemma-4-31B-it | `gemma4` dense multimodal | 31B | BF16 | Ascend 910B3 ×8 | vLLM-Ascend nightly-main (0721) | [Gemma-4-31B-it](./gemma4-31b-it.mdx) |
-| Qwen3.8-27B (NVFP4, NVIDIA) | `qwen3_5` hybrid (GDN + MTP) | 27B | NVFP4 | NVIDIA RTX PRO 6000 ×1 | vLLM v0.31.0 | [Qwen3.8-27B (NVFP4, NVIDIA)](./qwen3-8-27b.mdx) |
+| Qwen3-32B | Qwen3 dense | 32B | BF16 | Ascend 910B4 ×8 | vLLM-Ascend v0.18.0 | [Qwen3-32B](./ascend/qwen3-32b.mdx) |
+| Qwen3.6-27B (W8A8) | `qwen3_5` hybrid (GDN + MTP) | 27.78B | W8A8 | Ascend 910B4 ×8 | vLLM-Ascend nightly | [Qwen3.6-27B (W8A8)](./ascend/qwen3-6-27b-w8a8.mdx) |
+| DeepSeek-V4-Flash (W4A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W4A8 | Ascend 910B4 ×8 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W4A8)](./ascend/deepseek-v4-flash-w4a8.mdx) |
+| DeepSeek-V4-Flash (W8A8) | `deepseek_v4` MoE (MLA + DSA + MTP) | 256-expert MoE | W8A8 | Ascend 910B3 ×16 | vLLM-Ascend nightly | [DeepSeek-V4-Flash (W8A8)](./ascend/deepseek-v4-flash-w8a8.mdx) |
+| MiniMax-M2.5 (W8A8) | `minimax_m2` MoE (full-attn, 256-expert) | 230B-A10B | W8A8 (QuaRot) | Ascend 910B3 ×16 | vLLM-Ascend v0.23.0 | [MiniMax-M2.5 (W8A8)](./ascend/minimax-m2.5-w8a8.mdx) |
+| Gemma-4-31B-it | `gemma4` dense multimodal | 31B | BF16 | Ascend 910B3 ×8 | vLLM-Ascend nightly-main (0721) | [Gemma-4-31B-it](./ascend/gemma4-31b-it.mdx) |
+| Qwen3.8-27B (NVFP4, NVIDIA) | `qwen3_5` hybrid (GDN + MTP) | 27B | NVFP4 | NVIDIA RTX PRO 6000 ×1 | vLLM v0.31.0 | [Qwen3.8-27B (NVFP4, NVIDIA)](./nvidia/qwen3-8-27b.mdx) |
 
 The two Qwen models and DeepSeek-V4-Flash (W4A8) were validated on Ascend 910B4 (32 GB/card),
 driven through KServe `LLMInferenceService` with load-aware routing (InferNex-Bridge +
@@ -126,14 +126,14 @@ ingress**.
 ## Deploy a validated model
 
 Each Ascend model page links self-contained YAMLs under
-[`assets/`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets)
+[`ascend/assets/`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets)
 that hold the real InferNex deployment — a KServe `LLMInferenceService`
 (`infernex.io/runtime: true`) plus the two `LLMInferenceServiceConfig` objects
 (engine template + hermes-router/EPP template) that the InferNex-Bridge reconciles
 into the running instances.
 
 ```bash
-base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/assets
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/ascend/assets
 
 # 1. Edit the file first: set the namespace and the image tag (match your CANN /
 #    host driver). model.uri already points at the public ModelCar on Docker Hub
@@ -160,7 +160,7 @@ curl -s http://<gateway>/<namespace>/qwen3-32b-agg-base/v1/chat/completions \
   key, image, and version fields for your actual NPU model.
 - Qwen3.8-27B (NVIDIA) is the exception to the two points above: no InferNex and resource
   key `nvidia.com/gpu`; its checkpoint and draft model are two separate ModelCars — see
-  [its page](./qwen3-8-27b.mdx).
+  [its page](./nvidia/qwen3-8-27b.mdx).
 - The ModelCar images are **public on Docker Hub** under
   [`alaudadockerhub`](https://hub.docker.com/u/alaudadockerhub) — the manifests pull them
   with no credentials. Mirror them to your own registry and repoint `model.uri` if you
@@ -197,8 +197,8 @@ their ModelCars are distributed as **OCI Image Layout tars** (not signed registr
 so there is no Cosign signature to verify. Integrity is content-addressed instead: each
 tar's `index.json` carries the image digest and every blob under `blobs/sha256/` is
 verified against its own digest on import (`skopeo copy` checks this). See the
-[DeepSeek-V4-Flash (W8A8)](./deepseek-v4-flash-w8a8.mdx) and
-[MiniMax-M2.5 (W8A8)](./minimax-m2.5-w8a8.mdx) pages.
+[DeepSeek-V4-Flash (W8A8)](./ascend/deepseek-v4-flash-w8a8.mdx) and
+[MiniMax-M2.5 (W8A8)](./ascend/minimax-m2.5-w8a8.mdx) pages.
 :::
 
 `--insecure-ignore-tlog=true` is required because these were signed with

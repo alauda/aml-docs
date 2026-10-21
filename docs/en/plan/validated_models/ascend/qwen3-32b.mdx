@@ -68,11 +68,11 @@ Self-contained InferNex manifests (each bundles the engine + hermes-router
 
 | Spec | File |
 |---|---|
-| agg-base (load-balancing) | [`qwen3-32b-agg-base-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets/qwen3-32b/qwen3-32b-agg-base-llmisvc.yaml) |
-| agg-mc-kv (KV store + KV-cache-aware routing) | [`qwen3-32b-agg-mc-kv-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets/qwen3-32b/qwen3-32b-agg-mc-kv-llmisvc.yaml) |
+| agg-base (load-balancing) | [`qwen3-32b-agg-base-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets/qwen3-32b/qwen3-32b-agg-base-llmisvc.yaml) |
+| agg-mc-kv (KV store + KV-cache-aware routing) | [`qwen3-32b-agg-mc-kv-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets/qwen3-32b/qwen3-32b-agg-mc-kv-llmisvc.yaml) |
 
 ```bash
-base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/assets/qwen3-32b
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/ascend/assets/qwen3-32b
 # edit namespace / model.uri registry / image tag first, then:
 kubectl apply -f $base/qwen3-32b-agg-base-llmisvc.yaml
 ```

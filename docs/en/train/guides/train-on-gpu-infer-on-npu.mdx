@@ -13,7 +13,7 @@ The selected NPU runtime determines which artifacts it can load. The following a
 | Workload | Model artifact or representation | NPU serving path and compatibility notes |
 | --- | --- | --- |
 | LLM | A Hugging Face model directory with configuration and tokenizer files plus FP16 or BF16 `.safetensors` weights | Serve it with a compatible `vLLM-ascend` runtime using the `transformers` model format. The model architecture, selected runtime image, and CANN stack must support the model and precision. |
-| LLM | W8A8-quantized model package | Serve it only with a compatible vLLM-Ascend/model combination and its required quantization configuration. For a validated W8A8 example, see [Qwen3.6-27B (W8A8)](../../plan/validated_models/qwen3-6-27b-w8a8.mdx). |
+| LLM | W8A8-quantized model package | Serve it only with a compatible vLLM-Ascend/model combination and its required quantization configuration. For a validated W8A8 example, see [Qwen3.6-27B (W8A8)](../../plan/validated_models/ascend/qwen3-6-27b-w8a8.mdx). |
 | LLM | A single-file GGUF model | The documented `vLLM-ascend` runtime can detect a single `.gguf` file. Multi-file GGUF packages are not supported by that loader. |
 | Machine learning | TorchScript `.pt` model | The YOLOv5 sample loads the exported model with `torch_npu`. The model must be compatible with the PyTorch and CANN versions in the serving image. |
 | Machine learning | ONNX `.onnx` model | The YOLOv5 native CANN path uses ONNX as the input to ATC conversion; it is not the deployed executable in that path. |
