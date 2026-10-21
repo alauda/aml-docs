@@ -1,6 +1,7 @@
 # Publish glm52-pd on MaaS through the KServe ingress gateway route, so requests take
 #   MaaS → KServe gateway → InferencePool → EPP (picks P and D) → P→D proxy.
 #
+# Known issue, worked around by hand here until MaaS fixes it.
 # Do not use the console "publish inference service" flow for this service: it points MaaS
 # at <llmisvc>-kserve-workload-svc, which skips the EPP. Do not point MaaS at the
 # InferencePool directly either: on that path request bodies above 4 MB fail with HTTP 500

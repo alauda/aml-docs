@@ -1,7 +1,9 @@
-# Merge patch for InferNexService/glm52-pd: run the mooncake master from the engine image,
-# so master and clients share one Mooncake version (0.3.11.post1 in vLLM-Ascend v0.23.0).
-# The Bridge's default master image carries an older Mooncake. mooncake_master links the
-# host's libascend_hal.so, hence the driver mounts.
+# Merge patch for InferNexService/glm52-pd, needed with InferNex Bridge v26.6.0 only: run the
+# mooncake master from the engine image, so master and clients share one Mooncake version
+# (0.3.11.post1 in vLLM-Ascend v0.23.0). The v26.6.0 default master image is vLLM-Ascend
+# v0.18.0, with an older Mooncake. From v26.9.0 the default is vLLM-Ascend v0.23.0 and this
+# patch is not needed. mooncake_master links the host's libascend_hal.so, hence the driver
+# mounts.
 #
 # Apply this once the Bridge has created the InferNexService, and repeat until the master
 # Deployment shows the engine image (right after creation the Bridge may still overwrite it).
@@ -15,8 +17,8 @@
 #
 # Eviction: at 90 % pool usage the master deletes 10 % of objects, least recently read first.
 #
-# One mooncake-master-service / redis-service pair exists per namespace and points at
-# whichever service reconciled last: do not run a second mooncake-enabled
+# On v26.6.0, one mooncake-master-service / redis-service pair exists per namespace and
+# points at whichever service reconciled last: do not run a second mooncake-enabled
 # LLMInferenceService in the same namespace.
 spec:
   components:

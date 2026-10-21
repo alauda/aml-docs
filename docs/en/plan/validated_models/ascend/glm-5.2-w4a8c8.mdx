@@ -46,6 +46,7 @@ requests queued at prefill. Nothing between 64 and 128 was measured.
 
 Routing and P/D handoff: hermes-router `26.6.0` (EPP, `sha256:8cb00e74…`) and the InferNex P→D proxy
 `proxy-server:26.6.0`, both from `build-harbor.alauda.cn/3rdparty/openfuyao`.
+Controller: Alauda Build of InferNex Bridge `v26.6.0`.
 
 ## Model configuration
 
@@ -101,8 +102,8 @@ prefill node and one decode node) → P→D proxy → prefill (`max_tokens=1`) �
 | Spec | File |
 |---|---|
 | Engines (P4 + D4), EPP, proxy, the two data-parallel presets | [`glm-5.2-w4a8c8-pd-4p4d-1m-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets/glm-5.2-w4a8c8/glm-5.2-w4a8c8-pd-4p4d-1m-llmisvc.yaml) |
-| Mooncake master on the engine image (patch) | [`glm-5.2-w4a8c8-mooncake-master-patch.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets/glm-5.2-w4a8c8/glm-5.2-w4a8c8-mooncake-master-patch.yaml) |
-| MaaS ingress through the KServe gateway (optional) | [`glm-5.2-w4a8c8-maas-route.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets/glm-5.2-w4a8c8/glm-5.2-w4a8c8-maas-route.yaml) |
+| Mooncake master on the engine image (patch; InferNex Bridge v26.6.0 only) | [`glm-5.2-w4a8c8-mooncake-master-patch.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets/glm-5.2-w4a8c8/glm-5.2-w4a8c8-mooncake-master-patch.yaml) |
+| MaaS ingress through the KServe gateway (optional; manual workaround for a known issue, see below) | [`glm-5.2-w4a8c8-maas-route.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets/glm-5.2-w4a8c8/glm-5.2-w4a8c8-maas-route.yaml) |
 
 ```bash
 base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/ascend/assets/glm-5.2-w4a8c8
@@ -114,7 +115,10 @@ curl -sO $base/glm-5.2-w4a8c8-mooncake-master-patch.yaml
 #    The mooncake master image in the patch must stay the same as the engine image.
 kubectl apply -f glm-5.2-w4a8c8-pd-4p4d-1m-llmisvc.yaml
 
-# 2. Run the mooncake master from the engine image: patch once the Bridge has created the
+# 2. InferNex Bridge v26.6.0 only. From v26.9.0 the Bridge's default mooncake master image is
+#    vLLM-Ascend v0.23.0, whose Mooncake (0.3.11.post1) matches the engine's: skip this step
+#    and the patch there.
+#    Run the mooncake master from the engine image: patch once the Bridge has created the
 #    InferNexService, and repeat until the master Deployment shows that image (right after
 #    creation the Bridge may still overwrite it). Re-run this step after every step 1; on an
 #    unchanged spec the patch is a no-op and does not restart the master.
@@ -130,9 +134,10 @@ done
 #    the ModelCar pull (~326 GiB per pod) on first start.
 kubectl -n demo get pods -l 'openfuyao.com/pdGroupID=glm52-pd,openfuyao.com/pdRole in (prefill,decode)' -w
 
-# 4. Optional: publish on MaaS. Edit the file first: the gateway Service name, and your
-#    namespace in both maas.alauda.io/endpoint and spec.schema.prefix. Then add
-#    aml-maas/glm52-pd to a MaaS subscription, or no API key can reach it.
+# 4. Optional: publish on MaaS by hand (see the known issue below). Edit the file first:
+#    the gateway Service name, and your namespace in both maas.alauda.io/endpoint and
+#    spec.schema.prefix. Then add aml-maas/glm52-pd to a MaaS subscription, or no API key
+#    can reach it.
 curl -sO $base/glm-5.2-w4a8c8-maas-route.yaml
 kubectl apply -f glm-5.2-w4a8c8-maas-route.yaml
 ```
@@ -141,9 +146,21 @@ After the first request, the proxy log should show `Using specified prefiller` (
 routing headers arrived). A full chat request in a prefill engine's log means the gateway
 bypassed the proxy.
 
-Run only one mooncake-enabled `LLMInferenceService` per namespace: the Bridge keeps a single
-`mooncake-master-service` / `redis-service` pair per namespace and points it at whichever
-service reconciled last.
+:::warning
+**Known issue: publish this service on MaaS by hand.**
+The console flow that publishes an inference service on MaaS points MaaS at
+`<llmisvc>-kserve-workload-svc`, which skips the EPP, so no prefill or decode node is picked.
+Pointing MaaS at the `InferencePool` directly does not work either: request bodies above 4 MB
+fail with HTTP 500 (the EPP's gRPC message limit), and 1M-token bodies are 2–4 MB.
+Until this is fixed, `glm-5.2-w4a8c8-maas-route.yaml` registers the service as an external
+model whose endpoint is its route on the KServe ingress gateway; that gateway streams the body
+to the EPP, so the 4 MB limit does not apply. On this path MaaS shows the model as ready
+whenever the `AIServiceBackend` exists, whatever the state of the engines.
+:::
+
+On InferNex Bridge v26.6.0, run only one mooncake-enabled `LLMInferenceService` per namespace:
+the Bridge keeps a single `mooncake-master-service` / `redis-service` pair per namespace and
+points it at whichever service reconciled last.
 
 The published manifest differs from the one that was benchmarked only outside the engine
 flags:
