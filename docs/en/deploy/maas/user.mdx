@@ -102,6 +102,54 @@ print(response.choices[0].message.content)
 
 Replace `<published-model-name>` with the model name shown in your **Access** list. The MaaS gateway chooses the backend associated with that published model name; your application does not need to know the backend service URL.
 
+## Streaming responses and completion check
+
+When you set `"stream": true`, MaaS returns the answer as a Server-Sent Events (SSE) stream of `data:` lines, ending with a `data: [DONE]` sentinel. If the stream is cut off midway — either because the upstream model stopped sending or because your client went away — the HTTP status is **still `200`**, because the response headers were sent before anything was cut. **The status code alone cannot tell you whether a stream finished.**
+
+Check completeness with the `[DONE]` sentinel: a complete stream ends with `data: [DONE]`; a truncated stream does not emit it.
+
+With the OpenAI SDKs:
+
+- **Python / Node.js**: iterate the stream to the end and inspect the last chunk. A complete stream's last chunk has `finish_reason` set to a terminal value such as `stop`, `length`, or `content_filter`; a value of `null` or a missing chunk means the stream did not end normally.
+- Add `stream_options={"include_usage": True}` to your request. A complete stream's final chunk includes a `usage` block; a truncated stream has no such chunk.
+
+With `curl`, read every line until you see `data: [DONE]`. If the connection closes before that line arrives, the response is incomplete.
+
+Example — streaming with Python, verifying completion:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://<maas-gateway>/v1", api_key="<your-api-key>")
+
+stream = client.chat.completions.create(
+    model="<published-model-name>",
+    messages=[{"role": "user", "content": "Hello"}],
+    stream=True,
+    stream_options={"include_usage": True},
+)
+
+final = None
+for chunk in stream:
+    final = chunk
+    if chunk.choices:
+        delta = chunk.choices[0].delta
+        if delta and delta.content:
+            print(delta.content, end="", flush=True)
+
+complete = final is not None and getattr(final, "usage", None) is not None
+if not complete:
+    # Treat as a truncated stream: retry, log, or surface a warning.
+    ...
+```
+
+How a truncated stream counts against your quota:
+
+- **No token or amount is charged.** Because the gateway did not receive a token count, truncated streams do not consume your token or amount allocation.
+- **Still counts as one request.** A truncated stream occupies one slot in the request-rate limit (`requestRateLimits`, RPM). Administrators configure RPM precisely to bound cases where a client disconnects near the end of a stream.
+
+If you need to retry on truncation, retry the whole request. There is no way to resume a partially delivered stream.
+
 ## Understand quota behavior
 
 MaaS quotas are configured by the administrator for each model in your subscription. A subscription can have multiple time windows, such as an hourly limit and a daily limit.
