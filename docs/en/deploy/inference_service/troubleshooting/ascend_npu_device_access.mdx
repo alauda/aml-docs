@@ -38,6 +38,8 @@ The vLLM worker processes cannot open the NPU device files. The three causes lis
 
 A container that runs as UID `0` can bypass file permissions only when it has the `CAP_DAC_OVERRIDE` capability. Runtimes that set `capabilities.drop: [ALL]`, such as the [root-mode runtime](../guides/vllm_ascend_root_mode.mdx), remove that capability. UID `0` is then neither the owner of the device files nor a member of their group, and the device files cannot be opened.
 
+A runtime that drops all capabilities but does not set `runAsUser` is affected in the same way. Its container runs as the default user of the image, which is root for many `vLLM-ascend` images, even though the runtime is not configured for root mode.
+
 ## Diagnose the Cause
 
 Run the following checks in order. The node-level checks require root access on the node that runs the Pod, with `npu-smi` and `crictl` available.
@@ -125,6 +127,8 @@ kubectl patch inferenceservice <inference-service-name> -n <namespace> --type me
 A merge patch keeps the existing `seccompProfile` and other security context fields. Prefer the device group over adding `CAP_DAC_OVERRIDE` to the runtime, and do not remove `drop: [ALL]` or set `privileged: true` to work around this failure.
 
 For root-mode services, see [Grant Access to Ascend Device Files](../guides/vllm_ascend_root_mode.mdx#grant-access-to-ascend-device-files). For non-root services, use the security context from the [non-root example](../guides/custom_inference_runtime.mdx#vllm-ascend-ascend-npu).
+
+If the runtime does not set `runAsUser` and the service does not need root, you can instead set `runAsUser` in the runtime to the UID that owns the device files, for example `1000`, as in the non-root example. This change applies to every service that uses the runtime.
 
 ### Release an NPU Held by Another Container
 
