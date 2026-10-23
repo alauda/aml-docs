@@ -1,0 +1,155 @@
+---
+weight: 40
+---
+
+# vLLM Ascend Workers Fail to Open NPU Devices
+
+## Problem Description
+
+A vLLM inference service on Ascend NPUs fails during startup. The Pod is scheduled and receives its NPUs, but the serving container exits and restarts repeatedly. The `InferenceService` status can report `ModelLoadFailed` with exit code `1`.
+
+The container logs contain the following message from the Ascend software stack:
+
+```text
+Failed to obtain the console log level. The possible causes are as follows:
+1. Different containers share the same device;
+2. Failed to open the character device when interacting with the OS kernel;
+3. Failed to obtain the number of devices.
+```
+
+vLLM then reports that the worker processes failed and the engine could not start:
+
+```text
+Exception: WorkerProc initialization failed due to an exception in a background process. See stack trace for root cause.
+RuntimeError: Engine core initialization failed. See root cause above. Failed core proc(s): {}
+```
+
+The worker processes often exit before they log a Python traceback of their own, so the logs may not contain an `aclrt` error code or an `NPU out of memory` error.
+
+## Root Cause
+
+The vLLM worker processes cannot open the NPU device files. The three causes listed in the message map to the following conditions in a Kubernetes cluster:
+
+| Message                                    | Condition in the cluster                                                                                                                                                                                                                                                |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Different containers share the same device | Another container already holds the NPU. For example, two device plugins on the same node, such as HAMi and the Ascend device plugin, advertise the same physical NPUs and allocate one NPU twice, or a process from a previous container has not released the NPU yet. |
+| Failed to open the character device        | The container process has no permission on `/dev/davinci*`. A common case is a container that runs as UID `0` with all capabilities dropped, while the device files are owned by `HwHiAiUser` with mode `crw-rw----`.                                                   |
+| Failed to obtain the number of devices     | The NPU devices are not injected into the container.                                                                                                                                                                                                                    |
+
+A container that runs as UID `0` can bypass file permissions only when it has the `CAP_DAC_OVERRIDE` capability. Runtimes that set `capabilities.drop: [ALL]`, such as the [root-mode runtime](../guides/vllm_ascend_root_mode.mdx), remove that capability. UID `0` is then neither the owner of the device files nor a member of their group, and the device files cannot be opened.
+
+## Diagnose the Cause
+
+Run the following checks in order. The node-level checks require root access on the node that runs the Pod, with `npu-smi` and `crictl` available.
+
+### 1. Check Whether Another Process Holds the NPUs
+
+On the node, run:
+
+```bash
+npu-smi info
+```
+
+The failing container restarts repeatedly, so its own worker processes are usually absent. If the process table lists a process on an NPU that is allocated to the failing Pod, find the Pod that owns the process:
+
+```bash
+grep -oE 'pod[0-9a-f]{8}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{4}[-_][0-9a-f]{12}' /proc/<pid>/cgroup | head -1
+# Replace underscores with hyphens in the output to get the Pod UID, then:
+kubectl get pod -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name,UID:.metadata.uid | grep <pod-uid>
+```
+
+If every NPU reports `No running processes found`, no other container holds the NPUs.
+
+### 2. Check That the NPUs Are Injected
+
+On the node, inspect the most recent serving container of the failing Pod:
+
+```bash
+POD_ID=$(crictl pods --namespace <namespace> --name <pod-name> --latest -q)
+CONTAINER_ID=$(crictl ps -a --pod "$POD_ID" --name kserve-container -q | head -1)
+crictl inspect "$CONTAINER_ID" | grep -A1 'ASCEND_VISIBLE_DEVICES'
+```
+
+`ASCEND_VISIBLE_DEVICES` must be set and must list as many NPUs as the Pod requests.
+
+### 3. Rule Out a Memory Cgroup OOM Kill
+
+A worker process that the kernel kills for exceeding the container memory limit also exits without a traceback. On the node, run:
+
+```bash
+dmesg -T | grep -iE 'oom-kill|killed process' | tail -10
+```
+
+If a `python` process of the serving container appears at the time of the failure, increase the container memory limit instead.
+
+### 4. Compare Device File Permissions With the Container Identity
+
+On the node, check the device file ownership and the device group:
+
+```bash
+ls -l /dev/davinci* /dev/davinci_manager /dev/devmm_svm /dev/hisi_hdc
+id HwHiAiUser
+```
+
+Then check the identity and capabilities of the serving container:
+
+```bash
+crictl inspect "$CONTAINER_ID" | grep -A8 '"user":'
+crictl inspect "$CONTAINER_ID" | grep -A3 '"capabilities"'
+```
+
+If you have no node access, read the effective security context from the Pod instead:
+
+```bash
+kubectl get pod <pod-name> -n <namespace> \
+  -o jsonpath='{.spec.securityContext}{"\n"}{.spec.containers[?(@.name=="kserve-container")].securityContext}{"\n"}'
+```
+
+The container cannot open the devices when all of the following apply:
+
+- The device files grant no access to other users, for example `crw-rw---- HwHiAiUser HwHiAiUser`.
+- The container UID is not the owner of the device files, and its groups (`gid` and `additionalGids`) do not include the device group.
+- The container has no `CAP_DAC_OVERRIDE`. For example, the container configuration shows `drop_capabilities: ["ALL"]` and the effective `capabilities` are empty.
+
+## Solution
+
+### Grant the Device Group
+
+When step 4 shows a permission mismatch, add the device group ID to the Pod-level `supplementalGroups` of the `InferenceService`. For example, when `HwHiAiUser` has group ID `1000`:
+
+```bash
+kubectl patch inferenceservice <inference-service-name> -n <namespace> --type merge \
+  -p '{"spec":{"predictor":{"securityContext":{"supplementalGroups":[1000]}}}}'
+```
+
+A merge patch keeps the existing `seccompProfile` and other security context fields. Prefer the device group over adding `CAP_DAC_OVERRIDE` to the runtime, and do not remove `drop: [ALL]` or set `privileged: true` to work around this failure.
+
+For root-mode services, see [Grant Access to Ascend Device Files](../guides/vllm_ascend_root_mode.mdx#grant-access-to-ascend-device-files). For non-root services, use the security context from the [non-root example](../guides/custom_inference_runtime.mdx#vllm-ascend-ascend-npu).
+
+### Release an NPU Held by Another Container
+
+When step 1 shows a process from another Pod, resolve the conflict with the owner of that Pod. Do not let two device plugins manage the same physical NPUs on one node: for example, run HAMi and the Ascend device plugin on disjoint sets of nodes. When the process belongs to a container that has already exited, wait for the NPU to be released, or stop the process after you confirm that its container no longer exists.
+
+### Fix Device Injection
+
+When step 2 shows that `ASCEND_VISIBLE_DEVICES` is missing or lists the wrong number of NPUs, check that the Pod requests the Ascend resource of the device plugin that runs on the node, that the Pod uses the Ascend runtime class configured by the cluster, and that the device plugin logs show a successful allocation for the Pod.
+
+## Verify the Fix
+
+The `InferenceService` rolls out a new Pod. With the `RollingUpdate` strategy, the previous Pod remains until the new Pod becomes ready, so inspect the most recently created Pod:
+
+```bash
+kubectl get pod -n <namespace> -l serving.kserve.io/inferenceservice=<inference-service-name> -o wide
+```
+
+Confirm all of the following:
+
+- The serving container groups include the device group, for example `additionalGids` in `crictl inspect` or `id -G` in the container.
+- The logs no longer contain `Failed to obtain the console log level`, and vLLM proceeds to load the model weights.
+- The `InferenceService` reports `Ready` and serves a test request.
+
+## Related Documentation
+
+- [Run Multi-NPU vLLM Ascend Inference as Root](../guides/vllm_ascend_root_mode.mdx)
+- [Configure vLLM-ascend in a custom inference runtime](../guides/custom_inference_runtime.mdx#vllm-ascend-ascend-npu)
+- [Qwen3.6-27B Inference Service Fails to Start Without Tensor Parallelism](./qwen3_6_27b_startup.mdx)

@@ -628,7 +628,10 @@ spec:
 
 For root-mode Modelcar deployments, follow the dedicated [root-mode
 guide](./vllm_ascend_root_mode.mdx) instead of applying the non-root runtime
-and group settings shown above.
+shown above. Root mode drops all capabilities, so it still needs the device
+group in `supplementalGroups` when the node's Ascend device files are
+group-owned. See [Grant Access to Ascend Device
+Files](./vllm_ascend_root_mode.mdx#grant-access-to-ascend-device-files).
 
 ### MindIE (Ascend NPU)
 

@@ -40,14 +40,15 @@ These messages indicate a distributed initialization or device-access failure. T
 
 ## Configuration Scope
 
-Root mode requires aligned settings in four places:
+Root mode requires aligned settings in the following places:
 
-| Setting                          | Location                              | Root-mode value                                   |
-| -------------------------------- | ------------------------------------- | ------------------------------------------------- |
-| Modelcar UID                     | `AmlCluster`                          | `uidModelcar: 0`                                  |
-| Container UID                    | Root-specific `ClusterServingRuntime` | `runAsUser: 0`                                    |
-| Non-root restriction             | Root-specific `ClusterServingRuntime` | Remove `runAsNonRoot: true`, or set it to `false` |
-| Namespace Pod Security Admission | Namespace containing the service      | `baseline` in the normal case                     |
+| Setting                          | Location                              | Root-mode value                                                                                                                           |
+| -------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Modelcar UID                     | `AmlCluster`                          | `uidModelcar: 0`                                                                                                                          |
+| Container UID                    | Root-specific `ClusterServingRuntime` | `runAsUser: 0`                                                                                                                            |
+| Non-root restriction             | Root-specific `ClusterServingRuntime` | Remove `runAsNonRoot: true`, or set it to `false`                                                                                         |
+| Device group                     | `InferenceService`                    | `supplementalGroups` with the device group ID, when required by [device file ownership](#grant-access-to-ascend-device-files) on the node |
+| Namespace Pod Security Admission | Namespace containing the service      | `baseline` in the normal case                                                                                                             |
 
 `uidModelcar` is a cluster-level setting. It affects Modelcar workloads in the cluster, not only the inference service described in this guide. Plan the change with the owners of other Modelcar workloads.
 
@@ -129,6 +130,7 @@ When adapting an existing non-root runtime:
 - Container-level security context fields take precedence over the corresponding Pod-level fields. If a container omits `runAsNonRoot`, it inherits the Pod-level setting. Inspect every generated container, including Modelcar, for an inherited non-root restriction that conflicts with UID `0`.
 - Keep `HOME` pointed to a writable path such as `/tmp` when the image writes caches or temporary files.
 - Do not remove `seccompProfile`, dropped capabilities, or other restrictions unless the validated image requires them and the namespace policy permits the change.
+- Because all capabilities are dropped, UID `0` in this container cannot bypass file permissions. Check whether the service needs the device group described in [Grant Access to Ascend Device Files](#grant-access-to-ascend-device-files).
 
 Keep the runtime command's `"$@"` forwarding so service-specific vLLM arguments
 reach the server. Set the TP value in the `InferenceService` `model.args` field
@@ -173,9 +175,55 @@ spec:
         type: RuntimeDefault
 ```
 
-For root-mode Modelcar deployments, do not add `fsGroup: 1000` or `supplementalGroups: [1000]` solely to force the non-root device-permission model. Keep those fields only when the storage backend or another workload requirement needs them.
+Root mode does not need `fsGroup` for device access. Keep `fsGroup` only when the storage backend or another workload requirement needs it. Whether the service needs `supplementalGroups` depends on the ownership of the Ascend device files on the node; see [Grant Access to Ascend Device Files](#grant-access-to-ascend-device-files).
 
 The `--gpu-memory-utilization` value is an example. It controls the per-instance device-memory budget for model weights, activations, and KV cache; it does not replace `--tensor-parallel-size=2` and does not resolve a UID or HCCL initialization failure.
+
+## Grant Access to Ascend Device Files \{#grant-access-to-ascend-device-files}
+
+Running the container as UID `0` does not by itself grant access to the Ascend device files. The root-specific runtime drops all Linux capabilities, including `CAP_DAC_OVERRIDE`, so UID `0` is subject to the normal owner, group, and mode checks on those files.
+
+On many Ascend nodes, the NPU driver creates the device files with the `HwHiAiUser` owner and group and mode `crw-rw----`. Check the ownership on the node that runs the service:
+
+```bash
+ls -l /dev/davinci* /dev/davinci_manager /dev/devmm_svm /dev/hisi_hdc
+id HwHiAiUser
+```
+
+Example output:
+
+```text
+crw-rw---- 1 HwHiAiUser HwHiAiUser 237, 0 ... /dev/davinci0
+crw-rw---- 1 HwHiAiUser HwHiAiUser 238, 0 ... /dev/davinci_manager
+crw-rw---- 1 HwHiAiUser HwHiAiUser 236, 0 ... /dev/devmm_svm
+crw-rw---- 1 HwHiAiUser HwHiAiUser 235, 0 ... /dev/hisi_hdc
+uid=1000(HwHiAiUser) gid=1000(HwHiAiUser) groups=1000(HwHiAiUser)
+```
+
+When the device files grant no access to other users, as in this example, add the device group ID to the Pod-level `supplementalGroups` of the `InferenceService`:
+
+```yaml
+spec:
+  predictor:
+    securityContext:
+      seccompProfile:
+        type: RuntimeDefault
+      supplementalGroups:
+        - 1000 # Replace with the group ID that owns /dev/davinci* on your nodes.
+```
+
+Without the device group, the vLLM worker processes cannot open the NPU devices and exit during initialization. The logs contain the following message, followed by `WorkerProc initialization failed` and `Engine core initialization failed`:
+
+```text
+Failed to obtain the console log level. The possible causes are as follows:
+1. Different containers share the same device;
+2. Failed to open the character device when interacting with the OS kernel;
+3. Failed to obtain the number of devices.
+```
+
+Prefer the device group over adding `CAP_DAC_OVERRIDE` to the runtime. The capability bypasses permission checks for every file in the container, while the device group grants access only to files owned by that group. Do not remove `drop: [ALL]` or set `privileged: true` to work around this failure.
+
+For the complete diagnosis procedure, see [vLLM Ascend Workers Fail to Open NPU Devices](../troubleshooting/ascend_npu_device_access.mdx).
 
 ## Deploy and Verify
 
@@ -199,6 +247,7 @@ Confirm all of the following:
 
 - The Pod requests and receives two NPUs on the same node.
 - The serving container runs as UID `0` (`id -u` returns `0`).
+- When the node's device files are group-owned, `id -G` in the serving container includes the device group ID.
 - The generated vLLM arguments contain exactly `--tensor-parallel-size=2`.
 - The logs show successful HCCL/distributed initialization and model loading.
 - The `InferenceService` reaches `Ready` and serves a test request.
@@ -223,4 +272,5 @@ When reporting a UID `1000` failure, include the model, TP size, NPU model and c
 
 - [Configure vLLM-ascend in a custom inference runtime](./custom_inference_runtime.mdx#vllm-ascend-ascend-npu)
 - [Troubleshoot Qwen3.6-27B startup failures caused by missing tensor parallelism](../troubleshooting/qwen3_6_27b_startup.mdx)
+- [Troubleshoot vLLM Ascend workers that fail to open NPU devices](../troubleshooting/ascend_npu_device_access.mdx)
 - [Install and configure an AI cluster](../../../installation/ai-cluster.mdx)
