@@ -120,29 +120,15 @@ The container cannot open the devices when all of the following apply:
 
 When step 4 shows a permission mismatch, choose the fix that matches the runtime.
 
-**The runtime does not need root.** In the runtime container security context, set `runAsUser` to the UID that owns the device files, usually `1000`, and set `runAsNonRoot: true`, as in the [non-root example](../guides/custom_inference_runtime.mdx#vllm-ascend-ascend-npu). Also apply the `InferenceService` security context from that example.
+- **The runtime does not need root:** set `runAsUser: 1000` and `runAsNonRoot: true` in the runtime container, as in the [non-root example](../guides/custom_inference_runtime.mdx#vllm-ascend-ascend-npu). The change applies to every service that uses the runtime.
+- **The runtime runs as root on purpose:** add the device group to the `InferenceService`, as described in [Grant Access to Ascend Device Files](../guides/vllm_ascend_root_mode.mdx#grant-access-to-ascend-device-files).
 
-```yaml
-spec:
-  containers:
-    - name: kserve-container
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
-```
-
-The runtime change applies to every service that uses the runtime. After the change, confirm that the new Pods of each affected service run as the new UID.
-
-**The runtime runs as root on purpose.** Add the device group ID to the Pod-level `supplementalGroups` of the `InferenceService`, as described in [Grant Access to Ascend Device Files](../guides/vllm_ascend_root_mode.mdx#grant-access-to-ascend-device-files). For example, when `HwHiAiUser` has group ID `1000`:
+To fix a single service immediately while you correct the runtime, add the device group with a merge patch, which keeps the existing `seccompProfile` and other security context fields. For example, when `HwHiAiUser` has group ID `1000`:
 
 ```bash
 kubectl patch inferenceservice <inference-service-name> -n <namespace> --type merge \
   -p '{"spec":{"predictor":{"securityContext":{"supplementalGroups":[1000]}}}}'
 ```
-
-A merge patch keeps the existing `seccompProfile` and other security context fields. The same patch also works as an immediate fix for a single service while you correct the runtime.
-
-In both cases, do not remove `drop: [ALL]` or set `privileged: true` to work around this failure, and prefer these fixes over adding `CAP_DAC_OVERRIDE` to the runtime.
 
 ### Release an NPU Held by Another Container
 

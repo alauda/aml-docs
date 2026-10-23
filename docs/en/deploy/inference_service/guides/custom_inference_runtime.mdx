@@ -407,7 +407,8 @@ community image. For Ascend 910 single-node multi-card inference, use this mode
 only after validating that the image supports UID `1000` and HCCL
 initialization. The image must allow the runtime process to access Ascend device
 files, and TP>1 / HCCL initialization may require a matching UID `1000` user
-entry in `/etc/passwd`.
+entry in `/etc/passwd`. See [Multi-NPU Inference with UID
+1000](#multi-npu-inference-with-uid-1000).
 
 :::warning
 The runtime container must set `runAsUser: 1000` and `runAsNonRoot: true`, as
@@ -568,7 +569,7 @@ spec:
 2. `USER` prevents Python's `getpass.getuser()` fallback from querying `/etc/passwd` for the container UID. This avoids startup failures in images that run as a non-root UID without a matching passwd entry, while still allowing `torch_npu` to auto-load normally. For TP>1 / HCCL initialization, still validate whether the image needs an actual UID `1000` entry in `/etc/passwd`.
 3. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
 4. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
-5. `runAsUser: 1000` is required. It aligns the runtime container with the platform default Modelcar UID and the common Ascend device permission model, in which the device files are owned by UID `1000`. Together with `runAsNonRoot: true`, it prevents the container from falling back to the default root user of the image.
+5. `runAsUser: 1000` aligns the runtime container with the platform default Modelcar UID and the common Ascend device permission model.
 </Callouts>
 
 ##### Root Mode
@@ -643,6 +644,69 @@ shown above. Root mode drops all capabilities, so it still needs the device
 group in `supplementalGroups` when the node's Ascend device files are
 group-owned. See [Grant Access to Ascend Device
 Files](./vllm_ascend_root_mode.mdx#grant-access-to-ascend-device-files).
+
+##### Multi-NPU Inference with UID 1000 \{#multi-npu-inference-with-uid-1000}
+
+With TP>1, HCCL initialization fails when the image's `/etc/passwd` has no
+entry for UID `1000`. The model weights load, and the first collective
+operation fails with messages such as:
+
+```text
+HCCL function error: hcclGetRootInfo(&hcclID), error code is 19
+ERR02200 DIST call hccl api failed.
+EI9999 ... ra init failed,return[19] devicePhyId_[6], nicPosition[0]
+```
+
+To add the entry without rebuilding the image, store a `passwd` file in a
+ConfigMap and mount it over `/etc/passwd` in the serving container. The mounted
+file replaces the whole `/etc/passwd`, so start from the image's file and append
+the UID `1000` entry. For example, copy the file from any running Pod that uses
+the same image:
+
+```bash
+kubectl -n <namespace> exec <pod-name> -c kserve-container -- cat /etc/passwd > passwd
+echo 'vllm:x:1000:0:vLLM runtime:/tmp:/usr/sbin/nologin' >> passwd
+kubectl -n <namespace> create configmap vllm-ascend-runtime-identity --from-file=passwd
+```
+
+The resulting ConfigMap has the following form. The example shows only the
+`root` entry and the new entry; keep all other entries from the image's file.
+The new entry uses UID `1000`, GID `0` (the primary group of the container when
+`runAsGroup` is not set), and `/tmp` as the home directory to match `HOME`:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vllm-ascend-runtime-identity
+  namespace: <namespace>
+data:
+  passwd: |
+    root:x:0:0:root:/root:/bin/bash
+    vllm:x:1000:0:vLLM runtime:/tmp:/usr/sbin/nologin
+```
+
+Mount the ConfigMap in the `InferenceService`, which must be in the same
+namespace as the ConfigMap:
+
+```yaml
+spec:
+  predictor:
+    model:
+      volumeMounts:
+        - name: runtime-identity
+          mountPath: /etc/passwd
+          subPath: passwd
+          readOnly: true
+    volumes:
+      - name: runtime-identity
+        configMap:
+          name: vllm-ascend-runtime-identity
+          defaultMode: 0444
+```
+
+A file mounted with `subPath` is not updated when the ConfigMap changes.
+Restart the Pod after you edit the ConfigMap.
 
 ### MindIE (Ascend NPU)
 

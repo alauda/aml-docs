@@ -25,7 +25,7 @@ Use root mode only when all of the following conditions apply:
 
 - The service runs on Ascend NPUs and uses multi-NPU inference (`TP > 1`).
 - The selected `vLLM-ascend` image has been tested with the required model and hardware.
-- The service fails with UID `1000` during distributed initialization, while the same workload starts with UID `0`.
+- The service fails with UID `1000` during distributed initialization, while the same workload starts with UID `0`, and the failure remains after you [provide a passwd entry for UID `1000`](./custom_inference_runtime.mdx#multi-npu-inference-with-uid-1000).
 - The service owner accepts the cluster-level effect of changing the Modelcar UID.
 
 Typical symptoms include:
@@ -130,7 +130,6 @@ When adapting an existing non-root runtime:
 - Container-level security context fields take precedence over the corresponding Pod-level fields. If a container omits `runAsNonRoot`, it inherits the Pod-level setting. Inspect every generated container, including Modelcar, for an inherited non-root restriction that conflicts with UID `0`.
 - Keep `HOME` pointed to a writable path such as `/tmp` when the image writes caches or temporary files.
 - Do not remove `seccompProfile`, dropped capabilities, or other restrictions unless the validated image requires them and the namespace policy permits the change.
-- Because all capabilities are dropped, UID `0` in this container cannot bypass file permissions. Check whether the service needs the device group described in [Grant Access to Ascend Device Files](#grant-access-to-ascend-device-files).
 
 Keep the runtime command's `"$@"` forwarding so service-specific vLLM arguments
 reach the server. Set the TP value in the `InferenceService` `model.args` field
@@ -212,18 +211,9 @@ spec:
         - 1000 # Replace with the group ID that owns /dev/davinci* on your nodes.
 ```
 
-Without the device group, the vLLM worker processes cannot open the NPU devices and exit during initialization. The logs contain the following message, followed by `WorkerProc initialization failed` and `Engine core initialization failed`:
-
-```text
-Failed to obtain the console log level. The possible causes are as follows:
-1. Different containers share the same device;
-2. Failed to open the character device when interacting with the OS kernel;
-3. Failed to obtain the number of devices.
-```
+Without the device group, the vLLM worker processes cannot open the NPU devices and exit during initialization. For the log messages and the diagnosis procedure, see [vLLM Ascend Workers Fail to Open NPU Devices](../troubleshooting/ascend_npu_device_access.mdx).
 
 Prefer the device group over adding `CAP_DAC_OVERRIDE` to the runtime. The capability bypasses permission checks for every file in the container, while the device group grants access only to files owned by that group. Do not remove `drop: [ALL]` or set `privileged: true` to work around this failure.
-
-For the complete diagnosis procedure, see [vLLM Ascend Workers Fail to Open NPU Devices](../troubleshooting/ascend_npu_device_access.mdx).
 
 ## Deploy and Verify
 
