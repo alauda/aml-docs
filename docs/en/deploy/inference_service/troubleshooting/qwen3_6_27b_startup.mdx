@@ -94,6 +94,7 @@ After adding tensor parallelism, check the following items:
 2. Check `npu-smi info` on the node for memory used by other processes or stale vLLM workers.
 3. Confirm that the runtime, model revision, dtype, and quantization settings match the configuration that was tested successfully.
 4. If both NPUs are fully used by the model and KV cache still cannot be allocated, reduce `--max-model-len` or set a lower workload limit. If model weights alone do not fit, use a quantized or smaller model, or provide more NPUs.
+5. If the logs contain `Failed to obtain the console log level` followed by `WorkerProc initialization failed`, the workers cannot open the NPU devices. See [vLLM Ascend Workers Fail to Open NPU Devices](./ascend_npu_device_access.mdx).
 
 ## Summary
 
