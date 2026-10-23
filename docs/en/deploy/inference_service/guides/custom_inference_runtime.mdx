@@ -409,6 +409,17 @@ initialization. The image must allow the runtime process to access Ascend device
 files, and TP>1 / HCCL initialization may require a matching UID `1000` user
 entry in `/etc/passwd`.
 
+:::warning
+The runtime container must set `runAsUser: 1000` and `runAsNonRoot: true`, as
+in the following example. Keep both fields when you copy the example and change
+the image or other settings. If `runAsUser` is omitted, the container runs as
+the default user of the image, which is root for many `vLLM-ascend` images.
+Because the runtime drops all capabilities, that root process cannot open
+Ascend device files that are owned by `HwHiAiUser` with mode `crw-rw----`, and
+the vLLM workers fail during initialization. See [vLLM Ascend Workers Fail to
+Open NPU Devices](../troubleshooting/ascend_npu_device_access.mdx).
+:::
+
 **1. ClusterServingRuntime**
 
 ```yaml
@@ -557,7 +568,7 @@ spec:
 2. `USER` prevents Python's `getpass.getuser()` fallback from querying `/etc/passwd` for the container UID. This avoids startup failures in images that run as a non-root UID without a matching passwd entry, while still allowing `torch_npu` to auto-load normally. For TP>1 / HCCL initialization, still validate whether the image needs an actual UID `1000` entry in `/etc/passwd`.
 3. Set the CPU limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
 4. Set the memory limit according to the actual model size, runtime engine, hardware type, and expected workload in your environment.
-5. `runAsUser: 1000` aligns the runtime container with the platform default Modelcar UID and the common Ascend device permission model.
+5. `runAsUser: 1000` is required. It aligns the runtime container with the platform default Modelcar UID and the common Ascend device permission model, in which the device files are owned by UID `1000`. Together with `runAsNonRoot: true`, it prevents the container from falling back to the default root user of the image.
 </Callouts>
 
 ##### Root Mode
@@ -988,5 +999,5 @@ Before proceeding, refer to this table to understand the specific requirements f
 | **Xinference** | CPU / NVIDIA GPU | transformers, pytorch | **Must** set `MODEL_FAMILY` environment variable |
 | **MLServer** | CPU / NVIDIA GPU | sklearn, xgboost, mlflow | Standard configuration |
 | **Triton** | NVIDIA GPU | triton (TensorFlow, PyTorch, ONNX, etc.) | Standard configuration |
-| **vLLM-ascend** | Huawei Ascend NPU (validated on 910B4) | transformers | **Must** set `HOME` and `USER` in the `ClusterServingRuntime`, choose the proper Modelcar permission mode for Ascend 910 single-card or multi-card deployments, and add UID `1000` group settings only for non-root mode |
+| **vLLM-ascend** | Huawei Ascend NPU (validated on 910B4) | transformers | **Must** set `HOME` and `USER` in the `ClusterServingRuntime`, set `runAsUser: 1000` and `runAsNonRoot: true` in the runtime container for non-root mode, choose the proper Modelcar permission mode for Ascend 910 single-card or multi-card deployments, add UID `1000` group settings for non-root mode, and add the Ascend device group for root mode when the device files are group-owned |
 | **MindIE** | Huawei Ascend NPU (validated on 310P) | mindspore, transformers | **Must** add the required NPU annotations to the `InferenceService` |
