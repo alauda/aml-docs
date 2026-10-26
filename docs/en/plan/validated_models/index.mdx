@@ -24,11 +24,11 @@ DeepSeek-V4-Flash and MiniMax-M2.5 use larger MoE topologies, up to a 16-card
 DP2 × TP=8 cross-node aggregation). For the runtime model (KServe, ModelCar storage,
 scheduling) see [Deploy](../../deploy/index.mdx).
 
-Qwen3.8-27B is the first model validated on **NVIDIA**: a single RTX PRO 6000 Blackwell
-with community vLLM, deployed as a plain KServe `LLMInferenceService` (no InferNex) behind
-the MaaS gateway. Its benchmarks use a different method (Exgentic agent replay, grouped by
-requests in flight) and are reported on its own page; they are not comparable with the
-Ascend scenarios below.
+Qwen3.8-27B and Gemma-4-31B-it (NVFP4) are validated on **NVIDIA**: each on a single
+RTX PRO 6000 Blackwell with community vLLM, deployed as a plain KServe
+`LLMInferenceService` (no InferNex) behind the MaaS gateway. Their benchmarks use a
+different method (Exgentic agent replay, grouped by requests in flight) and are reported
+on their own pages; they are not comparable with the Ascend scenarios below.
 
 ## Validated models
 
@@ -42,6 +42,7 @@ Ascend scenarios below.
 | Gemma-4-31B-it | `gemma4` dense multimodal | 31B | BF16 | Ascend 910B3 ×8 | vLLM-Ascend nightly-main (0721) | [Gemma-4-31B-it](./ascend/gemma4-31b-it.mdx) |
 | GLM-5.2 (W4A8C8) | `glm_moe_dsa` MoE (MLA + DSA + MTP), 1M context | 753B (~40B activated) | W4A8C8 | Ascend 910B3 ×64 | vLLM-Ascend v0.23.0 | [GLM-5.2 (W4A8C8)](./ascend/glm-5.2-w4a8c8.mdx) |
 | Qwen3.8-27B (NVFP4) | `qwen3_5` hybrid (GDN + MTP) | 27B | NVFP4 | NVIDIA RTX PRO 6000 ×1 | vLLM v0.31.0 | [Qwen3.8-27B (NVFP4)](./nvidia/qwen3-8-27b.mdx) |
+| Gemma-4-31B-it (NVFP4) | `gemma4` dense multimodal, served text-only | 31B | NVFP4 | NVIDIA RTX PRO 6000 ×1 | vLLM v0.31.0 | [Gemma-4-31B-it (NVFP4)](./nvidia/gemma4-31b-it-nvfp4.mdx) |
 
 The two Qwen models and DeepSeek-V4-Flash (W4A8) were validated on Ascend 910B4 (32 GB/card),
 driven through KServe `LLMInferenceService` with load-aware routing (InferNex-Bridge +
@@ -73,6 +74,11 @@ real agent replay whose per-call input and output lengths are close to Alauda Hy
 use (Exgentic `swebench`, median input ~11–16k tokens), the card processes **up to 8
 requests at the same time** with TTFT p90 ≤ 0.7 s and ~50 tok/s per request.
 
+Gemma-4-31B-it (NVFP4 + Google's MTP assistant for speculative decoding) runs on the same
+single RTX PRO 6000 Blackwell with the same 84 GB budget. On the same agent replay it
+processes **up to 8 requests at the same time** with TTFT p90 ≈ 1.0 s and ~46 tok/s per
+request.
+
 GLM-5.2 (W4A8C8) serves a **1M-token context** as a **Prefill/Decode-disaggregated service
 across 8 Atlas 800 A2 nodes (64 × 910B3)** — 4 prefill + 4 decode nodes with a shared
 mooncake KV pool. It is benchmarked by replaying real coding-agent sessions (Exgentic agent
@@ -88,7 +94,7 @@ traces) swept over concurrent sessions, not with the two Ascend scenarios below:
 | vLLM-Ascend nightly-main (dated snapshot) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-main-openeuler-0709` | DeepSeek-V4-Flash (W8A8) | A **later** `nightly-main` snapshot (vLLM 0.23.0) that carries the DP2 cross-node graph + DSA-CP prefix-cache fixes the W8A8 cross-node deployment needs. Pin a **dated** snapshot like this one, not the moving `nightly-main` tag. |
 | vLLM-Ascend v0.23.0 (release-pinned) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:v0.23.0-openeuler` | MiniMax-M2.5 (W8A8), GLM-5.2 (W4A8C8) | The **release-pinned** `nightly-releases-v0.23.0-openeuler` build (vLLM 0.23.0), carrying the `minimax_m2` MoE stack + tool-call/reasoning parsers **and** vLLM #11505 (streaming tool-call arguments held until the closing `</parameter>`). Prefer this dated **release** tag over the moving `nightly-main`. |
 | vLLM-Ascend nightly-main (dated snapshot) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-main-openeuler-0721` | Gemma-4-31B-it | vLLM 0.25.1 / CANN 9.0.1 snapshot used by the validated P4+D4 service. Keep this exact image for the known-good Gemma baseline; it is not a current-version recommendation. |
-| vLLM v0.31.0 (community) | NVIDIA GPU | `docker.io/vllm/vllm-openai:v0.31.0` (`sha256:c1c9f6fd…`) | Qwen3.8-27B (NVFP4) | CUDA 13.0.2, amd64; needs a driver with CUDA 13 support (validated on 580.126.09). Brought in by an `LLMInferenceServiceConfig` that overrides only the image of the platform's default template. |
+| vLLM v0.31.0 (community) | NVIDIA GPU | `docker.io/vllm/vllm-openai:v0.31.0` (`sha256:c1c9f6fd…`) | Qwen3.8-27B (NVFP4), Gemma-4-31B-it (NVFP4) | CUDA 13.0.2, amd64; needs a driver with CUDA 13 support (validated on 580.126.09). Brought in by an `LLMInferenceServiceConfig` that overrides only the image of the platform's default template. |
 
 :::tip
 The Ascend CANN images are arm64. Always match the runtime image's CANN version to
@@ -165,9 +171,10 @@ curl -s http://<gateway>/<namespace>/qwen3-32b-agg-base/v1/chat/completions \
   namespace; the `LLMInferenceService` lives in your deployment namespace.
 - Resource keys are for **Ascend 910B4** (`huawei.com/Ascend910`). Adjust the resource
   key, image, and version fields for your actual NPU model.
-- Qwen3.8-27B (NVFP4) is the exception to the two points above: no InferNex and resource
-  key `nvidia.com/gpu`; its checkpoint and draft model are two separate ModelCars — see
-  [its page](./nvidia/qwen3-8-27b.mdx).
+- The NVIDIA models are the exception to the two points above: no InferNex and resource
+  key `nvidia.com/gpu`; each checkpoint and its draft model are two separate ModelCars —
+  see [Qwen3.8-27B (NVFP4)](./nvidia/qwen3-8-27b.mdx) and
+  [Gemma-4-31B-it (NVFP4)](./nvidia/gemma4-31b-it-nvfp4.mdx).
 - The ModelCar images are **public on Docker Hub** under
   [`alaudadockerhub`](https://hub.docker.com/u/alaudadockerhub) — the manifests pull them
   with no credentials. Mirror them to your own registry and repoint `model.uri` if you
@@ -197,6 +204,8 @@ The signed images and their digests:
 | `docker.io/alaudadockerhub/modelcar-deepseek-v4-flash-w4a8-mtp:v0.1.0` | `sha256:ef57a46726bec9c6505504262beaa55ec6c45d595a1726ab90d594f42606c6be` |
 | `docker.io/alaudadockerhub/modelcar-qwen3.8-27b-nvfp4:v0.1.0` | `sha256:29e36f5bf1d731e3ee175f75ba00821292e21bc6323cfd659533fe702f927aac` |
 | `docker.io/alaudadockerhub/modelcar-qwen3.8-27b-dflash2:v0.1.0` | `sha256:ab910d1dce269083ea6b6427ce952fefd225d33e03ae60714c5ba6f391d5908a` |
+| `docker.io/alaudadockerhub/modelcar-gemma-4-31b-it-nvfp4:v0.1.0` | `NVFP4_DIGEST` |
+| `docker.io/alaudadockerhub/modelcar-gemma-4-31b-it-assistant:v0.1.0` | `sha256:033b599c021bd740b7ad6fd90a449186b9e58a3a15f7ab6849bef53292d14031` |
 | `docker.io/alaudadockerhub/modelcar-glm-5.2-w4a8c8:v0.1.0` | `sha256:0277c991ec74d38883fdf4490e46cecb2c9eeba2644f1ff809be1ee8cb8b9e7b` |
 
 :::note

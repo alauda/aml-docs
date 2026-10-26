@@ -1,0 +1,160 @@
+---
+weight: 80
+i18n:
+  title:
+    en: Gemma-4-31B-it (NVFP4)
+    zh: Gemma-4-31B-it (NVFP4)
+---
+
+# Gemma-4-31B-it (NVFP4)
+
+`gemma4` dense multimodal model, 31B parameters, served text-only as an **NVFP4**
+checkpoint (~23 GB) with Google's official **MTP assistant** for speculative decoding.
+Validated on a single **NVIDIA RTX PRO 6000 Blackwell** with community **vLLM v0.31.0**,
+deployed as a plain KServe `LLMInferenceService` behind the Alauda AI **MaaS gateway**.
+The GPU memory budget was capped at **84 GB** to emulate an RTX PRO 6000D. Context length
+**128k**, thinking on by default. For the BF16 model on Ascend see
+[Gemma-4-31B-it](../ascend/gemma4-31b-it.mdx).
+
+## Model identity
+
+| Field | Value |
+|---|---|
+| Publisher | Google |
+| Architecture | `gemma4` / `Gemma4ForConditionalGeneration`; 60 layers (50 sliding-window layers with a 1,024-token window, 10 full-attention layers), hidden size 5,376, vocabulary 262,144; multimodal-capable, served text-only (`--language-model-only`) |
+| Checkpoint | [`RedHatAI/gemma-4-31B-it-NVFP4`](https://huggingface.co/RedHatAI/gemma-4-31B-it-NVFP4) @ `5df75cca` (23.27 GB): all linear layers in NVFP4 (W4A4) |
+| Draft model | [`google/gemma-4-31B-it-assistant`](https://huggingface.co/google/gemma-4-31B-it-assistant) @ `627c5ec1` (0.94 GB, 4 layers), 4 tokens per draft |
+| ModelCar images | `docker.io/alaudadockerhub/modelcar-gemma-4-31b-it-nvfp4:v0.1.0` (checkpoint) and `docker.io/alaudadockerhub/modelcar-gemma-4-31b-it-assistant:v0.1.0` (draft model): Cosign-signed, amd64 + arm64, every file byte-identical to the revisions above (sha256-checked) |
+| License | Apache 2.0 (base model, NVFP4 checkpoint and draft model) |
+| Published accuracy retention | 98–105% of the original with thinking on (e.g. MMLU-Pro 99.2%, GPQA Diamond 100.8%, BFCLv4 100.7%, per the checkpoint card) |
+
+## Validated hardware × stack
+
+| Platform | Engine | Version / config | Status |
+|---|---|---|---|
+| NVIDIA RTX PRO 6000 Blackwell 96 GB × 1 (SM120), capped to 84 GB; AWS g7e.2xlarge | vLLM (community) | `docker.io/vllm/vllm-openai:v0.31.0` (CUDA 13.0.2), NVIDIA driver 580.126.09 | ✅ function checks and Exgentic agent-replay benchmark, through MaaS |
+
+:::note
+The speed numbers were measured on the standard **96 GB** RTX PRO 6000 with the memory
+budget scaled down to **84 GB** (`--gpu-memory-utilization=0.805`). This reproduces the
+KV capacity of an RTX PRO 6000D, **not its compute or bandwidth**, which are lower —
+re-measure on a real 6000D before quoting 6000D speeds. Alauda AI's bundled vLLM (0.23.0)
+was not used: the community v0.31.0 image is brought in by an `LLMInferenceServiceConfig`
+that overrides only the container image.
+:::
+
+## Model configuration
+
+| Parameter | Value |
+|---|---|
+| `max-model-len` | 131072 |
+| `gpu-memory-utilization` | 0.805 (84 GB budget on a 96 GB card; use 0.92 on an RTX PRO 6000D) |
+| `max-num-seqs` | 32 (vLLM's default of 1024 on large cards reserves sampler memory for all of them; with a 262k vocabulary that alone is ~1 GiB) |
+| `max-num-batched-tokens` | 8192 (prefix caching on) |
+| KV cache dtype | BF16 (the checkpoint carries no FP8 KV scales) |
+| Attention backend | Triton (chosen by vLLM on SM120 for Gemma 4's two head sizes, 256 and 512) |
+| Speculative decoding | official MTP assistant, `num_speculative_tokens=4`; ~65% of drafted tokens accepted (3.6 tokens per step) on the agent replay below |
+| KV capacity | ~300k tokens with the MTP assistant (2.3 full 128k requests); the assistant reads the main model's KV and needs none of its own |
+| Thinking | on by default (`--default-chat-template-kwargs '{"enable_thinking":true}'`); a request turns it off with `chat_template_kwargs: {"enable_thinking": false}` |
+| Tool calls / reasoning | `--enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4 --chat-template /vllm-workspace/examples/tool_chat_template_gemma4.jinja` (the template ships in the vLLM image) |
+| HTTP keep-alive | `VLLM_HTTP_TIMEOUT_KEEP_ALIVE=3700` (longer than the gateway's idle reuse; avoids 503 `UC`) |
+
+## Deploy
+
+The weights come from two ModelCars on Docker Hub: the checkpoint is the service's
+`model.uri`, and an init container copies the MTP assistant out of its own ModelCar into
+an `emptyDir` (an `LLMInferenceService` takes a single `model.uri`).
+
+| Spec | File |
+|---|---|
+| Compile-cache PVC + engine image config + `LLMInferenceService` | [`gemma4-31b-it-nvfp4-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/nvidia/assets/gemma4-31b-it-nvfp4/gemma4-31b-it-nvfp4-llmisvc.yaml) |
+
+| Image | Digest |
+|---|---|
+| `docker.io/alaudadockerhub/modelcar-gemma-4-31b-it-nvfp4:v0.1.0` | `NVFP4_DIGEST` |
+| `docker.io/alaudadockerhub/modelcar-gemma-4-31b-it-assistant:v0.1.0` | `sha256:033b599c021bd740b7ad6fd90a449186b9e58a3a15f7ab6849bef53292d14031` |
+
+```bash
+# verify both ModelCar signatures (public key from this repository)
+curl -sO https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/cosign.pub
+for img in modelcar-gemma-4-31b-it-nvfp4 modelcar-gemma-4-31b-it-assistant; do
+  cosign verify --key cosign.pub --insecure-ignore-tlog=true docker.io/alaudadockerhub/$img:v0.1.0
+done
+
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/nvidia/assets/gemma4-31b-it-nvfp4
+# edit the namespace first, then:
+kubectl apply -f $base/gemma4-31b-it-nvfp4-llmisvc.yaml
+kubectl -n <your-namespace> get llminferenceservice gemma4-31b-it -w
+
+curl -s https://<maas-host>/v1/chat/completions \
+  -H "Authorization: Bearer $MAAS_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"gemma-4-31b-it","messages":[{"role":"user","content":"hello"}]}'
+```
+
+With the weights on a local disk the first start took about 6–7 minutes (weights ~3 min,
+then kernel compilation and CUDA-graph capture); later starts reuse the compile cache on
+`gemma4-31b-it-cache` and took about 5.5 minutes. With the ModelCars add the first image
+pull (NVFP4_PULL for the checkpoint, ~0.7 GiB compressed for the assistant).
+
+:::note
+The function checks and benchmarks on this page were run with the same files served from a
+PVC. The ModelCars carry byte-identical files (the sha256 of every file was checked against
+the pinned Hugging Face revisions), but this ModelCar manifest — including the init-container
+copy of the MTP assistant — has not yet been run on the GPU.
+:::
+
+:::warning
+- With speculative decoding on, vLLM rejects `min_p` and `logit_bias` (HTTP 400).
+- Long prompts are slow to prefill on this card: time to first token is ~7.6 s for a 32k
+  prompt and ~84 s for a 127k prompt (Triton attention). Agent turns that hit the prefix
+  cache prefill only the new part (see the benchmark below).
+- `nvidia-smi` reached **80,941 MiB** under the agent replay — about 2.1 GiB above the
+  84 GB plan (PyTorch memory that vLLM does not budget). An RTX PRO 6000D still has
+  ~4.5 GiB left.
+:::
+
+## Function checks
+
+All through the MaaS gateway, on the deployed manifest above:
+
+| Check | Result |
+|---|---|
+| Tool calls (streaming and non-streaming) | 10/10 and 10/10 |
+| Reasoning separated from the answer | 3/3 |
+| `/v1/responses` (plain answer and tool call, streaming and non-streaming) | 12/12 |
+
+## Benchmark results
+
+**Workload.** The benchmark replays real agent trajectories whose per-call input and output
+lengths (ISL / OSL) are close to how **Alauda Hyperflux** uses this model: it makes 3–4
+model calls per question, and the Exgentic v2 subset `openai_solo` × `swebench` has the
+closest input lengths of the corpus.
+
+| Load | Per-call input (ISL) p50 / p90 | Output (OSL) p50 / p90 |
+|---|--:|--:|
+| Alauda Hyperflux, tool-calling turns | ~11.5k / ~21k | ~100–300 |
+| Alauda Hyperflux, final turn | ~15k / ~30k | ~1.1k / ~3.6k (including thinking) |
+| Replayed: Exgentic v2 `openai_solo` × `swebench` | ~12–17k / ~32–39k | 83–92 / 280–354 |
+
+The corpus outputs are shorter than Hyperflux's final answers, so the decode side is
+somewhat lighter than production.
+
+**Method.** `aiperf 0.12.0` (NVIDIA image) through the MaaS gateway, `timingMode:
+agentic_replay` (recorded gaps between calls, sessions start at 25–75% of their trajectory,
+per-session cache-bust), 15 minutes per tier, token counts as reported by the engine; one
+of 9,043 requests came back empty (HTTP 200), none failed. The number of requests actually
+in flight varies a lot between sessions, so every request is grouped by the time-averaged
+number of requests in flight during its lifetime (the first 120 s of each tier excluded).
+
+| Requests in flight | Requests | TTFT p50 / p90 | First answer token (after thinking) p50 / p90 | ITL p50 / p90 | Per-request output p50 (slowest 10%) | Input p50 | Output p50 / p90 |
+|--:|--:|--:|--:|--:|--:|--:|--:|
+| 1–2 | 666 | 0.24 / 0.49 s | 0.43 / 1.85 s | 10.6 / 15.7 ms | 94.5 (63.1) tok/s | 14,100 | 81 / 301 |
+| 3–4 | 1,197 | 0.33 / 0.72 s | 0.66 / 2.77 s | 14.8 / 22.2 ms | 67.5 (45.1) tok/s | 16,451 | 87 / 316 |
+| 5–6 | 1,428 | 0.37 / 0.86 s | 0.78 / 3.86 s | 19.0 / 28.3 ms | 52.7 (35.3) tok/s | 16,050 | 87 / 334 |
+| **7–8** | 1,520 | **0.42 / 1.03 s** | 0.91 / 4.11 s | 21.6 / 31.8 ms | **46.4 (31.4) tok/s** | 16,086 | 86 / 319 |
+
+**One card processes up to 8 requests at the same time** with TTFT p90 ≈ 1.0 s and ~46 tok/s
+per request (slowest 10% ~31 tok/s). Treat 8 as the ceiling for this workload: above it the
+~300k-token KV cache fills and cached history is evicted between turns. Quote the result as
+concurrent **requests**, not users or sessions.
