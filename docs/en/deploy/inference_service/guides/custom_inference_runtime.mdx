@@ -407,7 +407,19 @@ community image. For Ascend 910 single-node multi-card inference, use this mode
 only after validating that the image supports UID `1000` and HCCL
 initialization. The image must allow the runtime process to access Ascend device
 files, and TP>1 / HCCL initialization may require a matching UID `1000` user
-entry in `/etc/passwd`.
+entry in `/etc/passwd`. See [Multi-NPU Inference with UID
+1000](#multi-npu-inference-with-uid-1000).
+
+:::warning
+The runtime container must set `runAsUser: 1000` and `runAsNonRoot: true`, as
+in the following example. Keep both fields when you copy the example and change
+the image or other settings. If `runAsUser` is omitted, the container runs as
+the default user of the image, which is root for many `vLLM-ascend` images.
+Because the runtime drops all capabilities, that root process cannot open
+Ascend device files that are owned by `HwHiAiUser` with mode `crw-rw----`, and
+the vLLM workers fail during initialization. See [vLLM Ascend Workers Fail to
+Open NPU Devices](../troubleshooting/ascend_npu_device_access.mdx).
+:::
 
 **1. ClusterServingRuntime**
 
@@ -628,7 +640,73 @@ spec:
 
 For root-mode Modelcar deployments, follow the dedicated [root-mode
 guide](./vllm_ascend_root_mode.mdx) instead of applying the non-root runtime
-and group settings shown above.
+shown above. Root mode drops all capabilities, so it still needs the device
+group in `supplementalGroups` when the node's Ascend device files are
+group-owned. See [Grant Access to Ascend Device
+Files](./vllm_ascend_root_mode.mdx#grant-access-to-ascend-device-files).
+
+##### Multi-NPU Inference with UID 1000 \{#multi-npu-inference-with-uid-1000}
+
+With TP>1, HCCL initialization fails when the image's `/etc/passwd` has no
+entry for UID `1000`. The model weights load, and the first collective
+operation fails with messages such as:
+
+```text
+HCCL function error: hcclGetRootInfo(&hcclID), error code is 19
+ERR02200 DIST call hccl api failed.
+EI9999 ... ra init failed,return[19] devicePhyId_[6], nicPosition[0]
+```
+
+To add the entry without rebuilding the image, store a `passwd` file in a
+ConfigMap and mount it over `/etc/passwd` in the serving container. The mounted
+file replaces the whole `/etc/passwd`, so start from the image's file and append
+the UID `1000` entry. For example, copy the file from any running Pod that uses
+the same image:
+
+```bash
+kubectl -n <namespace> exec <pod-name> -c kserve-container -- cat /etc/passwd > passwd
+echo 'vllm:x:1000:0:vLLM runtime:/tmp:/usr/sbin/nologin' >> passwd
+kubectl -n <namespace> create configmap vllm-ascend-runtime-identity --from-file=passwd
+```
+
+The resulting ConfigMap has the following form. The example shows only the
+`root` entry and the new entry; keep all other entries from the image's file.
+The new entry uses UID `1000`, GID `0` (the primary group of the container when
+`runAsGroup` is not set), and `/tmp` as the home directory to match `HOME`:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vllm-ascend-runtime-identity
+  namespace: <namespace>
+data:
+  passwd: |
+    root:x:0:0:root:/root:/bin/bash
+    vllm:x:1000:0:vLLM runtime:/tmp:/usr/sbin/nologin
+```
+
+Mount the ConfigMap in the `InferenceService`, which must be in the same
+namespace as the ConfigMap:
+
+```yaml
+spec:
+  predictor:
+    model:
+      volumeMounts:
+        - name: runtime-identity
+          mountPath: /etc/passwd
+          subPath: passwd
+          readOnly: true
+    volumes:
+      - name: runtime-identity
+        configMap:
+          name: vllm-ascend-runtime-identity
+          defaultMode: 0444
+```
+
+A file mounted with `subPath` is not updated when the ConfigMap changes.
+Restart the Pod after you edit the ConfigMap.
 
 ### MindIE (Ascend NPU)
 
@@ -985,5 +1063,5 @@ Before proceeding, refer to this table to understand the specific requirements f
 | **Xinference** | CPU / NVIDIA GPU | transformers, pytorch | **Must** set `MODEL_FAMILY` environment variable |
 | **MLServer** | CPU / NVIDIA GPU | sklearn, xgboost, mlflow | Standard configuration |
 | **Triton** | NVIDIA GPU | triton (TensorFlow, PyTorch, ONNX, etc.) | Standard configuration |
-| **vLLM-ascend** | Huawei Ascend NPU (validated on 910B4) | transformers | **Must** set `HOME` and `USER` in the `ClusterServingRuntime`, choose the proper Modelcar permission mode for Ascend 910 single-card or multi-card deployments, and add UID `1000` group settings only for non-root mode |
+| **vLLM-ascend** | Huawei Ascend NPU (validated on 910B4) | transformers | **Must** set `HOME` and `USER` in the `ClusterServingRuntime`, set `runAsUser: 1000` and `runAsNonRoot: true` in the runtime container for non-root mode, choose the proper Modelcar permission mode for Ascend 910 single-card or multi-card deployments, add UID `1000` group settings for non-root mode, and add the Ascend device group for root mode when the device files are group-owned |
 | **MindIE** | Huawei Ascend NPU (validated on 310P) | mindspore, transformers | **Must** add the required NPU annotations to the `InferenceService` |
