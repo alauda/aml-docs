@@ -71,7 +71,7 @@ an `emptyDir` (an `LLMInferenceService` takes a single `model.uri`).
 
 | Image | Digest |
 |---|---|
-| `docker.io/alaudadockerhub/modelcar-gemma-4-31b-it-nvfp4:v0.1.0` | `NVFP4_DIGEST` |
+| `docker.io/alaudadockerhub/modelcar-gemma-4-31b-it-nvfp4:v0.1.0` | `sha256:1a8eca87ac19759961317474a63db4a6e570f508b1eb23a69d1a410d6baebe23` |
 | `docker.io/alaudadockerhub/modelcar-gemma-4-31b-it-assistant:v0.1.0` | `sha256:033b599c021bd740b7ad6fd90a449186b9e58a3a15f7ab6849bef53292d14031` |
 
 ```bash
@@ -95,7 +95,7 @@ curl -s https://<maas-host>/v1/chat/completions \
 With the weights on a local disk the first start took about 6–7 minutes (weights ~3 min,
 then kernel compilation and CUDA-graph capture); later starts reuse the compile cache on
 `gemma4-31b-it-cache` and took about 5.5 minutes. With the ModelCars add the first image
-pull (NVFP4_PULL for the checkpoint, ~0.7 GiB compressed for the assistant).
+pull (~19.5 GiB compressed for the checkpoint, ~0.7 GiB compressed for the assistant).
 
 :::note
 The function checks and benchmarks on this page were run with the same files served from a
