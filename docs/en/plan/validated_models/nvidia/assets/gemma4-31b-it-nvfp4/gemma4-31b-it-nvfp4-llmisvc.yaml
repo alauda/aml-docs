@@ -1,0 +1,134 @@
+# =============================================================================
+# Gemma-4-31B-it · NVFP4 + BF16 KV + thinking on + official MTP speculative decoding
+# 1 × NVIDIA RTX PRO 6000 Blackwell · KServe LLMInferenceService (no InferNex, no EPP)
+#
+# Community vLLM v0.31.0 is brought in through an LLMInferenceServiceConfig that overrides
+# only the main container image; the command, probes and routing come from the platform's
+# default LLMInferenceService templates.
+#
+# Weights come from two Cosign-signed ModelCars on Docker Hub, byte-identical to the pinned
+# Hugging Face revisions (every file's sha256 checked):
+#   modelcar-gemma-4-31b-it-nvfp4      RedHatAI/gemma-4-31B-it-NVFP4@5df75cc     -> model.uri (/mnt/models)
+#   modelcar-gemma-4-31b-it-assistant  google/gemma-4-31B-it-assistant@627c5ec   -> init container copies it
+#                                                                                  to an emptyDir (/draft)
+# LLMInferenceService takes a single model.uri, hence the init container for the MTP assistant.
+#
+# --gpu-memory-utilization=0.805 reproduces the validated 84 GB budget on a 96 GB card
+# (= 0.92 of an 84 GB RTX PRO 6000D × 84/96). On an RTX PRO 6000D use 0.92.
+# Change engine arguments with the service stopped (annotation serving.kserve.io/stop):
+# a single-GPU rolling update cannot schedule the new Pod next to the old one.
+# =============================================================================
+# vLLM compile caches (Triton, torch.compile) survive Pod restarts here, so later starts skip
+# kernel compilation. TopoLVM with WaitForFirstConsumer binds it to the GPU node the service
+# lands on.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gemma4-31b-it-cache
+  namespace: zgsu-ns1
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: topolvm
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceServiceConfig
+metadata:
+  name: vllm-v0-31-0
+  namespace: zgsu-ns1
+spec:
+  template:
+    containers:
+      - name: main
+        # vLLM v0.31.0 (CUDA 13.0.2); needs an NVIDIA driver with CUDA 13 support (validated on 580.126.09)
+        image: docker.io/vllm/vllm-openai:v0.31.0@sha256:c1c9f6fd5c109ba7f0546a59f5b2f15fb87f64c77782e90a27b648b42a8e67c3
+---
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceService
+metadata:
+  name: gemma4-31b-it
+  namespace: zgsu-ns1
+  annotations:
+    cpaas.io/accelerator: cuda
+spec:
+  model:
+    uri: oci://docker.io/alaudadockerhub/modelcar-gemma-4-31b-it-nvfp4:v0.1.0
+    name: gemma-4-31b-it # served model name
+  baseRefs:
+    - name: vllm-v0-31-0
+  replicas: 1
+  router:
+    # No scheduler: no EPP is deployed for a single replica; the gateway routes straight to the engine.
+    gateway: {}
+    route: {}
+  template:
+    tolerations:
+      - { key: nvidia.com/gpu, operator: Exists, effect: NoSchedule }
+    securityContext: { fsGroup: 1000, fsGroupChangePolicy: OnRootMismatch }
+    initContainers:
+      # The assistant ModelCar is busybox-based: copy its /models into the emptyDir the engine reads.
+      - name: draft-model
+        image: docker.io/alaudadockerhub/modelcar-gemma-4-31b-it-assistant:v0.1.0
+        command: ["sh", "-c", "cp -r /models/. /draft/"]
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+        resources:
+          requests: { cpu: 500m, memory: 256Mi }
+          limits: { cpu: "1", memory: 512Mi }
+        volumeMounts:
+          - { name: draft-model, mountPath: /draft }
+    containers:
+      - name: main
+        args:
+          - --max-model-len=131072
+          - --gpu-memory-utilization=0.805
+          - --language-model-only
+          - --max-num-batched-tokens=8192
+          # vLLM defaults to 1024 sequences on >= 70 GB cards and reserves sampler / CUDA-graph memory for all of
+          # them (Gemma 4's 262k vocabulary makes 1024 sequences' logits alone ~1 GiB).
+          - --max-num-seqs=32
+          # The checkpoint carries no FP8 KV scales; KV stays BF16.
+          - --kv-cache-dtype=bfloat16
+          # Parsers and chat template as in the vLLM recipe for Gemma 4 (the template ships in the vLLM image).
+          - --enable-auto-tool-choice
+          - --tool-call-parser=gemma4
+          - --reasoning-parser=gemma4
+          - --chat-template=/vllm-workspace/examples/tool_chat_template_gemma4.jinja
+          # Gemma 4's template does not think by default; turn it on server-side. A request can still send
+          # chat_template_kwargs {"enable_thinking": false}. The template builds the command with eval,
+          # so the JSON needs the extra single quotes.
+          - "--default-chat-template-kwargs='{\"enable_thinking\":true}'"
+          # Google's official MTP assistant (google/gemma-4-31B-it-assistant, copied to /draft by the init
+          # container), 4 tokens per draft; it reads the target's KV and needs no KV of its own.
+          - "--speculative-config='{\"model\":\"/draft\",\"num_speculative_tokens\":4}'"
+        env:
+          - { name: TRITON_CACHE_DIR, value: /home/.cache/triton }
+          # vLLM closes idle HTTP connections after 5 s; the MaaS gateway (Envoy) reuses idle upstream
+          # connections and answers 503 (flag UC) when it picks one vLLM just closed. Keep vLLM's longer.
+          - { name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE, value: "3700" }
+        resources:
+          requests: { cpu: "4", memory: 24Gi, nvidia.com/gpu: "1" }
+          limits: { cpu: "7", memory: 48Gi, nvidia.com/gpu: "1" }
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+        volumeMounts:
+          - { name: vllm-cache, mountPath: /home/.cache }
+          - { name: draft-model, mountPath: /draft, readOnly: true }
+        # First start compiles SM120 kernels; the default 10-minute startup budget is too short.
+        startupProbe:
+          failureThreshold: 240
+        readinessProbe:
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          timeoutSeconds: 10
+    volumes:
+      - name: vllm-cache
+        persistentVolumeClaim: { claimName: gemma4-31b-it-cache }
+      - name: draft-model
+        emptyDir: { sizeLimit: 2Gi }
