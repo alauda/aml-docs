@@ -6,6 +6,20 @@ weight: 10
 
 End-to-end recipes for training and fine-tuning models on Alauda AI.
 
+## Supported features and algorithms
+
+This table summarizes the algorithms and workloads covered by the current guides. Accelerator scope describes the documented path; it is not a general compatibility guarantee for every model or device.
+
+| Feature | Documented algorithms or workloads | Accelerator scope | Solution and guide |
+|---|---|---|---|
+| LLM supervised fine-tuning | Full-parameter SFT with MindSpeed-LLM or MindSpore; LLaMA-Factory SFT runtime | Ascend NPU full-parameter SFT has runnable Workbench and Trainer v2 recipes. The LLaMA-Factory CANN image is listed as a runtime; its NPU LoRA workflow is not covered end to end. | [Fine-tune and Pretrain on Ascend NPU](./fine-tune-and-pretrain-llms-on-ascend-npu.mdx); [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx); [Training Runtime Images](./training-runtimes.mdx) |
+| LLM continued pretraining | CPT on raw text; MindSpeed-LLM pretraining | Training Hub CPT is documented for NVIDIA GPU. Ascend has a runnable MindSpeed-LLM pretraining recipe. | [Training Hub fine-tuning](./training-hub-fine-tuning.mdx); [Fine-tune and Pretrain on Ascend NPU](./fine-tune-and-pretrain-llms-on-ascend-npu.mdx) |
+| Parameter-efficient or continual fine-tuning | LoRA, QLoRA, OSFT | Training Hub guides target NVIDIA GPU. Ascend has a LLaMA-Factory CANN runtime listing, but no current end-to-end NPU LoRA guide. The current guide states bitsandbytes NF4 QLoRA is unavailable on Ascend. | [Training Hub fine-tuning](./training-hub-fine-tuning.mdx); [Training Runtime Images](./training-runtimes.mdx) |
+| LLM preference and reinforcement learning | DPO runtime capability; GRPO / RLVR with `lora_grpo` and `verl` | Documented for NVIDIA GPU. No Ascend training recipe is currently documented. | [Training Hub fine-tuning](./training-hub-fine-tuning.mdx); [RL with verifiable rewards](./training-hub-rl-verifiable-rewards.mdx) |
+| Machine-learning model training | YOLOv5 object-detection fine-tuning | NVIDIA GPU training is documented. The YOLOv5 Ascend paths cover inference after GPU training, not NPU training. | [Train, Fine-Tune, and Deploy YOLOv5](./yolov5-training-and-triton-deployment.mdx); [Train on GPU and Run Inference on NPU](./train-on-gpu-infer-on-npu.mdx) |
+| Distributed training | PyTorch DDP with JobSet; MPI with Trainer v2; MindSpeed-LLM SFT | DDP and MPI have runnable Kubernetes examples. The Ascend Trainer v2 example validates a single-node MindSpeed-LLM job; multi-node NPU guidance is limited to cluster-specific prerequisites. | [Distributed PyTorch with JobSet](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/run-distributed-training-with-jobset.ipynb); [MPI Training with Trainer v2](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/run-mpi-training-with-trainer-v2.ipynb); [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx) |
+| Training scheduling and accelerator quota | Kueue queues, quota, preemption; GPU slicing with DRA | GPU scheduling and Ascend NPU quota are documented. | [Preemptible TrainJobs with Kueue](./preemptible-trainjobs-with-kueue.mdx); [GPU Slicing with DRA](./gpu-slicing-with-dra.mdx); [Manage Ascend NPU quota with Kueue](../quota_scheduling/npu_quota.mdx) |
+
 ## Pick a path
 
 | When you want… | Use | Guide |
