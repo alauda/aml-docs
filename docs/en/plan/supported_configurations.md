@@ -10,8 +10,8 @@ This page lists the currently maintained Alauda AI Platform versions in the comp
 
 | Components                                   | Type           | Alauda AI Platform v2.8 Stable     | Alauda AI Platform v2.9 Fast      |
 | -------------------------------------------- | -------------- | ---------------------------------- | -------------------------------- |
-| Alauda Container Platform Supported Versions |                | v4.1.x, v4.2.x, v4.3.x             | v4.1.x, v4.2.x, v4.3.x, v4.4.x   |
-| Alauda AI Platform (1)                       | Operator       | v2.8.0                             | v2.9.0                           |
+| Alauda Container Platform Supported Versions |                | v4.1.x, v4.2.x, v4.3.x, v4.4.x     | v4.1.x, v4.2.x, v4.3.x, v4.4.x   |
+| Alauda AI Platform (1)                       | Operator       | v2.8.1                             | v2.9.0                           |
 | Alauda AI Workbench Operator                 | Operator       | v0.2.0                             | v0.2.0                           |
 | Alauda AI Platform Inference Management (1)  | Operator       | v0.19.0-2                          | v0.20.0-1                        |
 | Alauda AI Platform Serving Runtime (1)       | Operator       | v1.1.1                             | v1.2.2                           |
@@ -53,8 +53,8 @@ This page lists the currently maintained Alauda AI Platform versions in the comp
 
 | Components                                   | Type           | Alauda AI Platform v2.8 Stable     | Alauda AI Platform v2.9 Fast      |
 | -------------------------------------------- | -------------- | ---------------------------------- | -------------------------------- |
-| Alauda Container Platform Supported Versions |                | v4.1.x, v4.2.x, v4.3.x             | v4.1.x, v4.2.x, v4.3.x, v4.4.x   |
-| Alauda AI Platform (1)                       | Operator       | v2.8.0                             | v2.9.0                           |
+| Alauda Container Platform Supported Versions |                | v4.1.x, v4.2.x, v4.3.x, v4.4.x     | v4.1.x, v4.2.x, v4.3.x, v4.4.x   |
+| Alauda AI Platform (1)                       | Operator       | v2.8.1                             | v2.9.0                           |
 | Alauda AI Workbench Operator                 | Operator       | v0.2.0                             | v0.2.0                           |
 | Alauda AI Platform Inference Management (1)  | Operator       | v0.19.0-2                          | v0.20.0-1                        |
 | Alauda AI Platform NPU Serving Runtime (3)   | Operator       | -                                  | v1.0.0                           |
