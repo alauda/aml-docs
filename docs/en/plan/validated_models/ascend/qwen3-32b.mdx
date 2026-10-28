@@ -10,7 +10,7 @@ i18n:
 
 Standard **Qwen3 dense** model, 32B parameters, served in **BF16** (~62 GB across
 four cards). Validated on **Ascend 910B4 (32 GB/card)** with vLLM-Ascend **v0.18.0**
-through Alauda AI's InferNex surface. The validated 8-card topology is **TP=4 × 2
+through Alauda AI Platform's InferNex surface. The validated 8-card topology is **TP=4 × 2
 replicas**, benchmarked in **two deployment specs** — `agg-base` (load-balancing) and
 `agg-mc-kv` (cross-instance KV cache store + KV-cache-aware routing).
 

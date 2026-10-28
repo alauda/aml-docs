@@ -9,13 +9,13 @@ title: Validated Models
 
 # Validated Models
 
-Ready-to-deploy recipes for **validated open-weight LLMs** on Alauda AI. Each model
+Ready-to-deploy recipes for **validated open-weight LLMs** on Alauda AI Platform. Each model
 in this guide has been deployed end-to-end on a real cluster and benchmarked, so you
 get a known-good deployment manifest, the runtime image that serves it, and the
 throughput you can expect.
 
 The models here were validated on **Huawei Ascend NPUs (910B4 and 910B3)** with the
-community `vLLM-Ascend` engine, deployed through Alauda AI's **InferNex** surface — a
+community `vLLM-Ascend` engine, deployed through Alauda AI Platform's **InferNex** surface — a
 KServe `LLMInferenceService` reconciled by the InferNex-Bridge into a load-aware router
 (hermes-router / EPP) in front of the vLLM-Ascend instances. Most were run through the
 **same InferNex aggregation surface and the same two benchmark scenarios** (the two

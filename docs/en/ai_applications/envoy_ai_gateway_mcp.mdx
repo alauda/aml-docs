@@ -2,7 +2,7 @@
 weight: 40
 ---
 
-# Kagenti with two MCP servers behind Envoy AI Gateway
+# Kagenti with two MCP servers behind Alauda AI Platform Gateway
 
 This example deploys the Rosso weather and restaurant-reservation MCP servers,
 aggregates them behind one Envoy Gateway data plane, and connects a Kagenti
@@ -12,25 +12,27 @@ The manifests are in `docs/en/ai_applications/components/kagenti/assets/envoy_ai
 target the `kagenti-mcp-demo` namespace. Before applying them, change the
 namespace and `GatewayClass` name if your environment uses different values.
 
-## Validated versions
+## Component versions
 
-This example was validated on 2026-07-28 with:
+For Alauda AI Platform 2.9, use Alauda AI Platform Gateway `v1.1.0-1`. The table below lists the gateway components and API used by this guide. Verify the generated resources and MCP requests using the checks below; the example has not been revalidated here against the updated gateway version.
 
 | Component | Version |
 | --- | --- |
 | Alauda Build of Envoy Gateway | `1.7.0-build.20260625161000` |
-| Alauda Build of Envoy AI Gateway | `0.6.0-1` |
+| Alauda AI Platform Gateway | `v1.1.0-1` |
 | `MCPRoute` API | `aigateway.envoyproxy.io/v1beta1` |
 
-Envoy AI Gateway 0.6 supports MCP aggregation, authentication, tool
-authorization, and upstream credentials through `MCPRoute`.
+Alauda AI Platform Gateway provides MCP aggregation, authentication, tool
+authorization, and upstream credentials through `MCPRoute`. Its upstream
+project is [Agent Router](https://theagentrouter.ai/), formerly Envoy AI Gateway.
+The `aigateway.envoyproxy.io` API group used by these manifests is unchanged.
 
 Kuadrant `mcp-gateway` is not interchangeable with this API. Its controller
 creates an Istio `EnvoyFilter` and requires that resource before
 `MCPGatewayExtension` becomes ready. Envoy Gateway's native
 `EnvoyExtensionPolicy` does not expose the `mutation_rules.allow_all_routing`
 setting that Kuadrant MCP Gateway currently needs to rewrite `:authority`.
-Use the native Envoy AI Gateway `MCPRoute` shown here with Envoy Gateway, or use
+Use the native `MCPRoute` provided by Alauda AI Platform Gateway with Envoy Gateway, or use
 Kuadrant MCP Gateway with its supported Istio provider.
 
 ## Topology and the HTTPRoute count
@@ -42,7 +44,7 @@ Kagenti generic agent
         v
 Envoy Gateway :80 /mcp
         |
-        | Envoy AI Gateway MCP proxy
+        | Alauda AI Platform Gateway MCP proxy
         +-----------------------+
         |                       |
         v                       v

@@ -4,7 +4,7 @@ weight: 10
 
 # Using the MLflow Python SDK with Authentication and RBAC
 
-On Alauda AI the [MLflow Tracking Server](../components/mlflow/intro.mdx) runs behind single sign-on and multi-tenancy: an OAuth proxy authenticates every caller, and the server records each run under the calling user and authorizes it against Kubernetes RBAC. This guide drives the stock **MLflow Python SDK** through that OAuth proxy with your own identity, **browser-free**, using the OAuth2 **authorization code** flow (with PKCE) scripted against the platform login — no password grant, and never the MLflow container port.
+On Alauda AI Platform the [MLflow Tracking Server](../components/mlflow/intro.mdx) runs behind single sign-on and multi-tenancy: an OAuth proxy authenticates every caller, and the server records each run under the calling user and authorizes it against Kubernetes RBAC. This guide drives the stock **MLflow Python SDK** through that OAuth proxy with your own identity, **browser-free**, using the OAuth2 **authorization code** flow (with PKCE) scripted against the platform login — no password grant, and never the MLflow container port.
 
 There are two browser-free ways to present your identity; pick one:
 
@@ -130,7 +130,7 @@ with mlflow.start_run(run_name="sdk-quickstart") as run:
     print("run:", run.info.run_id)
 ```
 
-The run appears under **Alauda AI → Tools → MLFlow**, owned by the user you authenticated as. (Verified end-to-end on a secured install: the run owner is the token's user identity.)
+The run appears under **Alauda AI Platform → Tools → MLFlow**, owned by the user you authenticated as. (Verified end-to-end on a secured install: the run owner is the token's user identity.)
 
 Use the in-cluster Service URL `http://mlflow-tracking-server.kubeflow:5000` when the client runs **inside** the cluster (pipeline components, Workbench notebooks). From **outside** the cluster, point at the platform route `https://<platform>/clusters/<cluster>/mlflow` instead — both reach the same OAuth proxy (set `MLFLOW_TRACKING_INSECURE_TLS=true` if the platform certificate is not trusted by your machine).
 

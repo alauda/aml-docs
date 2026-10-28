@@ -45,7 +45,7 @@ data:
 - `link`: The URL to open when the menu item is clicked
 - `parentUid`: Must be set to `advanced`, which mounts the item under the **Tools** menu
 - `title / titleI18N`: Display name of the menu item, with internationalization support
-- `tags`: When installing Alauda AI, the system aggregates multiple `ConfigMaps` into a single `ConfigMap`. During this aggregation process, the system automatically adds an `aml-feature-tags` field to the merged configuration. By default, this field contains built-in tags such as `addon`, `core`, `datasets`, `pretrain`, `tune-models`, and `workbench`.
+- `tags`: When installing Alauda AI Platform, the system aggregates multiple `ConfigMaps` into a single `ConfigMap`. During this aggregation process, the system automatically adds an `aml-feature-tags` field to the merged configuration. By default, this field contains built-in tags such as `addon`, `core`, `datasets`, `pretrain`, `tune-models`, and `workbench`.
 
   In the example above, if a menu item defines `tags` as `kubeflow`, then `aml-feature-tags` will also include this `kubeflow` entry.
   The left navigation aggregation mechanism uses a **whitelist** design. For example, after running the following command, only navigation items whose `tags` contain `kubeflow` will be displayed on the page:

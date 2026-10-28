@@ -14,7 +14,7 @@ This document walks you through how to add new inference runtimes for serving
 Large Language Models (LLMs) and other models such as image classification,
 object detection, and text classification models.
 
-Alauda AI comes with a built-in `vLLM` inference engine. With custom inference
+Alauda AI Platform comes with a built-in `vLLM` inference engine. With custom inference
 runtimes, you can introduce additional inference engines such as
 [Seldon MLServer](https://github.com/SeldonIO/MLServer),
 [Triton Inference Server](https://github.com/triton-inference-server/server).
@@ -373,7 +373,7 @@ version fields according to your actual environment.
 
 #### Modelcar Permission Modes for Ascend 910 \{#modelcar-permission-modes-for-ascend-910}
 
-Alauda AI runs KServe Modelcar with non-root UID `1000` by default. This
+Alauda AI Platform runs KServe Modelcar with non-root UID `1000` by default. This
 default is designed for the platform security baseline and works for common GPU
 deployments, such as NVIDIA GPU inference services. It also works with the
 community `vLLM-ascend` image in validated Ascend 910 single-card deployments.

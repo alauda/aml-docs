@@ -1,4 +1,4 @@
-# AutoRAG on Alauda AI
+# AutoRAG on Alauda AI Platform
 
 AutoRAG is a Kubeflow Pipelines workflow that searches retrieval-augmented
 generation (RAG) configurations for a document corpus. It uses the ai4rag

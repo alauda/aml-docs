@@ -1,4 +1,4 @@
-# AutoRAG on Alauda AI
+# AutoRAG on Alauda AI Platform
 
 AutoRAG searches chunking, embedding, retrieval, and generation settings for a
 document corpus. It evaluates candidate RAG patterns with a benchmark and writes

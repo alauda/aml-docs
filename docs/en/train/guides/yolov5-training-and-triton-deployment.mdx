@@ -4,7 +4,7 @@ weight: 25
 
 # Train, Fine-Tune, and Deploy YOLOv5 with Kubeflow Trainer v2
 
-Fine-tune a YOLOv5 object-detection model on Alauda AI, package the trained model for Triton Inference Server, and publish it as an online inference service. The base model, dataset, and output model are stored in S3-compatible object storage. This guide uses **Kubeflow Trainer v2** resources: `TrainingRuntime` and `TrainJob`.
+Fine-tune a YOLOv5 object-detection model on Alauda AI Platform, package the trained model for Triton Inference Server, and publish it as an online inference service. The base model, dataset, and output model are stored in S3-compatible object storage. This guide uses **Kubeflow Trainer v2** resources: `TrainingRuntime` and `TrainJob`.
 
 The example fine-tunes YOLOv5n v7.0 on the COCO128 sample dataset with one NVIDIA GPU. It runs all preparation, training, export, and publishing actions in the Trainer v2 `node` step, so it does not require a shared workspace PVC.
 
@@ -12,14 +12,14 @@ The example fine-tunes YOLOv5n v7.0 on the COCO128 sample dataset with one NVIDI
 
 | Requirement | Details |
 | --- | --- |
-| Alauda AI | 1.3 or later, with Kubeflow Trainer v2 installed |
+| Alauda AI Platform | 1.3 or later, with Kubeflow Trainer v2 installed |
 | Hardware | x86_64 worker node with an NVIDIA GPU for the default Triton path. See [Deploy on Ascend NPU](#deploy-on-ascend-npu) for the separate arm64 NPU serving path. |
 | Access | Least-privilege `kubectl` permission to create `trainingruntimes`, `trainjobs`, `servingruntimes`, and `inferenceservices` in your project namespace |
 | S3-compatible storage | A bucket with read access to the base-model and dataset prefixes and read/write access to the output-model prefix |
 | S3 credentials | The `yolov5-s3-credentials` Secret, with an access key, secret key, endpoint, and region. Grant it only the required source reads and output writes. It is also attached to the inference ServiceAccount. |
 | Image registry | An approved registry reachable by the training and serving nodes, to host pinned YOLOv5 and Triton images |
 
-The sample resources use Alauda AI's NVIDIA vGPU resource keys (`nvidia.com/gpualloc`, `nvidia.com/gpucores`, and `nvidia.com/gpumem`). If your cluster allocates whole GPUs, replace all three keys with `nvidia.com/gpu: 1` in the `TrainJob`.
+The sample resources use Alauda AI Platform's NVIDIA vGPU resource keys (`nvidia.com/gpualloc`, `nvidia.com/gpucores`, and `nvidia.com/gpumem`). If your cluster allocates whole GPUs, replace all three keys with `nvidia.com/gpu: 1` in the `TrainJob`.
 
 ## Prepare S3 model and dataset objects
 
