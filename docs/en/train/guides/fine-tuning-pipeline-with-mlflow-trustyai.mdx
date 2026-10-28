@@ -606,7 +606,7 @@ print("Run:", run.run_id)
 
 While the run is in progress:
 
-- Open **Alauda AI → Tools → MLFlow** and pick the `finetune` workspace.
+- Open **Alauda AI Platform → Tools → MLFlow** and pick the `finetune` workspace.
 - The `qwen3-0.6b-daily-sft` experiment shows one **parent** run named `pipeline-<pipeline-run-id>`, with two nested runs: `train-<...>` (streamed by the HF Trainer callback) and, later, `eval-<...>` (written by the `evaluate` step).
 - Under **Models**, the `qwen3-0.6b-sft` registered model gains a new version.
 

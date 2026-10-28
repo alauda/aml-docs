@@ -12,7 +12,7 @@ i18n:
 
 Speculative decoding lets a vLLM server propose several tokens per decode step and verify them with a single forward pass of the target model, lowering per-token latency on interactive workloads without changing the output distribution.
 
-This page focuses on how to enable, configure, verify, and roll back speculative decoding for an `InferenceService` running on Alauda AI. For the upstream technique itself and the full list of methods supported by vLLM, see the [vLLM speculative decoding documentation](https://docs.vllm.ai/en/latest/features/speculative_decoding/).
+This page focuses on how to enable, configure, verify, and roll back speculative decoding for an `InferenceService` running on Alauda AI Platform. For the upstream technique itself and the full list of methods supported by vLLM, see the [vLLM speculative decoding documentation](https://docs.vllm.ai/en/latest/features/speculative_decoding/).
 
 :::warning
 Speculative decoding involves runtime-version-sensitive flags. The exact `--speculative-config` JSON keys, supported `method` values, and the metric names referenced below depend on the vLLM version inside your runtime image. Treat all snippets here as starting points and confirm against the vLLM version you ship.
@@ -35,9 +35,9 @@ It can hurt or be neutral on:
 
 Run a representative workload before committing speculative decoding as a default. See [Verify and Measure the Impact](#verify-and-measure-the-impact).
 
-## Methods Validated in This Guide on Alauda AI \{#methods-available-on-alauda-ai}
+## Methods Validated in This Guide on Alauda AI Platform \{#methods-available-on-alauda-ai}
 
-The two methods below are the ones this guide covers and that have been exercised end-to-end on Alauda AI. vLLM upstream supports additional methods (for example MTP for models that ship multi-token-prediction heads, Medusa, MLP Speculator, Suffix, Draft Model), and those methods may also be usable on Alauda AI through the same `--speculative-config` flag. They are out of scope for this page, so refer to the upstream documentation and validate on your own setup before promoting to production.
+The two methods below are the ones this guide covers and that have been exercised end-to-end on Alauda AI Platform. vLLM upstream supports additional methods (for example MTP for models that ship multi-token-prediction heads, Medusa, MLP Speculator, Suffix, Draft Model), and those methods may also be usable on Alauda AI Platform through the same `--speculative-config` flag. They are out of scope for this page, so refer to the upstream documentation and validate on your own setup before promoting to production.
 
 | Method  | What you provide                                            | Trade-off                                                                                                       |
 | ------- | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
@@ -61,7 +61,7 @@ There is no single best method for every workload. The following are conservativ
 
 ### Internal Validation Snapshot — N-gram
 
-The starting points above are **guidance, not guarantees**. The measurement below is one concrete data point from Alauda AI's internal lab, intended to help calibrate expectations on similar single-GPU serving setups. Your own model, GPU, runtime version, and traffic will produce different numbers — always benchmark before promoting to production.
+The starting points above are **guidance, not guarantees**. The measurement below is one concrete data point from Alauda AI Platform's internal lab, intended to help calibrate expectations on similar single-GPU serving setups. Your own model, GPU, runtime version, and traffic will produce different numbers — always benchmark before promoting to production.
 
 - **Hardware:** NVIDIA A30 24 GB × 1
 - **Model:** Qwen3-8B (BF16, HuggingFace `Qwen/Qwen3-8B`)
@@ -117,7 +117,7 @@ The same method on a larger target model (where each verify step costs more), wi
 
 ### Internal Validation Snapshot — EAGLE-3
 
-The starting points above are **guidance, not guarantees**. The measurement below is one concrete data point from Alauda AI's internal lab, intended to help calibrate expectations on similar single-GPU EAGLE-3 setups. Your own model, GPU, runtime version, and traffic will produce different numbers — always benchmark before promoting to production.
+The starting points above are **guidance, not guarantees**. The measurement below is one concrete data point from Alauda AI Platform's internal lab, intended to help calibrate expectations on similar single-GPU EAGLE-3 setups. Your own model, GPU, runtime version, and traffic will produce different numbers — always benchmark before promoting to production.
 
 - **Hardware:** NVIDIA A30 24 GB × 1
 - **Model:** Meta-Llama-3.1-8B-Instruct (BF16, HuggingFace `meta-llama/Meta-Llama-3.1-8B-Instruct`) with EAGLE-3 draft `yuhuili/EAGLE3-LLaMA3.1-Instruct-8B`
@@ -190,7 +190,7 @@ The same method on a larger target model (where each verify step costs more), wi
 - A vLLM serving runtime registered on the platform whose vLLM version supports the speculative method you plan to use. To check the version, exec into a running pod with that runtime: `kubectl exec <pod> -- python3 -c "import vllm; print(vllm.__version__)"`.
 - Your target model is accessible to the service through its storage source (model repository, PVC, or OCI image).
 - For EAGLE-3: a draft head whose architecture, tokenizer, and base version match the **exact** target model. A mismatched head silently degrades acceptance rate and may not surface as a startup error.
-- For EAGLE-3: a model-artifact loading mechanism that can deliver both target and draft into the same pod. See [Providing Model Artifacts on Alauda AI](#providing-model-artifacts-on-alauda-ai).
+- For EAGLE-3: a model-artifact loading mechanism that can deliver both target and draft into the same pod. See [Providing Model Artifacts on Alauda AI Platform](#providing-model-artifacts-on-alauda-ai).
 
 ## Configuration Surface
 
@@ -209,7 +209,7 @@ Common keys:
 
 All other vLLM arguments (`--model`, `--tensor-parallel-size`, `--gpu-memory-utilization`, …) work the same as in a non-speculative deployment.
 
-## Providing Model Artifacts on Alauda AI \{#providing-model-artifacts-on-alauda-ai}
+## Providing Model Artifacts on Alauda AI Platform \{#providing-model-artifacts-on-alauda-ai}
 
 Different methods need different files inside the predictor pod.
 
@@ -295,7 +295,7 @@ Stage both artifacts onto a PVC under a known directory layout, mount the PVC, a
 
 ## End-to-End Examples
 
-The two examples below cover the methods listed in [Methods Available on Alauda AI](#methods-available-on-alauda-ai). Replace `<your-namespace>`, `<your-vllm-runtime>`, and storage URIs with values from your environment.
+The two examples below cover the methods listed in [Methods Available on Alauda AI Platform](#methods-available-on-alauda-ai). Replace `<your-namespace>`, `<your-vllm-runtime>`, and storage URIs with values from your environment.
 
 ### Example 1 — N-gram
 
@@ -613,7 +613,7 @@ kubectl logs -n <your-namespace> -l serving.kserve.io/inferenceservice=<name>
 - **Image dependencies.** The runtime image must include the libraries required by the chosen method. If a method fails to initialize, rebuild or replace the runtime image — see [Extend Inference Runtimes](./custom_inference_runtime.mdx).
 - **`min_p` and `logit_bias` are silently ignored.** Under speculative decoding, vLLM logs the warning `min_p and logit_bias parameters won't work with speculative decoding.` during engine init. Requests that pass either of these sampling parameters will still receive a 200 response, but the parameters are not honored — validate this against your client assumptions if your traffic relies on them.
 - **Composition with other features.** Speculative decoding composes with tensor parallelism and continuous batching but interacts with autoscaling and with EP / advanced parallelism in ways that depend on the vLLM version. Cold start is notably more expensive with a draft artifact: on our A30 + Llama-3.1-8B + EAGLE-3 head lab setup, the predictor went from container-ready to `Application startup complete` in **~5 minutes** (weight load ~45 s, draft weights ~5 s, `torch.compile` backbone ~48 s, `torch.compile` EAGLE head ~17 s, CUDA-graph capture and warmup ~10 s, plus ~2 minutes of engine profiling and KV-cache sizing). Size the readiness deadline to this, not to a non-speculative baseline: in `Standard` mode the predictor readiness probe must tolerate a 5-minute start, and in `Knative` mode the `serving.knative.dev/progress-deadline` annotation should be `1800s`. Size any autoscaling scale-from-zero SLO to the same figure.
-- **Output equivalence.** vLLM states that speculative decoding does not change the output distribution. This is a vLLM property, not an Alauda AI guarantee — if exact equivalence under your runtime image is required, validate it as part of acceptance testing.
+- **Output equivalence.** vLLM states that speculative decoding does not change the output distribution. This is a vLLM property, not an Alauda AI Platform guarantee — if exact equivalence under your runtime image is required, validate it as part of acceptance testing.
 
 ## References
 

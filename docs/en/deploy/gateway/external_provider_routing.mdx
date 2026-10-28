@@ -6,7 +6,7 @@ category: howto
 
 ## Introduction
 
-Envoy AI Gateway can front external LLM providers behind one OpenAI-compatible endpoint. It injects each provider's upstream credentials with a `BackendSecurityPolicy`, routes by model name, and fails over between providers. Consumers call a single internal address and never hold provider keys, so the gateway becomes the controlled egress point for public-cloud LLM traffic, with the same identity, quota, and metering applied to external models as to self-hosted ones.
+Agent Router can front external LLM providers behind one OpenAI-compatible endpoint. It injects each provider's upstream credentials with a `BackendSecurityPolicy`, routes by model name, and fails over between providers. Consumers call a single internal address and never hold provider keys, so the gateway becomes the controlled egress point for public-cloud LLM traffic, with the same identity, quota, and metering applied to external models as to self-hosted ones.
 
 ## Use Cases
 
@@ -16,7 +16,7 @@ Envoy AI Gateway can front external LLM providers behind one OpenAI-compatible e
 
 ## Prerequisites
 
-1. Envoy AI Gateway is installed, with a `Gateway` and an `AIGatewayRoute`. Confirm the relevant CRDs are present:
+1. Alauda AI Platform Gateway is installed, with a `Gateway` and an `AIGatewayRoute`. Confirm the relevant CRDs are present:
 
     ```bash
     kubectl get crd \
@@ -56,7 +56,7 @@ Envoy AI Gateway can front external LLM providers behind one OpenAI-compatible e
     ```
 
 :::note
-Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example `maas-system`), not in the Envoy Gateway control-plane namespace `envoy-gateway-system`. A gateway placed in the control-plane namespace may not have the AI Gateway request-processing filter and `SecurityPolicy` applied to its listener, which silently breaks routing and policy enforcement. See [Envoy AI Gateway](../components/envoy_ai_gateway/intro).
+Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example `maas-system`), not in the Envoy Gateway control-plane namespace `envoy-gateway-system`. A gateway placed in the control-plane namespace may not have the AI Gateway request-processing filter and `SecurityPolicy` applied to its listener, which silently breaks routing and policy enforcement. See [Alauda AI Platform Gateway](../components/envoy_ai_gateway/intro).
 :::
 
 ## Steps
@@ -110,7 +110,7 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
 
   ### Define the provider backend
 
-  Two resources work together: a `Backend` (Envoy Gateway) tells the data plane the **network endpoint** to reach, and an `AIServiceBackend` (Envoy AI Gateway) tells the AI filter the **provider schema** to translate to.
+  Two resources work together: a `Backend` (Envoy Gateway) tells the data plane the **network endpoint** to reach, and an `AIServiceBackend` (Agent Router) tells the AI filter the **provider schema** to translate to.
 
   First, declare the upstream endpoint as a `Backend`:
 

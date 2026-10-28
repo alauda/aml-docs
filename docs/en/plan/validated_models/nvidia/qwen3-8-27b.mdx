@@ -12,7 +12,7 @@ i18n:
 layers are linear attention) with a native MTP head, 27B parameters, served as an
 **NVFP4** checkpoint (~25 GB) with **DFlash2 speculative decoding**. Validated on a single
 **NVIDIA RTX PRO 6000 Blackwell** with community **vLLM v0.31.0**, deployed as a plain
-KServe `LLMInferenceService` behind the Alauda AI **MaaS gateway**. The GPU memory budget
+KServe `LLMInferenceService` behind the Alauda AI Platform **MaaS gateway**. The GPU memory budget
 was capped at **84 GB** to emulate an RTX PRO 6000D. Context length **128k**.
 
 ## Model identity
@@ -37,7 +37,7 @@ was capped at **84 GB** to emulate an RTX PRO 6000D. Context length **128k**.
 The speed numbers were measured on the standard **96 GB** RTX PRO 6000 with the memory
 budget scaled down to **84 GB** (`--gpu-memory-utilization=0.805`). This reproduces the
 KV capacity of an RTX PRO 6000D, **not its compute or bandwidth**, which are lower —
-re-measure on a real 6000D before quoting 6000D speeds. Alauda AI's bundled vLLM (0.23.0)
+re-measure on a real 6000D before quoting 6000D speeds. Alauda AI Platform's bundled vLLM (0.23.0)
 was not used: the community v0.31.0 image is brought in by an `LLMInferenceServiceConfig`
 that overrides only the container image.
 :::

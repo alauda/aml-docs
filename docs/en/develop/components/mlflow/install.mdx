@@ -4,11 +4,11 @@ weight: 20
 
 # Install MLflow
 
-In Alauda AI 2.8.x, **MLflow** is installed and managed by Alauda AI. The `mlflow` component in the cluster-scoped `default` `AmlCluster` defaults to `Unmanaged`; set it to `Managed`, and Alauda AI installs the **MLflow Operator** automatically — you do not need to install the Operator from OperatorHub manually. Enabling the component installs the Operator only; you still create an `MLflow` custom resource to deploy the tracking-server stack, as described in [Create the MLflow tracking server](#create-the-mlflow-tracking-server).
+In Alauda AI Platform 2.9, **MLflow** is installed and managed by Alauda AI Platform. The `mlflow` component in the cluster-scoped `default` `AmlCluster` defaults to `Unmanaged`; set it to `Managed`, and Alauda AI Platform installs the **MLflow Operator** automatically — you do not need to install the Operator from OperatorHub manually. Enabling the component installs the Operator only; you still create an `MLflow` custom resource to deploy the tracking-server stack, as described in [Create the MLflow tracking server](#create-the-mlflow-tracking-server).
 
 ## Prerequisites
 
-- **Alauda AI** installed on the target cluster. The operator and its images ship both `linux/amd64` and `linux/arm64`.
+- **Alauda AI Platform** installed on the target cluster. The operator and its images ship both `linux/amd64` and `linux/arm64`.
 - Operator Lifecycle Manager (OLM) available on the target cluster (provided by the platform).
 - **A PostgreSQL 12 or later database** reachable from the cluster, holding a database named `mlflow` for MLflow metadata. Have the host, port, username, and password ready, and create the database before you install:
 
@@ -18,7 +18,7 @@ In Alauda AI 2.8.x, **MLflow** is installed and managed by Alauda AI. The `mlflo
 
   Use a highly available PostgreSQL service for production (see [High availability and storage](#storage)).
 - **For production artifact storage, an existing S3-compatible bucket** in SeaweedFS, MinIO, Ceph RGW, or AWS S3. The operator can proxy artifact access so clients do not need object-storage credentials. The in-pod filesystem default is suitable only for smoke tests.
-- The platform **OAuth / OIDC provider** (provided by Alauda AI) — the OAuth proxy in front of the tracking server uses it for single sign-on.
+- The platform **OAuth / OIDC provider** (provided by Alauda AI Platform) — the OAuth proxy in front of the tracking server uses it for single sign-on.
 - **For multi-tenancy, the default workspace namespace must already exist and carry the label `mlflow-enabled=true` _before_ the tracking server first starts.** Otherwise the server crash-loops with `Workspace '<name>' not found in the Kubernetes cluster`.
 
   ```bash
@@ -39,7 +39,7 @@ The operator bundle records every runtime image (operator, MLflow tracking serve
 In **Administrator** view:
 
 1. Open **Marketplace** > **OperatorHub**.
-2. Select the target cluster and open **Alauda AI**.
+2. Select the target cluster and open **Alauda AI Platform**.
 3. Open the **All Instances** tab and edit the `default` `AmlCluster` instance.
 4. Set `spec.components.mlflow.managementState` to `Managed`.
 5. Save the `AmlCluster` instance and wait for the MLflow Operator to become ready.
@@ -150,7 +150,7 @@ kubectl -n kubeflow get deploy mlflow-tracking-server
 kubectl -n kubeflow get pods -l app.kubernetes.io/name=mlflow-tracking-server
 ```
 
-Then open **Alauda AI → Tools → MLFlow**. The run owner and visible workspaces reflect the identity you sign in as.
+Then open **Alauda AI Platform → Tools → MLFlow**. The run owner and visible workspaces reflect the identity you sign in as.
 
 ## High availability and storage \{#storage}
 
