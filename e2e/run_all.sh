@@ -48,6 +48,8 @@ CASES=(
   # Needs the KubeRay RayJob CRD and a cluster-pullable Ray image
   # (RAY_DATA_IMAGE). SKIPs (rc=77) when either is missing.
   "C17:RAY_DATA:cases/c17_ray_data_smoke.sh"
+  # C18 requests multiple Ascend devices for one pod and runs a two-rank HCCL step.
+  "C18:NPU:cases/c18_smoke_multi_npu_single_pod.sh"
 )
 
 want=( "$@" )

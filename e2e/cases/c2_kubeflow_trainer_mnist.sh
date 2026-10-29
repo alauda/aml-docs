@@ -60,6 +60,12 @@ spec:
                     - name: node
                       image: alaudadockerhub/torch-distributed:v2.9.1-aml2
                       env:
+                        # C2 is a CPU/Gloo orchestration smoke. Ascend-flavored
+                        # test images may register torch_npu as an auto-loaded
+                        # backend, which requires the Ascend runtime libraries
+                        # even when this case intentionally requests no NPU.
+                        - { name: TORCH_DEVICE_BACKEND_AUTOLOAD, value: "0" }
+                        - { name: TORCHINDUCTOR_CACHE_DIR, value: /tmp/torchinductor }
                         - { name: TORCH_HOME,           value: /tmp/torch_cache }
                         - { name: TORCH_EXTENSIONS_DIR, value: /tmp/torch_extensions }
                         - { name: TRITON_CACHE_DIR,     value: /tmp/triton_cache }
