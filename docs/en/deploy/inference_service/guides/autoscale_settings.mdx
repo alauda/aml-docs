@@ -14,7 +14,7 @@ This document provides a step-by-step guide for configuring autoscaling up and d
 
 :::warning
 Every setting on this page applies **only** to inference services running in Knative
-deployment mode. Alauda AI deploys inference services in **`Standard` mode by default**,
+deployment mode. Alauda AI Platform deploys inference services in **`Standard` mode by default**,
 which does not use Knative — in that mode the `config-autoscaler` ConfigMap and the
 `autoscaling.knative.dev/*` annotations below have no effect, and `minReplicas: 0` does
 not scale the service to zero.
@@ -31,7 +31,7 @@ KPA is designed for serverless workloads and can quickly scale up based on concu
 
 ## Prerequisites
 
-1. The Knative Operator is installed and a `KnativeServing` instance exists. See [Install Alauda AI](../../../installation/ai-cluster.mdx#enabling-knative-functionality).
+1. The Knative Operator is installed and a `KnativeServing` instance exists. See [Install Alauda AI Platform](../../../installation/ai-cluster.mdx#enabling-knative-functionality).
 2. The target `InferenceService` is deployed in Knative mode. Confirm the annotation on the service:
 
    ```bash

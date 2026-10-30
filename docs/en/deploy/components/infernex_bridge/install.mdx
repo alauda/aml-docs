@@ -4,8 +4,7 @@ weight: 20
 
 # Install InferNex Bridge
 
-This guide covers **Alauda Build of InferNex Bridge v26.6.0**, published in the
-OLM `alpha` channel for arm64 clusters.
+This guide describes enabling **Alauda Build of InferNex Bridge** on arm64 clusters through the existing `default` `AmlCluster`. Alauda AI Platform manages installation; users do not select an OLM channel or install the operator manually. See the [component matrix](../../../plan/supported_configurations.md) for the version included in your platform release.
 
 ## Prerequisites
 
@@ -16,14 +15,14 @@ Before installing **Alauda Build of InferNex Bridge**, ensure the target cluster
 | Dependency                      | Type            | Description                                                                                                                                                                                    |
 | ------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Kubernetes cluster              | Platform        | A running cluster with administrator access.                                                                                                                                                   |
-| KServe                          | Operator        | Required when using the KServe `LLMInferenceService` entry point. The declared upstream compatibility range is KServe v0.17.0-v0.19.0. Alauda Build of KServe v0.16.1 has also been validated. |
+| KServe                          | Operator        | Required when using the KServe `LLMInferenceService` entry point. No specific Alauda AI Platform Inference Management version is prescribed here. |
 | Envoy Gateway and Gateway API   | Operator / CRDs | Required when exposing inference services through Gateway API resources.                                                                                                                       |
 | Gateway API Inference Extension | CRDs            | Required for `InferencePool` based intelligent routing.                                                                                                                                        |
-| Alauda Build of LeaderWorkerSet | Operator (managed by AmlCluster) | Required for InferNex Bridge. The controller watches `LeaderWorkerSet` resources and uses them for multi-node inference workloads. It is normally enabled through the `lws` component in the `default` `AmlCluster`; see [Install Alauda AI](../../../installation/ai-cluster.mdx). |
-| Inference runtime prerequisites | Runtime         | Prepare NPU nodes, model storage, runtime templates, runtime images, and network access required by the selected inference engine.                                                             |
+| Alauda Build of LeaderWorkerSet | Operator (managed by AmlCluster) | Required for InferNex Bridge. The controller watches `LeaderWorkerSet` resources and uses them for multi-node inference workloads. It is normally enabled through the `lws` component in the `default` `AmlCluster`; see [Install Alauda AI Platform](../../../installation/ai-cluster.mdx). |
+| Alauda AI Platform NPU Serving Runtime | Operator (managed by AmlCluster) | Recommended for Ascend NPU inference. It provides the vLLM-Ascend image, `ClusterServingRuntime`, and `LLMInferenceServiceConfig` resources. Enable `servingRuntimeNPUOperator` in the `default` `AmlCluster`; see [NPU Serving Runtime setup](../../../installation/ai-cluster.mdx#component-management-states). |
 
 :::info
-`InferNexService` mode does not require users to install the InferNex main chart first. The operator installs the InferNex Bridge control plane; service templates, inference runtime images, model files, and feature-specific prerequisite CRDs must be prepared separately before deploying inference services.
+InferNex Bridge is installed and managed by Alauda AI Platform through the `infernexBridge` component in the `default` `AmlCluster`; it does not require installing the InferNex main chart. For Ascend inference, enable `servingRuntimeNPUOperator` as well. The Alauda AI Platform NPU Serving Runtime supplies the vLLM-Ascend image, `ClusterServingRuntime`, and `LLMInferenceServiceConfig`; model files and any feature-specific dependencies must still be prepared separately.
 :::
 
 ### CRDs Installed by This Operator
@@ -42,7 +41,7 @@ The following CRDs are not installed by this OLM bundle. Install them separately
 
 | CRD                                         | Source Project                                             | When Required                                                     | How to Install                                                                                                                                   |
 | ------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `leaderworkersets.leaderworkerset.x-k8s.io` | [Alauda Build of LeaderWorkerSet](../lws/index.mdx)        | InferNex Bridge controller and multi-node inference workloads     | Ensure LeaderWorkerSet is installed and running. It is normally managed through the `lws` component in the `default` `AmlCluster`; see [Install Alauda AI](../../../installation/ai-cluster.mdx). |
+| `leaderworkersets.leaderworkerset.x-k8s.io` | [Alauda Build of LeaderWorkerSet](../lws/index.mdx)        | InferNex Bridge controller and multi-node inference workloads     | Ensure LeaderWorkerSet is installed and running. It is normally managed through the `lws` component in the `default` `AmlCluster`; see [Install Alauda AI Platform](../../../installation/ai-cluster.mdx). |
 | `rolebasedgroups.workloads.x-k8s.io`        | [RoleBasedGroup (RBG)](https://github.com/sgl-project/rbg) | ResourceScalingGroup targets that explicitly use `RoleBasedGroup` | Install from the upstream [RBG v0.7.0 release manifest](https://raw.githubusercontent.com/sgl-project/rbg/v0.7.0/deploy/kubectl/manifests.yaml). |
 
 The `rolebasedgroups.workloads.x-k8s.io` CRD is provided by the upstream [RoleBasedGroup (RBG) project](https://github.com/sgl-project/rbg). It is a conditional dependency and is not required for Deployment or LeaderWorkerSet targets. To install the upstream RBG v0.7.0 controller and CRDs, use the versioned release manifest:
@@ -75,11 +74,9 @@ workflow.
 
 ### Runtime Templates and Images
 
-:::warning
-The operator package synchronizes its declared `relatedImages`, but the OLM runtime templates retain their community source references. Before creating an inference service, configure the platform image allowlist and rewrite rules so those source references resolve to the synchronized images in the target cluster registry.
+For Ascend inference, use Alauda AI Platform NPU Serving Runtime rather than manually installing the vLLM-Ascend runtime image or creating its `ClusterServingRuntime` and `LLMInferenceServiceConfig`. Enable `servingRuntimeNPUOperator` as described in [NPU Serving Runtime setup](../../../installation/ai-cluster.mdx#component-management-states); the component manages these resources.
 
-The model-serving image `hub.oepkgs.net/openfuyao/ascend/vllm-ascend:v0.18.0` is not included in the operator `relatedImages`. Before deploying an NPU inference service, obtain the arm64 image, upload or mirror it to the target registry, and add an image rewrite rule for the complete source reference. Verify the resolved Pod `imageID`; the source reference remaining in the workload specification does not indicate a rewrite failure.
-:::
+InferNex Bridge's own runtime templates and component images may still reference their upstream repositories. In restricted or disconnected environments, verify that the package-generated `ImageWhiteList` contains the required image references and rewrite rules, and mirror any additional InferNex Bridge images to a registry accessible by the cluster.
 
 #### Configure ImageWhiteList
 
@@ -107,7 +104,6 @@ the original image tag.
 | `cr.openfuyao.cn/openfuyao/eagle-eye-hardware-diagnosis`           | `3rdparty/openfuyao/eagle-eye-hardware-diagnosis`           |
 | `cr.openfuyao.cn/openfuyao/eagle-eye-network-performance-exporter` | `3rdparty/openfuyao/eagle-eye-network-performance-exporter` |
 | `hub.oepkgs.net/openfuyao/alpine/kubectl`                          | `3rdparty/openfuyao/alpine/kubectl`                         |
-| `hub.oepkgs.net/openfuyao/ascend/vllm-ascend`                      | `3rdparty/openfuyao/ascend/vllm-ascend`                     |
 
 The relevant part of the final object should look like this. The complete object
 contains additional package images and platform-managed entries.
@@ -121,26 +117,11 @@ metadata:
 spec:
   repoList:
     - cr.openfuyao.cn/openfuyao/cache-indexer:26.6.0
-    - hub.oepkgs.net/openfuyao/ascend/vllm-ascend:v0.18.0
     - busybox:1.36.1
     - docker.io/library/busybox:1.36.1
   rewriteRules:
     - regexp: ^cr\.openfuyao\.cn/openfuyao/cache\-indexer:(.*)$
       replacement: <target-registry>/3rdparty/openfuyao/cache-indexer:${1}
-    - regexp: ^hub\.oepkgs\.net/openfuyao/ascend/vllm\-ascend:(.*)$
-      replacement: <target-registry>/3rdparty/openfuyao/ascend/vllm-ascend:${1}
-```
-
-The `vllm-ascend` entry must be added explicitly because the image is not part
-of the operator `relatedImages`. Import the arm64 image into the target registry
-before creating inference workloads. For example:
-
-```bash
-export TARGET_REGISTRY='<target-registry-host:port>'
-
-skopeo copy --all \
-  docker://hub.oepkgs.net/openfuyao/ascend/vllm-ascend:v0.18.0 \
-  "docker://${TARGET_REGISTRY}/3rdparty/openfuyao/ascend/vllm-ascend:v0.18.0"
 ```
 
 For BusyBox, retain both `busybox:1.36.1` and
@@ -161,32 +142,23 @@ kubectl edit imagewhitelist -n cpaas-system infernex-bridge
 
 The workload specification may continue to show the community source image.
 The rewrite is successful only when the actual Pod `imageID` points to the
-target registry. A package-owned component and the package-external runtime
-should resolve as follows:
+target registry. For example, an InferNex Bridge component should resolve as follows:
 
 ```text
 cache-indexer=<target-registry>/3rdparty/openfuyao/cache-indexer@sha256:...
-main=<target-registry>/3rdparty/openfuyao/ascend/vllm-ascend@sha256:...
 ```
 
-Verify the imported image architecture and inspect the workload image IDs:
+Verify that the InferNex Bridge component images resolve to the intended registry by inspecting Pod image IDs:
 
 ```bash
-export TARGET_REGISTRY='<target-registry-host:port>'
-export INFERENCE_NAMESPACE='<inference-service-namespace>'
-
-crane config --platform=linux/arm64 \
-  "${TARGET_REGISTRY}/3rdparty/openfuyao/ascend/vllm-ascend:v0.18.0" |
-  python3 -c 'import json, sys; data=json.load(sys.stdin); assert data.get("architecture") == "arm64", data; print("arm64 image verified")'
-
-kubectl get pods -n "${INFERENCE_NAMESPACE}" \
+kubectl get pods -n <inference-service-namespace> \
   -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{range .status.initContainerStatuses[*]}  init:{.name}{"="}{.imageID}{"\n"}{end}{range .status.containerStatuses[*]}  {.name}{"="}{.imageID}{"\n"}{end}{end}'
 ```
 
 #### Prepare the Model
 
 Model artifacts are not included in the InferNex Bridge operator package. Use
-the Alauda AI model catalog to prepare a ModelCar when OCI model storage is
+the Alauda AI Platform model catalog to prepare a ModelCar when OCI model storage is
 selected. See [Model Storage](../../model_management/model_storage.mdx).
 
 :::info
@@ -242,33 +214,27 @@ kubectl get deployment,daemonset,service -n <inference-service-namespace> \
 
 Expected workloads include the EagleEye hardware diagnosis Deployment, hardware monitor DaemonSet, and network performance exporter DaemonSet. If EagleEye is not required, keep all three child switches set to `false`.
 
-## Upload the Operator Package
+## Enable InferNex Bridge and NPU Serving Runtime
 
-Obtain the arm64 installation package from your Alauda product delivery channel, then upload the package following [Upload Packages](../../../installation/package-upload.mdx).
+Alauda AI Platform installs and manages InferNex Bridge through the `infernexBridge` component of the existing `default` `AmlCluster`. For Ascend NPU inference, enable the Alauda AI Platform NPU Serving Runtime through `servingRuntimeNPUOperator` as well. Merge the required settings into the existing `AmlCluster`; do not create another instance:
 
-## Install the Operator
+```yaml
+spec:
+  components:
+    infernexBridge:
+      managementState: Managed
+    servingRuntimeNPUOperator:
+      managementState: Managed
+```
 
-In **Administrator** view:
-
-1. Click **Marketplace / OperatorHub**.
-2. At the top of the console, from the **Cluster** dropdown list, select the destination cluster where you want to install the InferNex Bridge Operator.
-3. Search for and select **Alauda Build of InferNex Bridge**, then click **Install**.
-4. Select the `alpha` **Channel**.
-5. Select version `v26.6.0`.
-6. Leave **Installation Location** unchanged, it should be `infernex-system` by default.
-7. Select **Manual** for **Upgrade Strategy**.
-8. Click **Install**.
+Save the `AmlCluster` and wait for reconciliation. The NPU Serving Runtime component installs the vLLM-Ascend image and provides the `ClusterServingRuntime` and `LLMInferenceServiceConfig` resources required by serving workloads. There is no need to install the InferNex Bridge or NPU Serving Runtime operators manually through OperatorHub.
 
 ### Verification
 
-Confirm that the **Alauda Build of InferNex Bridge** tile shows one of the following states:
-
-- `Installing`: installation is in progress; wait for this to change to `Installed`.
-- `Installed`: installation is complete.
-
-Verify that the operator controller and webhooks are running:
+Check the `AmlCluster` status and confirm the managed components and their workloads are ready:
 
 ```bash
+kubectl get amlcluster default
 kubectl get pods -n infernex-system
 kubectl get crd \
   infernexservices.infernex.infernex.io \
@@ -276,31 +242,27 @@ kubectl get crd \
   resourcescalinggroups.autoscaling.openfuyao.com \
   elasticscalers.elasticscaler.io \
   tidals.tidal.io
-
-kubectl get mutatingwebhookconfiguration -o json |
-  python3 -c 'import json, sys; data=json.load(sys.stdin); versions={version for item in data["items"] for webhook in item.get("webhooks", []) for rule in webhook.get("rules", []) if "llminferenceservices" in rule.get("resources", []) for version in rule.get("apiVersions", [])}; assert "v1alpha2" in versions, versions; print("LLMInferenceService webhook versions:", sorted(versions))'
+kubectl get clusterservingruntime
+kubectl get llminferenceserviceconfig -A
 ```
 
-The controller pod should be `Running`, all five bundled CRDs should be established, and the `LLMInferenceService` mutating webhook should include `v1alpha2`.
+The `AmlCluster` should report `Ready` / `Reconciled`, the InferNex Bridge controller should be running, all five InferNex Bridge CRDs should be installed, and the `LLMInferenceService` mutating webhook should include `v1alpha2`. When `servingRuntimeNPUOperator` is managed, confirm the NPU `ClusterServingRuntime` and `LLMInferenceServiceConfig` are present.
 
 ## Community Examples
 
 For community-maintained examples, see [InferNex Bridge v26.6.0 examples](https://gitcode.com/openFuyao/InferNex/tree/v26.6.0/component/InferNex-Bridge/config/examples).
 
-## Upgrading Alauda Build of InferNex Bridge
+## Upgrading InferNex Bridge
 
-1. Back up the existing custom resources:
+Alauda AI Platform manages the InferNex Bridge lifecycle through the `infernexBridge` component in the `default` `AmlCluster`. Follow your platform's Alauda AI Platform component upgrade procedure; do not upgrade the operator independently through OperatorHub. Before upgrading, back up the existing custom resources:
 
-   ```bash
-   kubectl get infernexservice,infernexserviceconfig -A -o yaml > infernex-bridge-backup.yaml
-   ```
-
-2. Upload the new version of the **Alauda Build of InferNex Bridge** operator package following [Upload Packages](../../../installation/package-upload.mdx).
-3. Go to the `Administrator` -> `Marketplace` -> `OperatorHub` page, find **Alauda Build of InferNex Bridge**, review the target version, and click **Confirm** to apply it.
+```bash
+kubectl get infernexservice,infernexserviceconfig -A -o yaml > infernex-bridge-backup.yaml
+```
 
 ### Verification
 
-After upgrading, confirm that the **Alauda Build of InferNex Bridge** tile shows `Installed` and verify the controller and CRD status:
+After the `AmlCluster` reconciliation completes, verify the controller and CRD status:
 
 ```bash
 kubectl get pods -n infernex-system
@@ -314,10 +276,7 @@ kubectl get crd \
 
 ### Rollback
 
-Use a previous package only when its CRDs are compatible with the custom
-resources already stored in the cluster. In OperatorHub, select the previous
-available version and confirm the manual upgrade action. If the previous version
-is not available, upload its installation package first (see [Upload Packages](../../../installation/package-upload.mdx)).
+Use the platform's supported component rollback procedure and confirm that the target version's CRDs are compatible with the custom resources already stored in the cluster.
 
 After rollback, verify the controller, CRDs, inference services, runtime image
 IDs, and one representative inference request. Do not delete the five bundled

@@ -6,14 +6,14 @@ weight: 20
 
 ## Introduction
 
-The **KServe Endpoints** page in the Kubeflow central dashboard deploys, manages, and monitors inference services without leaving Kubeflow. It creates the same `serving.kserve.io/v1beta1` `InferenceService` object as [Create Inference Service using CLI](./create_inference_service_cli.mdx) and as the Alauda AI console, so a service created here is visible to all three.
+The **KServe Endpoints** page in the Kubeflow central dashboard deploys, manages, and monitors inference services without leaving Kubeflow. It creates the same `serving.kserve.io/v1beta1` `InferenceService` object as [Create Inference Service using CLI](./create_inference_service_cli.mdx) and as the Alauda AI Platform console, so a service created here is visible to all three.
 
 Use this page when your team already works in the Kubeflow dashboard. For the platform's own deployment experience — Model Catalog and Model Registry integration, inference service templates, and batch operations — see [Managing Inference Services](../inference_service.mdx).
 
 ## Prerequisites
 
 - The [Kubeflow operators](../../../develop/components/kubeflow/install.mdx) are installed, and you can reach the Kubeflow central dashboard.
-- [Alauda Build of KServe](../../components/kserve/intro.mdx) is installed. It is managed by Alauda AI through the `kserve` component in the `default` `AmlCluster`; see [Install Alauda AI](../../../installation/ai-cluster.mdx).
+- [Alauda AI Platform Inference Management](../../components/kserve/intro.mdx) is installed. It is managed by Alauda AI Platform through the `kserve` component in the `default` `AmlCluster`; see [Install Alauda AI Platform](../../../installation/ai-cluster.mdx).
 - The model is reachable at a `storageUri` the cluster can read. See [Model Storage](../../model_management/model_storage.mdx) for the supported storage types.
 
 ## Access the Endpoints UI

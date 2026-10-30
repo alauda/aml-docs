@@ -21,10 +21,10 @@ Supported operators:
 Before you begin, make sure the following prerequisites are met:
 
 1. An ACP environment is available and running.
-2. Alauda AI is already deployed. Alauda AI 2.3 or later is required for the v26.3.0 operator set.
-3. Alauda Build of KServe is installed.
+2. Alauda AI Platform is already deployed. Alauda AI 2.3 or later is required for the v26.3.0 operator set.
+3. Alauda AI Platform Inference Management is installed.
 4. ASM is deployed in the business cluster where Kubeflow will run. If ASM is not already installed, deploy it before continuing. ASM v1 is deprecated. Use ASM v2 whenever possible.
-5. LeaderWorkerSet is installed and ready. LWS is normally managed by Alauda AI through the `lws` component in the `default` `AmlCluster`; see [Install Alauda AI](../../../installation/ai-cluster.mdx). It is required only if you plan to deploy `kubeflow-trainer-operator`.
+5. LeaderWorkerSet is installed and ready. LWS is normally managed by Alauda AI Platform through the `lws` component in the `default` `AmlCluster`; see [Install Alauda AI Platform](../../../installation/ai-cluster.mdx). It is required only if you plan to deploy `kubeflow-trainer-operator`.
 6. The `oauth2-proxy` plugin is configured as described below.
 
 ### Configure Dex Redirection
@@ -150,7 +150,7 @@ After deployment:
 - In **Administrator** > **System Settings** > **Platform Parameters**, verify that **Platform Access URLs** contains an address in the format `https://<your-kubeflow-domain>`, where `<your-kubeflow-domain>` matches `spec.global.kubeflowHost` in the `KubeflowBase` CR.
 - Configure DNS resolution, or add a local hosts entry, so that `<your-kubeflow-domain>` resolves to the IP address assigned to `kubectl -n istio-system get gateway kubeflow-external-gateway`.
 
-After deployment, the Kubeflow entry appears under **Tools** in Alauda AI.
+After deployment, the Kubeflow entry appears under **Tools** in Alauda AI Platform.
 
 For upgrade-specific actions, see [Upgrade Kubeflow Operators](./upgrade).
 
@@ -158,7 +158,7 @@ For upgrade-specific actions, see [Upgrade Kubeflow Operators](./upgrade).
 
 Before a user signs in to Kubeflow for the first time, bind the ACP user to a namespace. The following example creates namespace `kubeflow-admin-cpaas-io` and assigns `admin@cpaas.io` as the owner.
 
-> **Note:** If this `Profile` resource was already created during Alauda AI deployment, you can skip this step.
+> **Note:** If this `Profile` resource was already created during Alauda AI Platform deployment, you can skip this step.
 >
 > **Note:** You may need to lower the Pod Security Admission level of the user namespace before creating Notebook instances and similar workloads.
 
@@ -175,7 +175,7 @@ spec:
 
 ### 3. Bind a User to an Existing Namespace
 
-If Alauda AI was already deployed and the namespace `kubeflow-admin-cpaas-io` already exists, the `Profile` may also already exist. If the namespace still does not appear in Kubeflow, create the following resources to bind the account to the namespace:
+If Alauda AI Platform was already deployed and the namespace `kubeflow-admin-cpaas-io` already exists, the `Profile` may also already exist. If the namespace still does not appear in Kubeflow, create the following resources to bind the account to the namespace:
 
 ```yaml
 apiVersion: v1
@@ -278,7 +278,7 @@ When creating the instance, configure the following fields as needed:
 
 > **Note:** If the deprecated `kftraining` Cluster Plugin is still installed (from a pre-v26.3.0 cluster), uninstall it before installing `kubeflow-trainer-operator`.
 >
-> **Note:** LeaderWorkerSet is a dependency of `kubeflow-trainer-operator`. Verify that LWS is enabled and ready through the `lws` component in the `default` `AmlCluster` before deploying `kubeflow-trainer-operator`; see [Install Alauda AI](../../../installation/ai-cluster.mdx).
+> **Note:** LeaderWorkerSet is a dependency of `kubeflow-trainer-operator`. Verify that LWS is enabled and ready through the `lws` component in the `default` `AmlCluster` before deploying `kubeflow-trainer-operator`; see [Install Alauda AI Platform](../../../installation/ai-cluster.mdx).
 >
 > **Note:** v26.3.0 of `kubeflow-trainer-operator` aligns with upstream `kubeflow/manifests` 26.03 and ships **Trainer v2.1.0 + JobSet v0.10.1**. For clusters where an OLM CatalogSource already advertises a higher trainer version (`>=2.2.0`), install with `installPlanApproval: Manual` and `startingCSV: kubeflow-trainer-operator.v2.1.0` to prevent OLM from auto-upgrading past the 26.03 pin.
 

@@ -4,16 +4,16 @@ weight: 30
 
 # MaaS User Guide
 
-This guide explains how developers and application users call models through Model as a Service (MaaS). You will learn how to create an API key, find the models available to you, send an OpenAI-compatible request, and review your own quota and usage.
+This guide explains how developers and application users call models through Model as a Service (MaaS). You will learn how to create an API key, find the published models available to you, send an OpenAI-compatible request, and review your own quota and usage.
 
 For the product overview, see [Model as a Service (MaaS)](intro.mdx). For administration tasks, see [MaaS Administrator Guide](administrator.mdx).
 
 ## Open My Subscriptions
 
-1. Open the account menu in the top-right corner of the Alauda AI console.
+1. Open the account menu in the top-right corner of the Alauda AI Platform console.
 2. Select **My Subscriptions**.
 
-MaaS opens in a side panel over the current page. It is tied to your user identity rather than to a project namespace, so you can open it from any view.
+MaaS opens in a side panel over the current page. It is tied to your user identity rather than to a project namespace, so you can open it from any view. In 2.9, the available model name is the published model's client-facing name, which can be different from the underlying Kubernetes service name or provider model name.
 
 The panel contains two tabs:
 
@@ -32,7 +32,7 @@ The endpoint normally has this form:
 https://<maas-gateway>/v1
 ```
 
-Use the model name shown in the access list as the `model` value in your request. Do not use the name of the underlying Kubernetes resource unless it is also the published model name.
+Use the published model name shown in the access list as the `model` value in your request. This is the `clientModelName` configured by the administrator. Do not use the name of an underlying Kubernetes resource or provider deployment unless the administrator intentionally used that same name as the client model name.
 
 ## Create an API key
 
@@ -100,7 +100,52 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
-Replace `<published-model-name>` with the model name shown in your **Access** list. The MaaS gateway chooses the backend associated with that published model name; your application does not need to know the backend service URL.
+Replace `<published-model-name>` with the client-facing model name shown in your **Access** list. The MaaS gateway selects an available upstream for that published model according to the administrator's priority and weight settings; your application does not need to know the backend service URL or provider model name.
+
+## Streaming responses and completion check
+
+When you set `"stream": true`, MaaS returns the answer as a Server-Sent Events (SSE) stream of `data:` lines, ending with a `data: [DONE]` sentinel. If the stream is cut off midway — either because the upstream model stopped sending or because your client went away — the HTTP status is **still `200`**, because the response headers were sent before anything was cut. **The status code alone cannot tell you whether a stream finished.**
+
+Check completeness with the `[DONE]` sentinel: a complete stream ends with `data: [DONE]`; a truncated stream does not emit it.
+
+With the OpenAI SDKs:
+
+- **Python / Node.js**: iterate the stream to the end and inspect the last chunk. A complete stream's last chunk has `finish_reason` set to a terminal value such as `stop`, `length`, or `content_filter`; a value of `null` or a missing chunk means the stream did not end normally.
+- Add `stream_options={"include_usage": True}` to your request. A complete stream's final chunk includes a `usage` block; a truncated stream has no such chunk.
+
+With `curl`, read every line until you see `data: [DONE]`. If the connection closes before that line arrives, the response is incomplete.
+
+Example — streaming with Python, verifying completion:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="https://<maas-gateway>/v1", api_key="<your-api-key>")
+
+stream = client.chat.completions.create(
+    model="<published-model-name>",
+    messages=[{"role": "user", "content": "Hello"}],
+    stream=True,
+    stream_options={"include_usage": True},
+)
+
+final = None
+for chunk in stream:
+    final = chunk
+    if chunk.choices:
+        delta = chunk.choices[0].delta
+        if delta and delta.content:
+            print(delta.content, end="", flush=True)
+
+complete = final is not None and getattr(final, "usage", None) is not None
+if not complete:
+    # Treat as a truncated stream: retry, log, or surface a warning.
+    ...
+```
+
+A truncated stream may not include a final usage report. Do not infer token consumption or quota deductions from the HTTP status alone; check the platform usage and quota views.
+
+If you need to retry on truncation, retry the whole request. There is no way to resume a partially delivered stream. A retry can cause the upstream to process the request again, so review the risk of duplicate work before retrying.
 
 ## Understand quota behavior
 

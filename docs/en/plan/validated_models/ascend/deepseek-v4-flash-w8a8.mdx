@@ -13,7 +13,7 @@ and a native MTP speculative head, served as **W8A8** (int8 attention + expert,
 ~280 GB weights, 70 shards, 43 layers). At ~280 GB the weights do not fit a single
 8 × 32 GB node, so it was validated on **Ascend 910B3 (64 GB/card) across two
 nodes = 16 cards** as a single aggregated **DP2 × TP=8 + EP16** service, with the
-vLLM-Ascend **nightly** engine through Alauda AI's InferNex surface. It adds a **mooncake
+vLLM-Ascend **nightly** engine through Alauda AI Platform's InferNex surface. It adds a **mooncake
 cross-rank KV store** so the two data-parallel ranks share prefix KV, and both benchmark
 scenarios were driven through the **MaaS gateway (API-key) ingress** as a concurrency
 sweep (8 / 16 / 32).
@@ -108,10 +108,10 @@ store):
 
 | Spec | File |
 |---|---|
-| agg-mc-kv, DP2 × TP=8 | [`deepseek-v4-flash-w8a8-agg-mc-kv-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets/deepseek-v4-flash-w8a8/deepseek-v4-flash-w8a8-agg-mc-kv-llmisvc.yaml) |
+| agg-mc-kv, DP2 × TP=8 | [`deepseek-v4-flash-w8a8-agg-mc-kv-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets/deepseek-v4-flash-w8a8/deepseek-v4-flash-w8a8-agg-mc-kv-llmisvc.yaml) |
 
 ```bash
-base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/assets/deepseek-v4-flash-w8a8
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/ascend/assets/deepseek-v4-flash-w8a8
 
 # 1. Import the ModelCar (OCI Image Layout tar) into your own registry once — the cluster
 #    pulls an OCI image, not the tar. skopeo does the multi-arch (amd64+arm64) push in one go:

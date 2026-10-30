@@ -17,7 +17,7 @@ expert, no KV quant; ~230 GB weights, 71 shards, 62 layers). It is **230B total 
 validated on **Ascend 910B3 (64 GB/card) across two nodes = 16 cards** as a single
 aggregated **DP2 × TP=8 + EP16** service — apples-to-apples with the DeepSeek-V4-Flash
 16-card topology, with DP2 roughly doubling prefill throughput on the prefill-heavy
-benchmark. It runs the vLLM-Ascend **v0.23.0** release engine through Alauda AI's
+benchmark. It runs the vLLM-Ascend **v0.23.0** release engine through Alauda AI Platform's
 InferNex surface, and both benchmark scenarios were driven through the **MaaS gateway
 (API-key) ingress** as a concurrency sweep (8 / 16 / 32).
 
@@ -139,10 +139,10 @@ baseline):
 
 | Spec | File |
 |---|---|
-| agg, DP2 × TP=8 | [`minimax-m2.5-w8a8-agg-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets/minimax-m2.5-w8a8/minimax-m2.5-w8a8-agg-llmisvc.yaml) |
+| agg, DP2 × TP=8 | [`minimax-m2.5-w8a8-agg-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets/minimax-m2.5-w8a8/minimax-m2.5-w8a8-agg-llmisvc.yaml) |
 
 ```bash
-base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/assets/minimax-m2.5-w8a8
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/ascend/assets/minimax-m2.5-w8a8
 
 # 1. Stage the ~230 GB weights on a node-local directory on BOTH nodes (byte-identical),
 #    then edit the manifest: set the namespace, pin the two hostPath PVs to your node

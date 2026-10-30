@@ -21,7 +21,7 @@ Use it when you want interactive control, custom training scripts, and per-exper
 
 ## 1. Create a Notebook / VSCode instance
 
-Create a workbench in **Alauda AI → Workbench** (or **Advanced → Kubeflow → Notebook**). The workbench itself should request only CPU — the GPU is requested by the VolcanoJob it submits. See [Creating a Workbench](../../develop/workbench/create_workbench.mdx).
+Create a workbench in **Alauda AI Platform → Workbench** (or **Advanced → Kubeflow → Notebook**). The workbench itself should request only CPU — the GPU is requested by the VolcanoJob it submits. See [Creating a Workbench](../../develop/workbench/create_workbench.mdx).
 
 ## 2. Prepare the base model
 
@@ -43,6 +43,8 @@ model record is required.
 Use the [sample identity dataset](/identity-alauda-main.zip) which teaches the model to answer "Who are you?". Upload the unzipped files to a PVC or S3 location accessible to the training job, and set `DATASET_URI` to that location. The dataset layout must match the fine-tuning framework.
 
 > The dataset format must match what the fine-tuning framework expects.
+>
+> To build that JSONL from PDFs or Office files, convert with Docling and generate synthetic Q&A with SDG Hub in the same workbench — see [Prepare Fine-Tuning Data with Docling and SDG Hub](./prepare-finetune-data-with-docling-and-sdg.mdx).
 
 ### HuggingFace `datasets` format
 
@@ -330,7 +332,7 @@ it as a new Model Registry version. Select that active version when publishing.
 
 ## 8. Experiment tracking
 
-Setting `report_to: mlflow` in the LLaMA-Factory config plus the `MLFLOW_TRACKING_URI` / `MLFLOW_EXPERIMENT_NAME` env vars routes metrics to MLflow. Find runs in **Alauda AI → Tools → MLFlow**, compare loss curves, and pin the winning run.
+Setting `report_to: mlflow` in the LLaMA-Factory config plus the `MLFLOW_TRACKING_URI` / `MLFLOW_EXPERIMENT_NAME` env vars routes metrics to MLflow. Find runs in **Alauda AI Platform → Tools → MLFlow**, compare loss curves, and pin the winning run.
 
 On a secured (SSO + multi-tenant) MLflow install the job must also authenticate — supply an `MLFLOW_TRACKING_TOKEN` and select a workspace. See [Using the MLflow Python SDK with Authentication and RBAC](../../develop/experiment_tracking/mlflow-python-sdk.mdx) for how to obtain the token and configure the client.
 
@@ -431,4 +433,4 @@ spec:
 
 ### Experiment tracking on other devices
 
-LLaMA-Factory and Transformers integrate with MLflow / wandb directly. Set the destination in the framework config (e.g. `report_to: mlflow` for LLaMA-Factory) and supply `MLFLOW_TRACKING_URI` and `MLFLOW_EXPERIMENT_NAME` env vars (plus `MLFLOW_TRACKING_TOKEN` on a secured install — see [Using the MLflow Python SDK with Authentication and RBAC](../../develop/experiment_tracking/mlflow-python-sdk.mdx)). View results under **Alauda AI → Tools → MLFlow**.
+LLaMA-Factory and Transformers integrate with MLflow / wandb directly. Set the destination in the framework config (e.g. `report_to: mlflow` for LLaMA-Factory) and supply `MLFLOW_TRACKING_URI` and `MLFLOW_EXPERIMENT_NAME` env vars (plus `MLFLOW_TRACKING_TOKEN` on a secured install — see [Using the MLflow Python SDK with Authentication and RBAC](../../develop/experiment_tracking/mlflow-python-sdk.mdx)). View results under **Alauda AI Platform → Tools → MLFlow**.

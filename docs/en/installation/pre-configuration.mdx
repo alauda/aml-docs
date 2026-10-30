@@ -6,11 +6,11 @@ weight: 10
 
 ## **Preparing the Harbor Service**
 
-If you plan to use the **Model Catalog** feature, prepare an **Alauda Build of Harbor** service before installing Alauda AI. The registry must meet the following requirements:
+If you plan to use the **Model Catalog** feature, prepare an **Alauda Build of Harbor** service before installing Alauda AI Platform. The registry must meet the following requirements:
 
 - Run in production mode. Use HTTPS for production deployments.
 - Allow inference cluster nodes to pull Model Catalog images without image pull credentials.
 
-If you cannot deploy an HTTPS registry in the target environment, you can use an HTTP registry as a fallback, but you must configure the inference cluster container runtime before deploying models. The detailed containerd configuration is covered when setting **Model OCI Registry Address** during Alauda AI instance creation.
+If you cannot deploy an HTTPS registry in the target environment, you can use an HTTP registry as a fallback, but you must configure the inference cluster container runtime before deploying models. The detailed containerd configuration is covered when setting **Model OCI Registry Address** during Alauda AI Platform instance creation.
 
 For the installation procedure, see <ExternalSiteLink name="alauda-build-of-harbor" href="/install/01_installation_guide.html" children="Deploy Alauda Build of Harbor" />.

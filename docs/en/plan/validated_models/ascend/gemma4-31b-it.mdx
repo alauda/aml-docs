@@ -68,14 +68,14 @@ and the external route.
 
 | Spec | File |
 |---|---|
-| P4+D4, KServe + InferNex Bridge | [`gemma4-31b-it-pd-p4d4-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets/gemma4-31b-it/gemma4-31b-it-pd-p4d4-llmisvc.yaml) |
+| P4+D4, KServe + InferNex Bridge | [`gemma4-31b-it-pd-p4d4-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets/gemma4-31b-it/gemma4-31b-it-pd-p4d4-llmisvc.yaml) |
 
 Before applying it, set the namespace, the two node names, the model PVCs, and registry
 references for your cluster. The manifest assumes the P/D pair has equal TP size and that
 the two engines can use Ascend Direct transport.
 
 ```bash
-base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/assets/gemma4-31b-it
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/ascend/assets/gemma4-31b-it
 kubectl apply -f $base/gemma4-31b-it-pd-p4d4-llmisvc.yaml
 
 # Production MaaS ingress:

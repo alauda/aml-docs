@@ -23,7 +23,7 @@ KEDA extends the standard Kubernetes Horizontal Pod Autoscaler (HPA), allowing a
 
 ## Prerequisites
 
-- `Alauda AI` Operator plugin installed.
+- `Alauda AI Platform` Operator plugin installed.
 - `KEDA` Operator plugin installed.
 - An `InferenceService` using `Standard` mode with a vLLM serving runtime.
 - `Prometheus` installed and accessible in the cluster.
@@ -62,7 +62,7 @@ subjects:
 ```
 
 :::warning[Installation Order]
-If KEDA was installed **after** the **Alauda AI**, restart the `kserve-controller-manager` pod (in the `kserve` namespace) after applying the RBAC above, so it can discover the KEDA CRDs:
+If KEDA was installed **after** the **Alauda AI Platform**, restart the `kserve-controller-manager` pod (in the `kserve` namespace) after applying the RBAC above, so it can discover the KEDA CRDs:
 
 ```bash
 kubectl rollout restart deployment kserve-controller-manager -n kserve
