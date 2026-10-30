@@ -3,10 +3,10 @@ weight: 10
 ---
 
 
-# Alauda Build of KServe
+# Alauda AI Platform Inference Management
 ## KServe
 
-**Alauda Build of KServe** is based on the [KServe](https://kserve.github.io/website/).
+**Alauda AI Platform Inference Management** is based on the [KServe](https://kserve.github.io/website/).
 KServe provides a standardized, cloud-native interface for serving machine learning models at scale on Kubernetes.
 It has evolved around two primary scenarios: **Predictive AI** for traditional ML inference, and **Generative AI** for LLM-based workloads.
 
@@ -29,7 +29,7 @@ Predictive AI covers traditional machine learning model serving with high throug
 - **Inference Graph**: The **InferenceGraph** CRD enables composing multiple models into a pipeline, including pre/post-processing nodes, routing logic, and ensemble patterns.
 - **Autoscaling**: Scale-to-zero and scale-from-zero support via KEDA or Kubernetes HPA, with policies based on request rate, queue depth, or custom metrics.
 
-KServe is installed and managed by Alauda AI through the `kserve` component in the `default` `AmlCluster`. For the KServe configuration, see [Install Alauda AI](../../../installation/ai-cluster.mdx).
+KServe is installed and managed by Alauda AI Platform through the `kserve` component in the `default` `AmlCluster`. For the KServe configuration, see [Install Alauda AI Platform](../../../installation/ai-cluster.mdx).
 
 ## Documentation
 
@@ -40,5 +40,5 @@ KServe upstream documentation and key dependencies:
 - **llm-d**: [https://github.com/llm-d/llm-d](https://github.com/llm-d/llm-d) — Kubernetes-native distributed LLM inference framework with KV-cache-aware scheduling and elastic parallelism.
 - **LeaderWorkerSet (LWS)**: [https://github.com/kubernetes-sigs/lws](https://github.com/kubernetes-sigs/lws) — Kubernetes SIG workload controller for multi-node Leader/Worker patterns, required for multi-node LLM inference.
 - **Envoy Gateway**: [https://gateway.envoyproxy.io/](https://gateway.envoyproxy.io/) — Kubernetes-native gateway built on Envoy Proxy, providing the underlying traffic management for KServe inference services.
-- **Envoy AI Gateway**: [https://aigateway.envoyproxy.io/](https://aigateway.envoyproxy.io/) — AI-specific gateway capabilities layered on top of Envoy Gateway, including AI-aware routing and per-model policies.
+- **Agent Router**: [https://theagentrouter.ai/](https://theagentrouter.ai/) — AI-specific gateway capabilities layered on top of Envoy Gateway, including AI-aware routing and per-model policies.
 - **Gateway API Inference Extension (GIE)**: [https://gateway-api-inference-extension.sigs.k8s.io/](https://gateway-api-inference-extension.sigs.k8s.io/) — Kubernetes SIG project providing AI-aware routing and load balancing for inference services.

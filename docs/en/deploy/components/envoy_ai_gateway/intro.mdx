@@ -3,11 +3,11 @@ weight: 10
 ---
 
 
-# Alauda Build of Envoy AI Gateway
-## Envoy AI Gateway
+# Alauda AI Platform Gateway
+## Agent Router
 
-**Alauda Build of Envoy AI Gateway** is based on the [Envoy AI Gateway](https://aigateway.envoyproxy.io/) project.
-Envoy AI Gateway is a Kubernetes-native, AI-specific gateway layer built on top of [Envoy Gateway](https://gateway.envoyproxy.io/), providing intelligent traffic management, routing, and policy enforcement for AI inference workloads.
+**Alauda AI Platform Gateway** is based on [Agent Router](https://theagentrouter.ai/), formerly known as Envoy AI Gateway.
+Agent Router is a Kubernetes-native, AI-specific gateway layer built on top of [Envoy Gateway](https://gateway.envoyproxy.io/), providing intelligent traffic management, routing, and policy enforcement for AI inference workloads.
 
 Main components and capabilities include:
 
@@ -18,13 +18,13 @@ Main components and capabilities include:
 - **Envoy Gateway Integration**: Runs as an extension of Envoy Gateway, inheriting its Kubernetes Gateway API-native control plane, TLS termination, and observability features (metrics, access logs, distributed tracing).
 - **Gateway API Inference Extension (GIE)**: Integrates with the Kubernetes SIG Gateway API Inference Extension for advanced, inference-aware scheduling and load balancing decisions based on real-time backend state.
 
-Envoy AI Gateway is a required dependency of **Alauda Build of KServe** for exposing inference services.
+Alauda AI Platform Gateway is a required dependency of **Alauda AI Platform Inference Management** for exposing inference services.
 
-Envoy AI Gateway is installed and managed by Alauda AI through the `envoyAIGateway` component in the `default` `AmlCluster`. For the Alauda AI installation and component configuration, see [Install Alauda AI](../../../installation/ai-cluster.mdx).
+Alauda AI Platform Gateway is installed and managed by Alauda AI Platform through the `envoyAIGateway` component in the `default` `AmlCluster`. The component key is unchanged by the rename. For installation and component configuration, see [Install Alauda AI Platform](../../../installation/ai-cluster.mdx).
 
 ## Guides
 
-The following guides configure Envoy AI Gateway as a multi-tenant model serving control plane:
+The following guides configure Agent Router as a multi-tenant model serving control plane:
 
 - [Authenticating Consumers](../../gateway/identity_authentication) — verify SSO tokens or API keys and propagate caller identity.
 - [Configuring Token Quotas](../../gateway/token_rate_limiting) — enforce per-user, per-department, and per-tier token budgets.
@@ -38,10 +38,10 @@ Create the `Gateway` and its `AIGatewayRoute` in a dedicated namespace, such as 
 
 ## Documentation
 
-Envoy AI Gateway upstream documentation and related resources:
+Agent Router upstream documentation and related resources:
 
-- **Envoy AI Gateway Documentation**: [https://aigateway.envoyproxy.io/](https://aigateway.envoyproxy.io/) — Official documentation covering architecture, configuration, and API references.
-- **Envoy AI Gateway GitHub**: [https://github.com/envoyproxy/ai-gateway](https://github.com/envoyproxy/ai-gateway) — Source code, release notes, and issues.
-- **Envoy Gateway**: [https://gateway.envoyproxy.io/](https://gateway.envoyproxy.io/) — The underlying gateway infrastructure that Envoy AI Gateway extends.
-- **Gateway API Inference Extension (GIE)**: [https://gateway-api-inference-extension.sigs.k8s.io/](https://gateway-api-inference-extension.sigs.k8s.io/) — Kubernetes SIG project for AI-aware routing integrated with Envoy AI Gateway.
-- **KServe (Alauda Build)**: [../kserve/intro](../kserve/intro) — KServe uses Envoy AI Gateway as a required dependency for exposing and routing inference services.
+- **Agent Router Documentation**: [https://theagentrouter.ai/](https://theagentrouter.ai/) — Official documentation covering architecture, configuration, and API references.
+- **Agent Router GitHub**: [https://github.com/theagentrouter/agent-router](https://github.com/theagentrouter/agent-router) — Source code, release notes, and issues.
+- **Envoy Gateway**: [https://gateway.envoyproxy.io/](https://gateway.envoyproxy.io/) — The underlying gateway infrastructure that Agent Router extends.
+- **Gateway API Inference Extension (GIE)**: [https://gateway-api-inference-extension.sigs.k8s.io/](https://gateway-api-inference-extension.sigs.k8s.io/) — Kubernetes SIG project for AI-aware routing integrated with Agent Router.
+- **KServe (Alauda AI Platform Inference Management)**: [../kserve/intro](../kserve/intro) — KServe uses Alauda AI Platform Gateway as a required dependency for exposing and routing inference services.

@@ -4,9 +4,9 @@ weight: 40
 
 # Uninstall
 
-This document guides you through the complete uninstallation of Alauda AI and its related components from your cluster.
+This document guides you through the complete uninstallation of Alauda AI Platform and its related components from your cluster.
 
-In Alauda AI 2.8, components are installed and managed by Alauda AI through the cluster-scoped `default` `AmlCluster` instance. Uninstall the components first, then the Alauda AI core, following the order in this document. Uninstalling Alauda AI and its Operators does not automatically remove custom resources or CRDs; review [General notes](#general-notes) before proceeding.
+In Alauda AI Platform 2.9, components are installed and managed by Alauda AI Platform through the cluster-scoped `default` `AmlCluster` instance. Uninstall the components first, then the Alauda AI Platform core, following the order in this document. Uninstalling Alauda AI Platform and its Operators does not automatically remove custom resources or CRDs; review [General notes](#general-notes) before proceeding.
 
 :::warning
 Before uninstalling, back up all important data and models. Data-related resources may remain after uninstallation, and deleting them can permanently delete the associated data. Review [Data remaining after uninstallation](#data-remaining-after-uninstallation) before deleting any resource.
@@ -19,13 +19,13 @@ Before uninstalling, back up all important data and models. Data-related resourc
 | Components with `Managed` state in the `default` `AmlCluster` (e.g. `authorino`, `lws`, `kserve`) | Set `managementState` to `Removed` |
 | Components with `SharedManaged` state (e.g. `envoyGateway`, `postgres`, `redis`) | Set `managementState` to `Unmanaged`, then uninstall the Operator in OperatorHub |
 | Components not managed by the `AmlCluster` | Uninstall in OperatorHub, or in Cluster Plugins if installed as a Cluster Plugin |
-| Alauda AI core | Delete the `default` `AmlCluster` instance, then uninstall the Alauda AI Operator in OperatorHub |
+| Alauda AI Platform core | Delete the `default` `AmlCluster` instance, then uninstall the Alauda AI Platform Operator in OperatorHub |
 
 ## Uninstall AmlCluster-managed components
 
 ### Managed components: set to `Removed`
 
-Components managed by Alauda AI (with `managementState: Managed`) are uninstalled by changing the state to `Removed` in the `default` `AmlCluster`. Alauda AI then removes the component and the resources it manages.
+Components managed by Alauda AI Platform (with `managementState: Managed`) are uninstalled by changing the state to `Removed` in the `default` `AmlCluster`. Alauda AI Platform then removes the component and the resources it manages.
 
 For example, to uninstall KServe:
 
@@ -67,14 +67,14 @@ In **Administrator** view:
 2. Find the component to uninstall.
 3. Click **Uninstall** and confirm.
 
-## Uninstall Alauda AI core
+## Uninstall Alauda AI Platform core
 
-Uninstall the core Alauda AI in two steps: first delete the `default` `AmlCluster` instance, then uninstall the Alauda AI Operator in OperatorHub.
+Uninstall the core Alauda AI Platform in two steps: first delete the `default` `AmlCluster` instance, then uninstall the Alauda AI Platform Operator in OperatorHub.
 
 ### Delete the `default` `AmlCluster` instance
 
 1. In **Administrator** view, click **Marketplace / OperatorHub** and select the target cluster.
-2. Select **Alauda AI**, then open the **All Instances** tab.
+2. Select **Alauda AI Platform**, then open the **All Instances** tab.
 3. Find the instance named `default`.
 4. Click the **...** menu, then select **Delete**, and confirm.
 
@@ -86,18 +86,18 @@ kubectl get amlcluster default
 
 The command returns `No resources found` or a similar message.
 
-### Uninstall the Alauda AI Operator
+### Uninstall the Alauda AI Platform Operator
 
 1. In **Administrator** view, click **Marketplace / OperatorHub** and select the target cluster.
-2. Select **Alauda AI**, then click **Uninstall**.
+2. Select **Alauda AI Platform**, then click **Uninstall**.
 3. In the confirmation window, confirm the installation location (default is `aml-operator`), then click **Uninstall**.
 
-Verify that the **Alauda AI** tile changes from `Installed` to `Not Installed`, or disappears from the list.
+Verify that the **Alauda AI Platform** tile changes from `Installed` to `Not Installed`, or disappears from the list.
 
 ## Data remaining after uninstallation \{#data-remaining-after-uninstallation}
 
 :::warning
-After Alauda AI is uninstalled, data-related resources remain in the `kubeflow` and `aml-maas` namespaces. Deleting these resources can cause data loss. Review the resources before deleting them, and delete them only if you are certain the data is no longer needed.
+After Alauda AI Platform is uninstalled, data-related resources remain in the `kubeflow` and `aml-maas` namespaces. Deleting these resources can cause data loss. Review the resources before deleting them, and delete them only if you are certain the data is no longer needed.
 :::
 
 ## General notes \{#general-notes}

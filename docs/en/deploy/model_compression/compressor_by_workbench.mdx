@@ -2,9 +2,9 @@
 weight: 20
 ---
 
-# LLM Compressor with Alauda AI
+# LLM Compressor with Alauda AI Platform
 
-This document describes how to use the LLM Compressor integration with the Alauda AI platform to perform model compression workflows. The Alauda AI integration of LLM Compressor provides two example workflows:
+This document describes how to use the LLM Compressor integration with the Alauda AI Platform to perform model compression workflows. The Alauda AI Platform integration of LLM Compressor provides two example workflows:
 
 - A workbench image and the [data-free-compressor.ipynb](/data-free-compressor.ipynb) that demonstrate how to compress a model.
 - A workbench image and the [calibration-compressor.ipynb](/calibration-compressor.ipynb) that demonstrate how to compress a model using a calibration dataset.
@@ -19,7 +19,7 @@ This document describes how to use the LLM Compressor integration with the Alaud
 
 ## Supported Model Compression Workflows
 
-On the Alauda AI platform, you can use the Workbench feature to run LLM Compressor on models stored in S3, a PVC, or an OCI registry. The following workflow outlines the typical steps for compressing a model.
+On the Alauda AI Platform, you can use the Workbench feature to run LLM Compressor on models stored in S3, a PVC, or an OCI registry. The following workflow outlines the typical steps for compressing a model.
 
 ### Create a Workbench
 
@@ -96,7 +96,7 @@ ds = ds.map(preprocess, remove_columns=ds.column_names)
 
 ### (Optional) Upload Dataset into S3-Compatible Object Storage
 
-If you want to upload datasets into S3-compatible object storage, you can run the following code in `JupyterLab`. Alauda AI supports S3-compatible storage access, and in typical product deployments the storage implementation is Ceph object storage, so you can use the standard `boto3` client.
+If you want to upload datasets into S3-compatible object storage, you can run the following code in `JupyterLab`. Alauda AI Platform supports S3-compatible storage access, and in typical product deployments the storage implementation is Ceph object storage, so you can use the standard `boto3` client.
 
 ```python
 import os
@@ -130,7 +130,7 @@ for root, dirs, files in os.walk(local_folder):
 
 ### (Optional) Use Dataset from S3-Compatible Object Storage
 
-If you want to use datasets stored in S3-compatible object storage, first install the `s3fs` tool and then modify the dataset loading section in the example as shown below. In Alauda AI environments, this S3-compatible storage is typically backed by Ceph object storage.
+If you want to use datasets stored in S3-compatible object storage, first install the `s3fs` tool and then modify the dataset loading section in the example as shown below. In Alauda AI Platform environments, this S3-compatible storage is typically backed by Ceph object storage.
 
 ```bash
 pip install s3fs -i https://pypi.tuna.tsinghua.edu.cn/simple
@@ -218,5 +218,5 @@ tokenizer.save_pretrained(model_dir);
 ### Deploy and Use the Compressed Model for Inference
 
 Quantized and sparse models that you create with LLM Compressor are saved using the `compressed-tensors` library (an extension of [Safetensors](https://huggingface.co/docs/safetensors/en/index)).
-The compression format matches the model's quantization or sparsity type. These formats are natively supported in vLLM, enabling fast inference through optimized deployment kernels by using Alauda AI Inference Server.
+The compression format matches the model's quantization or sparsity type. These formats are natively supported in vLLM, enabling fast inference through optimized deployment kernels by using Alauda AI Platform Inference Server.
 Follow the instructions in [create inference service](../inference_service/inference_service.mdx#create-inference-service) to complete this step.

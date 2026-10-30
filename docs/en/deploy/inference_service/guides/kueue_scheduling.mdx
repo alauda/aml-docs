@@ -4,18 +4,18 @@ weight: 90
 
 # Schedule Inference Services with Kueue
 
-This page shows how to leverage the Alauda Build of Kueue's scheduling and resource management capabilities when running inferenceService in Alauda AI.
+This page shows how to leverage the Alauda Build of Kueue's scheduling and resource management capabilities when running inferenceService in Alauda AI Platform.
 
 ## Prerequisites
 
-- You have installed the Alauda AI.
+- You have installed the Alauda AI Platform.
 - You have installed the Alauda Build of Kueue.
 - You have installed the Alauda Build of Hami(for demonstrating vGPU).
 - The Alauda Container Platform Web CLI has communication with your cluster.
 
 ## Procedure
 1. Create a project and namespace in Alauda Container Platform, for example, the project name is `test`, and the namespace name is `test-1`.
-2. Switch to Alauda AI, click **Namespace Manage** in **Admin** > **Management Namespace**, and select the previously created namespace to complete the management
+2. Switch to Alauda AI Platform, click **Namespace Manage** in **Admin** > **Management Namespace**, and select the previously created namespace to complete the management
 3. Create the assets by running the following command:
     ```bash
     cat <<EOF| kubectl create -f -
@@ -59,7 +59,7 @@ This page shows how to leverage the Alauda Build of Kueue's scheduling and resou
       clusterQueue: cluster-queue
     EOF
     ```
-4. Create a `InferenceService` resource in the Alauda AI UI with label `kueue.x-k8s.io/queue-name: test`:
+4. Create a `InferenceService` resource in the Alauda AI Platform UI with label `kueue.x-k8s.io/queue-name: test`:
 
     ```yaml
     kind: InferenceService

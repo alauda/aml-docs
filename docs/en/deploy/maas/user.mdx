@@ -4,16 +4,16 @@ weight: 30
 
 # MaaS User Guide
 
-This guide explains how developers and application users call models through Model as a Service (MaaS). You will learn how to create an API key, find the models available to you, send an OpenAI-compatible request, and review your own quota and usage.
+This guide explains how developers and application users call models through Model as a Service (MaaS). You will learn how to create an API key, find the published models available to you, send an OpenAI-compatible request, and review your own quota and usage.
 
 For the product overview, see [Model as a Service (MaaS)](intro.mdx). For administration tasks, see [MaaS Administrator Guide](administrator.mdx).
 
 ## Open My Subscriptions
 
-1. Open the account menu in the top-right corner of the Alauda AI console.
+1. Open the account menu in the top-right corner of the Alauda AI Platform console.
 2. Select **My Subscriptions**.
 
-MaaS opens in a side panel over the current page. It is tied to your user identity rather than to a project namespace, so you can open it from any view.
+MaaS opens in a side panel over the current page. It is tied to your user identity rather than to a project namespace, so you can open it from any view. In 2.9, the available model name is the published model's client-facing name, which can be different from the underlying Kubernetes service name or provider model name.
 
 The panel contains two tabs:
 
@@ -32,7 +32,7 @@ The endpoint normally has this form:
 https://<maas-gateway>/v1
 ```
 
-Use the model name shown in the access list as the `model` value in your request. Do not use the name of the underlying Kubernetes resource unless it is also the published model name.
+Use the published model name shown in the access list as the `model` value in your request. This is the `clientModelName` configured by the administrator. Do not use the name of an underlying Kubernetes resource or provider deployment unless the administrator intentionally used that same name as the client model name.
 
 ## Create an API key
 
@@ -100,7 +100,7 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
-Replace `<published-model-name>` with the model name shown in your **Access** list. The MaaS gateway chooses the backend associated with that published model name; your application does not need to know the backend service URL.
+Replace `<published-model-name>` with the client-facing model name shown in your **Access** list. The MaaS gateway selects an available upstream for that published model according to the administrator's priority and weight settings; your application does not need to know the backend service URL or provider model name.
 
 ## Streaming responses and completion check
 
@@ -143,12 +143,9 @@ if not complete:
     ...
 ```
 
-How a truncated stream counts against your quota:
+A truncated stream may not include a final usage report. Do not infer token consumption or quota deductions from the HTTP status alone; check the platform usage and quota views.
 
-- **No token or amount is charged.** Because the gateway did not receive a token count, truncated streams do not consume your token or amount allocation.
-- **Still counts as one request.** A truncated stream occupies one slot in the request-rate limit (`requestRateLimits`, RPM). Administrators configure RPM precisely to bound cases where a client disconnects near the end of a stream.
-
-If you need to retry on truncation, retry the whole request. There is no way to resume a partially delivered stream.
+If you need to retry on truncation, retry the whole request. There is no way to resume a partially delivered stream. A retry can cause the upstream to process the request again, so review the risk of duplicate work before retrying.
 
 ## Understand quota behavior
 

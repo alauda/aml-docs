@@ -90,7 +90,7 @@ vllm serve deepseek-ai/DeepSeek-V3-0324 \
   --enable-expert-parallel
 ```
 
-On Alauda AI, these same flags are typically passed through the `InferenceService` container command. In other words:
+On Alauda AI Platform, these same flags are typically passed through the `InferenceService` container command. In other words:
 
 - `vllm serve ...` becomes the command launched inside `spec.predictor.model.command`
 - `--tensor-parallel-size`, `--data-parallel-size`, and `--enable-expert-parallel` are appended to the vLLM startup command
@@ -209,7 +209,7 @@ This review confirms that the intended vLLM arguments were applied to the servic
 Multi-node EP deployments require additional distributed runtime and networking configuration, including per-node launch settings, node roles, and data-parallel communication settings.
 
 :::warning
-This page focuses on the single-node configuration pattern. For the Alauda AI
+This page focuses on the single-node configuration pattern. For the Alauda AI Platform
 leader/worker deployment workflow, see
 [Deploy a Multi-Node vLLM Service with llm-d](./llm-d-multi-node.mdx), then add
 the EP flags supported by your model and runtime image. Also review the official

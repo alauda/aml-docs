@@ -12,7 +12,7 @@ i18n:
 
 Coding agents such as [opencode](https://opencode.ai/), [Codex CLI](https://github.com/openai/codex), and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) are terminal-based assistants that read your repository, plan changes, edit files, and run commands on your behalf. They normally talk to a hosted model provider over the internet.
 
-This document shows how to point those agents at a model you serve yourself on Alauda AI, so that your source code, prompts, and infrastructure configuration never leave your cluster. The same on-premise `InferenceService` that you deploy for any other workload can back an interactive coding agent, as long as it exposes an **OpenAI-compatible API** and has **tool (function) calling** enabled. opencode and Codex CLI can call that endpoint directly; Claude Code speaks the Anthropic Messages API (`/v1/messages`) and needs a lightweight translation proxy (see [Claude Code](#claude-code)).
+This document shows how to point those agents at a model you serve yourself on Alauda AI Platform, so that your source code, prompts, and infrastructure configuration never leave your cluster. The same on-premise `InferenceService` that you deploy for any other workload can back an interactive coding agent, as long as it exposes an **OpenAI-compatible API** and has **tool (function) calling** enabled. opencode and Codex CLI can call that endpoint directly; Claude Code speaks the Anthropic Messages API (`/v1/messages`) and needs a lightweight translation proxy (see [Claude Code](#claude-code)).
 
 This page builds directly on the deployment how-tos. It does not repeat how to create or expose an `InferenceService`; instead it links to them and focuses on the agent-specific configuration and tuning.
 
@@ -280,7 +280,7 @@ The router automatically sets the required `ANTHROPIC_BASE_URL` and other enviro
 
 ### Notes for on-premise operation
 
-- The `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_API_KEY` values (used with the LiteLLM option) must be non-empty but their content does not matter if your proxy and endpoint do not check them; gate access at the endpoint or proxy (see [Manage gateways](./mlops-with-coding-agents.mdx#manage-gateways) for adding auth via Envoy AI Gateway).
+- The `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_API_KEY` values (used with the LiteLLM option) must be non-empty but their content does not matter if your proxy and endpoint do not check them; gate access at the endpoint or proxy (see [Manage gateways](./mlops-with-coding-agents.mdx#manage-gateways) for adding auth via Alauda AI Platform Gateway).
 - The `CLAUDE_CODE_DISABLE_*` flags are what actually keep an "on-prem" setup on-prem: without them, Claude Code can still emit non-essential requests to Anthropic-hosted endpoints and ask the model for features (1M context, very large outputs) the on-prem model cannot honor. claude-code-router sets some of these automatically.
 - `ANTHROPIC_MODEL` must match the model name your `InferenceService` exposes (the `--served-model-name`).
 - Optionally set `ANTHROPIC_SMALL_FAST_MODEL` to an on-prem model so background/low-cost requests stay on-prem too.
@@ -309,7 +309,7 @@ Start from the GPU memory you have, then pick the largest capable model that lea
 
 #### Quantized variants to fit your hardware \{#quantized-variants}
 
-Two quantization paths cover the accelerators Alauda AI runs on. Pick the build that matches your hardware, then apply the 15–25% headroom rule above.
+Two quantization paths cover the accelerators Alauda AI Platform runs on. Pick the build that matches your hardware, then apply the 15–25% headroom rule above.
 
 **GPU — Unsloth GGUF.** [Unsloth](https://huggingface.co/unsloth) publishes GGUF builds of the latest models, optimized for fast loading with vLLM (`--quantization gguf`). Its QAT (quantization-aware training) builds hold quality at aggressive bit-widths better than post-hoc quantization. The most useful builds for the recommended models:
 
@@ -324,7 +324,7 @@ Two quantization paths cover the accelerators Alauda AI runs on. Pick the build 
 
 > **Note:** Unsloth repo names follow the `unsloth/<model>-GGUF` convention — confirm the exact path on the [Unsloth org page](https://huggingface.co/unsloth) before pulling, especially for the large `GLM-5.2` and `Deepseek-v4` builds, which are usually split into multiple files. For AWQ or GPTQ INT4 variants instead, search [huggingface.co/models](https://huggingface.co/models?sort=trending&search=AWQ) for e.g. `qwen3.6 AWQ` or `gemma-4 GPTQ`.
 
-**Ascend NPU — ModelSlim (`msModelSlim`).** On Huawei Ascend NPUs, quantize with Ascend's `msModelSlim` toolkit, which produces **W8A8 / W4A8** weights that serve on the `vLLM-Ascend` engine through Alauda AI's InferNex surface. Two of the recommended models already ship as validated, benchmarked recipes:
+**Ascend NPU — ModelSlim (`msModelSlim`).** On Huawei Ascend NPUs, quantize with Ascend's `msModelSlim` toolkit, which produces **W8A8 / W4A8** weights that serve on the `vLLM-Ascend` engine through Alauda AI Platform's InferNex surface. Two of the recommended models already ship as validated, benchmarked recipes:
 
 | Model | ModelSlim format | Topology | Recipe |
 | --- | --- | --- | --- |

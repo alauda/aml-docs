@@ -4,7 +4,7 @@ weight: 20
 
 # Kubeflow Pipeline + MLflow Integration
 
-This guide shows how Kubeflow Pipelines (KFP) components log parameters, metrics, and models to [MLflow on Alauda AI](../components/mlflow/intro.mdx) with the **MLflow Python client**. Authentication and workspace/RBAC follow [Using the MLflow Python SDK with Authentication and RBAC](./mlflow-python-sdk.mdx) — each component authenticates with a user identity token and the server records the run under that user.
+This guide shows how Kubeflow Pipelines (KFP) components log parameters, metrics, and models to [MLflow on Alauda AI Platform](../components/mlflow/intro.mdx) with the **MLflow Python client**. Authentication and workspace/RBAC follow [Using the MLflow Python SDK with Authentication and RBAC](./mlflow-python-sdk.mdx) — each component authenticates with a user identity token and the server records the run under that user.
 
 ## Scope
 
@@ -111,7 +111,7 @@ id tokens expire (24 h by default), so refresh the `mlflow-token` Secret before 
 
 1. Go to **Kubeflow Dashboard → Pipelines → Upload Pipeline** and select `pipeline.yaml`.
 2. Click **Create Run** and fill in the parameters (workspace, model name, epochs).
-3. After the run starts, check the MLflow UI under **Alauda AI → Tools → MLFlow** — the run owner is the token's user.
+3. After the run starts, check the MLflow UI under **Alauda AI Platform → Tools → MLFlow** — the run owner is the token's user.
 
 ### Via the KFP SDK
 
@@ -182,4 +182,4 @@ Proxied S3-compatible storage lets pipeline components upload through the tracki
 | `401 UNAUTHENTICATED` | `MLFLOW_TRACKING_TOKEN` is unset, empty, or expired — refresh the `mlflow-token` Secret. |
 | `403 PERMISSION_DENIED` | The token's user lacks access to the workspace namespace. Grant access to the MLflow workspace (see [MLflow Workspaces and Access Control](../../administer/multi_tenant/mlflow_workspaces.mdx)); no ServiceAccount is involved. |
 | Run shows up under the wrong owner / workspace | The owner is the token's identity; the workspace is `set_workspace()` (else the server default). Check both. |
-| MLflow metrics not appearing in KFP UI | KFP and MLflow are separate systems. Metrics logged to MLflow appear in the MLflow UI (**Alauda AI → Tools → MLFlow**), not in the KFP run output. |
+| MLflow metrics not appearing in KFP UI | KFP and MLflow are separate systems. Metrics logged to MLflow appear in the MLflow UI (**Alauda AI Platform → Tools → MLFlow**), not in the KFP run output. |

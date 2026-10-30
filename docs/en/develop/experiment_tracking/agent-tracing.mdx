@@ -4,7 +4,7 @@ weight: 30
 
 # Trace AI agents with MLflow
 
-MLflow Tracing records the steps an AI agent takes, including model requests and responses, chain and tool calls, retrieval steps, latency, token usage, and errors. On Alauda AI, traces are stored in the selected MLflow experiment and protected by the same workspace authentication and Kubernetes RBAC as runs and models.
+MLflow Tracing records the steps an AI agent takes, including model requests and responses, chain and tool calls, retrieval steps, latency, token usage, and errors. On Alauda AI Platform, traces are stored in the selected MLflow experiment and protected by the same workspace authentication and Kubernetes RBAC as runs and models.
 
 This guide shows the recommended tracing path for:
 
@@ -193,7 +193,7 @@ Do not enable MLflow autologging and a separate OpenTelemetry exporter for the s
 
 ## View the traces
 
-1. Open **Alauda AI → Tools → MLFlow**.
+1. Open **Alauda AI Platform → Tools → MLFlow**.
 2. Select the same workspace and experiment configured by the application or collector.
 3. Open the experiment's **Traces** tab.
 4. Select a trace to inspect its span hierarchy, inputs and outputs, latency, token usage, tool calls, and errors.

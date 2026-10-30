@@ -6,7 +6,7 @@ category: howto
 
 ## Introduction
 
-Envoy AI Gateway exposes Prometheus metrics that follow the OpenTelemetry GenAI semantic conventions, including token usage per request. By adding the caller's identity as a metric label and collecting the metric through the platform monitoring stack, you get a unified view of token consumption per department, namespace, and model. The same data feeds chargeback through Alauda Cost Management.
+Agent Router exposes Prometheus metrics that follow the OpenTelemetry GenAI semantic conventions, including token usage per request. By adding the caller's identity as a metric label and collecting the metric through the platform monitoring stack, you get a unified view of token consumption per department, namespace, and model. The same data feeds chargeback through Alauda Cost Management.
 
 The pipeline is: the gateway emits token metrics, identity is attached as a label, a `PodMonitor` collects the metric into the platform, and a `MonitorDashboard` presents it. No raw PromQL is required for day-to-day viewing.
 
@@ -40,7 +40,7 @@ The pipeline is: the gateway emits token metrics, identity is attached as a labe
     If no `gen_ai_*` sample appears, no scraping below will work — first fix the route / ExtProc wiring.
 
 :::note
-Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example `maas-system`), not in the Envoy Gateway control-plane namespace `envoy-gateway-system`. A gateway placed in the control-plane namespace may not have the AI Gateway request-processing filter and `SecurityPolicy` applied to its listener, which silently breaks routing and policy enforcement. See [Envoy AI Gateway](../components/envoy_ai_gateway/intro).
+Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example `maas-system`), not in the Envoy Gateway control-plane namespace `envoy-gateway-system`. A gateway placed in the control-plane namespace may not have the AI Gateway request-processing filter and `SecurityPolicy` applied to its listener, which silently breaks routing and policy enforcement. See [Alauda AI Platform Gateway](../components/envoy_ai_gateway/intro).
 :::
 
 ## Steps
@@ -48,7 +48,7 @@ Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example 
 <Steps>
   ### Add an identity label to token metrics
 
-  By default the token metric `gen_ai_client_token_usage_token` carries the OpenTelemetry GenAI standard labels only (model, provider, operation, token type). Enrich it with caller-identity dimensions — the billed namespace and the caller's department — by mapping identity headers to metric labels in the Envoy AI Gateway controller.
+  By default the token metric `gen_ai_client_token_usage_token` carries the OpenTelemetry GenAI standard labels only (model, provider, operation, token type). Enrich it with caller-identity dimensions — the billed namespace and the caller's department — by mapping identity headers to metric labels in the Agent Router controller.
 
   The controller reads the mapping from the **CLI flag** `--metricsRequestHeaderAttributes=<header>:<label>[,<header>:<label>...]` on the `ai-gateway-controller` `Deployment`. If the controller was installed via Helm, the chart renders this flag from a values key (for example `controller.metricsRequestHeaderAttributes`); supply your release name and chart reference and apply `helm upgrade --reuse-values`. If you manage the `Deployment` directly, patch its container args.
 
