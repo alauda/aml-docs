@@ -3,7 +3,7 @@ title: Quick Start
 weight: 30
 ---
 
-This document aims to help new users quickly understand how to deploy inference services in Alauda AI. By deploying a simple "text generation" inference service and experiencing it, you can quickly grasp the main features and usage methods of the platform.
+This document aims to help new users quickly understand how to deploy inference services in Alauda AI Platform. By deploying a simple "text generation" inference service and experiencing it, you can quickly grasp the main features and usage methods of the platform.
 
 ## Estimated Reading Time
 
@@ -24,8 +24,8 @@ This document only demonstrates the basic process. For detailed parameter config
 
 | Step | Operation                     | Description                                                                                                         | Notes                                                                                  |
 | ---- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| 1    | Create Namespace              | Create a namespace in Alauda AI or the container platform                                                           | Skip this step if you already have a namespace                                         |
-| 2    | Manage Namespace and Add User | Include the namespace in Alauda AI management and add users to the namespace                                        | Skip this step if the namespace is already managed and user permissions are configured |
+| 1    | Create Namespace              | Create a namespace in Alauda AI Platform or the container platform                                                           | Skip this step if you already have a namespace                                         |
+| 2    | Manage Namespace and Add User | Include the namespace in Alauda AI Platform management and add users to the namespace                                        | Skip this step if the namespace is already managed and user permissions are configured |
 | 3    | Prepare and Register Model    | Store the model in S3, PVC, or OCI storage and register its Model URI, or use a platform-shared Model Catalog entry | Skip this step if you already have a registered model or are using a catalog model     |
 | 4    | Publish Inference Service     | Publish the model as an online inference service                                                                    |
 | 5    | Invoke Inference Service      | Invoke the inference service via API or the "Experience" feature                                                    |
@@ -36,24 +36,24 @@ This document only demonstrates the basic process. For detailed parameter config
 
 **Note：Skip this step if you already have a namespace**
 
-Namespaces are the foundation for multi-tenant isolation in Alauda AI, and each project should use an independent namespace. You can create a namespace directly in Alauda AI or import an existing namespace from the container platform.
+Namespaces are the foundation for multi-tenant isolation in Alauda AI Platform, and each project should use an independent namespace. You can create a namespace directly in Alauda AI Platform or import an existing namespace from the container platform.
 
-1. Enter Alauda AI and switch to **Admin View** from the top navigation.
+1. Enter Alauda AI Platform and switch to **Admin View** from the top navigation.
 2. Click **Namespaces** in the left navigation bar.
 3. Click **Create Namespace** and enter a name, such as "text-classification-demo".
 4. Click **Create** to complete the namespace creation.
 
-If the namespace already exists in the container platform, click **Import Namespace** on the **Namespaces** page and select the namespace to import it into Alauda AI.
+If the namespace already exists in the container platform, click **Import Namespace** on the **Namespaces** page and select the namespace to import it into Alauda AI Platform.
 
 ### Step 2: Manage Namespace and Add User
 
 **Note：Skip this step if the namespace is already managed and user permissions are configured**
 
-Include the created namespace in Alauda AI management and add users to the namespace:
+Include the created namespace in Alauda AI Platform management and add users to the namespace:
 
-1. Enter Alauda AI and switch to **Admin View** from the top navigation.
+1. Enter Alauda AI Platform and switch to **Admin View** from the top navigation.
 2. Click **Namespaces** in the left navigation bar.
-3. If the namespace is not managed by Alauda AI, click **Import Namespace**, select the newly created "text-classification-demo" namespace, and complete the import.
+3. If the namespace is not managed by Alauda AI Platform, click **Import Namespace**, select the newly created "text-classification-demo" namespace, and complete the import.
 4. Open the namespace edit page and click **Member Management**.
 5. Import the user who needs to use this namespace and assign the user one of the following roles:
    - Owner: Can manage the namespace and import other members as editors or viewers. An owner cannot import another owner.
@@ -66,7 +66,7 @@ Include the created namespace in Alauda AI management and add users to the names
 
 Store the text classification model in a supported backend and register it:
 
-1. Enter Alauda AI, select **User View** in the top navigation, and select the managed namespace from the previous step.
+1. Enter Alauda AI Platform, select **User View** in the top navigation, and select the managed namespace from the previous step.
 2. Store the model in S3, an attached PVC, or an OCI registry. Record its Model URI, for example `s3://models/Meta-Llama-3-8B-Instruct`.
 3. Open **AI Hub > Model Registry**, select **Register Model**, choose a Model Registry, enter the model name and version, and provide the Model URI.
 4. Set the model task and framework in the registry metadata when needed. Most popular open-source LLMs use the `transformers` framework and the `text-generation` task.

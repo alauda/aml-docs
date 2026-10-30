@@ -6,7 +6,7 @@ category: howto
 
 ## Introduction
 
-Envoy AI Gateway can rate-limit by **token usage** rather than request count, and track a separate budget for each caller based on identity. This prevents a single consumer or a runaway agent from exhausting a shared model budget, and it lets you offer per-user, per-department, and per-tier token quotas on one gateway.
+Agent Router can rate-limit by **token usage** rather than request count, and track a separate budget for each caller based on identity. This prevents a single consumer or a runaway agent from exhausting a shared model budget, and it lets you offer per-user, per-department, and per-tier token quotas on one gateway.
 
 A token quota combines three pieces:
 
@@ -22,7 +22,7 @@ A token quota combines three pieces:
 
 ## Prerequisites
 
-1. Envoy AI Gateway is installed, with an `AIGatewayRoute` routing to your model backends. Confirm the relevant CRDs are present:
+1. Alauda AI Platform Gateway is installed, with an `AIGatewayRoute` routing to your model backends. Confirm the relevant CRDs are present:
 
     ```bash
     kubectl get crd \
@@ -49,7 +49,7 @@ A token quota combines three pieces:
     ```
 
 :::note
-Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example `maas-system`), not in the Envoy Gateway control-plane namespace `envoy-gateway-system`. A gateway placed in the control-plane namespace may not have the AI Gateway request-processing filter and `SecurityPolicy` applied to its listener, which silently breaks routing and policy enforcement. See [Envoy AI Gateway](../components/envoy_ai_gateway/intro).
+Create the `Gateway` and `AIGatewayRoute` in a dedicated namespace (for example `maas-system`), not in the Envoy Gateway control-plane namespace `envoy-gateway-system`. A gateway placed in the control-plane namespace may not have the AI Gateway request-processing filter and `SecurityPolicy` applied to its listener, which silently breaks routing and policy enforcement. See [Alauda AI Platform Gateway](../components/envoy_ai_gateway/intro).
 :::
 
 ## Steps

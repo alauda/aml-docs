@@ -12,7 +12,7 @@ i18n:
 
 Coding agents such as [opencode](https://opencode.ai/), [Codex CLI](https://github.com/openai/codex), and [Claude Code](https://docs.anthropic.com/en/docs/claude-code) are terminal-based assistants that read your repository, plan changes, edit files, and run commands on your behalf. They normally talk to a hosted model provider over the internet.
 
-This document shows how to point those agents at a model you serve yourself on Alauda AI, so that your source code, prompts, and infrastructure configuration never leave your cluster. The same on-premise `InferenceService` that you deploy for any other workload can back an interactive coding agent, as long as it exposes an **OpenAI-compatible API** and has **tool (function) calling** enabled. opencode and Codex CLI can call that endpoint directly; Claude Code speaks the Anthropic Messages API (`/v1/messages`) and needs a lightweight translation proxy (see [Claude Code](#claude-code)).
+This document shows how to point those agents at a model you serve yourself on Alauda AI Platform, so that your source code, prompts, and infrastructure configuration never leave your cluster. The same on-premise `InferenceService` that you deploy for any other workload can back an interactive coding agent, as long as it exposes an **OpenAI-compatible API** and has **tool (function) calling** enabled. opencode and Codex CLI can call that endpoint directly; Claude Code speaks the Anthropic Messages API (`/v1/messages`) and needs a lightweight translation proxy (see [Claude Code](#claude-code)).
 
 This page builds directly on the deployment how-tos. It does not repeat how to create or expose an `InferenceService`; instead it links to them and focuses on the agent-specific configuration and tuning.
 
@@ -111,7 +111,7 @@ The table below shows parser pairs for reference. Parser names are version-speci
 | --- | --- | --- | --- |
 | Qwen3 / Qwen3.6 reasoning (`Qwen/Qwen3*`) | Check the current vLLM docs for the exact Qwen variant | `qwen3` | Reasoning is on by default; disable it with `chat_template_kwargs` if needed |
 | GLM-5.2 (Zhipu AI) | Check the current vLLM docs for the GLM variant | Check the current vLLM docs for the GLM variant | Hybrid reasoning; the tool-call and reasoning parsers share the GLM family value |
-| Deepseek-v4 (`deepseek_v4`) | Check the current vLLM docs for the DeepSeek variant | Check the current vLLM docs for the DeepSeek variant | Reasoning-mode builds only; see the [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/deepseek-v4-flash-w4a8.mdx) recipe |
+| Deepseek-v4 (`deepseek_v4`) | Check the current vLLM docs for the DeepSeek variant | Check the current vLLM docs for the DeepSeek variant | Reasoning-mode builds only; see the [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/ascend/deepseek-v4-flash-w4a8.mdx) recipe |
 
 The exact `--tool-call-parser` / `--reasoning-parser` values for these families depend on the vLLM version — read the model card and the [vLLM tool calling documentation](https://docs.vllm.ai/en/latest/features/tool_calling.html) before committing, and verify tool calls round-trip end-to-end.
 
@@ -280,7 +280,7 @@ The router automatically sets the required `ANTHROPIC_BASE_URL` and other enviro
 
 ### Notes for on-premise operation
 
-- The `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_API_KEY` values (used with the LiteLLM option) must be non-empty but their content does not matter if your proxy and endpoint do not check them; gate access at the endpoint or proxy (see [Manage gateways](./mlops-with-coding-agents.mdx#manage-gateways) for adding auth via Envoy AI Gateway).
+- The `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_API_KEY` values (used with the LiteLLM option) must be non-empty but their content does not matter if your proxy and endpoint do not check them; gate access at the endpoint or proxy (see [Manage gateways](./mlops-with-coding-agents.mdx#manage-gateways) for adding auth via Alauda AI Platform Gateway).
 - The `CLAUDE_CODE_DISABLE_*` flags are what actually keep an "on-prem" setup on-prem: without them, Claude Code can still emit non-essential requests to Anthropic-hosted endpoints and ask the model for features (1M context, very large outputs) the on-prem model cannot honor. claude-code-router sets some of these automatically.
 - `ANTHROPIC_MODEL` must match the model name your `InferenceService` exposes (the `--served-model-name`).
 - Optionally set `ANTHROPIC_SMALL_FAST_MODEL` to an on-prem model so background/low-cost requests stay on-prem too.
@@ -296,10 +296,10 @@ As a best practice, build on-premise coding agents on the following five model f
 | Model | Type | Why it works for coding agents | Fit & notes |
 | --- | --- | --- | --- |
 | **GLM-5.2** (Zhipu AI) | Large MoE | Frontier agentic reasoning and multi-step tool use; excels at long, planned edits that span many files. | Heaviest of the set — serve quantized (GGUF / ModelSlim) or tensor-parallel across multiple accelerators. |
-| **Qwen3.6-27B-MTP** (Qwen) | Dense `qwen3_5` hybrid + MTP | Strong general-purpose coding; the native multi-token-prediction head speeds up decode for snappier interactive turns. | W8A8 validated on Ascend → [Qwen3.6-27B (W8A8)](../../plan/validated_models/qwen3-6-27b-w8a8.mdx). ~33–36 GB quantized. |
+| **Qwen3.6-27B-MTP** (Qwen) | Dense `qwen3_5` hybrid + MTP | Strong general-purpose coding; the native multi-token-prediction head speeds up decode for snappier interactive turns. | W8A8 validated on Ascend → [Qwen3.6-27B (W8A8)](../../plan/validated_models/ascend/qwen3-6-27b-w8a8.mdx). ~33–36 GB quantized. |
 | **Qwen3.6-35B-A3B** (Qwen) | MoE, ~3B active | Best quality-per-VRAM in the set: activates only ~3B parameters per token while carrying a 35B knowledge base. | Runs comfortably on a single 24 GB GPU — the recommended default for most users. |
 | **Gemma4-12B-it / Gemma4-31B-it** (Google) | Dense, instruction-tuned | Clean instruction following and dependable tool calls. 12B fits mid-range GPUs; 31B raises quality on 40–48 GB cards. | Pick **12B** for latency, **31B** for quality. |
-| **Deepseek-v4** (DeepSeek) | Large MoE (MLA + DSA + MTP) | Frontier-grade coding and agentic planning; the sparse MoE keeps active parameters low despite a large expert pool. | Heavy — serve quantized or multi-GPU/-card. W4A8 validated on Ascend → [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/deepseek-v4-flash-w4a8.mdx). |
+| **Deepseek-v4** (DeepSeek) | Large MoE (MLA + DSA + MTP) | Frontier-grade coding and agentic planning; the sparse MoE keeps active parameters low despite a large expert pool. | Heavy — serve quantized or multi-GPU/-card. W4A8 validated on Ascend → [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/ascend/deepseek-v4-flash-w4a8.mdx). |
 
 Confirm the matching vLLM `--tool-call-parser` (and `--reasoning-parser` for the reasoning-capable families) against the vLLM version you run — see [Enable tool calling on the runtime](#enable-tool-calling-on-the-runtime).
 
@@ -309,7 +309,7 @@ Start from the GPU memory you have, then pick the largest capable model that lea
 
 #### Quantized variants to fit your hardware \{#quantized-variants}
 
-Two quantization paths cover the accelerators Alauda AI runs on. Pick the build that matches your hardware, then apply the 15–25% headroom rule above.
+Two quantization paths cover the accelerators Alauda AI Platform runs on. Pick the build that matches your hardware, then apply the 15–25% headroom rule above.
 
 **GPU — Unsloth GGUF.** [Unsloth](https://huggingface.co/unsloth) publishes GGUF builds of the latest models, optimized for fast loading with vLLM (`--quantization gguf`). Its QAT (quantization-aware training) builds hold quality at aggressive bit-widths better than post-hoc quantization. The most useful builds for the recommended models:
 
@@ -324,12 +324,12 @@ Two quantization paths cover the accelerators Alauda AI runs on. Pick the build 
 
 > **Note:** Unsloth repo names follow the `unsloth/<model>-GGUF` convention — confirm the exact path on the [Unsloth org page](https://huggingface.co/unsloth) before pulling, especially for the large `GLM-5.2` and `Deepseek-v4` builds, which are usually split into multiple files. For AWQ or GPTQ INT4 variants instead, search [huggingface.co/models](https://huggingface.co/models?sort=trending&search=AWQ) for e.g. `qwen3.6 AWQ` or `gemma-4 GPTQ`.
 
-**Ascend NPU — ModelSlim (`msModelSlim`).** On Huawei Ascend NPUs, quantize with Ascend's `msModelSlim` toolkit, which produces **W8A8 / W4A8** weights that serve on the `vLLM-Ascend` engine through Alauda AI's InferNex surface. Two of the recommended models already ship as validated, benchmarked recipes:
+**Ascend NPU — ModelSlim (`msModelSlim`).** On Huawei Ascend NPUs, quantize with Ascend's `msModelSlim` toolkit, which produces **W8A8 / W4A8** weights that serve on the `vLLM-Ascend` engine through Alauda AI Platform's InferNex surface. Two of the recommended models already ship as validated, benchmarked recipes:
 
 | Model | ModelSlim format | Topology | Recipe |
 | --- | --- | --- | --- |
-| Qwen3.6-27B | W8A8 (~33 GB) | Ascend 910B4 ×8 (2 × TP=4) | [Qwen3.6-27B (W8A8)](../../plan/validated_models/qwen3-6-27b-w8a8.mdx) |
-| DeepSeek-V4-Flash | W4A8 (~151 GB) | Ascend 910B4 ×8 (1 × TP=8) | [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/deepseek-v4-flash-w4a8.mdx) |
+| Qwen3.6-27B | W8A8 (~33 GB) | Ascend 910B4 ×8 (2 × TP=4) | [Qwen3.6-27B (W8A8)](../../plan/validated_models/ascend/qwen3-6-27b-w8a8.mdx) |
+| DeepSeek-V4-Flash | W4A8 (~151 GB) | Ascend 910B4 ×8 (1 × TP=8) | [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/ascend/deepseek-v4-flash-w4a8.mdx) |
 
 To quantize your own weights on NPU, use the ModelSlim workbench image and its verification notebook (see [Create a Workbench](../workbench/create_workbench.mdx)).
 
@@ -382,7 +382,7 @@ Two of the recommended models — `Qwen3.6-27B-MTP` and `Deepseek-v4` — ship a
 --speculative-config '{"method":"mtp","num_speculative_tokens":1}'
 ```
 
-Confirm the exact `method` against your vLLM version, and treat the full recipe — including the MTP guardrails these need on Ascend (disabled prefix caching, a capped `--max-num-seqs`, `enforce_eager`) — as the source of truth: [Qwen3.6-27B (W8A8)](../../plan/validated_models/qwen3-6-27b-w8a8.mdx) and [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/deepseek-v4-flash-w4a8.mdx). For other speculative methods (EAGLE-3, N-gram) and end-to-end verification and rollback, see [Speculative Decoding for vLLM Inference Services](../../deploy/inference_service/guides/vllm_speculative_decoding.mdx).
+Confirm the exact `method` against your vLLM version, and treat the full recipe — including the MTP guardrails these need on Ascend (disabled prefix caching, a capped `--max-num-seqs`, `enforce_eager`) — as the source of truth: [Qwen3.6-27B (W8A8)](../../plan/validated_models/ascend/qwen3-6-27b-w8a8.mdx) and [DeepSeek-V4-Flash (W4A8)](../../plan/validated_models/ascend/deepseek-v4-flash-w4a8.mdx). For other speculative methods (EAGLE-3, N-gram) and end-to-end verification and rollback, see [Speculative Decoding for vLLM Inference Services](../../deploy/inference_service/guides/vllm_speculative_decoding.mdx).
 
 **llama.cpp (GGUF).** When serving an MTP-enabled GGUF build (for example the Unsloth `-MTP` weights), turn on the draft-MTP path with `--spec-type draft-mtp`. Verify the flag against your llama.cpp build — MTP support and flag names change across releases.
 

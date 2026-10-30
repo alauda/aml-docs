@@ -1,0 +1,48 @@
+# CPU-only Ray Data actor-pool smoke. Same shape as parse_and_chunk
+# (from_items / map_batches + ActorPoolStrategy) without Docling, an RWX PVC,
+# or S3. Replace <image> with a cluster-pullable Ray image.
+apiVersion: ray.io/v1
+kind: RayJob
+metadata:
+  generateName: ray-data-smoke-
+spec:
+  shutdownAfterJobFinishes: true
+  ttlSecondsAfterFinished: 600
+  entrypoint: |
+    python -c '
+    import ray
+    ray.init(ignore_reinit_error=True)
+    ds = ray.data.from_items([{"text": "hello"}, {"text": "world"}])
+    class Reverse:
+        def __call__(self, batch):
+            return {"text": [t[::-1] for t in batch["text"]]}
+    out = ds.map_batches(
+        Reverse,
+        compute=ray.data.ActorPoolStrategy(min_size=1, max_size=1),
+        batch_size=1,
+        batch_format="numpy",
+        num_cpus=0.25,
+    )
+    rows = out.take_all()
+    got = {row["text"] for row in rows}
+    assert got == {"olleh", "dlrow"}, got
+    print("RAY_DATA_SMOKE_OK", sorted(got))
+    '
+  rayClusterSpec:
+    rayVersion: "2.31.0"
+    headGroupSpec:
+      rayStartParams:
+        dashboard-host: "0.0.0.0"
+      template:
+        spec:
+          imagePullSecrets: []
+          containers:
+            - name: ray-head
+              image: <image>
+              resources:
+                requests:
+                  cpu: "1"
+                  memory: 2Gi
+                limits:
+                  cpu: "1"
+                  memory: 2Gi

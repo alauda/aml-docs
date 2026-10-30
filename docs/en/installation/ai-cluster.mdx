@@ -2,9 +2,9 @@
 weight: 30
 ---
 
-# Install Alauda AI
+# Install Alauda AI Platform
 
-**Alauda AI** provides model management, inference, training, and MLOps capabilities through the Alauda AI Operator. The automatically created `default` `AmlCluster` instance controls the components enabled in the cluster. By default, Alauda AI uses the **KServe** `Standard` mode for the inference backend, which is particularly recommended for resource-intensive generative workloads. This mode provides a straightforward way to deploy models and offers robust, customizable deployment capabilities by leveraging foundational Kubernetes functionalities.
+**Alauda AI Platform** provides model management, inference, training, and MLOps capabilities through the Alauda AI Platform Operator. The automatically created `default` `AmlCluster` instance controls the components enabled in the cluster. By default, Alauda AI Platform uses the **KServe** `Standard` mode for the inference backend, which is particularly recommended for resource-intensive generative workloads. This mode provides a straightforward way to deploy models and offers robust, customizable deployment capabilities by leveraging foundational Kubernetes functionalities.
 
 Optional capabilities, including **Knative** functionality for scaling inference services to zero, are enabled by updating the component switches in the `AmlCluster` instance. The required operators and operands are installed automatically according to those settings.
 
@@ -18,32 +18,32 @@ Optional capabilities, including **Knative** functionality for scaling inference
 
 For the common procedure for downloading installation packages and the `violet` tool, see [Upload Packages](./package-upload.mdx).
 
-The package required for Alauda AI is:
+The package required for Alauda AI Platform is:
 
-- **Alauda AI** — the main platform component for model management, inference services, and component lifecycle management.
+- **Alauda AI Platform** — the main platform component for model management, inference services, and component lifecycle management.
 
-Download the package version that matches the Alauda AI release and the target cluster architecture.
+Download the package version that matches the Alauda AI Platform release and the target cluster architecture.
 
 ## Prerequisites
 
-The dependent components listed below are delivered as packages. You do not need to install them on the target cluster separately — upload their packages to the platform repository before installing Alauda AI, and the `AmlCluster` installs and manages the components after Alauda AI is installed.
+The dependent components listed below are delivered as packages. You do not need to install them on the target cluster separately — upload their packages to the platform repository before installing Alauda AI Platform, and the `AmlCluster` installs and manages the components after Alauda AI Platform is installed.
 
 The following components are required by default:
 
 - **PostgreSQL**
 - **Alauda Cache Service for Redis OSS**
 - **Alauda Build of Authorino**
-- **Alauda Build of Envoy AI Gateway**
-- **Alauda Build of KServe**
+- **Alauda AI Platform Gateway**
+- **Alauda AI Platform Inference Management**
 - **Alauda Build of LeaderWorkerSet**
 
 ## Uploading packages
 
-Upload the **Alauda AI** package to the cluster where Alauda AI will run. Follow [Upload Packages](./package-upload.mdx) to prepare `violet`, configure platform or external-registry credentials, and upload the package.
+Upload the **Alauda AI Platform** package to the cluster where Alauda AI Platform will run. Follow [Upload Packages](./package-upload.mdx) to prepare `violet`, configure platform or external-registry credentials, and upload the package.
 
-After uploading the package, install Alauda AI from **OperatorHub** as described below. Optional capabilities are enabled after installation through the `AmlCluster` component configuration.
+After uploading the package, install Alauda AI Platform from **OperatorHub** as described below. Optional capabilities are enabled after installation through the `AmlCluster` component configuration.
 
-## Installing Alauda AI
+## Installing Alauda AI Platform
 
 <Steps>
 
@@ -52,40 +52,40 @@ After uploading the package, install Alauda AI from **OperatorHub** as described
 In **Administrator** view:
 
 1. Click **Marketplace / OperatorHub**.
-2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install Alauda AI.
-3. Select **Alauda AI**, then click **Install**.
+2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install Alauda AI Platform.
+3. Select **Alauda AI Platform**, then click **Install**.
 
-    **Install Alauda AI** window will pop up.
+    **Install Alauda AI Platform** window will pop up.
 
-4. Then in the **Install Alauda AI** window.
+4. Then in the **Install Alauda AI Platform** window.
 5. Leave **Channel** unchanged.
-6. Check whether the **Version** matches the **Alauda AI** version you want to install.
+6. Check whether the **Version** matches the **Alauda AI Platform** version you want to install.
 7. Leave **Installation Location** unchanged, it should be `aml-operator` by default.
 8. Select **Manual** for **Upgrade Strategy**.
 9. Click **Install**.
 
 ### Verification
 
-Confirm that the **Alauda AI** tile shows one of the following states:
+Confirm that the **Alauda AI Platform** tile shows one of the following states:
 
 - `Installing`: installation is in progress; wait for this to change to `Installed`.
 - `Installed`: installation is complete.
 
 </Steps>
 
-## Configuring Alauda AI Instance
+## Configuring Alauda AI Platform Instance
 
-Once Alauda AI is installed, the operator automatically creates the cluster-scoped `default` `AmlCluster` instance. You do not need to create the `default` instance manually. Review and update the automatically created instance according to your environment.
+Once Alauda AI Platform is installed, the operator automatically creates the cluster-scoped `default` `AmlCluster` instance. You do not need to create the `default` instance manually. Review and update the automatically created instance according to your environment.
 
 <Steps>
-### Deploy Alauda AI
+### Deploy Alauda AI Platform
 
 In **Administrator** view:
 
 1. Click **Marketplace / OperatorHub**.
-2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install the Alauda AI Operator.
-3. Select **Alauda AI**, then click it.
-4. In the **Alauda AI** page, click **All Instances** from the tab.
+2. At the top of the console, from the **Cluster**  dropdown list, select the destination cluster where you want to install the Alauda AI Platform Operator.
+3. Select **Alauda AI Platform**, then click it.
+4. In the **Alauda AI Platform** page, click **All Instances** from the tab.
 5. Wait for the `default` `AmlCluster` instance to appear, then edit it.
 6. Select **Deploy Flavor** from dropdown:
    1. `single-node` for non HA deployments.
@@ -108,7 +108,7 @@ In **Administrator** view:
 
 ### Component management states \{#component-management-states}
 
-Alauda AI 2.8 automatically installs and manages the components selected by the `AmlCluster` configuration. The following values show the default component settings. Merge the entries you need into the existing `default` `AmlCluster`; do not create a second instance.
+Alauda AI Platform 2.9 automatically installs and manages the components selected by the `AmlCluster` configuration. The following values show the default component settings. Merge the entries you need into the existing `default` `AmlCluster`; do not create a second instance.
 
 ```yaml
 spec:
@@ -121,11 +121,11 @@ spec:
       managementState: SharedManaged
     feast:
       managementState: Unmanaged
+    infernexBridge:
+      managementState: Unmanaged
     knativeServing:
       managementState: Unmanaged
       providerType: Operator
-    llamaStack:
-      managementState: Unmanaged
     lws:
       managementState: Managed
     mlflow:
@@ -162,6 +162,8 @@ spec:
       managementState: SharedManaged
     redis:
       managementState: SharedManaged
+    servingRuntimeNPUOperator:
+      managementState: Unmanaged
     servingRuntimeOperator:
       managementState: Unmanaged
     trustyAI:
@@ -179,17 +181,18 @@ The `spec.components` field uses configuration keys that correspond to the follo
 | Component key | Product or Operator |
 |:--|:--|
 | `authorino` | **Alauda Build of Authorino** |
-| `envoyAIGateway` | **Alauda Build of Envoy AI Gateway** |
+| `envoyAIGateway` | **Alauda AI Platform Gateway** |
 | `envoyGateway` | **Alauda Build of Envoy Gateway** (SharedManaged) |
 | `feast` | **Alauda Build of Feast** |
+| `infernexBridge` | **Alauda Build of InferNex Bridge** |
 | `knativeServing` | **Knative Serving** |
-| `llamaStack` | **Alauda Build of Llama Stack** |
 | `lws` | **Alauda Build of LeaderWorkerSet** |
 | `mlflow` | **MLflow** |
 | `npuOperator` | **Alauda Build of NPU Operator** |
 | `postgres` | **PostgreSQL** (SharedManaged) |
 | `redis` | **Alauda Cache Service for Redis OSS** (SharedManaged) |
-| `servingRuntimeOperator` | **Alauda Build of Serving Runtime** |
+| `servingRuntimeNPUOperator` | **Alauda AI Platform NPU Serving Runtime** |
+| `servingRuntimeOperator` | **Alauda AI Platform Serving Runtime** |
 | `trustyAI` | **Alauda Build of TrustyAI** |
 | `workbench` | **Alauda AI Workbench** |
 
@@ -197,31 +200,47 @@ The management states have the following meanings:
 
 | Value | Meaning |
 |:--|:--|
-| `Managed` | Alauda AI manages the component and its lifecycle. For normal installations, use `Managed` so Alauda AI installs and reconciles the component. |
-| `Unmanaged` | Alauda AI does not install or reconcile the component. Use this only for temporary workarounds, compatibility requirements, or advanced deployments; manage the component separately when required. |
-| `SharedManaged` | Alauda AI deploys the component for shared use, but does not lock the Operator version. |
-| `Removed` | Alauda AI removes the component and its managed resources. This value cannot be used for components with the `SharedManaged` state; set those components to `Unmanaged` instead. |
+| `Managed` | Alauda AI Platform manages the component and its lifecycle. For normal installations, use `Managed` so Alauda AI Platform installs and reconciles the component. |
+| `Unmanaged` | Alauda AI Platform does not install or reconcile the component. Use this only for temporary workarounds, compatibility requirements, or advanced deployments; manage the component separately when required. |
+| `SharedManaged` | Alauda AI Platform deploys the component for shared use, but does not lock the Operator version. |
+| `Removed` | Alauda AI Platform removes the component and its managed resources. This value cannot be used for components with the `SharedManaged` state; set those components to `Unmanaged` instead. |
 
 <a id="enabling-knative-functionality"></a>
 
-For common 2.8 deployments, set the following component switches to `Managed` when the corresponding capabilities are required. The `servingRuntimeOperator` setting depends on the accelerator and serving-runtime requirements of your environment.
+Enable optional components by merging the settings appropriate for your hardware into the existing `default` `AmlCluster`. Choose the serving runtime for your accelerator rather than enabling both runtime operators indiscriminately.
+
+**NVIDIA GPU / x86:** Enable **Alauda AI Platform Serving Runtime**. Version `v1.2.2` includes vLLM `v0.23.0`; llm-d workloads reuse the vLLM image instead of a separate llm-d image.
+
+```yaml
+spec:
+  components:
+    servingRuntimeOperator:
+      managementState: Managed
+```
+
+**Ascend NPU with InferNex Bridge:** Enable **Alauda Build of InferNex Bridge** and **Alauda AI Platform NPU Serving Runtime**. The NPU runtime supplies the vLLM-Ascend `v0.23.0` image, `ClusterServingRuntime`, and `LLMInferenceServiceConfig` resources. Do not enable the NVIDIA/x86 `servingRuntimeOperator` for this deployment path.
+
+```yaml
+spec:
+  components:
+    infernexBridge:
+      managementState: Managed
+    servingRuntimeNPUOperator:
+      managementState: Managed
+```
+
+**Other optional capabilities:** Enable the gateway or Workbench when needed, independently of your serving-runtime selection:
 
 ```yaml
 spec:
   components:
     envoyAIGateway:
       managementState: Managed
-    servingRuntimeOperator:
-      managementState: Managed # [!code callout]
     workbench:
       managementState: Managed
 ```
 
-<Callouts>
-
-1. `servingRuntimeOperator` controls **Alauda Build of Serving Runtime**, which contains vLLM and llm-d serving runtimes for Nvidia GPUs and is available only for x86. Enable it for Nvidia/x86 deployments that require these runtimes. If your environment uses Ascend or another non-Nvidia accelerator, do not enable or install this component; use the serving runtime appropriate for that hardware instead.
-
-</Callouts>
+Llama Stack is deprecated and is no longer managed by `AmlCluster` in 2.9. See the [deprecation notice](../ai_applications/components/llama_stack/intro.mdx) for the recommended alternative.
 
 :::info
 **Enable Knative functionality**
@@ -238,7 +257,7 @@ spec:
 
 ### Configure KServe
 
-**Alauda Build of KServe** is installed and managed by Alauda AI. The `kserve` component in the `default` `AmlCluster` instance defaults to `Managed`, so Alauda AI installs the KServe Operator and automatically creates the `KServe` instance. You do not need to upload the KServe Operator package, install the Operator from OperatorHub, or create a `KServe` custom resource manually.
+**Alauda AI Platform Inference Management** is installed and managed by Alauda AI Platform. The `kserve` component in the `default` `AmlCluster` instance defaults to `Managed`, so Alauda AI Platform installs the KServe Operator and automatically creates the `KServe` instance. You do not need to upload the KServe Operator package, install the Operator from OperatorHub, or create a `KServe` custom resource manually.
 
 The KServe parameters are exposed through `spec.components.kserve.values`. Merge the settings you need into the existing `default` `AmlCluster`:
 
@@ -278,11 +297,11 @@ The main `kserve` component settings:
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `managementState` | Whether Alauda AI manages the KServe Operator and instance. Use `Managed` for normal installations. | `Managed` |
+| `managementState` | Whether Alauda AI Platform manages the KServe Operator and instance. Use `Managed` for normal installations. | `Managed` |
 | `values.defaultDeploymentMode` | Deployment mode for inference services: `RawDeployment` (`Standard`) or `Knative` for serverless features like scale-to-zero. | `RawDeployment` |
 | `values.domain` | Domain used by the ingress gateway to expose inference-service endpoints. Use a wildcard domain, e.g., `*.example.com`. | None |
 | `values.ingressGateway` | Ingress gateway bound to KServe, in the form `<namespace>/<gateway-name>`. | `knative-serving/knative-ingress-gateway` |
-| `values.kserve.storage.uidModelcar` | UID used for Modelcar workloads. Set to `0` when you plan to use `vLLM-ascend`; the default is `1000`. | `1000` |
+| `values.kserve.storage.uidModelcar` | UID used for Modelcar workloads. Keep the default `1000` for non-root workloads; set it to `0` only when a validated `vLLM-ascend` multi-NPU deployment requires root mode. | `1000` |
 
 The gateway presets configure the AI gateway stack that fronts inference traffic:
 
@@ -292,8 +311,8 @@ The gateway presets configure the AI gateway stack that fronts inference traffic
 | `preset.envoyGateway.instanceName` | Name of the Envoy Gateway instance to create. | `aieg` |
 | `preset.envoyGateway.saNamespace` | Namespace where the Envoy Gateway service account is located. | `envoy-gateway-system` |
 | `preset.envoyGateway.serviceAccount` | Service account name used by Envoy Gateway. | `envoy-gateway` |
-| `preset.envoyAIGateway.service` | Kubernetes service name for Envoy AI Gateway. | `ai-gateway-controller` |
-| `preset.envoyAIGateway.port` | Port number used by Envoy AI Gateway. | `1063` |
+| `preset.envoyAIGateway.service` | Kubernetes service name for Alauda AI Platform Gateway. | `ai-gateway-controller` |
+| `preset.envoyAIGateway.port` | Port number used by Alauda AI Platform Gateway. | `1063` |
 | `preset.gie.enabled` | Enable the bundled Gateway API Inference Extension. Set to `false` if GIE is already installed separately in the cluster. | `true` |
 | `preset.kserveGateway.enabled` | Deploy a KServe Gateway instance for InferenceService traffic. | `true` |
 | `preset.kserveGateway.name` | Name of the KServe Gateway. | `kserve-ingress-gateway` |
@@ -301,7 +320,7 @@ The gateway presets configure the AI gateway stack that fronts inference traffic
 | `preset.kserveGateway.port` | Port number used by the KServe Gateway. | `80` |
 | `preset.kserveGateway.service_type` | Service type for the KServe Gateway. | `NodePort` |
 
-Verify that the `AmlCluster` reconciles and the `KServe` instance is created by Alauda AI:
+Verify that the `AmlCluster` reconciles and the `KServe` instance is created by Alauda AI Platform:
 
 ```bash
 kubectl get amlcluster default
@@ -313,20 +332,20 @@ The `AmlCluster` should report `Phase=Ready` and `Reason=Reconciled`, and the `K
 
 ### Configure a custom OIDC provider (Optional)
 
-By default, Alauda AI uses ACP Dex as the OIDC provider. In this default
+By default, Alauda AI Platform uses ACP Dex as the OIDC provider. In this default
 setup, no additional `spec.oidc` configuration is required in the
 `AmlCluster` instance.
 
-If you want Alauda AI to use another OIDC provider, register an OAuth2/OIDC
-client in that provider, allow the Alauda AI callback URL, and then update
+If you want Alauda AI Platform to use another OIDC provider, register an OAuth2/OIDC
+client in that provider, allow the Alauda AI Platform callback URL, and then update
 `spec.oidc` in the `AmlCluster` YAML. The callback URL is:
 
 ```text
 https://<platform-address>/clusters/<cluster-name>/aml/oauth2/callback
 ```
 
-Alauda AI reads the OIDC client secret from a Kubernetes Secret in the
-`kubeflow` namespace of the Alauda AI installation cluster. The default
+Alauda AI Platform reads the OIDC client secret from a Kubernetes Secret in the
+`kubeflow` namespace of the Alauda AI Platform installation cluster. The default
 Secret name is `aml-oidc-secret`, and the Secret key must be
 `client-secret`. Update this Secret with the client secret from your OIDC
 provider:
@@ -367,7 +386,7 @@ spec:
 ```
 
 If the provider exposes a standard OIDC discovery document at
-`<issuerURL>/.well-known/openid-configuration`, Alauda AI automatically
+`<issuerURL>/.well-known/openid-configuration`, Alauda AI Platform automatically
 fills `redeemURL`, `jwksURL`, and `profileURL` from discovery when these
 fields are not set. If discovery is unavailable, configure these fields
 explicitly:
@@ -412,7 +431,7 @@ Example Keycloak configuration:
 
 ### Configure the console languages (Optional)
 
-Alauda AI reads the available console languages from
+Alauda AI Platform reads the available console languages from
 `spec.i18n.languages` in the `AmlCluster` instance. The default value is
 `en`.
 
@@ -531,7 +550,7 @@ default   Ready   True    Reconciled
 
 ## Importing Built-in Model Images for Catalog \{#importing-built-in-model-images-for-catalog}
 
-The **Catalog** feature in Alauda AI ships with a set of built-in model OCI images that users can deploy as inference services from the Web Console. These images **must be imported into the OCI registry configured by Model Catalog before the Catalog can serve them**. Without this step, the installation completes successfully, but deploying a built-in model from the Catalog will later fail with `ImagePullBackOff`.
+The **Catalog** feature in Alauda AI Platform ships with a set of built-in model OCI images that users can deploy as inference services from the Web Console. These images **must be imported into the OCI registry configured by Model Catalog before the Catalog can serve them**. Without this step, the installation completes successfully, but deploying a built-in model from the Catalog will later fail with `ImagePullBackOff`.
 
 <Steps>
 
@@ -539,7 +558,7 @@ The **Catalog** feature in Alauda AI ships with a set of built-in model OCI imag
 
 Built-in model images are delivered as OCI archive tarballs (`.tar` files compliant with the OCI Image Layout Specification). Each tarball contains a multi-architecture image (`linux/amd64` + `linux/arm64`) for one model.
 
-Download the tarballs from the Customer Portal Marketplace, or contact your Alauda support representative to obtain the package matching your Alauda AI version.
+Download the tarballs from the Customer Portal Marketplace, or contact your Alauda support representative to obtain the package matching your Alauda AI Platform version.
 
 ### Pushing to Harbor
 
@@ -665,7 +684,7 @@ echo "HTTP=$HTTP  URL=$URL"
 
 </Steps>
 
-Now, the core capabilities of Alauda AI have been successfully deployed. If you want to quickly experience the product, please refer to the [Quick Start](../overview/quick_start.mdx).
+Now, the core capabilities of Alauda AI Platform have been successfully deployed. If you want to quickly experience the product, please refer to the [Quick Start](../overview/quick_start.mdx).
 
 ## FAQ
 
@@ -693,9 +712,11 @@ spec:
 The specific path should be consistent with the collection configuration of `Alauda Container Platform Log Collector`.
 :::
 
-### 2. Set KServe Modelcar UID for vLLM-ascend
+### 2. Set KServe Modelcar UID for root-mode vLLM-ascend
 
-If you plan to use `vLLM-ascend`, set KServe Modelcar UID to `0` (the default is `1000`) in the `default` `AmlCluster`:
+If a validated multi-NPU `vLLM-ascend` deployment cannot initialize with the
+default non-root UID `1000`, set KServe Modelcar UID to `0` in the `default`
+`AmlCluster`:
 
 ```yaml
 spec:
@@ -707,4 +728,7 @@ spec:
             uidModelcar: 0
 ```
 
-This setting is cluster-level and affects all Modelcar workloads in the Alauda AI installation cluster.
+This setting is cluster-level and affects all Modelcar workloads in the Alauda AI Platform installation cluster.
+
+For the complete root-mode procedure and rollback steps, see [Run Multi-NPU
+vLLM Ascend Inference as Root](../deploy/inference_service/guides/vllm_ascend_root_mode.mdx).

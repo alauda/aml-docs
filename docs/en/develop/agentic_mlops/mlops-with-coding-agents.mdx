@@ -10,12 +10,12 @@ i18n:
 
 ## Introduction
 
-Once a coding agent is wired to a self-hosted model on Alauda AI (see [Use Coding Agents with On-Premise Inference Services](./coding-agents-with-inference-service.mdx)), the same agent can drive day-to-day MLOps on the platform. Because both the model and the operations target the same cluster, prompts, manifests, training data references, and benchmark results never leave your environment — which is what makes self-hosted agents attractive for regulated work.
+Once a coding agent is wired to a self-hosted model on Alauda AI Platform (see [Use Coding Agents with On-Premise Inference Services](./coding-agents-with-inference-service.mdx)), the same agent can drive day-to-day MLOps on the platform. Because both the model and the operations target the same cluster, prompts, manifests, training data references, and benchmark results never leave your environment — which is what makes self-hosted agents attractive for regulated work.
 
 This document describes four workflows where a coding agent is most useful:
 
 - Authoring and managing `InferenceService` and `LLMInferenceService` resources.
-- Configuring the inference traffic gateway — authentication and rate limits via [Alauda Build of Envoy AI Gateway](../../deploy/components/envoy_ai_gateway/intro.mdx).
+- Configuring the inference traffic gateway — authentication and rate limits via [Alauda AI Platform Gateway](../../deploy/components/envoy_ai_gateway/intro.mdx).
 - Iteratively tuning an inference service's performance to fit specific hardware.
 - Planning fine-tuning runs and generating structured reports from their results.
 
@@ -56,14 +56,14 @@ For the YAML fields and platform-specific labels/annotations the agent needs to 
 
 ## Manage gateways: authentication and rate limits \{#manage-gateways}
 
-Alauda Build of Envoy AI Gateway is a required dependency of Alauda Build of KServe and fronts inference traffic with an OpenAI-compatible API surface, AI-aware routing, and per-model policies (see [Envoy AI Gateway introduction](../../deploy/components/envoy_ai_gateway/intro.mdx)). Envoy AI Gateway is managed by Alauda AI through the `envoyAIGateway` component in the `default` `AmlCluster`; see [Install Alauda AI](../../installation/ai-cluster.mdx). The agent is well-suited to author its CRDs, which are otherwise verbose:
+Alauda AI Platform Gateway is a required dependency of Alauda AI Platform Inference Management and fronts inference traffic with an OpenAI-compatible API surface, AI-aware routing, and per-model policies (see [Alauda AI Platform Gateway introduction](../../deploy/components/envoy_ai_gateway/intro.mdx)). Alauda AI Platform Gateway is managed by Alauda AI Platform through the `envoyAIGateway` component in the `default` `AmlCluster`; see [Install Alauda AI Platform](../../installation/ai-cluster.mdx). The agent is well-suited to author its CRDs, which are otherwise verbose:
 
 | Concern                                                                     | CRD / Resource                                                                           | Where it comes from              |
 | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------- |
-| Route requests to one or more model backends                                | `AIGatewayRoute`, `AIServiceBackend`                                                     | Envoy AI Gateway                 |
+| Route requests to one or more model backends                                | `AIGatewayRoute`, `AIServiceBackend`                                                     | Agent Router                 |
 | Authenticate the **client** (downstream): API key, JWT, OIDC                | `SecurityPolicy`                                                                         | Envoy Gateway                    |
-| Authenticate to the **upstream** model (when chaining to a hosted provider) | `BackendSecurityPolicy`                                                                  | Envoy AI Gateway                 |
-| Per-route or per-model rate limiting and token-budget enforcement           | `BackendTrafficPolicy` (global rate limit) or `AIGatewayRoute` token-rate-limit settings | Envoy Gateway / Envoy AI Gateway |
+| Authenticate to the **upstream** model (when chaining to a hosted provider) | `BackendSecurityPolicy`                                                                  | Agent Router                 |
+| Per-route or per-model rate limiting and token-budget enforcement           | `BackendTrafficPolicy` (global rate limit) or `AIGatewayRoute` token-rate-limit settings | Envoy Gateway / Agent Router    |
 | TLS termination, observability                                              | Standard `Gateway` / `HTTPRoute` and Envoy Gateway features                              | Envoy Gateway                    |
 
 A practical agent workflow:
@@ -135,7 +135,7 @@ Fine-tuning has two failure modes that coding agents are unusually good at preve
 | Interactive exploration, small dataset, one or two GPUs       | Workbench Notebook                 | [Fine-tuning with Notebooks](../../train/guides/fine-tuning-using-notebooks.mdx)            |
 | Production-grade SFT / OSFT with automatic memory management  | Training Hub                       | [Fine-tuning LLMs with Training Hub](../../train/guides/training-hub-fine-tuning.mdx)       |
 | Reusable templates, many runs, scheduled / batched on Kueue   | Kubeflow Trainer v2 + LlamaFactory | [Fine-Tuning with Kubeflow Trainer v2](../../train/guides/fine-tune-with-trainer-v2.mdx)    |
-| Already-tuned model needs to fit a smaller GPU before serving | LLM Compressor                     | [LLM Compressor with Alauda AI](../../deploy/model_compression/compressor_by_workbench.mdx) |
+| Already-tuned model needs to fit a smaller GPU before serving | LLM Compressor                     | [LLM Compressor with Alauda AI Platform](../../deploy/model_compression/compressor_by_workbench.mdx) |
 
 ### A reusable fine-tuning plan template
 
@@ -273,14 +273,14 @@ Each step is a separate prompt with its own diff to review. The agent is the typ
 - [Configure Scaling for Inference Services](../../deploy/inference_service/guides/autoscale_settings.mdx)
 - [Speculative Decoding for vLLM Inference Services](../../deploy/inference_service/guides/vllm_speculative_decoding.mdx)
 - [Extend Inference Runtimes](../../deploy/inference_service/guides/custom_inference_runtime.mdx)
-- [Envoy AI Gateway — introduction](../../deploy/components/envoy_ai_gateway/intro.mdx)
+- [Alauda AI Platform Gateway — introduction](../../deploy/components/envoy_ai_gateway/intro.mdx)
 - [Hardware Profiles](../../administer/hardware_profile/intro.mdx)
 - [Fine-Tuning with Kubeflow Trainer v2](../../train/guides/fine-tune-with-trainer-v2.mdx)
 - [Fine-tuning LLMs with Training Hub](../../train/guides/training-hub-fine-tuning.mdx)
 - [Fine-tuning with Notebooks](../../train/guides/fine-tuning-using-notebooks.mdx)
-- [LLM Compressor with Alauda AI](../../deploy/model_compression/compressor_by_workbench.mdx)
+- [LLM Compressor with Alauda AI Platform](../../deploy/model_compression/compressor_by_workbench.mdx)
 - [MLflow on Kubeflow](../components/mlflow/intro.mdx)
-- [Envoy AI Gateway upstream documentation](https://aigateway.envoyproxy.io/)
+- [Agent Router upstream documentation](https://theagentrouter.ai/)
 - [Envoy Gateway upstream documentation](https://gateway.envoyproxy.io/)
 - [KServe LLMInferenceService](https://kserve.github.io/website/)
 - [vLLM benchmarking](https://docs.vllm.ai/en/latest/serving/usage_stats.html)

@@ -11,7 +11,7 @@ i18n:
 `qwen3_5`-architecture model — Gated DeltaNet linear-attention hybrid (3:1 linear /
 full attention) with a native MTP speculative head, 27.78B parameters, served as
 **W8A8** (INT8 weights, ~33 GB). Validated on **Ascend 910B4 (32 GB/card)** with the
-vLLM-Ascend **nightly** engine through Alauda AI's InferNex surface. The validated
+vLLM-Ascend **nightly** engine through Alauda AI Platform's InferNex surface. The validated
 8-card topology is **TP=4 × 2 replicas**, deployment spec **`agg-base`**.
 
 ## Model identity
@@ -76,10 +76,10 @@ plus the `LLMInferenceService`, 2 replicas × TP=4):
 
 | Spec | File |
 |---|---|
-| agg-base (load-balancing) | [`qwen3-6-27b-w8a8-agg-base-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets/qwen3-6-27b-w8a8/qwen3-6-27b-w8a8-agg-base-llmisvc.yaml) |
+| agg-base (load-balancing) | [`qwen3-6-27b-w8a8-agg-base-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets/qwen3-6-27b-w8a8/qwen3-6-27b-w8a8-agg-base-llmisvc.yaml) |
 
 ```bash
-base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/assets/qwen3-6-27b-w8a8
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/ascend/assets/qwen3-6-27b-w8a8
 # edit namespace / model.uri registry / image tag first, then:
 kubectl apply -f $base/qwen3-6-27b-w8a8-agg-base-llmisvc.yaml
 ```

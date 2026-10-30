@@ -4,7 +4,7 @@ weight: 40
 
 # Use Reusable Kubeflow Pipeline Components
 
-The next Alauda AI release packages reusable components from the mirrored
+The next Alauda AI Platform release packages reusable components from the mirrored
 `pipelines-components` project for Kubeflow Pipelines 2.16.1. This KFP version will be delivered by
 Alauda `kfp-operator` v26.3.1 and DSPO v2.15.2. Either installation preloads
 two beta AutoGluon pipelines:
@@ -18,6 +18,10 @@ The managed pipelines are the shortest path to a complete training run. You can
 also clone the mirror and import individual components when you need a custom
 pipeline DAG. For document RAG search, compile the AutoRAG pipelines from the
 same mirror; see [Optimize a RAG Application with AutoRAG Pipelines](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/optimize-rag-with-autorag.ipynb).
+For interactive Docling conversion and SDG Hub generation inside a Workbench
+before you compile a pipeline, see [Prepare Fine-Tuning Data with Docling and SDG Hub](../../train/guides/prepare-finetune-data-with-docling-and-sdg.mdx).
+To parse thousands of PDFs with Ray Data on KubeRay, compile the experimental
+`parse_and_chunk` component; see [Run Ray Data Pipelines from pipelines-components](../../train/guides/run-ray-data-pipelines.mdx).
 
 :::note
 The KFP 2.16.1 service and reusable-component images support `linux/amd64` and
@@ -31,7 +35,7 @@ instructions](./kfp-execution-and-storage.mdx#arm64-deployment).
 
 | Requirement | Details |
 |---|---|
-| Kubeflow Pipelines 2.16.1 | Will be included in the next Alauda AI release with either Alauda `kfp-operator` v26.3.1 or DSPO v2.15.2. Install only one pipeline operator on a cluster. |
+| Kubeflow Pipelines 2.16.1 | Will be included in the next Alauda AI Platform release with either Alauda `kfp-operator` v26.3.1 or DSPO v2.15.2. Install only one pipeline operator on a cluster. |
 | Supported architecture | `linux/amd64` or `linux/arm64`. On arm64, follow the operator-specific configuration linked above. |
 | S3-compatible input storage | The data loader reads its input object directly from S3. |
 | S3 credentials Secret | Create it in the namespace where the pipeline run executes. |
@@ -122,7 +126,7 @@ test split and trained models to the artifact store.
 
 The `kfp-components` package is not published to PyPI. Clone the Alauda mirror
 and install it in a Python 3.11 or later virtual environment. Pin the SDK to the
-version shipped by Alauda AI. Replace `<pipelines-components-repo-url>` with the
+version shipped by Alauda AI Platform. Replace `<pipelines-components-repo-url>` with the
 repository address supplied by Alauda for the environment:
 
 ```bash
@@ -195,7 +199,9 @@ compiler.Compiler().compile(
 Upload `custom-tabular-loader.yaml` from the Kubeflow Pipelines UI, or submit
 it with the KFP SDK. Review the component's `README.md`, `metadata.yaml`, and
 tests in the mirror before using another asset; the repository contains alpha
-and beta assets with different external-service requirements.
+and beta assets with different external-service requirements. The Ray Data RAG
+pipeline is experimental and needs KubeRay plus an RWX PDF PVC; compile it as
+in [Run Ray Data Pipelines from pipelines-components](../../train/guides/run-ray-data-pipelines.mdx).
 
 ## Troubleshooting
 

@@ -4,7 +4,7 @@ weight: 10
 
 # Kubeflow Trainer Quick Start
 
-A minimal distributed PyTorch training setup on Alauda AI using Kubeflow Trainer v2: a custom runtime image, a `ClusterTrainingRuntime`, and an MNIST example notebook.
+A minimal distributed PyTorch training setup on Alauda AI Platform using Kubeflow Trainer v2: a custom runtime image, a `ClusterTrainingRuntime`, and an MNIST example notebook.
 
 ## Runtime image
 
@@ -32,7 +32,7 @@ RUN chown $USERNAME:$USER_GID /workspace
 
 ## ClusterTrainingRuntime
 
-Apply this `kf-torch-distributed.yaml` as cluster admin. The pod spec is tightened for Alauda AI's default PSA.
+Apply this `kf-torch-distributed.yaml` as cluster admin. The pod spec is tightened for Alauda AI Platform's default PSA.
 
 ```yaml
 apiVersion: trainer.kubeflow.org/v1alpha1

@@ -11,7 +11,7 @@ i18n:
 `deepseek_v4`-architecture model — a 256-expert MoE with MLA + DSA sparse attention
 and a native MTP speculative head, served as **W4A8** (~151 GB weights, 43 layers).
 Validated on **Ascend 910B4 (32 GB/card)** with the vLLM-Ascend **nightly** engine
-through Alauda AI's InferNex surface. Because the weights need all 8 cards, the
+through Alauda AI Platform's InferNex surface. Because the weights need all 8 cards, the
 topology is **1 instance × TP=8 (+ expert parallel)**, and both benchmark scenarios
 were additionally driven through the **MaaS gateway (API-key) ingress** alongside the
 internal KServe ingress.
@@ -79,10 +79,10 @@ hermes-router preset, 1 replica × TP=8):
 
 | Spec | File |
 |---|---|
-| agg-base, TP=8 | [`deepseek-v4-flash-w4a8-agg-base-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/assets/deepseek-v4-flash-w4a8/deepseek-v4-flash-w4a8-agg-base-llmisvc.yaml) |
+| agg-base, TP=8 | [`deepseek-v4-flash-w4a8-agg-base-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets/deepseek-v4-flash-w4a8/deepseek-v4-flash-w4a8-agg-base-llmisvc.yaml) |
 
 ```bash
-base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/assets/deepseek-v4-flash-w4a8
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/ascend/assets/deepseek-v4-flash-w4a8
 # edit namespace / model.uri registry / image tag first, then:
 kubectl apply -f $base/deepseek-v4-flash-w4a8-agg-base-llmisvc.yaml
 

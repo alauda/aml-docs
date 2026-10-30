@@ -6,6 +6,7 @@
 #   SKIP_NPU=1 ./run_all.sh      # skip cases marked NPU
 #   SKIP_GPU=1 ./run_all.sh      # skip cases marked GPU
 #   SKIP_FEAST=1 ./run_all.sh    # skip the Feast case
+#   SKIP_RAY_DATA=1 ./run_all.sh # skip the Ray Data smoke
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -43,6 +44,10 @@ CASES=(
   # the orchestrator controls A30 capacity. Same build-harbor image as C13.
   "C14:GPU:cases/c14_traininghub_cpt.sh"
   "C16:FEAST:cases/c16_feast_offline_online.sh"
+  # C17 — CPU Ray Data actor-pool smoke from run-ray-data-pipelines.mdx.
+  # Needs the KubeRay RayJob CRD and a cluster-pullable Ray image
+  # (RAY_DATA_IMAGE). SKIPs (rc=77) when either is missing.
+  "C17:RAY_DATA:cases/c17_ray_data_smoke.sh"
 )
 
 want=( "$@" )
@@ -60,6 +65,7 @@ for entry in "${CASES[@]}"; do
   if [ "${cluster}" = "GPU" ] && [ "${SKIP_GPU:-0}" = "1" ]; then skip=$((skip+1)); continue; fi
   if [ "${cluster}" = "NPU" ] && [ "${SKIP_NPU:-0}" = "1" ]; then skip=$((skip+1)); continue; fi
   if [ "${cluster}" = "FEAST" ] && [ "${SKIP_FEAST:-0}" = "1" ]; then skip=$((skip+1)); continue; fi
+  if [ "${cluster}" = "RAY_DATA" ] && [ "${SKIP_RAY_DATA:-0}" = "1" ]; then skip=$((skip+1)); continue; fi
 
   log_file="${LOG_DIR}/${id}.log"
   log "==> ${id} [${cluster}] -> ${log_file}"
