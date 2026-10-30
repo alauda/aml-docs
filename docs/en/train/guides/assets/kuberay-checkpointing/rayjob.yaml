@@ -1,0 +1,94 @@
+# A RayJob that checkpoints to a PVC and resumes from it.
+#
+# Submit this once. If a worker crashes, the RayCluster is deleted, or you
+# apply the same manifest again, the *resume* decision is made by the
+# training script reading storage_path — not by anything in this spec.
+#
+# Keep RAY_TRAIN_RUN_NAME stable across resubmits. Change it (or delete the
+# experiment directory on the PVC) only when you want a fresh run.
+apiVersion: ray.io/v1
+kind: RayJob
+metadata:
+  name: <job-name>
+  namespace: <your-namespace>
+spec:
+  shutdownAfterJobFinishes: true
+  ttlSecondsAfterFinished: 600
+  entrypoint: python /opt/ray/jobs/train_checkpoint.py
+  rayClusterSpec:
+    rayVersion: "2.31.0"
+    headGroupSpec:
+      serviceType: ClusterIP
+      rayStartParams:
+        dashboard-host: "0.0.0.0"
+        num-cpus: "0"
+      template:
+        spec:
+          terminationGracePeriodSeconds: 60
+          securityContext:
+            fsGroup: 1000
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+          volumes:
+            - name: ckpt
+              persistentVolumeClaim:
+                claimName: ray-ckpt
+          containers:
+            - name: ray-head
+              image: <approved-registry>/mlops/ray-checkpoint-training:<tag>
+              env:
+                - name: CKPT_DIR
+                  value: /mnt/ckpt
+                - name: RAY_TRAIN_RUN_NAME
+                  value: <run-name>
+                - name: RAY_TRAIN_WORKERS
+                  value: "2"
+                - name: TRAIN_EPOCHS
+                  value: "8"
+                - name: MAX_FAILURES
+                  value: "3"
+                # Uncomment for the worker-crash resume drill in the guide.
+                # - name: CRASH_AT_EPOCH
+                #   value: "2"
+              volumeMounts:
+                - name: ckpt
+                  mountPath: /mnt/ckpt
+              resources:
+                requests:
+                  cpu: "1"
+                  memory: 2Gi
+                limits:
+                  cpu: "2"
+                  memory: 4Gi
+    workerGroupSpecs:
+      - groupName: workers
+        replicas: 2
+        minReplicas: 2
+        maxReplicas: 2
+        rayStartParams: {}
+        template:
+          spec:
+            terminationGracePeriodSeconds: 60
+            securityContext:
+              fsGroup: 1000
+              runAsUser: 1000
+              runAsGroup: 1000
+              runAsNonRoot: true
+            volumes:
+              - name: ckpt
+                persistentVolumeClaim:
+                  claimName: ray-ckpt
+            containers:
+              - name: ray-worker
+                image: <approved-registry>/mlops/ray-checkpoint-training:<tag>
+                volumeMounts:
+                  - name: ckpt
+                    mountPath: /mnt/ckpt
+                resources:
+                  requests:
+                    cpu: "2"
+                    memory: 4Gi
+                  limits:
+                    cpu: "2"
+                    memory: 4Gi

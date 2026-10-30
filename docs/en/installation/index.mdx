@@ -1,5 +1,10 @@
 ---
-weight: 11
+weight: 30
+i18n:
+  title:
+    en: Install
+    zh: 安装
+title: Install
 ---
 
 # Install
@@ -15,17 +20,17 @@ weight: 11
 - CUDA Toolkit Version: 12.6 or higher.
 
 :::info
-    If your GPU does not support CUDA 12.6, you may still use lower versions of the CUDA Toolkit.However, after deploying Alauda AI, it is necessary to add a custom inference runtime that is adapted for older CUDA versions. This can be done by referring to [Extend LLM Inference Runtimes](../model_inference/inference_service/how_to/custom_inference_runtime.mdx),since the built-in vLLM inference runtime only supports CUDA 12.6 or later versions.
+    If your GPU does not support CUDA 12.6, you may still use lower versions of the CUDA Toolkit.However, after deploying Alauda AI Platform, it is necessary to add a custom inference runtime that is adapted for older CUDA versions. This can be done by referring to [Extend LLM Inference Runtimes](../deploy/inference_service/guides/custom_inference_runtime.mdx),since the built-in vLLM inference runtime only supports CUDA 12.6 or later versions.
 :::
 
 ## Installing
 
-Installing Alauda AI involves the following high-level tasks:
+Installing Alauda AI Platform involves the following high-level tasks:
 
 1. Confirm and configure your cluster to meet all requirements. Refer to [Pre-installation Configuration](./pre-configuration.mdx).
-2. Configure the platform entry, authentication resources, and optional UI branding for Alauda AI. Refer to [Configure Alauda AI Entry and Branding](./ai-essentials.mdx).
-3. Install Alauda AI. Refer to [Install Alauda AI](./ai-cluster.mdx).
+2. Configure the platform entry, authentication resources, and optional UI branding for Alauda AI Platform. Refer to [Configure Alauda AI Platform Entry and Branding](./ai-essentials.mdx).
+3. Install Alauda AI Platform. Refer to [Install Alauda AI Platform](./ai-cluster.mdx).
 
-Then, the core capabilities of Alauda AI have been successfully deployed. If you want to quickly experience the product, please refer to the [Quick Start](../overview/quick_start.mdx).
+Then, the core capabilities of Alauda AI Platform have been successfully deployed. If you want to quickly experience the product, please refer to the [Quick Start](../overview/quick_start.mdx).
 
 <Overview />

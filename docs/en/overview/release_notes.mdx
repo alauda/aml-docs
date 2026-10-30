@@ -1,45 +1,39 @@
+---
+weight: 40
+---
+
 # Release Notes
 
-## AI 2.5.0
+## Alauda AI Platform 2.9.0 (Fast)
 
-### **New and Optimized Features**
+Alauda AI Platform 2.9.0 is a Fast release. These notes summarize the major platform, model-serving, training, and MLOps changes introduced since Alauda AI Platform 2.8.
 
-#### **Alauda AI Platform Control Plane**
+### **Upgrade Support**
 
-**Alauda AI Platform Control Plane** adds unified component management for Alauda AI. Administrators can use the Alauda AI Operator to manage deployment and upgrade workflows for supported components, reducing component maintenance effort. This capability is currently an alpha feature and supports only operator-based components; cluster plugin and Helm chart components are not managed by this capability.
+Alauda AI Platform 2.9.0 Fast does not support upgrades from previous releases, including 2.8. Deploy it as a new installation.
 
-#### **JobSet Operator**
+### **Changes from Alauda AI Platform 2.8**
 
-**JobSet Operator** enables users to run coordinated distributed workloads for AI, machine learning, and HPC scenarios. Users can define a group of related Kubernetes jobs as one JobSet, helping distributed training and batch workloads manage multiple workers, stable networking, and failure recovery as a single workload.
+- **Alauda Build of Llama Stack:** Deprecated and not recommended for use. `AmlCluster` no longer manages this component. Consider [Ogx](https://github.com/ogx-ai/ogx) as an alternative; Llama Stack deployment and usage guides have been removed.
+- **Platform Configuration:** The Admin view adds a Platform Configuration page for editing most supported `AmlCluster` settings through the UI, including component management states and component-specific configuration. Advanced or unsupported fields remain available through the YAML view.
+- **Inference service management:** LLM inference services and regular inference services are listed and managed separately, making their different configuration and lifecycle options explicit.
+- **LLM inference configuration:** LLM inference services support prefill/decode (P/D) disaggregation and configurable parallelism parameters, including tensor, pipeline, data, and expert parallelism when supported by the selected runtime.
+- **Alauda Build of InferNex Bridge:** Added `infernexBridge` component management through the `default` `AmlCluster`.
+- **Alauda AI Platform NPU Serving Runtime:** New component at version `v1.0.0`, managed through `servingRuntimeNPUOperator` in the `default` `AmlCluster`, with the vLLM-Ascend `v0.23.0` image included.
+- **Alauda AI Platform Gateway:** Updated to product version `v1.1.0-1`. Its upstream project is now **Agent Router**, formerly Envoy AI Gateway.
+- **Alauda AI Platform Inference Management:** Updated to product version `v0.20.0-1`, based on KServe.
+- **Alauda AI Platform Serving Runtime:** The Serving Runtime is upgraded to version `v1.2.2`, and its vLLM image is upgraded to `v0.23.0`. The separate llm-d image is no longer used; llm-d reuses the vLLM image.
 
-#### **Llama Stack Milvus Vector Store Integration**
+#### **MaaS usage changes**
 
-**Llama Stack** supports Milvus-backed vector stores for agent and retrieval workflows. Administrators can configure a reachable Milvus endpoint and optional authentication for the Llama Stack server, and users can create vector stores with `provider_id="milvus-remote"` from the client API.
-
-#### **vLLM Expert Parallel Inference**
-
-**vLLM Expert Parallel** support provides a configuration path for serving Mixture-of-Experts models with expert parallelism. Users can enable expert parallel settings in an inference service YAML when using a compatible vLLM runtime and a model that supports this serving pattern.
-
-#### **vLLM Speculative Decoding**
-
-**vLLM Speculative Decoding** provides guidance for enabling speculative decoding on vLLM inference services. Users can configure supported methods such as N-gram or EAGLE-3 in the vLLM startup arguments and validate the effect with representative workloads before using the configuration in production.
-
-#### **Kubeflow and MLflow Storage Configuration**
-
-**Kubeflow Pipelines** and **MLflow** support external storage configuration. Administrators can configure external object storage for pipeline artifacts and external PostgreSQL storage for MLflow metadata.
-
-#### **Alauda Build of Envoy AI Gateway**
-
-**Alauda Build of Envoy AI Gateway** is refactored from a cluster plugin to an operator-managed component so it can be managed by the Alauda AI Operator. The delivered component is updated to v0.4.2, a newer version aligned with the community release, including component bug fixes.
-
-### **Deprecated Features**
-
-None.
-
-### **Fixed Issues**
-
-{/* release-notes-for-bugs?template=fixed&project=AI */}
+- **Published models use `MaaSModelRef` v1alpha2:** one published client model can now have multiple upstreams. An upstream can be an `InferenceService`, `LLMInferenceService`, or external `AIServiceBackend`.
+- **Model publishing is centralized:** administrators create and edit models from **MaaS → Models → Published Models**. Importing an external model service only creates the external backend; it no longer directly publishes separate MaaS models from the service page.
+- **Inference services are upstream candidates:** model owners mark an `InferenceService` or `LLMInferenceService` with `maas.alauda.io/available: "true"` before it can be selected as an upstream.
+- **Client and provider model names are separate:** `clientModelName` is the name applications send in the request `model` field and the name used by subscriptions, authorization, quotas, and usage reporting. An upstream can specify a different `upstreamModelName` for the provider.
+- **Multi-upstream routing:** published models support upstream priority and weight configuration, allowing primary/backup and same-priority traffic distribution scenarios, plus request-level retry and failover settings.
+- **Subscriptions identify models by client model name:** the same client model name cannot be added more than once to a subscription, even when it is backed by different `MaaSModelRef` resources.
+- **Usage reports distinguish model names:** administrator reports and CSV exports can distinguish the client model from the upstream model.
 
 ### **Known Issues**
 
-{/* release-notes-for-bugs?template=unfixed&project=AI */}
+- When VictoriaMetrics is used to collect monitoring data for inference services running in Serverless mode, inference services may not scale down to zero.

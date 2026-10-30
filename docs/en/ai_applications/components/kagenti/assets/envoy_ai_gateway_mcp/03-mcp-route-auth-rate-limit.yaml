@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mcp-client-api-keys
+  namespace: kagenti-mcp-demo
+type: Opaque
+stringData:
+  generic-agent: replace-this-demo-key
+---
+apiVersion: aigateway.envoyproxy.io/v1beta1
+kind: MCPRoute
+metadata:
+  name: kagenti-tools
+  namespace: kagenti-mcp-demo
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: kagenti-mcp
+      sectionName: http
+  path: /mcp
+  backendRefs:
+    - name: weather
+      kind: Service
+      port: 8000
+      path: /mcp
+    - name: reservation
+      kind: Service
+      port: 8000
+      path: /mcp
+  securityPolicy:
+    apiKeyAuth:
+      credentialRefs:
+        - group: ""
+          kind: Secret
+          name: mcp-client-api-keys
+      extractFrom:
+        - params:
+            - api-key
+      forwardClientIDHeader: x-mcp-client-id
+      sanitize: true
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: kagenti-mcp-rate-limit
+  namespace: kagenti-mcp-demo
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: kagenti-mcp
+      sectionName: http
+  rateLimit:
+    local:
+      rules:
+        - clientSelectors:
+            - headers:
+                - name: x-mcp-client-id
+                  type: Distinct
+          limit:
+            requests: 30
+            unit: Minute

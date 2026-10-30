@@ -1,0 +1,251 @@
+---
+weight: 30
+---
+
+# Upload Models Using a Workbench
+
+A Workbench provides a convenient environment for downloading model files,
+copying files from a local computer, and uploading them to model storage. This
+page covers only the Workbench part of the workflow: prepare the model locally,
+then copy it to S3, a PVC, or an OCI registry.
+
+Model Catalog does not require this page: catalog models are already supplied by
+a configured source. Registering an uploaded artifact in Model Registry is a
+separate console operation. After the upload is complete, follow [Register a model and
+version](./model_repository.mdx#register-a-model-and-version) to create a
+registered model version with the resulting Model URI.
+
+## Choose an upload path
+
+| Need                                  | Workbench action                                              | Resulting Model URI                   |
+| ------------------------------------- | ------------------------------------------------------------- | ------------------------------------- |
+| Keep the model on a shared filesystem | Attach a PVC and copy the model into a stable directory       | `pvc://<pvc-name>/<path>`             |
+| Store the model as objects            | Configure S3 access in the Workbench and upload the directory | `s3://<bucket>/<prefix>`              |
+| Distribute the model as an image      | Build and push an OCI model image                             | `oci://<registry>/<repository>:<tag>` |
+
+## Prerequisites
+
+- Access to the Alauda AI Platform dashboard and a target namespace.
+- A running Workbench with enough local or attached PVC storage for the model.
+- A destination in S3 object storage, a PVC, or an OCI registry.
+- Write credentials for the destination storage.
+- For S3, an existing bucket, endpoint, access key, secret key, and optional
+  region. The upload script does not create the bucket.
+- For PVC, a claim that can be mounted by the Workbench and the eventual
+  inference service. The Workbench and inference service can use the PVC in
+  sequence, so `ReadWriteMany` is not required when concurrent mounting is not
+  needed.
+
+For storage backend requirements, see [Model Storage](./model_storage.mdx).
+
+## Create and connect to a Workbench
+
+1. Create a Workbench from **Workbench** in the left navigation. In older
+   installations, the equivalent entry may be under **Advanced > Notebook**.
+2. Attach a PVC when the model is too large for the Workbench's local
+   workspace, or when the files must remain available after the Workbench is
+   restarted.
+3. Wait until the Workbench is **Running**, then select **Connect**.
+4. Open a terminal in JupyterLab or code-server.
+
+## Download or copy the model into the Workbench
+
+Download a model from an approved upstream source, or copy it from your local
+computer into the Workbench. For example, using a Hugging Face mirror:
+
+```bash
+export HF_ENDPOINT=https://hf-mirror.com
+pip install huggingface_hub
+huggingface-cli download \
+  deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B \
+  --local-dir ./DeepSeek-R1-Distill-Qwen-1.5B
+```
+
+Other common sources include:
+
+- [Hugging Face](https://huggingface.co/)
+- [hf-mirror](https://hf-mirror.com)
+- [ModelScope](https://modelscope.cn/)
+
+If the Workbench has no internet access, download the model on a machine that
+can reach the upstream source and upload it through the Workbench file browser:
+
+- In JupyterLab, open **Files**, select **Upload Files**, and choose the model
+  files or archive.
+- In code-server, open **Explorer** and drag the files into the target folder.
+
+Extract an archive in the Workbench terminal when necessary. Before uploading,
+verify that the model directory contains the files required by its serving
+framework, such as configuration, tokenizer, and weight files. Do not include
+credentials or unrelated training data.
+
+## Upload a model from the Workbench to S3
+
+The following procedure uploads a local Workbench directory recursively to an
+S3-compatible bucket. It works for AWS S3, Ceph, MinIO, and other services that
+provide an S3-compatible API.
+
+### 1. Prepare S3 access in the Workbench
+
+Create or obtain an S3 Connection in **User View > Connections** when the
+project uses managed connection settings. Select **S3-compatible object storage**
+and provide the access key, secret key, endpoint, region, and bucket. An S3
+Connection records values such as `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, `AWS_S3_ENDPOINT`, `AWS_DEFAULT_REGION`, and
+`AWS_S3_BUCKET`.
+
+A Connection selected for an inference service does not automatically inject its
+values into an already-running Workbench. The Workbench needs its own access to
+S3. Configure the same values using the method approved by your administrator,
+such as a PodDefault, a mounted Secret, or temporary terminal environment
+variables. The upload commands below use the environment-variable method.
+
+For a temporary terminal session, export the values without putting them in a
+notebook or committing them to a file. Prefer a Secret or PodDefault for
+repeatable workloads, and clear the variables when the upload is complete:
+
+```bash
+export AWS_ACCESS_KEY_ID='<access-key>'
+export AWS_SECRET_ACCESS_KEY='<secret-key>'
+export AWS_S3_ENDPOINT='https://s3.example.com'
+export AWS_DEFAULT_REGION='us-east-1'
+export AWS_S3_BUCKET='models'
+```
+
+For AWS S3, `AWS_S3_ENDPOINT` can be omitted when using the default AWS endpoint.
+For S3-compatible services, set it to the service endpoint. If the endpoint
+uses a self-signed certificate, use the organization's approved certificate
+configuration; do not disable TLS verification in production.
+
+### 2. Install or verify AWS CLI
+
+AWS CLI is the standard command-line client for Amazon S3. It also supports
+S3-compatible object storage such as Ceph, MinIO, and SeaweedFS when you pass
+the storage endpoint. Verify whether it is available in the Workbench terminal:
+
+```bash
+aws --version
+```
+
+If AWS CLI is not available, install the official AWS CLI v2 package in your
+home directory. The following command selects the package for the Workbench
+CPU architecture:
+
+```bash
+mkdir -p "$HOME/bin" "$HOME/.local/aws-cli"
+case "$(uname -m)" in
+  x86_64) AWSCLI_ARCH=x86_64 ;;
+  aarch64|arm64) AWSCLI_ARCH=aarch64 ;;
+  *) echo "Unsupported architecture: $(uname -m)"; exit 1 ;;
+esac
+curl -fL "https://awscli.amazonaws.com/awscli-exe-linux-${AWSCLI_ARCH}.zip" \
+  -o /tmp/awscliv2.zip
+unzip -q /tmp/awscliv2.zip -d /tmp
+/tmp/aws/install -i "$HOME/.local/aws-cli" -b "$HOME/bin"
+export PATH="$HOME/bin:$PATH"
+aws --version
+```
+
+### 3. Upload and verify the model directory
+
+The bucket must already exist. AWS CLI uses `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` from the environment. For
+Amazon S3, leave `AWS_S3_ENDPOINT` empty. For an S3-compatible service, the
+following commands pass `AWS_S3_ENDPOINT` as the endpoint URL:
+
+```bash
+AWS_ARGS=()
+if [ -n "${AWS_S3_ENDPOINT:-}" ]; then
+  AWS_ARGS+=(--endpoint-url "$AWS_S3_ENDPOINT")
+fi
+
+aws "${AWS_ARGS[@]}" s3 cp \
+  "${LOCAL_MODEL_DIR:-./DeepSeek-R1-Distill-Qwen-1.5B}/" \
+  "s3://${AWS_S3_BUCKET}/${S3_PREFIX:-DeepSeek-R1-Distill-Qwen-1.5B}/" \
+  --recursive
+
+aws "${AWS_ARGS[@]}" s3 ls \
+  "s3://${AWS_S3_BUCKET}/${S3_PREFIX:-DeepSeek-R1-Distill-Qwen-1.5B}/" \
+  --recursive
+```
+
+The command preserves the model directory layout below the S3 prefix. For
+example, `./model/config.json` is uploaded as
+`s3://models/qwen/config.json` when `S3_PREFIX=qwen`.
+
+The resulting Model URI is:
+
+```text
+s3://<bucket>/<prefix>
+```
+
+For example, with `AWS_S3_BUCKET=models` and
+`S3_PREFIX=DeepSeek-R1-Distill-Qwen-1.5B`, use:
+
+```text
+s3://models/DeepSeek-R1-Distill-Qwen-1.5B
+```
+
+The `s3://` URI does not include the endpoint. The endpoint and credentials
+are configured separately for the inference service through an S3 Connection,
+or through a ServiceAccount and Secret. See [Using S3 object storage for model
+storage](./model_storage.mdx#using-s3-object-storage).
+
+After uploading, remove temporary credentials from the terminal session when
+possible:
+
+```bash
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_S3_ENDPOINT
+unset AWS_DEFAULT_REGION AWS_S3_BUCKET
+```
+
+## Upload a model to a PVC from the Workbench
+
+1. Create or identify a PVC in the target namespace. The PVC does not need
+   `ReadWriteMany` if it will be used by the Workbench and inference service at
+   different times.
+2. Attach the PVC to the Workbench.
+3. In the Workbench file browser, open the mounted PVC directory.
+4. Create a stable model directory, for example
+   `models/DeepSeek-R1-Distill-Qwen-1.5B`.
+5. Upload the model files from the local computer, or copy the files from the
+   Workbench workspace into that directory.
+6. Confirm that the configuration, tokenizer, and weight files appear in the
+   directory.
+7. Stop the Workbench, or otherwise detach the PVC from it, before starting an
+   inference service that needs exclusive access to the claim. This is suitable
+   for `ReadWriteOnce` PVCs. If the Workbench must remain mounted while the
+   inference service runs, use a storage class and access mode that support
+   concurrent mounting, such as `ReadWriteMany`.
+
+The resulting Model URI is:
+
+```text
+pvc://<pvc-name>/models/DeepSeek-R1-Distill-Qwen-1.5B
+```
+
+See [Uploading model files to a PVC](./model_storage.mdx#uploading-model-files-to-a-pvc).
+
+## Upload a model as an OCI artifact
+
+To use OCI model storage, package the model as an OCI image and push it to an
+OCI-compatible registry such as Harbor. The Workbench must have the approved
+OCI client and registry credentials. Record the image reference after the push,
+for example:
+
+```text
+oci://registry.example.com/models/deepseek-r1:1.0
+```
+
+The inference cluster must be able to pull the image. See [Using KServe
+Modelcar for Model Storage](../inference_service/guides/using_modelcar.mdx) for
+packaging instructions.
+
+## Next step: register the uploaded artifact
+
+After uploading to S3, a PVC, or an OCI registry, record the Model URI and open
+**User View > AI Hub > Model Registry**. Select **Register Model**, choose a
+Model Registry, enter the model name and version, and provide the Model URI.
+This registration step stores model metadata and the artifact reference; it does
+not move or duplicate the model files. Keep the S3 bucket, prefix, and access
+configuration unchanged while the registered version is in use.

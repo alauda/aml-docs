@@ -1,0 +1,95 @@
+---
+weight: 10
+---
+
+# Introduction
+
+Model as a Service (MaaS) provides a managed gateway for serving large language models through an OpenAI-compatible API. It gives platform teams a consistent way to publish models, combine multiple upstreams, grant access, enforce token quotas, and understand usage, while application developers call the models they are subscribed to with API keys.
+
+MaaS is based on **Alauda Build of Envoy Gateway**, **Alauda AI Platform Gateway**, and **Authorino**. Envoy Gateway provides the Kubernetes Gateway API foundation, Agent Router provides model-aware routing and token accounting, and Authorino authenticates requests. Alauda AI Platform installs and manages these components through the `envoyGateway`, `envoyAIGateway`, and `authorino` components of the `default` `AmlCluster`; see [Install Alauda AI Platform](../../installation/ai-cluster.mdx).
+
+## Why use MaaS?
+
+MaaS separates model serving from model consumption:
+
+- Model owners can make an inference service available as a MaaS upstream without exposing its internal route details.
+- Administrators can publish one client-facing model backed by one or more inference services or external providers.
+- Developers use one OpenAI-compatible gateway instead of learning the URL and authentication method of every backend.
+- Platform teams can enforce per-model token quotas and review consumption by user, subscription, model, and token type.
+
+MaaS can expose both platform-hosted inference services and external OpenAI-compatible model providers through the same gateway.
+
+## Request flow
+
+For each request, MaaS performs the following checks:
+
+1. The caller presents a MaaS API key and is authenticated.
+2. The caller has access to the requested client model through an active subscription.
+3. The subscription has remaining token quota for that user and model.
+4. The gateway selects an available configured upstream according to its priority and weight, sends the provider model name when one is configured, and records the actual token usage returned by the model service.
+
+An unauthenticated or unauthorized request returns `401` or `403`. A request that exceeds its subscription quota returns `429`.
+
+Quotas are enforced per user, not per API key. Multiple API keys belonging to the same user share the user's allowance for a subscription and model.
+
+## Main concepts
+
+| Concept | Purpose |
+| --- | --- |
+| **Published model** | The client-facing model exposed by MaaS and referenced by subscriptions. In 2.9, one published model can have multiple upstreams. |
+| **Client model name** | The stable name sent in the request `model` field. It is used for subscriptions, authorization, quotas, and usage reporting. |
+| **Upstream** | An `InferenceService`, `LLMInferenceService`, or external `AIServiceBackend` that serves the published model. |
+| **Provider model name** | The model name sent to a particular upstream. It can differ from the client model name for external providers. |
+| **Subscription** | The access and quota unit. It binds users to published models and defines token limits for each model. |
+| **API key** | A developer credential used to call subscribed models. The plaintext key is shown only once when it is created. |
+| **Usage** | Token and request consumption shown to administrators and to developers for their own API keys. |
+| **Guardrails** | Optional content checks that can be attached to models in a subscription. |
+
+## MaaS model publishing in 2.9
+
+A published model is represented by a `MaaSModelRef` using the `maas.alauda.io/v1alpha2` API. The example below separates the client-facing model from its upstreams. Replace the resource references with existing, compatible services before applying it. The self-hosted service must be marked as available for MaaS, and the external service must already be imported into `aml-maas`.
+
+```yaml
+apiVersion: maas.alauda.io/v1alpha2
+kind: MaaSModelRef
+metadata:
+  name: team-chat
+  namespace: aml-maas
+spec:
+  clientModelName: team-chat
+  backends:
+    - name: primary
+      backendRef:
+        kind: LLMInferenceService
+        name: qwen-primary
+        namespace: inference
+      priority: 0
+      weight: 100
+    - name: fallback
+      backendRef:
+        kind: AIServiceBackend
+        name: external-openai-compatible
+        namespace: aml-maas
+      priority: 1
+      weight: 100
+      upstreamModelName: provider-chat-model
+```
+
+Use the `clientModelName` in application requests. Do not use the Kubernetes resource name unless it is intentionally the same. A lower `priority` is preferred; `weight` distributes traffic among upstreams at the same priority. Configure retry and failover on the published model when needed; these settings apply to the current request and can move a retry to another upstream, but do not permanently change upstream priority or availability. The administrator configures published models from **MaaS → Models → Published Models**. External model services are imported separately and then selected as upstreams; the external service page no longer creates a separate published model for each provider model.
+
+For a self-hosted `InferenceService` or `LLMInferenceService` to be selectable, mark it with `maas.alauda.io/available: "true"`.
+
+## Choose a guide
+
+- [MaaS Administrator Guide](administrator.mdx) — publish and import models, create subscriptions, configure quotas and guardrails, and review reports.
+- [MaaS User Guide](user.mdx) — create an API key, call a subscribed model, and view personal quota and usage.
+- [MaaS Component Scaling](scale.mdx) — scale the Gateway, Authorino, rate limiter, and Guardrail engine and shim.
+- [MaaS FAQ](faq.mdx) — troubleshoot forwarding to external model services on non-default ports.
+
+## Related topics
+
+- [Inference Service](../inference_service/inference_service) — create `InferenceService` or `LLMInferenceService` resources that can be selected as MaaS upstreams.
+- [Authenticating Consumers](../gateway/identity_authentication) — authenticate callers and propagate identity to gateway policies.
+- [Configuring Token Quotas](../gateway/token_rate_limiting) — configure token-based quota enforcement at the inference gateway.
+- [Metering Token Usage](../gateway/usage_metering) — understand how token consumption is reported.
+- [Routing to LLM Providers](../gateway/external_provider_routing) — route external providers through a controlled gateway.

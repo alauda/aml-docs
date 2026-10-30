@@ -1,0 +1,26 @@
+apiVersion: feast.dev/v1
+kind: FeatureStore
+metadata:
+  name: feast-notebook
+  namespace: feast-demo
+spec:
+  feastProject: feast_demo
+  replicas: 1
+  services:
+    onlineStore:
+      persistence:
+        store:
+          type: redis
+          secretRef:
+            name: feast-data-stores
+      server:
+        metrics: true
+    registry:
+      local:
+        persistence:
+          store:
+            type: sql
+            secretRef:
+              name: feast-data-stores
+        server: {}
+    ui: {}

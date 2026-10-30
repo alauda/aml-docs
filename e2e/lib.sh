@@ -18,7 +18,10 @@ case "${E2E_SKIP_RC}" in
   *) [ "${E2E_SKIP_RC}" -ge 0 ] && [ "${E2E_SKIP_RC}" -le 255 ] || E2E_SKIP_RC=77 ;;
 esac
 
-# Required per case: GPU_NAMESPACE or NPU_NAMESPACE.
+# Required per case: GPU_NAMESPACE, NPU_NAMESPACE, FEAST_NAMESPACE, or
+# RAY_DATA_NAMESPACE (C17).
+# Feast C16 also requires FEAST_IMAGE and FEAST_SPARK_IMAGE; its durable-store
+# Secret names default to feast-data-stores and feast-s3-credentials.
 # Optional kube target: GPU_CONTEXT/GPU_KUBECONFIG/NPU_CONTEXT/NPU_KUBECONFIG.
 # Optional Docker Hub mirrors: GPU_DH_MIRROR/NPU_DH_MIRROR.
 # Optional private registry access: E2E_IMAGE_PULL_SECRET.
@@ -31,6 +34,21 @@ NPU_KUBECONFIG="${NPU_KUBECONFIG:-}"
 NPU_NAMESPACE="${NPU_NAMESPACE:-}"
 GPU_DH_MIRROR="${GPU_DH_MIRROR:-}"
 NPU_DH_MIRROR="${NPU_DH_MIRROR:-}"
+FEAST_CONTEXT="${FEAST_CONTEXT:-}"
+FEAST_KUBECONFIG="${FEAST_KUBECONFIG:-}"
+FEAST_NAMESPACE="${FEAST_NAMESPACE:-}"
+FEAST_IMAGE="${FEAST_IMAGE:-}"
+FEAST_SPARK_IMAGE="${FEAST_SPARK_IMAGE:-}"
+FEAST_SPARK_VERSION="${FEAST_SPARK_VERSION:-4.0.1}"
+FEAST_DATA_STORES_SECRET="${FEAST_DATA_STORES_SECRET:-feast-data-stores}"
+FEAST_S3_CREDENTIALS_SECRET="${FEAST_S3_CREDENTIALS_SECRET:-feast-s3-credentials}"
+FEAST_STORAGE_CLASS="${FEAST_STORAGE_CLASS:-}"
+FEAST_KEEP_RESOURCES="${FEAST_KEEP_RESOURCES:-0}"
+RAY_DATA_CONTEXT="${RAY_DATA_CONTEXT:-${GPU_CONTEXT:-}}"
+RAY_DATA_KUBECONFIG="${RAY_DATA_KUBECONFIG:-${GPU_KUBECONFIG:-}}"
+RAY_DATA_NAMESPACE="${RAY_DATA_NAMESPACE:-${GPU_NAMESPACE:-}}"
+RAY_DATA_IMAGE="${RAY_DATA_IMAGE:-}"
+RAY_DATA_KEEP_RESOURCES="${RAY_DATA_KEEP_RESOURCES:-0}"
 
 # Rewrite docker.io references to a mirror that the cluster can actually reach.
 # Args: mirror_host. Reads stdin, writes patched YAML to stdout.
@@ -81,6 +99,8 @@ _kubectl_with_env() {
 
 gpu_kc() { _kubectl_with_env "${GPU_KUBECONFIG}" "${GPU_CONTEXT}" "$@"; }
 npu_kc() { _kubectl_with_env "${NPU_KUBECONFIG}" "${NPU_CONTEXT}" "$@"; }
+feast_kc() { _kubectl_with_env "${FEAST_KUBECONFIG}" "${FEAST_CONTEXT}" "$@"; }
+ray_data_kc() { _kubectl_with_env "${RAY_DATA_KUBECONFIG}" "${RAY_DATA_CONTEXT}" "$@"; }
 
 yaml_scalar_field() {
   local indent="$1" name="$2" value="${3:-}"
@@ -93,6 +113,42 @@ yaml_image_pull_secrets() {
   [ -z "${secret}" ] && return 0
   printf '%*simagePullSecrets:\n' "${indent}" ''
   printf '%*s- name: %s\n' "$((indent + 2))" '' "${secret}"
+}
+
+# Ensure a build-harbor.alauda.cn pull secret exists in the given namespace and
+# echo its name (for use as imagePullSecrets). docker.io is egress-blocked on the
+# GPU cluster nodes, so the traininghub/llamafactory runtimes must be pulled from
+# build-harbor, which is private and needs dockerconfigjson creds.
+#
+# Resolution order (echoes the secret NAME on stdout; diagnostics go to stderr):
+#   1. If a secret named ${HARBOR_PULL_SECRET:-harbor-mlops-regcred} already exists
+#      in the namespace, reuse it (the orchestrator/cluster usually pre-seeds it).
+#   2. Else, if $ACP_HARBOR_USER and $ACP_HARBOR_PASS are set, create it.
+#   3. Else, echo nothing (caller falls through to no pull secret) and warn — the
+#      orchestrator must pre-create it; the Pod will ImagePullBackOff otherwise.
+ensure_pull_secret() {
+  local ns="$1"
+  local name="${HARBOR_PULL_SECRET:-harbor-mlops-regcred}"
+  local server="${HARBOR_SERVER:-build-harbor.alauda.cn}"
+  if gpu_kc -n "${ns}" get secret "${name}" >/dev/null 2>&1; then
+    log "ensure_pull_secret: reusing existing secret ${name} in ns ${ns}" >&2
+    printf '%s' "${name}"
+    return 0
+  fi
+  if [ -n "${ACP_HARBOR_USER:-}" ] && [ -n "${ACP_HARBOR_PASS:-}" ]; then
+    if gpu_kc -n "${ns}" create secret docker-registry "${name}" \
+        --docker-server="${server}" \
+        --docker-username="${ACP_HARBOR_USER}" \
+        --docker-password="${ACP_HARBOR_PASS}" >/dev/null 2>&1; then
+      log "ensure_pull_secret: created ${name} (server=${server}) in ns ${ns}" >&2
+      printf '%s' "${name}"
+      return 0
+    fi
+    log "ensure_pull_secret: failed to create ${name} in ns ${ns}" >&2
+  fi
+  log "ensure_pull_secret: no pull secret available (set E2E_IMAGE_PULL_SECRET or ACP_HARBOR_USER/PASS, or pre-create ${name} for ${server} in ns ${ns})" >&2
+  printf ''
+  return 0
 }
 
 yaml_node_selector() {
@@ -161,14 +217,14 @@ _retry_kubectl_stdin() {
   local kfn="$1" verb="$2"; shift 2
   local data
   data="$(cat)"
-  local attempts=0 max=20 delay=30 rc out
+  local attempts=0 max=20 delay=120 rc out
   while [ "${attempts}" -lt "${max}" ]; do
     if out="$(printf '%s' "${data}" | $kfn "${verb}" -f - "$@" 2>&1)"; then
       printf '%s' "${out}"
       return 0
     fi
     rc=$?
-    if ! echo "${out}" | grep -qE 'failed calling webhook|x509|connection refused|EOF|context deadline exceeded|webhook.* connect: connection refused'; then
+    if ! echo "${out}" | grep -qE 'failed calling webhook|x509|connection refused|EOF|context deadline exceeded|webhook.* connect: connection refused|failed to download openapi|openapi'; then
       printf '%s\n' "${out}" >&2
       return "${rc}"
     fi
@@ -181,7 +237,7 @@ _retry_kubectl_stdin() {
 }
 
 retry_create() { _retry_kubectl_stdin "$1" create "${@:2}"; }
-retry_apply()  { _retry_kubectl_stdin "$1" apply  "${@:2}"; }
+retry_apply()  { _retry_kubectl_stdin "$1" apply "${@:2}"; }
 
 # Locate a TrainJob's pod. Trainer v2 builds a JobSet named after the TrainJob,
 # with one Job per `replicatedJobs[*]` named `${trainjob}-<rjob>-0`. The first

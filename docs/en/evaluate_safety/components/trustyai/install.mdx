@@ -1,0 +1,48 @@
+---
+weight: 20
+---
+
+# Install TrustyAI
+
+In Alauda AI Platform 2.9, **Alauda Build of TrustyAI** is installed and managed by Alauda AI Platform. The `trustyAI` component in the cluster-scoped `default` `AmlCluster` defaults to `Unmanaged`; set it to `Managed`, and you do not need to install the Operator from OperatorHub manually. After the component is reconciled, TrustyAI custom resources can be created to use its capabilities.
+
+## Upload the Operator Package
+
+Download the TrustyAI Operator package, then upload the package following [Upload Packages](../../../installation/package-upload.mdx).
+
+## Enable TrustyAI
+
+In **Administrator** view:
+
+1. Open **Marketplace** > **OperatorHub**.
+2. Select the target cluster and open **Alauda AI Platform**.
+3. Open the **All Instances** tab and edit the `default` `AmlCluster` instance.
+4. Set `spec.components.trustyAI.managementState` to `Managed`.
+5. Save the `AmlCluster` instance and wait for the TrustyAI Operator to become ready.
+
+You can apply the component setting in the `AmlCluster` YAML:
+
+```yaml
+spec:
+  components:
+    trustyAI:
+      managementState: Managed
+```
+
+## Verify the Installation
+
+Check the `AmlCluster` status and the TrustyAI Operator:
+
+```bash
+kubectl get amlcluster default
+
+kubectl get pods -n trustyai-operator-system
+```
+
+The `AmlCluster` should report `Phase=Ready`, and the TrustyAI Operator controller pod should be in `Running` state. The TrustyAI CRDs are registered once the operator is ready.
+
+## Next steps
+
+After the component is enabled, users can use CRDs such as **TrustyAIService**, **LMEvalJob**, **GuardrailsOrchestrator**, and **NemoGuardrails** to deploy inference monitoring (TrustyAI Service), run model evaluation tasks, and manage AI guardrails orchestration (both FMS Guardrails and NeMo Guardrails).
+
+See [Deploy TrustyAI Service](./deploy_tas) and [Bias and Drift Monitoring](../../../monitor/bias_drift), [Evaluate LLM](../../lm_eval), [AI Guardrails for LLM safety](../../ai_guardrails), and [NeMo Guardrails](../../nemo_guardrails) for details.

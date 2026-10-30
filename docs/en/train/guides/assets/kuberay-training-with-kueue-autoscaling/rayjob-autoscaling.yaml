@@ -1,0 +1,47 @@
+apiVersion: ray.io/v1
+kind: RayJob
+metadata:
+  name: <job-name>
+  labels:
+    kueue.x-k8s.io/queue-name: <queue-name>
+  annotations:
+    kueue.x-k8s.io/elastic-job: "true"
+spec:
+  suspend: true
+  shutdownAfterJobFinishes: true
+  ttlSecondsAfterFinished: 600
+  entrypoint: >-
+    python -c "import ray,time; ray.init(); f=ray.remote(num_cpus=1)(lambda seconds: time.sleep(seconds)); refs=[f.remote(90) for _ in range(8)]; print('tasks=',len(refs)); ray.get(refs); print(ray.cluster_resources())"
+  rayClusterSpec:
+    rayVersion: "2.31.0"
+    enableInTreeAutoscaling: true
+    autoscalerOptions:
+      version: v2
+      upscalingMode: Default
+      idleTimeoutSeconds: 60
+    headGroupSpec:
+      rayStartParams:
+        num-cpus: "0"
+      template:
+        spec:
+          containers:
+          - name: ray-head
+            image: <image>
+            resources:
+              requests: {cpu: "1", memory: 2Gi}
+              limits: {cpu: "1", memory: 2Gi}
+    workerGroupSpecs:
+    - groupName: workers
+      replicas: 1
+      minReplicas: 1
+      maxReplicas: 4
+      rayStartParams: {}
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: ray-worker
+            image: <image>
+            resources:
+              requests: {cpu: "2", memory: 4Gi}
+              limits: {cpu: "2", memory: 4Gi}

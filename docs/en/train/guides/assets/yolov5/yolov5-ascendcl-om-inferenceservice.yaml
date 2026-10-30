@@ -1,0 +1,38 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: yolov5-coco128-ascendcl-om
+  namespace: <your-namespace>
+  annotations:
+    aml-model-repo: yolov5-coco128
+    aml-pipeline-tag: object-detection
+    serving.kserve.io/deploymentMode: Standard
+  labels:
+    aml.cpaas.io/runtime-type: ascendcl
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 1
+    serviceAccountName: yolov5-s3
+    model:
+      name: ""
+      modelFormat:
+        name: cann-om
+      protocolVersion: v2
+      runtime: aml-yolov5-ascendcl-om-cann-9
+      # This prefix contains only 1/model.om for the compiled target SKU.
+      storageUri: s3://<bucket>/models/yolov5-coco128/finetune-coco128-v1-ascend910b3-cann9.0.1
+      resources:
+        requests:
+          cpu: "2"
+          memory: 6Gi
+        limits:
+          cpu: "2"
+          memory: 6Gi
+          huawei.com/Ascend910: "1"
+    securityContext:
+      fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+      supplementalGroups:
+        - 1000

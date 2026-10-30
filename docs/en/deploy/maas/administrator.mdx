@@ -1,0 +1,143 @@
+---
+weight: 20
+---
+
+# MaaS Administrator Guide
+
+This guide explains how platform administrators manage Model as a Service (MaaS): import model services, create published models with one or more upstreams, create subscriptions, enforce token quotas, configure optional guardrails, and review usage.
+
+For the product overview, see [Model as a Service (MaaS)](intro.mdx). For the developer workflow, see [MaaS User Guide](user.mdx).
+
+## Make a platform inference service available to MaaS
+
+In Alauda AI Platform 2.9, an inference service is an upstream candidate; it is not itself a published MaaS model. `InferenceService` and `LLMInferenceService` are supported.
+
+1. Open the project or namespace that contains the inference service.
+2. Open the service management page.
+3. Select **Enable for MaaS** from the service actions to set `maas.alauda.io/available: "true"`.
+
+The service then becomes selectable as an upstream from **MaaS → Models → Published Models**. To remove it from future selection, set the availability label to `"false"`. A referenced service cannot be disabled until it is removed from every published model that uses it.
+
+This action does not create or delete a `MaaSModelRef`. Published models, their client names, and their routing configuration are managed centrally from the **Published Models** page.
+
+## Import an external model service
+
+Use an external model service when the model is hosted outside the platform or is not represented by an `InferenceService` or `LLMInferenceService`. The 2.9 console imports OpenAI-compatible endpoints with an optional Bearer API key; this is not a native Azure, Bedrock, or GCP credential configuration workflow.
+
+1. In the **Administrator** view, open **MaaS** → **Models**.
+2. On the **Model Services** tab, click **Import External Model Service**.
+3. Enter a lowercase name for the service.
+4. Enter the provider's OpenAI-compatible endpoint, including its API base path when required. For example, use `https://host/v1` when the provider expects `/v1` requests.
+5. Enter an upstream API key if the provider requires one. Leave it empty for an endpoint that does not require credentials.
+6. Click **Create**.
+
+The API key is stored in a Kubernetes Secret and injected by the gateway when it calls the provider. The consumer's MaaS API key and the provider's upstream key are separate credentials: developers receive only the MaaS key.
+
+## Create a published model
+
+After making a self-hosted service available to MaaS or importing an external service, create the published model centrally. The old service-row **Publish Models** workflow has been removed.
+
+1. Open the **Published Models** tab.
+2. Click **Add Model**.
+3. Enter the client-facing model name.
+4. Select a MaaS-enabled `InferenceService` or `LLMInferenceService`, or an imported `AIServiceBackend`. For an external service, select its provider model name; for self-hosted services, the serving model name is discovered from the service.
+5. Use **Add Upstream** to add other compatible self-hosted or external services when needed.
+6. Configure priority, weight, and retry/failover settings when required.
+7. Save the published model.
+
+One published model can combine multiple providers or self-hosted services. For example, the client can call `team-chat` while a self-hosted Qwen service is the primary upstream and an OpenAI-compatible provider serves `provider-chat-model` as a fallback. Choose upstreams with compatible request and response capabilities. The **Published Models** list shows the client model name, upstream count and readiness, and overall phase.
+
+### Configure upstream priority, weight, and retry
+
+- Use `priority: 0` for the preferred upstream and larger values for fallback tiers.
+- Use `weight` to distribute traffic among upstreams with the same priority. It is a relative value, not an independent percentage.
+- Configure retry triggers and retry limits on the published model when a request should fail over within the same request.
+- Retry does not permanently change an upstream's priority or health state. A streaming response cannot move to another upstream after the response has started.
+- Retrying can cause a provider to process a request more than once; use it only when the request semantics allow it.
+
+## Create a subscription
+
+A subscription is the unit of model access and token quota. A user must be a subscriber of a subscription that contains a model before they can call that model.
+
+1. In the **Administrator** view, open **MaaS** → **Subscriptions**.
+2. Click **Create Subscription**.
+3. Enter a subscription name.
+4. Add one or more subscribers by username.
+5. Add one or more published models. A model is selected by its client-facing model name; the same client model name cannot be added twice to one subscription.
+6. For each model, configure at least one token limit and time window.
+7. Optionally add more quota tiers for the same model.
+8. Click **Save**.
+
+:::info
+Users can see a subscription in **My Subscriptions** only when they are included as subscribers. Add each user's username to **Subscribers** to grant access to that user. To make the subscription available to all authenticated users, add `*` as a subscriber. The `*` value is a wildcard, not a literal username; users still need a valid MaaS API key to call the models.
+:::
+
+For each model, the form accepts a limit in millions of tokens and a window such as **Minute**, **Hour**, or **Day**. For example, you can set `100M` tokens per hour and `1000M` tokens per day. All configured tiers are enforced.
+
+A subscription can contain several models, and each model can have different limits. This lets you provide different access tiers without creating a separate gateway for each model. If one published model has multiple upstreams, priority and weight are configured on the published model, not on the subscription.
+
+The subscription list shows the subscription name, models, subscribers, and current phase. Use the row action menu to view, edit, or delete a subscription.
+
+## Configure guardrails
+
+MaaS can optionally check model requests and responses with configured content guardrails.
+
+### Enable guardrails
+
+1. Open **MaaS** → **Guardrails**.
+2. Click **Edit settings**.
+3. Enable **guardrails**.
+4. Select a failure policy:
+   - **End request on guardrails failure** (`FailClosed`) rejects or ends the request when the guardrails engine cannot complete the check.
+   - **Ignore guardrails on failure** (`FailOpen`) allows the request to continue when the guardrails engine fails.
+5. Save the settings.
+
+Disabling guardrails removes the data-plane integration. Guardrail settings that remain on subscriptions do not take effect while the global feature is disabled.
+
+### Create a guardrail configuration
+
+1. On the **Guardrails** page, click **Create Config**.
+2. Enter a configuration ID using lowercase letters, numbers, and hyphens.
+3. Configure the guardrail models, including model type, model name, and base URL.
+4. Add an optional API key for a guardrail model. Credentials are stored as Kubernetes Secrets and exposed to the guardrails engine through environment variables.
+5. Edit the `config.yaml` content.
+6. Edit the `rails.co` content when your configuration requires Colang flows.
+7. Click **Save**.
+
+A configuration can contain multiple guardrail models, but each model type must be unique within the configuration. The **Guardrails** list shows whether a configuration is attached to a subscription.
+
+### Attach guardrails to a subscription model
+
+When creating or editing a subscription, enable guardrails for a model and select one of the available guardrail configurations. The setting is applied per model, so different models in the same subscription can use different configurations or no guardrails.
+
+## Review usage and reports
+
+### Subscription management usage
+
+The **Subscriptions** page shows the subscriptions and their configured limits. Use the subscription's usage view, where available, to review token consumption for the selected subscription and model.
+
+### Usage report
+
+Open **MaaS** → **Report** to review administrator-level usage:
+
+1. Select a time range: **Last 1 day**, **Last 7 days**, **Last 30 days**, **Last 90 days**, or **Last 1 year**.
+2. Optionally select a subscription.
+3. Search by username.
+4. Click refresh to reload the data.
+
+The report displays:
+
+- Username
+- Subscription
+- Client model
+- Upstream model
+- Total tokens
+- Input tokens
+- Cached tokens
+- Output tokens
+- Reasoning tokens
+
+Click **Export CSV** to export the filtered report. The export dialog lets you group data by subscription, user, API key, client model, upstream model, or legacy model, and group time by day or month.
+
+Usage data is intended for operational visibility, quota observation, and showback. It is not a billing settlement record.
+

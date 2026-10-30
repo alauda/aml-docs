@@ -1,0 +1,191 @@
+# Replace all example values before applying this manifest.
+# Topology: one logical service, two nodes, four GPUs per Pod, TP=4, PP=2.
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceServiceConfig
+metadata:
+  name: kserve-config-llm-worker-pipeline-parallel
+  namespace: your-namespace
+spec: {}
+---
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceService
+metadata:
+  name: vllm-multinode
+  namespace: your-namespace
+spec:
+  model:
+    name: distributed-model
+    uri: pvc://your-model-pvc/path/to/model
+  replicas: 1
+  parallelism:
+    tensor: 4
+    pipeline: 2
+  router:
+    gateway: {}
+    route: {}
+    scheduler: {}
+  template:
+    terminationGracePeriodSeconds: 60
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                leaderworkerset.sigs.k8s.io/name: vllm-multinode-kserve-mn
+            topologyKey: kubernetes.io/hostname
+    containers:
+      - name: main
+        image: your-registry/vllm-openai:your-tag
+        imagePullPolicy: IfNotPresent
+        command:
+          - /bin/bash
+          - -lc
+        args:
+          - |
+            set -euo pipefail
+
+            : "${VLLM_HOST_IP:?VLLM_HOST_IP was not injected}"
+
+            exec vllm serve /mnt/models \
+              --host 0.0.0.0 \
+              --port 8000 \
+              --served-model-name distributed-model \
+              --distributed-executor-backend mp \
+              --tensor-parallel-size 4 \
+              --pipeline-parallel-size 2 \
+              --nnodes 2 \
+              --node-rank 0 \
+              --master-addr "${VLLM_HOST_IP}" \
+              --master-port 29501 \
+              --gpu-memory-utilization 0.90 \
+              --max-model-len 131072 \
+              --disable-uvicorn-access-log
+        env:
+          - name: VLLM_HOST_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          - name: NCCL_DEBUG
+            value: INFO
+          - name: NCCL_ASYNC_ERROR_HANDLING
+            value: "1"
+        ports:
+          - name: http
+            containerPort: 8000
+            protocol: TCP
+          - name: dist-init
+            containerPort: 29501
+            protocol: TCP
+        resources:
+          requests:
+            cpu: "16"
+            memory: 128Gi
+            nvidia.com/gpu: "4"
+          limits:
+            cpu: "16"
+            memory: 128Gi
+            nvidia.com/gpu: "4"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+              - IPC_LOCK
+            drop:
+              - ALL
+          seccompProfile:
+            type: RuntimeDefault
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 360
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 5
+        volumeMounts:
+          - name: dshm
+            mountPath: /dev/shm
+    volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 32Gi
+  worker:
+    terminationGracePeriodSeconds: 60
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                leaderworkerset.sigs.k8s.io/name: vllm-multinode-kserve-mn
+            topologyKey: kubernetes.io/hostname
+    containers:
+      - name: main
+        image: your-registry/vllm-openai:your-tag
+        imagePullPolicy: IfNotPresent
+        command:
+          - /bin/bash
+          - -lc
+        args:
+          - |
+            set -euo pipefail
+
+            : "${LWS_LEADER_ADDRESS:?LWS_LEADER_ADDRESS was not injected}"
+
+            exec vllm serve /mnt/models \
+              --served-model-name distributed-model \
+              --distributed-executor-backend mp \
+              --tensor-parallel-size 4 \
+              --pipeline-parallel-size 2 \
+              --nnodes 2 \
+              --node-rank 1 \
+              --master-addr "${LWS_LEADER_ADDRESS}" \
+              --master-port 29501 \
+              --gpu-memory-utilization 0.90 \
+              --max-model-len 131072 \
+              --disable-uvicorn-access-log \
+              --headless
+        env:
+          - name: NCCL_DEBUG
+            value: INFO
+          - name: NCCL_ASYNC_ERROR_HANDLING
+            value: "1"
+        resources:
+          requests:
+            cpu: "16"
+            memory: 128Gi
+            nvidia.com/gpu: "4"
+          limits:
+            cpu: "16"
+            memory: 128Gi
+            nvidia.com/gpu: "4"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+              - IPC_LOCK
+            drop:
+              - ALL
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+          - name: dshm
+            mountPath: /dev/shm
+    volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 32Gi

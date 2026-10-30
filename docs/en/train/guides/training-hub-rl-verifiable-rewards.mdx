@@ -1,0 +1,163 @@
+---
+weight: 65
+---
+
+# Run RL with verifiable rewards using Training Hub
+
+Reinforcement learning with verifiable rewards (RLVR) trains a language model with a
+reward that can be checked by a program. For example, a math verifier can return `1` when
+the final answer is equivalent to the expected answer and `0` otherwise. Because the
+reward does not require a human label or a learned reward model, it is reproducible and
+easy to validate.
+
+This guide runs Group Relative Policy Optimization (GRPO) through Training Hub's
+`lora_grpo` API. The `verl` backend uses vLLM for rollouts and FSDP for distributed
+training. Set `lora_r=0` when you want full-parameter GRPO; the example uses LoRA so it
+can run with a smaller GPU footprint.
+
+## Requirements
+
+- An Alauda AI Workbench with an NVIDIA GPU. Use multiple GPUs for the `verl` backend.
+- Internet access, or an internal mirror for PyPI and the model repository.
+- A base causal language model that supports the Transformers chat template.
+- Training Hub 0.11 or later. The `verl` backend requires the `grpo-verl` extra.
+
+Install the dependencies in the Workbench terminal:
+
+```bash
+python -m venv /workspace/venv
+source /workspace/venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install "training-hub[grpo-verl]"
+```
+
+The extra installs Training Hub's GRPO dependencies and `verl`. The backend also needs a
+working CUDA, PyTorch, and vLLM environment; use a Workbench image that matches the GPU
+driver and CUDA version.
+
+## Prepare verifiable-reward data
+
+Create a JSONL file with one math problem per line. The `problem` is sent to the model,
+and `answer` is passed to the verifier as ground truth:
+
+```json
+{"problem": "What is 17 * 19?", "answer": "323"}
+{"problem": "Solve 3x + 5 = 20. Give x.", "answer": "5"}
+```
+
+Keep a separate validation file when you evaluate a run, and make sure answers are
+unambiguous. The built-in math reward extracts the final answer (prefer `\\boxed{...}`)
+and uses `math_verify` for semantic comparison, with a normalized-string fallback.
+
+## Start a GRPO run
+
+Save the following as `run_rlvr.py` in the Workbench. Use a small model and a small
+`n_train` value for a smoke test before increasing the dataset and iteration count.
+
+```python
+from training_hub import lora_grpo
+
+result = lora_grpo(
+    model_path="Qwen/Qwen3-4B",
+    data_path="/workspace/data/math_rlvr.jsonl",
+    ckpt_output_dir="/workspace/checkpoints/qwen3-rlvr",
+    backend="verl",
+    reward_type="math",
+    n_train=128,
+    n_val=32,
+    # GRPO settings
+    num_iterations=3,
+    prompt_batch_size=8,
+    group_size=4,
+    max_tokens=256,
+    learning_rate=1e-5,
+    # LoRA settings
+    lora_r=16,
+    lora_alpha=8,
+    # Hardware settings
+    n_gpus=2,
+    gpu_memory_utilization=0.35,
+)
+
+print(result)
+```
+
+Run it after activating the environment:
+
+```bash
+source /workspace/venv/bin/activate
+python run_rlvr.py
+```
+
+`prompt_batch_size * group_size` must be divisible by `n_gpus * 4` with the default
+`verl` agent-worker configuration. If the run reports a divisibility error, increase
+`prompt_batch_size` to the value suggested in the error. The backend writes prepared
+Parquet data under `ckpt_output_dir/verl_data` and checkpoints under
+`ckpt_output_dir/checkpoints`.
+
+## Monitor and validate the result
+
+The training logs include the mean reward and the fraction of rollouts with a full match.
+Check the generated `training_metrics.jsonl` and the checkpoint directory before using a
+checkpoint for inference:
+
+```bash
+jq 'select(.phase == "rollout") | {step, mean_reward, full_match_rate}' \
+  /workspace/checkpoints/qwen3-rlvr/training_metrics.jsonl
+find /workspace/checkpoints/qwen3-rlvr/checkpoints -maxdepth 2 -type f | head
+```
+
+Evaluate on problems that were not used for training. A high training reward can mean
+that the policy memorized the examples or learned to exploit the verifier. Include
+format checks and adversarial cases in the evaluation set, and inspect responses for
+the required final-answer format.
+
+## Use a custom verifier
+
+For domains such as code execution or structured tool calls, provide a Python reward
+function. The function must be importable and use the `verl` reward signature:
+
+```python
+def compute_score(data_source, solution_str, ground_truth, **kwargs):
+    """Return a scalar reward in the range [0, 1]."""
+    expected = str(ground_truth).strip()
+    answer = solution_str.strip().splitlines()[-1].strip()
+    return 1.0 if answer == expected else 0.0
+```
+
+Put the function in a `.py` file and pass it to `lora_grpo`:
+
+```python
+from reward import compute_score
+from training_hub import lora_grpo
+
+lora_grpo(
+    model_path="Qwen/Qwen3-4B",
+    data_path="/workspace/data/tasks.jsonl",
+    ckpt_output_dir="/workspace/checkpoints/custom-rlvr",
+    backend="verl",
+    reward_type="custom",
+    reward_fn=compute_score,
+    data_source="exact-answer",
+    n_gpus=2,
+)
+```
+
+The verifier should be deterministic, bounded, and independent of the model's training
+process. Return partial rewards only when they represent a meaningful, testable property;
+otherwise a binary pass/fail reward is easier to interpret.
+
+## Troubleshooting
+
+- **CUDA or vLLM import errors:** use a Workbench image with a CUDA and PyTorch version
+  supported by the installed `verl` and vLLM packages, then reinstall the extra in the
+  activated environment.
+- **Out-of-memory during rollout:** lower `gpu_memory_utilization`, `max_tokens`, or
+  `group_size`; use `param_offload=True` for the actor when necessary.
+- **No learning signal:** inspect sample responses and the verifier directly. A verifier
+  that always returns `0` or always returns `1` cannot train a useful policy.
+- **Checkpoint resume:** rerun with the same `ckpt_output_dir`; the `verl` backend uses
+  its saved checkpoints to resume automatically.
+
+See [Fine-tuning LLMs with Training Hub](./training-hub-fine-tuning.mdx) for SFT, OSFT,
+QLoRA, and continued pre-training workflows.

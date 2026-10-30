@@ -1,0 +1,37 @@
+# A ResourceClaimTemplate that asks the NVIDIA DRA driver for ONE MIG slice of a
+# GPU. Every Pod that references this template gets its own freshly partitioned
+# MIG device: a hardware-isolated slice with a fixed share of the GPU's compute
+# engines (SMs) and a fixed slice of VRAM. Two Pods that each claim `1g.6gb`
+# cannot touch each other's memory — this is the real "slice of a GPU".
+#
+# Requires:
+#   - the GPU is in MIG mode, and
+#   - the NVIDIA DRA driver (k8s-dra-driver-gpu) is advertising `mig.nvidia.com`
+#     devices in a ResourceSlice on the node (see the guide's Prerequisites).
+#
+# Size the slice by editing the profile in the CEL selector. On an A30 (24 GB):
+#   1g.6gb   -> up to 4 slices per physical GPU   (this file)
+#   2g.12gb  -> up to 2 slices per physical GPU
+#   4g.24gb  -> 1 slice (the whole card exposed as a single MIG device)
+# A100/H100 (80 GB) expose 1g.10gb / 2g.20gb / 3g.40gb / 7g.80gb and friends.
+#
+# The exact attribute key ("profile") and its values come from the driver. Always
+# confirm against your cluster:
+#   kubectl get resourceslices -o yaml | less   # look under spec.devices[].basic.attributes
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: mig-1g-6gb
+  namespace: kubeflow-admin-cpaas-io   # must match the namespace where the Pods run
+spec:
+  spec:
+    devices:
+      requests:
+        - name: gpu-slice
+          exactly:
+            deviceClassName: mig.nvidia.com
+            allocationMode: ExactCount
+            count: 1
+            selectors:
+              - cel:
+                  expression: device.attributes["gpu.nvidia.com"].profile == "1g.6gb"

@@ -1,0 +1,118 @@
+---
+weight: 50
+i18n:
+  title:
+    en: Share Models
+    zh: 模型共享
+---
+
+# Share Models
+
+## Overview
+
+Model sharing is handled through **Model Catalog sources** and **Model Registry
+permissions**.
+
+Use Model Catalog when an administrator wants to make models from an upstream
+source discoverable to users. Use Model Registry when a team needs to share
+registered models, versions, metadata, and artifact locations with other users
+or namespaces.
+
+A shared model still needs a reachable artifact location. The Model Catalog or
+Model Registry stores the model metadata and Model URI; the model bytes remain
+in S3, a PVC, or an OCI registry. Configure the corresponding Connection,
+Secret, or service account so the inference service can access the artifact.
+
+## Share models through Model Catalog
+
+### Configure a catalog source
+
+An administrator can add a source from **Admin View > Settings > Model Catalog
+Sources**:
+
+1. Select **Add Source**.
+2. Enter a source name using lowercase letters, numbers, and underscores.
+3. Select the source type:
+   - **Hugging Face**: enter the required Organization and, if required, an
+     Access Token.
+   - **YAML**: enter the catalog YAML content.
+4. Optionally set Display Name, Allowed Models, Excluded Models, and Enabled.
+5. Select **Add** and wait for the source status to become available.
+
+Allowed and Excluded Models can limit which models are exposed by that source.
+Do not include credentials in YAML content or model metadata. Edit or delete a
+source from its row action menu when the source is no longer needed.
+
+### Browse and use a catalog model
+
+A user can open **User View > AI Hub > Model Catalog**, choose a source, and
+open a model entry. The details page can show the provider, description, model
+card, task type, labels, framework, license, size, and artifact URI.
+
+From the details page, the user can:
+
+- select **Create Inference API** to deploy the catalog artifact directly; or
+- select **Register Model**, choose an available Model Registry, and create a
+  local registered model and version that references the catalog artifact.
+
+Catalog entries themselves are read-only. To edit the local metadata or control
+its lifecycle, register the model and manage the resulting Model Registry
+record.
+
+## Share models through Model Registry
+
+### Grant access to a Model Registry
+
+An administrator can manage registry access from **Admin View > Settings > Model
+Registries**:
+
+1. Find the target registry.
+2. Open its row action menu and select **Manage permissions**.
+3. Add the required users, groups, or namespaces and assign the appropriate
+   permission.
+4. Save the permission changes.
+
+Adding a namespace allows service accounts in that namespace to access the
+registry according to the configured permission. Grant only the access needed
+for the team or workload.
+
+### Manage a registered model
+
+A user with the required registry permission can open **User View > AI Hub > Model
+Registry** and:
+
+1. Select the Model Registry containing the model.
+2. Open the registered model to review its Overview and Versions tabs.
+3. Update labels, descriptions, or custom properties when needed.
+4. Open a version to inspect its Model URI, framework, state, and related
+   inference services.
+5. Select **Create Inference API** or **Deploy** for a LIVE version.
+
+The model and version metadata are maintained by Model Registry. They are
+independent of the catalog source metadata.
+
+### Archive and restore
+
+Archiving removes a model or version from the active view while retaining its
+metadata and artifact reference:
+
+1. Open the model or version action menu and select **Archive**.
+2. Type the exact model or version name in the confirmation field.
+3. Select **Archive**.
+4. Use the archived view and **Restore** action to make it active again.
+
+A model or version that is used by an inference service cannot be archived. Delete
+the related inference service first. Archiving a registered model also archives
+its versions. An archived entry is not available for a new deployment until it
+is restored.
+
+## Recommended sharing patterns
+
+| Requirement                                                                    | Recommended approach                                                          |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Make approved upstream models discoverable                                     | Configure a Model Catalog Source                                              |
+| Deploy a catalog model without managing a local copy                           | Deploy directly from Model Catalog                                            |
+| Track team-owned versions and metadata                                         | Register the model in Model Registry                                          |
+| Share registered models with another namespace                                 | Manage Model Registry permissions and grant namespace access                  |
+| Keep a model available to inference services but hide it from active selection | Archive the model/version only after removing dependent inference services    |
+| Share model files with workloads                                               | Keep the artifact in S3, PVC, or OCI storage and configure access credentials |

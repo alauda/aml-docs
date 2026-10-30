@@ -1,0 +1,202 @@
+---
+weight: 30
+---
+
+# Quickstart
+
+This quickstart creates an `MCPServer` resource and verifies that the operator creates the backing Kubernetes `Deployment` and `Service`.
+
+## Prerequisites
+
+- Alauda Build of MCP Lifecycle Operator is installed. See [Installation](./install).
+- `kubectl` is configured for the target cluster.
+- An MCP server image has been pushed to a registry that the target cluster can pull from.
+
+## Create an MCPServer
+
+Apply an `MCPServer` resource. The current API supports only `ContainerImage` for `spec.source.type`. Replace `<registry>/<project>/<mcp-server-image>:<tag>` with an MCP server image that exposes the MCP HTTP endpoint on the configured port. For example, the upstream MCP Lifecycle Operator sample uses `quay.io/containers/kubernetes_mcp_server:latest`; use that image only when the target cluster can pull from `quay.io`.
+
+```bash
+kubectl apply -f - <<EOF
+apiVersion: mcp.x-k8s.io/v1alpha1
+kind: MCPServer
+metadata:
+  name: kubernetes-mcp-server
+  namespace: default
+spec:
+  source:
+    type: ContainerImage
+    containerImage:
+      ref: <registry>/<project>/<mcp-server-image>:<tag>
+  config:
+    port: 8080
+EOF
+```
+
+The operator creates a `Deployment` and a `Service` named `kubernetes-mcp-server` in the same namespace.
+
+## Verify the MCPServer
+
+Check the `MCPServer` status:
+
+```bash
+kubectl get mcpservers -n default
+kubectl get mcpserver kubernetes-mcp-server -n default -o yaml
+```
+
+Expected output from `kubectl get mcpservers`:
+
+```text
+NAME                    READY   ACCEPTED   IMAGE                                           PORT   ADDRESS                                                        AGE
+kubernetes-mcp-server   True    True       <registry>/<project>/<mcp-server-image>:<tag>    8080   http://kubernetes-mcp-server.default.svc.cluster.local:8080/mcp   1m
+```
+
+The `ADDRESS` column is the cluster-internal MCP endpoint that other workloads can call.
+
+Verify the managed resources:
+
+```bash
+kubectl get deployment kubernetes-mcp-server -n default
+kubectl get service kubernetes-mcp-server -n default
+kubectl get pods -n default -l mcp-server=kubernetes-mcp-server
+```
+
+The Deployment should be available, the Service should exist, and the pods should be `Running`.
+
+## Test the Endpoint
+
+Forward the generated Service:
+
+```bash
+kubectl port-forward service/kubernetes-mcp-server 8080:8080 -n default
+```
+
+In another terminal, test the server:
+
+```bash
+curl http://localhost:8080/healthz
+curl http://localhost:8080/mcp
+```
+
+The exact response depends on the MCP server image. A reachable endpoint confirms that the operator-created Service routes traffic to the MCP server pod.
+
+## Update the Port or Path
+
+The default MCP path is `/mcp`. To set it explicitly or change the port, update `spec.config`:
+
+```bash
+kubectl patch mcpserver kubernetes-mcp-server -n default --type merge -p '{
+  "spec": {
+    "config": {
+      "port": 9090,
+      "path": "/mcp"
+    }
+  }
+}'
+```
+
+After reconciliation, verify the updated address:
+
+```bash
+kubectl get mcpserver kubernetes-mcp-server -n default
+kubectl get service kubernetes-mcp-server -n default
+```
+
+## Common Configuration
+
+Use `spec.config` for container-level settings such as arguments, environment variables, and mounted configuration:
+
+```yaml
+spec:
+  source:
+    type: ContainerImage
+    containerImage:
+      ref: <registry>/<project>/<mcp-server-image>:<tag>
+  config:
+    port: 8080
+    path: /mcp
+    arguments:
+      - --config
+      - /etc/mcp/config.toml
+    env:
+      - name: LOG_LEVEL
+        value: info
+      - name: API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: mcp-server-secret
+            key: api-key
+    storage:
+      - path: /etc/mcp
+        permissions: ReadOnly
+        source:
+          type: ConfigMap
+          configMap:
+            name: mcp-server-config
+```
+
+The referenced ConfigMaps and Secrets must exist in the same namespace as the `MCPServer`.
+
+Use `spec.runtime` to configure the generated Deployment:
+
+```yaml
+spec:
+  runtime:
+    replicas: 2
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+    health:
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+      readinessProbe:
+        httpGet:
+          path: /healthz
+          port: 8080
+```
+
+Use `spec.runtime.security` when the MCP server needs a specific Kubernetes service account or hardened pod settings:
+
+```yaml
+spec:
+  runtime:
+    security:
+      serviceAccountName: mcp-server
+      podSecurityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - ALL
+```
+
+If the MCP server does not keep per-client session state, set `spec.mcp.stateless: true` so the generated Service can load balance freely across replicas:
+
+```yaml
+spec:
+  runtime:
+    replicas: 3
+  mcp:
+    stateless: true
+```
+
+## Clean Up
+
+Delete the `MCPServer` resource:
+
+```bash
+kubectl delete mcpserver kubernetes-mcp-server -n default
+```
+
+The operator removes the managed `Deployment` and `Service`.

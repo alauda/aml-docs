@@ -1,0 +1,46 @@
+# A TrainJob that checkpoints to a PVC and resumes from it.
+#
+# Submit this once. If the trainer crashes, is preempted, or you suspend and
+# resume it, the *same* manifest is what comes back up -- the resume decision
+# is made by the trainer script reading the PVC, not by anything here.
+#
+# To restart the run from scratch instead of resuming, either point CKPT_DIR at
+# a fresh subdirectory or delete the old checkpoint-* dirs from the PVC.
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainJob
+metadata:
+  name: sft-resumable
+  namespace: <your-namespace>
+spec:
+  runtimeRef:
+    apiGroup: trainer.kubeflow.org
+    kind: TrainingRuntime
+    name: checkpoint-runtime
+  suspend: false
+  trainer:
+    numNodes: 1
+    # These override the same keys in the TrainingRuntime -- but ONLY if the
+    # runtime's trainer replicatedJob carries the label
+    # `trainer.kubeflow.org/trainjob-ancestor-step: trainer`. Without it these
+    # are dropped without any error.
+    env:
+      - { name: CKPT_DIR, value: /mnt/ckpt/sft-run-1 }
+      - { name: SAVE_STEPS, value: "50" }
+    resourcesPerNode:
+      limits:
+        nvidia.com/gpu: 1
+  # Attach the checkpoint PVC per-job, without editing the shared runtime.
+  # Note: `env` is NOT allowed here for the trainer/initializer containers --
+  # the validating webhook rejects it. Use spec.trainer.env (above) instead.
+  podTemplateOverrides:
+    - targetJobs:
+        - name: node
+      spec:
+        volumes:
+          - name: ckpt
+            persistentVolumeClaim:
+              claimName: train-ckpt
+        containers:
+          - name: node
+            volumeMounts:
+              - { name: ckpt, mountPath: /mnt/ckpt }

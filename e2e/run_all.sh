@@ -5,6 +5,8 @@
 #   ./run_all.sh C1 C7           # run only the named cases
 #   SKIP_NPU=1 ./run_all.sh      # skip cases marked NPU
 #   SKIP_GPU=1 ./run_all.sh      # skip cases marked GPU
+#   SKIP_FEAST=1 ./run_all.sh    # skip the Feast case
+#   SKIP_RAY_DATA=1 ./run_all.sh # skip the Ray Data smoke
 
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -29,6 +31,23 @@ CASES=(
   # C12 needs Kueue installed; it skips with rc=77 if the kueue.x-k8s.io API
   # group is missing. See preemptible-trainjobs-with-kueue.mdx.
   "C12:GPU:cases/c12_kueue_preemption.sh"
+  # C13 — QLoRA (4-bit NF4 LoRA) via training_hub.lora_sft on the traininghub
+  # runtime. Self-contained synthetic model; SKIPs (rc=77) if no Ampere+ GPU
+  # slice is schedulable or the available GPU is < sm_75 (bitsandbytes 4-bit).
+  # Defaults to the cluster-pullable build-harbor image (docker.io is blocked).
+  "C13:GPU:cases/c13_traininghub_qlora.sh"
+  # C14 — continued pre-training (CPT) via training_hub.sft(is_pretraining=True).
+  # Self-contained (synthetic base model + synthetic raw-text corpus, no fetch).
+  # CPT is full-parameter SDPA — no sm_75 floor, so it runs on any schedulable
+  # GPU slice (Ampere/Hopper/Pascal). SKIPs (rc=77) when the only Ampere GPU
+  # (A30) is reserved by the persistent inference workload and no slice frees up;
+  # the orchestrator controls A30 capacity. Same build-harbor image as C13.
+  "C14:GPU:cases/c14_traininghub_cpt.sh"
+  "C16:FEAST:cases/c16_feast_offline_online.sh"
+  # C17 — CPU Ray Data actor-pool smoke from run-ray-data-pipelines.mdx.
+  # Needs the KubeRay RayJob CRD and a cluster-pullable Ray image
+  # (RAY_DATA_IMAGE). SKIPs (rc=77) when either is missing.
+  "C17:RAY_DATA:cases/c17_ray_data_smoke.sh"
 )
 
 want=( "$@" )
@@ -45,6 +64,8 @@ for entry in "${CASES[@]}"; do
   should_run "${id}" || { skip=$((skip+1)); continue; }
   if [ "${cluster}" = "GPU" ] && [ "${SKIP_GPU:-0}" = "1" ]; then skip=$((skip+1)); continue; fi
   if [ "${cluster}" = "NPU" ] && [ "${SKIP_NPU:-0}" = "1" ]; then skip=$((skip+1)); continue; fi
+  if [ "${cluster}" = "FEAST" ] && [ "${SKIP_FEAST:-0}" = "1" ]; then skip=$((skip+1)); continue; fi
+  if [ "${cluster}" = "RAY_DATA" ] && [ "${SKIP_RAY_DATA:-0}" = "1" ]; then skip=$((skip+1)); continue; fi
 
   log_file="${LOG_DIR}/${id}.log"
   log "==> ${id} [${cluster}] -> ${log_file}"

@@ -1,0 +1,35 @@
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: feast-numpy-runtime
+  namespace: feast-demo
+spec:
+  containers:
+    - name: kserve-container
+      image: FEAST_MODEL_IMAGE_PLACEHOLDER
+      command: [python, /mnt/models/repo/server.py]
+      ports:
+        - containerPort: 8080
+          name: http1
+          protocol: TCP
+      env:
+        - name: MODEL_NAME
+          value: feast-online-model
+      volumeMounts:
+        - name: online-tls
+          mountPath: /tls/online
+          readOnly: true
+        - name: registry-tls
+          mountPath: /tls/registry
+          readOnly: true
+  protocolVersions: [v2]
+  supportedModelFormats:
+    - name: feast-numpy
+      version: "1"
+  volumes:
+    - name: online-tls
+      secret:
+        secretName: feast-feast-notebook-online-tls
+    - name: registry-tls
+      secret:
+        secretName: feast-feast-notebook-registry-tls

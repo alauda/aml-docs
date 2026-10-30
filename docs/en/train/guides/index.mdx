@@ -1,0 +1,64 @@
+---
+weight: 10
+---
+
+# Training Guides
+
+End-to-end recipes for training and fine-tuning models on Alauda AI Platform.
+
+## Pick a path
+
+| When you want… | Use | Guide |
+|---|---|---|
+| Fine-tune or train on GPU and serve a compatible model on Ascend NPU | Cross-accelerator workflow index | [Train on GPU and Run Inference on NPU](./train-on-gpu-infer-on-npu.mdx) |
+| Fine-tune a YOLOv5 object-detection model and deploy it with Triton | Kubeflow Trainer v2 + Triton Inference Server | [Train, Fine-Tune, and Deploy YOLOv5](./yolov5-training-and-triton-deployment.mdx) |
+| Reusable templates, repeatable runs, optional Kueue quotas | Kubeflow Trainer v2 + LlamaFactory | [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx) |
+| Survive crashes, preemption, or a pause without losing hours of training | Checkpoint PVC + `resume_from_checkpoint` + `maxRestarts` | [Checkpointing and Resuming TrainJobs](./checkpointing-and-resuming.mdx) |
+| Survive crashes, preemption, or a resubmit of a KubeRay training job | Checkpoint PVC + Ray Train `storage_path` + `TorchTrainer.restore` | [Checkpointing and Resuming RayJobs](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/kuberay-checkpointing-and-resuming.ipynb) |
+| Mix training with online inference, yield GPU back on demand | Kueue cohort + preemption + checkpoint resume | [Preemptible TrainJobs with Kueue](./preemptible-trainjobs-with-kueue.mdx) |
+| Run a fine-tune on a *slice* of a GPU instead of a whole card | Dynamic Resource Allocation (DRA) MIG slice + Trainer v2 | [GPU Slicing with Dynamic Resource Allocation (DRA)](./gpu-slicing-with-dra.mdx) |
+| A curated set of `TrainingRuntime` images (CUDA / CANN) | Trainer v2 runtime catalog | [Training Runtime Images](./training-runtimes.mdx) |
+| One-shot quick start of distributed PyTorch on Trainer v2 | `ClusterTrainingRuntime` + MNIST | [Kubeflow Trainer Quick Start](./kubeflow-trainer-quick-start.md) |
+| Run a two-node PyTorch DDP job directly with Kubernetes JobSet | Indexed Job + stable pod DNS + `torchrun` | [Run Distributed PyTorch Training with JobSet](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/run-distributed-training-with-jobset.ipynb) |
+| Run an OpenMPI workload on Trainer v2 | MPI-enabled `TrainingRuntime` + `TrainJob` | [Run MPI Training with Kubeflow Trainer v2](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/run-mpi-training-with-trainer-v2.ipynb) |
+| Production SFT / OSFT with automatic memory management | `training_hub` | [Fine-tuning LLMs with Training Hub](./training-hub-fine-tuning.mdx) |
+| Reinforcement learning from programmatically verifiable rewards | Training Hub `lora_grpo` + `verl` | [Run RL with verifiable rewards using Training Hub](./training-hub-rl-verifiable-rewards.mdx) |
+| Interactive exploration, custom scripts, VolcanoJob submission | Workbench Notebook | [Fine-tuning LLMs using Workbench](./fine-tuning-using-notebooks.mdx) |
+| Turn PDFs into SFT JSONL from a Workbench | Docling + SDG Hub + OpenAI-compatible teacher | [Prepare Fine-Tuning Data with Docling and SDG Hub](./prepare-finetune-data-with-docling-and-sdg.mdx) |
+| Full-parameter SFT / pretraining on Ascend NPU | Workbench `PyTorch CANN` / `MindSpore CANN` | [Fine-tune and Pretrain on Ascend NPU](./fine-tune-and-pretrain-llms-on-ascend-npu.mdx) |
+| Track a KFP run's parameters and metrics in MLflow | KFP component + MLflow SDK | [Kubeflow Pipeline + MLflow Integration](../../develop/experiment_tracking/pipelines-mlflow-integration.mdx) |
+| Build features offline, materialize them online, and serve a model with Feast | Feast Operator + KServe | [Feast Offline-to-Online Inference](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/feast-offline-to-online-inference.ipynb) |
+| Run Feast's Ray offline store on a KubeRay cluster | Feast Ray offline store + KubeRay Operator | [Feast with Ray Offline Store](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/feast-with-ray-offline-store.ipynb) |
+| Run a distributed training job on KubeRay and compare runs in MLflow | KubeRay RayJob + Ray Train + MLflow | [Train on KubeRay and Track Experiments with MLflow](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/kuberay-training-with-mlflow.ipynb) |
+| Submit KubeRay training jobs through Kueue and scale workers on demand | Kueue admission + Ray Autoscaler v2 | [KubeRay Training with Kueue and Autoscaling](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/kuberay-training-with-kueue-autoscaling.ipynb) |
+| Train tabular or time-series models with reusable AutoGluon assets | Managed KFP pipelines or composable components | [Use Reusable Kubeflow Pipeline Components](../../develop/pipelines/reusable-pipeline-components.mdx) |
+| Use KFP caching, parallel loops, and persistent typed artifacts | KFP 2.16.1 execution mechanisms | [Kubeflow Pipelines Execution and Storage Behavior](../../develop/pipelines/kfp-execution-and-storage.mdx) |
+| Daily fine-tune → evaluate → compare loop with MLflow + TrustyAI | KFP Recurring Run + MLflow Model Registry + `LMEvalJob` | [Daily Fine-Tuning Pipeline with MLflow and TrustyAI](./fine-tuning-pipeline-with-mlflow-trustyai.mdx) |
+| Parse thousands of PDFs with Ray Data and optional Milvus ingest | KFP `parse_and_chunk` RayJob from `pipelines-components` | [Run Ray Data Pipelines from pipelines-components](./run-ray-data-pipelines.mdx) |
+| Search RAG chunking, embeddings, and retrieval settings for a document corpus | KFP AutoRAG pipelines + OGX (Llama Stack) | [Optimize a RAG Application with AutoRAG Pipelines](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/optimize-rag-with-autorag.ipynb) |
+
+:::note
+Several training notebooks load source code and manifests from their adjacent `assets/` directories. Clone each notebook and its assets together instead of downloading the `.ipynb` alone:
+
+```bash
+git clone --depth 1 --filter=blob:none --sparse https://github.com/alauda/aml-docs.git
+git -C aml-docs sparse-checkout set --no-cone \
+  /docs/en/train/guides/feast-offline-to-online-inference.ipynb \
+  /docs/en/train/guides/assets/feast-offline-to-online-inference/ \
+  /docs/en/train/guides/feast-with-ray-offline-store.ipynb \
+  /docs/en/train/guides/assets/feast-with-ray-offline-store/ \
+  /docs/en/train/guides/kuberay-training-with-mlflow.ipynb \
+  /docs/en/train/guides/assets/kuberay-training-with-mlflow/ \
+  /docs/en/train/guides/kuberay-checkpointing-and-resuming.ipynb \
+  /docs/en/train/guides/assets/kuberay-checkpointing/ \
+  /docs/en/train/guides/prepare-finetune-data-with-docling-and-sdg.ipynb \
+  /docs/en/train/guides/assets/docling-sdg/ \
+  /docs/en/train/guides/run-ray-data-pipelines.ipynb \
+  /docs/en/train/guides/assets/ray-data-pipelines/ \
+  /docs/en/train/guides/run-distributed-training-with-jobset.ipynb \
+  /docs/en/train/guides/assets/jobset-pytorch-ddp/ \
+  /docs/en/train/guides/run-mpi-training-with-trainer-v2.ipynb \
+  /docs/en/train/guides/assets/mpi-trainer-v2/
+cd aml-docs/docs/en/train/guides
+```
+:::

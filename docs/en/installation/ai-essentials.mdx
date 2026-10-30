@@ -1,10 +1,10 @@
 ---
-weight: 20
+weight: 50
 ---
 
-# Configure Alauda AI Entry and Branding
+# Configure Alauda AI Platform Entry and Branding
 
-Starting from Alauda AI 2.6, Alauda AI is deployed as a single-cluster application. The global resources (OIDC client and product entry) are no longer delivered as a cluster plugin. Instead, they are configured using the `global-install.sh` script.
+Starting from Alauda AI 2.6, Alauda AI Platform is deployed as a single-cluster application. The global resources (OIDC client and product entry) are no longer delivered as a cluster plugin. Instead, they are configured using the `global-install.sh` script.
 
 :::warning
 If the **Alauda AI Essentials** cluster plugin was installed in a previous version, it must be uninstalled after upgrading to Alauda AI 2.6 or later. In the **Administrator** view, navigate to **Marketplace / Cluster Plugin**, select the **global** cluster, locate **Alauda AI Essentials**, and click **Uninstall**.
@@ -12,9 +12,9 @@ If the **Alauda AI Essentials** cluster plugin was installed in a previous versi
 
 The script creates the following resources on the global cluster:
 
-- **OAuth2Client**: Enables SSO authentication for Alauda AI via the platform Dex identity provider.
+- **OAuth2Client**: Enables SSO authentication for Alauda AI Platform via the platform Dex identity provider.
 - **Secret**: Stores the OIDC client credentials.
-- **ProductEntry**: Registers Alauda AI as a product entry in the platform console, so it appears in the left navigation menu.
+- **ProductEntry**: Registers Alauda AI Platform as a product entry in the platform console, so it appears in the left navigation menu.
 
 ## Prerequisites
 
@@ -41,7 +41,7 @@ bash global-install.sh \
 
 <Callouts>
 
-1. `<cluster-name>` is the name of the cluster where Alauda AI is (or will be) installed.
+1. `<cluster-name>` is the name of the cluster where Alauda AI Platform is (or will be) installed.
 
 </Callouts>
 
@@ -51,13 +51,13 @@ The script reads the platform URLs and version from `productbase.product.alauda.
 
 **OIDC configuration**: The OIDC client credentials must match between the `OAuth2Client` resource on the global cluster and the `AmlCluster` in the target cluster. The `OAuth2Client` is named `aml` under the `cpaas-system` namespace. Its `secret` (or `secretRef`) must be consistent with `data.client-secret` in the Secret referenced by `AmlCluster` `spec.oidc.clientSecretName` (under the `kubeflow` namespace). If customization is needed, update both sides. Once the `OAuth2Client` exists, the script skips it—subsequent changes should be made directly to the resource.
 
-**Multiple Alauda AI installations**: The ProductEntry resource is named `aml-<cluster-name>`. If multiple Alauda AI instances are deployed across different clusters, each will have a separate ProductEntry with the same display name "Alauda AI". To distinguish them in the platform console navigation menu, edit the `spec.displayName` field of the corresponding ProductEntry. For example:
+**Multiple Alauda AI Platform installations**: The ProductEntry resource is named `aml-<cluster-name>`. If multiple Alauda AI Platform instances are deployed across different clusters, each will have a separate ProductEntry with the same display name "Alauda AI Platform". To distinguish them in the platform console navigation menu, edit the `spec.displayName` field of the corresponding ProductEntry. For example:
 
 ```bash
 kubectl patch productentry aml-<cluster-name> --type=merge -p '{"spec":{"displayName":{"en":"Alauda AI (Prod)","zh":"Alauda AI (Prod)"}}}'
 ```
 
-**In-product branding**: This setting is applied on the cluster where Alauda AI is installed, not on the global cluster used by the resources above. Before running the command, switch your `kubectl` context to the Alauda AI installation cluster. To customize the product name, logo, and browser favicon displayed inside Alauda AI, update the `ui-config` `ConfigMap` in the `kubeflow` namespace. Set `data.override` to `"true"`, and then configure `data.productName`, `data.logo`, and `data.favicon`. The `logo` and `favicon` values must be complete data URI values, such as `data:image/svg+xml;base64,<base64-encoded-svg>` or `data:image/png;base64,<base64-encoded-png>`.
+**In-product branding**: This setting is applied on the cluster where Alauda AI Platform is installed, not on the global cluster used by the resources above. Before running the command, switch your `kubectl` context to the Alauda AI Platform installation cluster. To customize the product name, logo, and browser favicon displayed inside Alauda AI Platform, update the `ui-config` `ConfigMap` in the `kubeflow` namespace. Set `data.override` to `"true"`, and then configure `data.productName`, `data.logo`, and `data.favicon`. The `logo` and `favicon` values must be complete data URI values, such as `data:image/svg+xml;base64,<base64-encoded-svg>` or `data:image/png;base64,<base64-encoded-png>`.
 
 ```bash
 kubectl patch configmap ui-config -n kubeflow --type=merge -p '{
@@ -82,6 +82,6 @@ kubectl get oauth2client -n cpaas-system
 kubectl get productentry
 ```
 
-The **Alauda AI** entry should appear in the platform console left navigation menu after a short delay.
+The **Alauda AI Platform** entry should appear in the platform console left navigation menu after a short delay.
 
 </Steps>

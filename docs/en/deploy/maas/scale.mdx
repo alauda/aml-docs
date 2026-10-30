@@ -1,0 +1,101 @@
+---
+weight: 40
+---
+
+# MaaS Component Scaling
+
+This guide explains how to scale the components that make up Model as a Service (MaaS): the Gateway, Authorino, the rate limiter, and the Guardrail engine and shim. The guidance is based on long-stream SSE load tests and on observed behavior of the component data plane.
+
+## Gateway
+
+The Gateway is a CPU-bound data-plane component. Its CPU utilization can legitimately stay high: in the SSE load tests, high CPU utilization did not by itself cause request failures as long as the replica count and resources were adequate. Expect and tolerate high CPU usage and configure alerting so it does not report false positives.
+
+When the Gateway is heavily loaded, expand by increasing the replica count or CPU. A reasonable starting alerting point is high sustained CPU utilization combined with degraded SSE behavior, so combine CPU with these signals before deciding to scale:
+
+- HTTP errors and non-`200` responses;
+- SSE streams that do not end with `[DONE]`;
+- TTFT and total stream duration increasing;
+- CPU throttling and pod restarts.
+
+## Authorino
+
+Authorino is latency-sensitive. Its bottleneck is not whether CPU utilization reaches 100%, but whether an `ext_authz` check completes within the timeout. When Authorino queues requests or processes them too slowly, Envoy can return `403` for `ext_authz` timeouts even though the Authorino pod still has CPU headroom. A typical Envoy response flag for this case is `UAEX`.
+
+Do not size Authorino by CPU alone. Monitor authorization latency, request queuing, and `ext_authz` timeouts, and scale out by increasing the replica count when latency or timeout rates rise.
+
+## Rate limiter
+
+The rate limiter enforces per-subscription token quotas. Size its replicas and resources against the actual request rate and the rate-limiting policies in use, and verify under your expected traffic profile.
+
+## Guardrail engine and shim
+
+The Guardrail engine is implemented in Python. A single engine instance does not use multiple CPU cores well: in the SSE load tests, an engine pod allocated 1 CPU was not saturated, and giving a single instance more cores did not improve concurrent throughput. The proven way to scale the Guardrail engine is to increase the number of engine replicas, keeping each engine pod at 1 CPU.
+
+Scale the Guardrail `ext_proc` shim based on `ext_proc` call latency, error rate, and concurrency.
+
+## Where to configure replicas and resources
+
+Most MaaS components are configured on the MaaS `Tenant`:
+
+- Gateway: `spec.gatewayDeployment`
+- Authorino: `spec.authorinoDeployment`
+- Guardrail engine and shim: `spec.guardrails.engine` and `spec.guardrails.shim`
+
+The global rate limiter (`envoy-ratelimit`) is the exception. It is configured on the `AmlCluster` that installs MaaS, under `spec.values.maas.gateway.rateLimit`.
+
+The `engine.replicas` and `shim.replicas` fields control the Guardrail engine and shim replica counts. For the Guardrail engine, keep each pod at 1 CPU and scale by increasing `engine.replicas`.
+
+Example `Tenant`:
+
+```yaml
+apiVersion: maas.alauda.io/v1alpha1
+kind: Tenant
+metadata:
+  name: default-tenant
+  namespace: aml-maas
+spec:
+  gatewayDeployment:
+    replicas: 2
+    resources:
+      requests: {cpu: "1", memory: 512Mi}
+      limits: {cpu: "1", memory: 512Mi}
+  authorinoDeployment:
+    replicas: 2
+    resources:
+      requests: {cpu: "0.5", memory: 256Mi}
+      limits: {cpu: "0.5", memory: 256Mi}
+  guardrails:
+    enabled: true
+    engine:
+      replicas: 3
+      resources:
+        requests: {cpu: "1", memory: 1Gi}
+        limits: {cpu: "1", memory: 1Gi}
+    shim:
+      replicas: 2
+      resources:
+        requests: {cpu: "0.5", memory: 256Mi}
+        limits: {cpu: "0.5", memory: 256Mi}
+```
+
+Example `AmlCluster` rate-limit configuration:
+
+```yaml
+apiVersion: amlclusters.aml.dev/v1alpha3
+kind: AmlCluster
+metadata:
+  name: default
+spec:
+  values:
+    maas:
+      gateway:
+        rateLimit:
+          replicas: 2
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+```

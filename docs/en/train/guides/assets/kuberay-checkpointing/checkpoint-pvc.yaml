@@ -1,0 +1,26 @@
+# Durable checkpoint storage for a KubeRay RayJob.
+#
+# Access mode:
+#   1 Ray pod (head-only, no workers) -> ReadWriteOnce is enough. A
+#     network-attached RWO volume (Ceph RBD, EBS, ...) detaches from the
+#     old node and re-attaches wherever the restarted pod lands.
+#   head + workers, or num_workers > 1 -> ReadWriteMany is required.
+#     Ray Train expects every worker to write to the same storage_path.
+#     Use CephFS / NFS / any RWX class.
+#
+# Do NOT use a hostPath, emptyDir, or a local-storage class: a pod that
+# restarts onto another node will silently start from scratch.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ray-ckpt
+  namespace: <your-namespace>
+spec:
+  # Edit to your cluster's RWX class. `kubectl get storageclass` to list them.
+  storageClassName: cephfs
+  accessModes: ["ReadWriteMany"]
+  resources:
+    requests:
+      # Size for: (checkpoint size x num_to_keep) + Ray experiment metadata.
+      # A full-weight 7B checkpoint with optimizer state is ~80Gi *each*.
+      storage: 20Gi

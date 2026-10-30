@@ -1,9 +1,9 @@
 ---
 title: Architecture
-weight: 10
+weight: 20
 ---
 
-The diagram below illustrates the architecture of the Alauda AI platform.
+The diagram below illustrates the architecture of the Alauda AI Platform.
 
 ![architecture](./assets/architecture.png)
 
@@ -29,9 +29,9 @@ The diagram below illustrates the architecture of the Alauda AI platform.
 
 | Component | Description | Type | License |
 | --- | --- | --- | --- |
-| Model Catalog (Alauda AI/Alauda AI Essentials) | Centralized repository for managing AI models and their metadata | Proprietary | Commercial |
+| Model Catalog (Alauda AI Platform/Alauda AI Essentials) | Centralized repository for managing AI models and their metadata | Proprietary | Commercial |
 | Model Registry (Alauda support for Kubeflow Model Registry) | Keep track of AI model versions and metadata for each namespace | Open source | Apache Version 2.0 |
-| Datasets (Alauda AI/Alauda AI Essentials) | Centralized repository for managing datasets and their metadata | Proprietary | Commercial |
+| Datasets (Alauda AI Platform/Alauda AI Essentials) | Centralized repository for managing datasets and their metadata | Proprietary | Commercial |
 | Labeling (Alauda support for Label Studio) | Data labeling tool for creating labeled datasets | Open source | Apache Version 2.0 |
 | Feature Store (Alauda support for FeatureForm) | Centralized repository for managing and serving machine learning features | Open source | Mozilla Public License (MPL) |
 | Workbench (Alauda AI Workbench) | Web-based interface for managing AI projects, including model training and inference | Proprietary | Commercial |
@@ -46,15 +46,15 @@ The diagram below illustrates the architecture of the Alauda AI platform.
 
 | Component | Description | Type | License |
 | --- | --- | --- | --- |
-| Kserve (Alauda AI/Alauda Build of KServe) | Kubernetes-native model serving framework | Open source | Apache Version 2.0 |
-| vLLM (Alauda AI/Alauda Build of KServe) | High-performance model inference engine for large language models | Open source | Apache Version 2.0 |
-| llm-d (Alauda Build of KServe) | Distributed inference engine for large language models | Open source | Apache Version 2.0 |
-| Model as a Service (Alauda build of Envoy AI Gateway) | API gateway for serving AI models as a service | Open source | Apache Version 2.0 |
+| KServe (Alauda AI Platform Inference Management) | Kubernetes-native model serving framework | Open source | Apache Version 2.0 |
+| vLLM (Alauda AI Platform Inference Management) | High-performance model inference engine for large language models | Open source | Apache Version 2.0 |
+| llm-d (Alauda AI Platform Inference Management) | Distributed inference engine for large language models | Open source | Apache Version 2.0 |
+| Model as a Service (Alauda AI Platform Gateway) | API gateway for serving AI models as a service | Open source | Apache Version 2.0 |
 | Fine-tuning | Tools integrated with the workbench for fine-tuning large language models, e.g. transformers, accelerate, llama-factory etc. | Open source | - |
 | Training (Alauda support for Kubeflow Trainer v2) | Kubernetes-native training job management | Open source | Apache Version 2.0 |
 | Model Quantization | Tools integrated with the workbench for model quantization, e.g. llm-compressor etc. | Open source | - |
 | Evaluation | Tools integrated with the workbench for evaluating model performance, e.g. lm-evaluation-harness etc. | Open source | - |
-| Llama Stack (Alauda build of Llama Stack) | Framework for building applications with large language models | Open source | MIT |
+| Alauda Build of Llama Stack (deprecated) | Not recommended for use; no longer managed by AmlCluster in 2.9. Consider [Ogx](https://github.com/ogx-ai/ogx) as an alternative. | Open source | MIT |
 | Langchain | Tools integrated with the workbench for building LLM applications using Langchain | Open source | MIT |
 | Dify (Alauda support for Dify) | Platform for building AI assistants and chatbots | Open source | Apache Version 2.0 (modified) |
 | MCP Servers | Can integrate with various MCP servers | - | - |

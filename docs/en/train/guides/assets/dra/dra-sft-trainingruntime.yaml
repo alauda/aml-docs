@@ -1,0 +1,118 @@
+# Kubeflow Trainer v2 TrainingRuntime that runs a LoRA supervised-fine-tune INSIDE
+# a DRA GPU slice. The only difference from an ordinary GPU runtime is how the GPU
+# is requested:
+#
+#   * the Pod declares `spec.resourceClaims`, pointing at the ResourceClaimTemplate
+#     (mig-1g-6gb) instead of asking for a whole-GPU device-plugin resource;
+#   * the trainer container binds to it with `resources.claims` and carries NO
+#     `nvidia.com/gpu` / `nvidia.com/gpualloc` limit at all.
+#
+# The training script is self-contained: it builds a small causal-LM, wraps it in a
+# LoRA adapter, and trains on a synthetic dataset. Nothing is downloaded, so the
+# run works on air-gapped GPU nodes and finishes in ~1 minute — enough to prove the
+# slice is real, isolated, and trainable. Swap in a real base model + dataset (see
+# the guide) to turn this into a production fine-tune; the DRA plumbing is unchanged.
+apiVersion: trainer.kubeflow.org/v1alpha1
+kind: TrainingRuntime
+metadata:
+  name: dra-mig-sft
+  namespace: kubeflow-admin-cpaas-io
+  labels:
+    trainer.kubeflow.org/framework: torch
+    alauda.io/training-runtime: dra-mig-sft
+spec:
+  mlPolicy:
+    numNodes: 1
+    torch:
+      numProcPerNode: 1            # one MIG slice == one trainer process (int, not "1")
+  template:
+    spec:
+      replicatedJobs:
+        - name: node
+          template:
+            metadata:
+              labels:
+                trainer.kubeflow.org/trainjob-ancestor-step: trainer
+            spec:
+              backoffLimit: 0
+              template:
+                spec:
+                  securityContext:
+                    runAsNonRoot: true
+                    runAsUser: 1000
+                    runAsGroup: 1000
+                    fsGroup: 1000
+                  # (1) Pod-level: bind a per-Pod ResourceClaim from the template.
+                  resourceClaims:
+                    - name: gpu-slice
+                      resourceClaimTemplateName: mig-1g-6gb
+                  containers:
+                    - name: node
+                      image: docker.io/alaudadockerhub/llamafactory0.9-cu126-amd64:v0.1.0
+                      command:
+                        - bash
+                        - -c
+                        - |
+                          set -ex
+                          python - <<'PY'
+                          import random, torch
+                          from transformers import (GPT2Config, GPT2LMHeadModel,
+                                                    Trainer, TrainingArguments)
+                          from peft import LoraConfig, get_peft_model
+                          from datasets import Dataset
+
+                          assert torch.cuda.is_available(), "no CUDA device in this DRA slice"
+                          p = torch.cuda.get_device_properties(0)
+                          print(f"[slice] device={p.name} total_mem={p.total_memory/1024**3:.2f} GiB", flush=True)
+
+                          # Small causal-LM, randomly initialised -> no model download.
+                          cfg = GPT2Config(vocab_size=512, n_positions=64,
+                                           n_embd=256, n_layer=4, n_head=4)
+                          model = GPT2LMHeadModel(cfg)
+                          model = get_peft_model(model, LoraConfig(
+                              r=8, lora_alpha=16, target_modules=["c_attn"],
+                              task_type="CAUSAL_LM"))
+                          model.print_trainable_parameters()
+
+                          # Synthetic SFT corpus -> no dataset download.
+                          random.seed(0)
+                          rows = [{"input_ids": (s := [random.randrange(512) for _ in range(64)]),
+                                   "labels": s} for _ in range(128)]
+                          ds = Dataset.from_list(rows)
+
+                          args = TrainingArguments(
+                              output_dir="/workspace/out", per_device_train_batch_size=8,
+                              max_steps=30, logging_steps=10, fp16=True,
+                              save_strategy="no", report_to=[])
+                          Trainer(model=model, args=args, train_dataset=ds).train()
+
+                          peak = torch.cuda.max_memory_allocated() / 1024**3
+                          print(f"[slice] peak_mem={peak:.2f} GiB", flush=True)
+                          print("DRA LoRA SFT on GPU slice: OK", flush=True)
+                          PY
+                      resources:
+                        # (2) Container-level: consume the pod claim. No nvidia.com/*.
+                        claims:
+                          - name: gpu-slice
+                        requests:
+                          cpu: "1"
+                          memory: 4Gi
+                        limits:
+                          cpu: "4"
+                          memory: 8Gi
+                      securityContext:
+                        allowPrivilegeEscalation: false
+                        capabilities:
+                          drop: [ALL]
+                        runAsNonRoot: true
+                        seccompProfile:
+                          type: RuntimeDefault
+                      volumeMounts:
+                        - { name: workspace, mountPath: /workspace }
+                        - { name: dshm, mountPath: /dev/shm }
+                  volumes:
+                    - { name: workspace, emptyDir: {} }
+                    - name: dshm
+                      emptyDir:
+                        medium: Memory
+                        sizeLimit: 2Gi

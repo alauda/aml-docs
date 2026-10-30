@@ -1,0 +1,300 @@
+---
+weight: 60
+i18n:
+  title:
+    en: GLM-5.2 (W4A8C8)
+    zh: GLM-5.2 (W4A8C8)
+---
+
+# GLM-5.2 (W4A8C8)
+
+`glm_moe_dsa` (`GlmMoeDsaForCausalLM`) is a **256-expert MoE** with MLA attention and
+DeepSeek-style sparse attention (DSA), served here with a **1,048,576-token context**.
+It was validated on **8 × Atlas 800 A2 = 64 × Ascend 910B3 64 GB** as a
+**Prefill/Decode-disaggregated service** — 4 prefill nodes and 4 decode nodes — with a
+shared mooncake KV pool, through the product MaaS gateway.
+
+Load is a **replay of real coding-agent sessions** (Exgentic v2, `claude_code` working
+SWE-bench tasks) swept over concurrent sessions, with no other load on the service.
+
+:::tip
+**In short — this deployment served 64 concurrent coding-agent sessions with time to first
+token (TTFT) P90 under 10 s; 128 did not.**
+
+At 64 sessions TTFT P90 was **9.25 s** and the service produced **510 output tokens/s**
+(111k tokens/s counting input). At 128 sessions TTFT P90 rose to 24.8 s while completed
+requests per second grew only 1 % (output tokens/s 17 %, as responses were longer): the extra
+requests queued at prefill. Nothing between 64 and 128 was measured.
+:::
+
+## Model identity
+
+| Field | Value |
+|---|---|
+| Publisher / base model | Zhipu AI / [`zai-org/GLM-5.2`](https://huggingface.co/zai-org/GLM-5.2) |
+| Architecture | `glm_moe_dsa` / `GlmMoeDsaForCausalLM`; 78 layers (first 3 dense) + 1 MTP layer; 256 routed experts, 8 per token + 1 shared; MLA (`kv_lora_rank` 512) with a DSA indexer selecting the top 2,048 tokens per query |
+| Parameters | 753B in the BF16 checkpoint (Hugging Face safetensors count, MTP layer included); ~40B activated per token, computed from `config.json` |
+| Context | 1,048,576 (`max_position_embeddings`, served as `--max-model-len 1048576`) |
+| Quantization | W4A8C8 (`--quantization ascend`): routed experts W4A8, other linear layers W8A8, the DSA indexer cache INT8; QuaRot rotation. 377 GiB on disk |
+| Model source | ModelScope [`Eco-Tech/GLM-5.2-w4a8c8`](https://modelscope.cn/models/Eco-Tech/GLM-5.2-w4a8c8) · ModelCar `docker.io/alaudadockerhub/modelcar-glm-5.2-w4a8c8:v0.1.0` |
+
+## Validated hardware × stack
+
+| Platform | Engine | Version / configuration | Status |
+|---|---|---|---|
+| Atlas 800 A2 × 8 (Ascend 910B3 64 GB × 64) — **prefill 4 nodes + decode 4 nodes** | vLLM-Ascend | `v0.23.0-openeuler` (arm64 `sha256:6c183dfa…`, vLLM 0.23.0) + fastokens 0.3.4 | ✅ Coding-agent replay sweep 16 / 32 / 64 / 128 sessions, through MaaS |
+
+Routing and P/D handoff: hermes-router `26.6.0` (EPP, `sha256:8cb00e74…`) and the InferNex P→D proxy
+`proxy-server:26.6.0`, both from `build-harbor.alauda.cn/3rdparty/openfuyao`.
+Controller: Alauda Build of InferNex Bridge `v26.6.0`.
+
+## Model configuration
+
+| Parameter | Prefill (4 nodes) | Decode (4 nodes) |
+|---|---|---|
+| Parallelism | DP4 × TP8 (one DP rank per node), EP32 (experts over all 32 cards), DCP8 (decode context parallel: a sequence's KV cache is split across the 8 cards of its node) | same |
+| Entry points | every node serves HTTP (`--data-parallel-hybrid-lb`) | same |
+| `max-num-batched-tokens` | 8192 | 192 |
+| `max-num-seqs` (admission gate, per node) | 8 | 32 |
+| `gpu-memory-utilization` | 0.88 | 0.88 |
+| Speculative decoding | `deepseek_mtp`, 1 token | `deepseek_mtp`, 5 tokens |
+| Graph mode | eager | `FULL_DECODE_ONLY` |
+| `additional-config` | `enable_dsa_cp`, `enable_flashcomm1`, `enable_sparse_li_c8`, `multistream_overlap_shared_expert`, `enable_cpu_binding`, `enable_npugraph_ex` | `enable_sparse_li_c8`, `recompute_scheduler_enable`, `multistream_overlap_shared_expert`, `enable_cpu_binding`, `enable_npugraph_ex` |
+| KV per node (engine-reported) | 1,180,672 tokens | 2,535,424 tokens |
+| KV transfer | `MultiConnector`: `MooncakeConnectorV1` (P → D, Ascend Direct) + `AscendStoreConnector` (mooncake KV pool) | same |
+| KV pool | mooncake, 48 GiB per engine worker process ≈ 3 TiB; evicts the least recently read 10 % at 90 % usage | — |
+| Tool calls / reasoning | `--tool-call-parser glm47 --reasoning-parser glm45` | same |
+| Notable env | `HCCL_INTRA_ROCE_ENABLE=1` (required on A2 for KV-pool transfers), `VLLM_ASCEND_ENABLE_NZ=1`; `VLLM_USE_FASTOKENS=1` is exported by the start script once fastokens installs | same |
+
+:::note
+**Why `gpu-memory-utilization` is 0.88, not the 0.93 this deployment started from.** Deep-context
+prefill needs more temporary memory per layer than the start-up profiling run reserves.
+At 0.93 prefill slowed sharply once the context passed ~350k tokens and at 0.90 past
+~800k, as the allocator synchronised and re-requested device memory layer by layer. At
+0.88 a context ladder up to 1M showed no cliff, and a cold 970k-token prefill showed no
+allocator stalls in its stack samples: 119 steps of 8,192 tokens, about 2 s each and slightly
+longer as the context grew (381 s in total, see [Caveats](#caveats)). Decode uses 0.88 as well: at 0.93 one decode node ran out
+of temporary memory at 30 concurrent 128k-token requests.
+:::
+
+### Request path
+
+MaaS → KServe ingress gateway → `InferencePool` → hermes-router EPP (Endpoint Picker: picks one
+prefill node and one decode node) → P→D proxy → prefill (`max_tokens=1`) → decode, streamed back.
+
+- **Decode is picked by load**: the lowest of 2 × in-flight + 1 × KV usage + 1 × queue, with
+  in-flight and queue divided by their maximum over the four nodes and KV usage taken as is
+  (0–1). In-flight is booked by request length (characters; there is no tokenizer in the
+  EPP) when the EPP routes a request and released when its response stream ends (or after
+  5 minutes without a response chunk), so a decode node that is still waiting for a long
+  prefill is already counted. Prefill is picked at random.
+- **Picking prefill by load was tried and reverted** after a synthetic sweep of three 1M
+  sessions plus 128k-token requests: because in-flight is booked by request length, one 1M
+  request outweighs about nine 128k-token requests, and those piled onto the nodes without
+  a 1M request.
+- **The proxy is deployed by the manifest**, not by the InferNex-Bridge (the controller that
+  turns the `LLMInferenceService` into the running components): the Bridge-managed proxy
+  carries no `pdRole` label, so the EPP cannot address it. Two start-up patches fix the
+  proxy itself (see the comments in the manifest).
+
+## Deploy
+
+| Spec | File |
+|---|---|
+| Engines (P4 + D4), EPP, proxy, the two data-parallel presets | [`glm-5.2-w4a8c8-pd-4p4d-1m-llmisvc.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets/glm-5.2-w4a8c8/glm-5.2-w4a8c8-pd-4p4d-1m-llmisvc.yaml) |
+| Mooncake master on the engine image (patch; InferNex Bridge v26.6.0 only) | [`glm-5.2-w4a8c8-mooncake-master-patch.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets/glm-5.2-w4a8c8/glm-5.2-w4a8c8-mooncake-master-patch.yaml) |
+| MaaS ingress through the KServe gateway (optional; manual workaround for a known issue, see below) | [`glm-5.2-w4a8c8-maas-route.yaml`](https://github.com/alauda/aml-docs/tree/master/docs/en/plan/validated_models/ascend/assets/glm-5.2-w4a8c8/glm-5.2-w4a8c8-maas-route.yaml) |
+
+```bash
+base=https://raw.githubusercontent.com/alauda/aml-docs/master/docs/en/plan/validated_models/ascend/assets/glm-5.2-w4a8c8
+curl -sO $base/glm-5.2-w4a8c8-pd-4p4d-1m-llmisvc.yaml
+curl -sO $base/glm-5.2-w4a8c8-mooncake-master-patch.yaml
+
+# 1. Edit both files first: replace every `demo` with your namespace (it also appears inside
+#    container arguments) and, for air-gapped nodes, repoint the images and the ModelCar.
+#    The mooncake master image in the patch must stay the same as the engine image.
+kubectl apply -f glm-5.2-w4a8c8-pd-4p4d-1m-llmisvc.yaml
+
+# 2. InferNex Bridge v26.6.0 only. From v26.9.0 the Bridge's default mooncake master image is
+#    vLLM-Ascend v0.23.0, whose Mooncake (0.3.11.post1) matches the engine's: skip this step
+#    and the patch there.
+#    Run the mooncake master from the engine image: patch once the Bridge has created the
+#    InferNexService, and repeat until the master Deployment shows that image (right after
+#    creation the Bridge may still overwrite it). Re-run this step after every step 1; on an
+#    unchanged spec the patch is a no-op and does not restart the master.
+img=$(awk '/image:/{print $2; exit}' glm-5.2-w4a8c8-mooncake-master-patch.yaml)
+until [ "$(kubectl -n demo get deploy glm52-pd-mooncake-master \
+          -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null)" = "$img" ]; do
+  kubectl -n demo patch infernexservice glm52-pd --type=merge \
+    --patch-file glm-5.2-w4a8c8-mooncake-master-patch.yaml 2>/dev/null
+  sleep 15
+done
+
+# 3. Wait for the 8 engine pods: weight load + 1M graph build take about 20 minutes, plus
+#    the ModelCar pull (~326 GiB per pod) on first start.
+kubectl -n demo get pods -l 'openfuyao.com/pdGroupID=glm52-pd,openfuyao.com/pdRole in (prefill,decode)' -w
+
+# 4. Optional: publish on MaaS by hand (see the known issue below). Edit the file first:
+#    the gateway Service name, and your namespace in both maas.alauda.io/endpoint and
+#    spec.schema.prefix. Then add aml-maas/glm52-pd to a MaaS subscription, or no API key
+#    can reach it.
+curl -sO $base/glm-5.2-w4a8c8-maas-route.yaml
+kubectl apply -f glm-5.2-w4a8c8-maas-route.yaml
+```
+
+After the first request, the proxy log should show `Using specified prefiller` (the EPP's
+routing headers arrived). A full chat request in a prefill engine's log means the gateway
+bypassed the proxy.
+
+:::warning
+**Known issue: publish this service on MaaS by hand.**
+The console flow that publishes an inference service on MaaS points MaaS at
+`<llmisvc>-kserve-workload-svc`, which skips the EPP, so no prefill or decode node is picked.
+Pointing MaaS at the `InferencePool` directly does not work either: request bodies above 4 MB
+fail with HTTP 500 (the EPP's gRPC message limit), and 1M-token bodies are 2–4 MB.
+Until this is fixed, `glm-5.2-w4a8c8-maas-route.yaml` registers the service as an external
+model whose endpoint is its route on the KServe ingress gateway; that gateway streams the body
+to the EPP, so the 4 MB limit does not apply. On this path MaaS shows the model as ready
+whenever the `AIServiceBackend` exists, whatever the state of the engines.
+:::
+
+On InferNex Bridge v26.6.0, run only one mooncake-enabled `LLMInferenceService` per namespace:
+the Bridge keeps a single `mooncake-master-service` / `redis-service` pair per namespace and
+points it at whichever service reconciled last.
+
+The published manifest differs from the one that was benchmarked only outside the engine
+flags:
+
+| Item | Benchmarked | Published | Effect |
+|---|---|---|---|
+| Weights | Same ModelScope weights pre-staged on every node (`hostPath`, storageInitializer off) | ModelCar via the storageInitializer | **Not validated for this model.** All 8 engine pods (leaders and workers) rely on the storageInitializer: each pulls a ~326 GiB image that unpacks to ~377 GiB of node disk. The manifest keeps the benchmarked pre-staged alternative as comments |
+| fastokens | `fastokens 0.3.4` wheel from a node directory; start fails without it | `fastokens==0.3.4` from PyPI (or `FASTOKENS_SPEC` = your wheel); start continues without it, with a warning | See [Caveats](#caveats): without it 1M TTFT is about 10 s higher |
+| Node placement | Fixed per node for run-to-run comparability | Not pinned | None expected |
+| Diagnostics | torch profiler endpoints, `VLLM_SERVER_DEV_MODE=1`, `SYS_PTRACE` | Removed | None (idle when not collecting) |
+| Images | Mirrored to a local registry | Public references with the same digests | None |
+
+## Benchmark method
+
+`aiperf 0.12.0`, replaying **real coding-agent sessions** with
+`timingMode: agentic_replay`. Load is set by the number of **concurrent sessions**: each
+session sends its next request after the gap recorded in the trace (the agent's tool time),
+and a finished session is replaced by the next one from the pool. Nothing else ran on the
+service during the sweep.
+
+| Item | Setting |
+|---|---|
+| Corpus | [Exgentic agent-llm-traces-v2](https://huggingface.co/datasets/Exgentic/agent-llm-traces-v2) (revision `4b8ad4ab`), `harness=claude_code`, `benchmark=swebench`: 495 sessions |
+| Corpus profile | median 37 calls per session; mean input 27k tokens per call; per-session peak context p50 36k / p90 66k / p99 103k / max 121k; ~97 % of each call's input repeats the previous call (~800 new tokens per turn); mean output 211 tokens |
+| Replay | each session starts at a random point 25–75 % into its recorded trajectory, so sessions are at mixed depths from the start; sequential sampling, seed 42 |
+| Rungs (load levels) | 16 / 32 / 64 / 128 sessions, 900 s of timed requests each (+120 s for in-flight requests to finish), one pass; warm-up requests are not counted |
+| Cache isolation | `cacheBust: first_turn_prefix` — a unique marker in each replay's first user message, so a rung cannot reuse an earlier rung's conversation prefixes (the shared system prompt and tool definitions before that message can still be cached), while turns within a session still reuse each other |
+| Ingress | product MaaS gateway (API key), streaming, engine-reported token counts |
+| Engine counters | the 8 engines' `/metrics`, read every 3 s from the load generator |
+
+**Pass criterion (set before the run).** Every figure in the result tables is measured over
+the **second half of each rung** — its timed requests sorted by start time, from the first
+start in that half to the last end. A rung passes when, in that window, the TTFT P90 is
+**under 10 s** and the window is stable (median inter-token latency of its two halves within
+25 %). The result is the highest passing rung, without interpolation.
+
+TTFT is the time to the first streamed token. GLM-5.2 reasons before answering, so that
+token may be reasoning; **first answer token** is the first non-reasoning token. ISL / OSL
+are each request's input / output tokens (OSL includes reasoning). **Output TPS** is the
+output tokens of the window's requests divided by the window length; **total TPS** adds
+their input tokens, the definition used for TPS on the [overview](../index.mdx) page.
+
+## Benchmark results
+
+**Verdict per rung (measured window)**
+
+| Sessions | Window | Achieved sessions | TTFT P50 / P90 (s) | First answer token P90 (s) | ITL avg / P95 (ms) | Stability | Pass |
+|--:|--:|--:|--:|--:|--:|--:|:-:|
+| 16 | 8 min | 9.7 | 3.17 / 4.38 | 4.43 | 29.4 / 40.8 | −1 % | ✅ |
+| 32 | 8 min | 21.2 | 3.73 / 5.02 | 5.08 | 33.0 / 46.5 | 0 % | ✅ |
+| **64** | 9 min | 47.2 | 6.27 / **9.25** | 10.60 | 39.0 / 54.9 | −1 % | ✅ |
+| 128 | 10 min | 94.8 | 15.26 / **24.84** | 28.84 | 43.0 / 62.7 | −2 % | ❌ |
+
+**Inputs, outputs and throughput (measured window)**
+
+| Sessions | ISL avg | ISL P50 / P90 / P99 / max | OSL avg | Output TPS (tok/s) | Total TPS (tok/s) | Completed requests/s | Per-session output (tok/s) |
+|--:|--:|--:|--:|--:|--:|--:|--:|
+| 16 | 28,777 | 26,177 / 44,193 / 56,312 / 57,113 | 111 | 157 | 40,702 | 1.41 | 34.0 |
+| 32 | 30,589 | 29,564 / 43,967 / 61,024 / 69,759 | 131 | 328 | 76,735 | 2.50 | 30.3 |
+| **64** | 28,944 | 27,564 / 43,072 / 69,445 / 86,455 | 134 | **510** | 110,952 | 3.82 | 25.6 |
+| 128 | 30,196 | 27,132 / 47,580 / 61,134 / 79,443 | 154 | 595 | 117,518 | 3.87 | 23.2 |
+
+:::note
+**Achieved sessions** is the time-averaged number of sessions with a request in flight; it
+is below the nominal count because a replayed session waits out its recorded tool time
+between turns. **Per-session output** is 1,000 / average ITL, the rate one user sees while
+a response streams. It is not output TPS divided by achieved sessions: a request spends part
+of its time in flight before the first token (queueing and prefill), when it outputs nothing.
+Over the whole sweep 12,639 timed requests were sent and 10 failed (0.08 %). With MTP, decode
+emitted 3.7–3.8 tokens per step on average over each whole rung (5 drafted, 55–57 % of drafts
+accepted).
+:::
+
+### Where the 128-session rung saturates
+
+Engine counters over each measured window:
+
+| Sessions | Decode running per node, avg (peak) | Decode KV peak | Preemptions | Prefill running avg / peak (4 nodes) | Prefill queued avg / peak, 4 nodes (share of time queued) | Prefill new tokens / min | Prefill prefix hit | Prefill input loaded from the KV pool (part of the hit) |
+|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| 16 | 1.3–1.5 (6) | 3.4 % | 0 | 1.5 / 6 | 0.0 / 0 (0 %) | 80k | 96.7 % | 8 % |
+| 32 | 2.9–3.2 (7) | 6.3 % | 0 | 3.8 / 12 | 0.0 / 0 (0 %) | 152k | 96.7 % | 8 % |
+| 64 | 5.4–6.5 (14) | 12.5 % | 0 | 10.7 / 23 | 0.7 / 10 (26 %) | 261k | 96.1 % | 14 % |
+| 128 | 7.2–8.2 (21) | 15.9 % | 0 | 12.8 / 25 | **27.8 / 52 (83 %)** | 300k | 95.9 % | 32 % |
+
+Decode running per node is the range of the four nodes' averages, with the highest peak on
+any one node in brackets.
+
+- **Decode is not the limit.** The four decode nodes carried even loads (at most 21
+  requests on one node against its `max-num-seqs` of 32), KV peaked at 16 % and nothing was
+  preempted.
+- **Requests queue at prefill**, 83 % of the time at 128 sessions, yet while requests were
+  queued each prefill node was computing only about 4 (its `max-num-seqs` is 8) with
+  13–14 % of its KV in use. Why they queue was not located — no operator-level profiling
+  was run. Candidates include the 8,192-token step budget, the time to load cached
+  prefixes from the KV pool, and the four prefill nodes stepping together (with experts spread
+  over all 32 cards, every node runs each step at the same time, so the slowest sets the pace).
+- Doubling sessions from 64 to 128 added 1 % completed requests per second (3.82 → 3.87; output
+  TPS rose 17 % because responses were longer, OSL 134 → 154): by 128 sessions the extra load
+  had turned into prefill queueing.
+
+## Caveats \{#caveats}
+
+- **These sessions are shorter than long-context agent sessions of 128k tokens and more.**
+  Inputs reached 86k tokens in the measured windows (the corpus maximum is 121k). Longer
+  sessions make both prefill and decode heavier; do not carry the 64-session figure over to
+  128k-token sessions.
+- **The 64-session pass is narrow and measured once.** Its TTFT P90 is 0.75 s under the
+  line, and its first answer token P90 (10.6 s) is above it.
+- **Concurrent 1M requests shift decode routing.** In a separate sweep of this replay with three
+  1M sessions running continuously alongside, coding requests concentrated on the one decode
+  node without a 1M request: at 64 sessions it averaged 25 running requests and reached its
+  `max-num-seqs` of 32 for 9 % of the time, ITL rose from 39 to 55 ms and TTFT P90 from 9.25
+  to 10.1 s — above this page's 10 s line, so 64 sessions would not pass with that load. The
+  likely cause (inferred, not tested by changing the routing) is that in-flight is booked by
+  request length, so a node serving a 1M request looks about 30 coding requests busy.
+  Prefill queueing at 128 sessions was about the same with and without the 1M load (27.8 vs
+  28.3 queued on average, 83 % vs 89 % of the time).
+- **A 1M request whose prefix is not cached is slow.** A ~970k-token request with nothing
+  cached took **381 s** to the first token (measured once, sent straight to a prefill node).
+  One request is computed on a single prefill node; the other three stay mostly idle. With
+  their prefixes cached, 1M requests running alone (three sessions) measured TTFT P50 7.6 s /
+  P90 11.7 s through MaaS. Prefixes stay in the KV pool until it fills up and evicts the least recently read ones; it evicted four times
+  during this sweep.
+- **fastokens matters for 1M TTFT.** vLLM-Ascend v0.23.0 images do not include it; a cached
+  1M request measured 20.8 s TTFT through MaaS without it and 10.7 s with it, mostly from
+  tokenization (the whole prompt is tokenized once for prefill and again for decode). The
+  coding-agent sweep was not measured without it; at its input lengths that would add an
+  estimated ~0.25 s to TTFT. Community images from `v0.28.0.rc1` on pin `fastokens==0.2.0`
+  in `requirements.txt` ([vllm-ascend #15351](https://github.com/vllm-project/vllm-ascend/pull/15351));
+  on those images the pip step can be dropped, but 0.2.0 is not the version validated here.
+- **Accuracy was not evaluated.** The [vLLM-Ascend v0.23.0 GLM-5.2 guide](https://docs.vllm.ai/projects/ascend/en/v0.23.0/tutorials/models/GLM5.2.html) lists the
+  w4a8c8 weights as experimental with known accuracy issues in P/D-disaggregated
+  deployments, and lists 1M context as validated on Atlas 800 A3 only. This page reports
+  performance; evaluate accuracy for your own workload before production use.
+- **Errors seen:** all 10 failed requests carried reasoning but no answer content within the
+  replayed token limit. Nearly all warm-up requests (one per session slot, sent by aiperf at
+  the start of each rung: 223 of 240) ended the same way; warm-ups are not counted.

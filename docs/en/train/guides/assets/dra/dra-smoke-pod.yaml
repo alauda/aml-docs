@@ -1,0 +1,60 @@
+# Minimal DRA smoke: a single Pod that claims one GPU slice and prints what the
+# container can actually see. Run this before wiring DRA into a training job — it
+# proves the driver partitions and injects a slice, and shows you the slice's real
+# memory ceiling (e.g. ~6 GiB for a 1g.6gb MIG profile rather than the full card).
+#
+# The Pod references the ResourceClaimTemplate by name; the scheduler + DRA driver
+# allocate a device and inject it before the container starts. Point
+# `resourceClaimTemplateName` at either template:
+#   mig-1g-6gb            -> a hardware-isolated MIG slice
+#   shared-gpu-timeslice  -> a shared, time-sliced full GPU
+apiVersion: v1
+kind: Pod
+metadata:
+  generateName: dra-smoke-
+  namespace: kubeflow-admin-cpaas-io
+  labels:
+    app: dra-smoke
+spec:
+  restartPolicy: Never
+  resourceClaims:
+    - name: gpu-slice
+      resourceClaimTemplateName: mig-1g-6gb
+  containers:
+    - name: smoke
+      image: docker.io/alaudadockerhub/llamafactory0.9-cu126-amd64:v0.1.0
+      command:
+        - bash
+        - -c
+        - |
+          set -e
+          echo "===== nvidia-smi -L ====="
+          nvidia-smi -L
+          echo "===== nvidia-smi ====="
+          nvidia-smi
+          python - <<'PY'
+          import torch
+          ok = torch.cuda.is_available()
+          print("cuda_available:", ok)
+          if ok:
+              p = torch.cuda.get_device_properties(0)
+              print("device:", p.name)
+              print("slice_total_mem_GiB:", round(p.total_memory / 1024**3, 2))
+              x = torch.randn(2048, 2048, device="cuda"); (x @ x.T).sum().item()
+              print("matmul_on_slice: OK")
+          PY
+      resources:
+        claims:
+          - name: gpu-slice     # binds this container to the pod-level claim above
+        requests:
+          cpu: "500m"
+          memory: 2Gi
+        limits:
+          cpu: "2"
+          memory: 4Gi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ALL]
+        seccompProfile:
+          type: RuntimeDefault
