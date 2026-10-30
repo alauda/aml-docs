@@ -1,0 +1,22 @@
+---
+weight: 30
+---
+
+# Run an Experiment
+
+Label the namespace for Katib's metrics collector webhook, then create a minimal Experiment:
+
+```bash
+kubectl label namespace <namespace> katib.kubeflow.org/metrics-collector-injection=enabled --overwrite
+kubectl apply -f experiment.yaml
+kubectl get experiments,suggestions,trials -n <namespace>
+```
+
+The Experiment controller creates a Trial and a training Job. Check workload creation and logs with:
+
+```bash
+kubectl get jobs,pods -n <namespace> -l katib.kubeflow.org/experiment=<experiment-name>
+kubectl logs -n <namespace> job/<trial-name>
+```
+
+Use the Katib API or UI to inspect metrics and the best trial. Delete the Experiment when finished to clean up generated Trials and Jobs.

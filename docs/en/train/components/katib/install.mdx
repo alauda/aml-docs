@@ -1,0 +1,35 @@
+---
+weight: 20
+---
+
+# Install Katib
+
+1. Upload the Katib operator bundle through the ACP Marketplace or the documented Violet package workflow.
+2. In **Administrator -> Marketplace -> Operators**, select **Katib** and install the `stable` channel in the target namespace.
+3. Verify the CSV and controller:
+
+   ```bash
+   kubectl get csv -A | grep katib-operator
+   kubectl get pods -A | grep katib-operator
+   ```
+
+4. Create a Katib instance. Set `database.host`, `database.database`, and `database.existingSecret` to the MySQL service and Secret supplied for the target project:
+
+   ```yaml
+   apiVersion: operator.alauda.io/v1
+   kind: Katib
+   metadata:
+     name: katib
+     namespace: mlops-demo-e2e
+   spec:
+     database:
+       type: mysql
+       host: mysql-kfp.mlops-demo-e2e.svc
+       port: "3306"
+       database: katib
+       existingSecret: katib-database
+       userKey: DB_USER
+       passwordKey: DB_PASSWORD
+   ```
+
+5. Confirm the controller, DB manager, and UI deployments become Ready.
