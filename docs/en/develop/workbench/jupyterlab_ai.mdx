@@ -1,0 +1,232 @@
+---
+weight: 40
+---
+
+# Use Jupyter AI in JupyterLab Workbench
+
+Jupyter AI adds an AI chat workspace to JupyterLab. In a Workbench, it can help
+you discuss notebooks, attach files or cells as context, and use an approved AI
+persona to create or revise code. The `jupyter-ai` package is an extension, not
+a model service: users still need an administrator to make a supported persona
+and model endpoint available.
+
+The Alauda Jupyter AI Data Science image installs `jupyter-ai` 3.2.0. This
+guide applies to that version. Jupyter AI 3 uses AI personas and the Agent
+Client Protocol (ACP); instructions written for the older Jupyter AI 2 provider
+settings interface can differ.
+
+## Before you start
+
+An administrator must complete the following tasks before users can use the
+extension:
+
+1. Build or register a JupyterLab Workbench image that includes Jupyter AI.
+   The image built in the Workbench image repository is named
+   `alauda-workbench-jupyter-ai-datascience-cpu-py312-ubi9`.
+2. Add that image as an `imageConfig` option in a `WorkspaceKind`. The image
+   registry must be reachable from the Workbench nodes.
+3. Install and configure at least one supported AI persona or direct model
+   provider in the image. A Jupyter AI core installation alone does not make a
+   model or agent available.
+4. Provide model-provider credentials through a Kubernetes Secret or an
+   approved platform identity mechanism. The Workbench Pod must also be able to
+   reach the selected model endpoint.
+
+The image and configuration are cluster-specific. Replace the registry and tag
+in the following example with an image that has been built and tested for your
+cluster:
+
+```json title=add-jupyter-ai-image-patch.json
+[
+  {
+    "op": "add",
+    "path": "/spec/podTemplate/options/imageConfig/values/-",
+    "value": {
+      "id": "jupyter-ai-datascience-cpu-py312",
+      "spawner": {
+        "displayName": "Jupyter | AI Data Science | CPU | Python 3.12",
+        "description": "JupyterLab Data Science with Jupyter AI"
+      },
+      "spec": {
+        "image": "<registry>/mlops/workbench-images/alauda-workbench-jupyter-ai-datascience-cpu-py312-ubi9:<tag>",
+        "imagePullPolicy": "IfNotPresent",
+        "ports": [
+          {
+            "id": "jupyterlab",
+            "displayName": "JupyterLab",
+            "port": 8888,
+            "protocol": "HTTP"
+          }
+        ]
+      }
+    }
+  }
+]
+```
+
+To inject a provider credential, reference a Secret in the `WorkspaceKind`
+instead of placing a key in an image, a notebook, or a shared home PVC:
+
+```yaml title=workspacekind-ai-credential.yaml
+spec:
+  podTemplate:
+    extraEnv:
+      - name: PROVIDER_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: <provider-credentials-secret>
+            key: api-key
+```
+
+Use the provider's documented environment-variable name (for example,
+`OPENAI_API_KEY`) in place of `PROVIDER_API_KEY`. Scope the Secret and the
+Workspace service account so that users can access only the credentials they
+are authorized to use.
+
+## Configure image-wide provider defaults
+
+The current v0.2.1 Jupyter AI image installs the core `jupyter-ai` package
+only. It does not include Jupyternaut, so users cannot add a direct provider or
+set a per-user model base URL from the Chat panel. Configure the defaults in a
+derived image or in a cluster-admin-managed Jupyter configuration that is
+mounted before JupyterLab starts.
+
+To make a direct model available across all Workbenches using an image:
+
+1. Add the approved persona or direct provider package to a derived image, and
+   verify the configuration fields supported by that package.
+2. Inject its credential through a Secret-backed Pod environment variable, for
+   example `OPENAI_API_KEY`. Do not put keys in a `ConfigMap`, notebook, chat
+   message, or checked-in Jupyter configuration file.
+3. Add a non-secret `jupyter_jupyter_ai_config.json` file to a Jupyter
+   configuration directory, or start JupyterLab with
+   `--config <config-file-path>`. For Alauda-provided Workbench images, the
+   configuration directories are:
+
+   ```text
+   /opt/app-root/etc/jupyter
+   /opt/app-root/src/.jupyter
+   /usr/local/etc/jupyter
+   /etc/jupyter
+   ```
+
+   Run `jupyter --paths` in the running image to verify the effective
+   configuration search order before choosing the location.
+4. Recreate or restart Workbenches after changing their image or mounted
+   configuration.
+
+For a direct provider that supports `AiExtension` defaults, the following
+template makes an OpenAI-compatible endpoint an image-wide default. Replace the
+provider and model identifiers with the values supported by the package added
+to the image:
+
+```json title=jupyter_jupyter_ai_config.json
+{
+  "AiExtension": {
+    "initial_language_model": "openai/<model-id>",
+    "allowed_providers": ["openai"],
+    "model_parameters": {
+      "openai/<model-id>": {
+        "api_base": "https://llm-gateway.example.com/v1"
+      }
+    }
+  }
+}
+```
+
+`api_base` is the provider parameter for an OpenAI-compatible base URL; it is
+not a generic `baseURL` setting. A vLLM server commonly exposes this API at
+`http://<vllm-service>:8000/v1`. Use the cluster DNS name and HTTPS endpoint
+approved for the Workbench namespace instead of a developer laptop address.
+
+Keep endpoint, model, and provider restrictions in the image-wide file or a
+cluster-managed ConfigMap. Keep credentials in a Secret. An allowlist such as
+`allowed_providers` is preferable when the cluster has an approved internal
+gateway because it prevents accidental use of unapproved external providers.
+ACP personas use their own configuration; do not assume that setting
+`api_base` configures every persona.
+
+## Start a Jupyter AI Workbench
+
+1. Create a Workbench and select the **Jupyter | AI Data Science | CPU | Python
+   3.12** image option.
+2. Select a resource profile and a persistent home volume, then create the
+   Workbench.
+3. Wait until its status is **Running**, then select **Connect** to open
+   JupyterLab.
+4. In the left sidebar, select the **Chat** icon. If the icon is missing, see
+   [Troubleshooting](#troubleshooting).
+5. Select **New Chat**, give the chat a meaningful name, and select an
+   administrator-provided AI persona from the available pickers. The v0.2.1
+   core image does not provide Jupyternaut by itself.
+
+The chat history is stored as a `.chat` file in the Workbench file system. Keep
+that file on a persistent home volume if you need to resume the conversation
+after restarting the Workbench.
+
+## Work with the chat panel
+
+Use a separate chat for each task or experiment. You can type a prompt and
+press **Enter** to send it; use **Shift+Enter** for a new line.
+
+To give the persona notebook context, use one of these approaches:
+
+- drag a notebook cell or file into the chat input;
+- select the attachment button in the chat input; or
+- enter `@file:<path>` and select a file from the workspace.
+
+For example, attach a failing notebook cell and ask the persona to explain the
+exception, propose a minimal fix, and describe the assumptions behind the fix.
+Review the response before inserting it into a notebook. Code blocks returned
+by a persona can be copied, inserted above or below the active cell, or used to
+replace the selected code.
+
+AI personas can request permission to write files, run commands, execute cells,
+or use MCP tools. Read each request before approving it. Do not approve an
+operation that could expose credentials, overwrite an important notebook, or
+access files outside the intended project directory.
+
+## Optional notebook magic commands
+
+Jupyter AI 3 provides magic commands through the separate
+`jupyter-ai-magic-commands` package. The v0.2.1 base image does not install
+that package or a direct provider integration. An administrator must add both
+to the notebook kernel before this workflow can be used.
+
+In a notebook that has the package available, load the extension and inspect
+the available models:
+
+```python
+%load_ext jupyter_ai_magic_commands
+%ai list
+```
+
+Then invoke a model using its provider and model identifier. The exact model
+identifier comes from `%ai list` and is controlled by the provider configured
+for the Workbench:
+
+```python
+%%ai <provider-id>/<model-id>
+Explain the following data-preparation function and identify edge cases.
+```
+
+Use `%%ai help` or `%ai help` for the available commands. Magic responses are
+Markdown by default; request code output explicitly when appropriate and review
+generated code before running it.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| The Chat icon is missing | Confirm that the selected `WorkspaceKind` image is the Jupyter AI image. In a terminal, run `jupyter labextension list` and `jupyter server extension list`; restart the Workbench after an image or extension change. |
+| The chat opens but no persona or model is available | This is expected for the v0.2.1 core image until an administrator adds and configures an approved persona or direct provider in a derived image. |
+| A model request fails with an authentication error | Confirm that the Pod receives the intended Secret-backed environment variable and that the credential is valid for the selected endpoint. Do not paste API keys into a notebook cell or chat. |
+| A model request reaches the wrong endpoint | Verify the image-wide provider configuration contains the intended `api_base`, that the running Pod has the expected mounted configuration, and that the Workspace was restarted after the change. |
+| A model request times out | Check egress from the Workbench namespace to the internal gateway or external provider endpoint, including DNS, TLS, NetworkPolicy, and proxy settings. |
+| An agent requests an unexpected tool permission | Reject the request, review attached context and configured MCP servers, then retry with a narrower prompt or a persona that has fewer privileges. |
+
+## References
+
+- [Jupyter AI 3 user guide](https://jupyter-ai.readthedocs.io/en/stable/users/index.html)
+- [Jupyter AI magic commands](https://jupyter-ai.readthedocs.io/en/stable/users/magic_commands/index.html)
+- [Bring Your Own Workbench Images](./byo_workbench_images.mdx)
