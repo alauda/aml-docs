@@ -91,7 +91,10 @@ GLM-5.3 (W4A4C8 MXFP4) serves a **1M-token context** as **one aggregated engine 
 coding-agent replay as GLM-5.2, once at the default reasoning effort (`max`) and once with
 every request asking for `low`: both served **16 concurrent sessions** (TTFT P90 2.12 s and
 2.65 s; 32 sessions queued behind the engine's 18-request limit). `low` cut the first answer
-token P90 at 16 sessions from 31 s to 14 s but did not add sessions; see its page.
+token P90 at 16 sessions from 31 s to 14 s but did not add sessions. Fixed-length runs with
+150k- and 800k-token inputs complete the picture: 18 concurrent 150k-token requests filled KV to
+94 % without preemption, and a cold 800k-token prompt took about 290 s to the first token; see
+its page.
 
 ## Runtime images
 

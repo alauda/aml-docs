@@ -18,7 +18,9 @@ effort of `max` (the default), `high` or `low`. It was validated on **one Atlas 
 
 Load is a **replay of real coding-agent sessions** (Exgentic v2, `claude_code` working
 SWE-bench tasks) swept over concurrent sessions, run twice: once with the default reasoning
-effort (`max`) and once with every request asking for `low`. Nothing else ran on the service.
+effort (`max`) and once with every request asking for `low`. Five fixed-length runs with
+150k- and 800k-token inputs on the same service show the long-context side of the
+18-request limit (see [Long-context runs](#long-context-runs)). Nothing else ran on the service.
 
 :::tip
 **In short — this deployment served 16 concurrent coding-agent sessions with time to first
@@ -88,9 +90,10 @@ Everything on this page ran on `25.6.rc1`; prefer a listed driver for production
 reserve the request's whole KV. Above what KV can hold, long requests are admitted, then
 preempted and recomputed when KV fills: at 20, with 150k-token inputs, KV reached 100 % and
 one preempted request stalled for 311 s. A 150k-input + 10k-output request with no shared
-prefix needs 157 of the 2,953 KV blocks, so 18 fit. With shorter requests or shared prefixes
-KV holds more, but the gate stays at 18 — on the coding replay below it is what limits the
-session count, not KV.
+prefix needs 157 of the 2,953 KV blocks, so 18 fit; 18 such requests running together peaked
+KV at 94 % with no preemption (see [Long-context runs](#long-context-runs)). With shorter
+requests or shared prefixes KV holds more, but the gate stays at 18 — on the coding replay
+below it is what limits the session count, not KV.
 :::
 
 **Reasoning effort per request.** The service does not change the default, so a request
@@ -311,23 +314,72 @@ the engine queue (17.0 s at `max`, 12.5 s at `low`) is almost all of the median 
 gate is set for 150k-token requests (see [Model configuration](#model-configuration)); this
 page does not measure a higher gate.
 
+## Long-context runs \{#long-context-runs}
+
+Five fixed-length runs, one after another on the same service as the replay, with the
+engine idle before each. `aiperf 0.13.0` through MaaS, `/v1/completions`, streaming. Prompts
+are random text of exactly the stated length (counted by the model's tokenizer, a new seed per
+run so nothing is cached from an earlier run), and `ignore_eos` makes every request write
+10,000 tokens. The completions endpoint applies no chat template, so reasoning effort does not
+apply.
+
+**150k-token inputs, 48 requests, 10k output each**
+
+| Run | Concurrency | TTFT avg / P50 / P90 (s) | ITL avg / P90 (ms) | Per-request output (tok/s) | Output TPS (tok/s) | KV peak | Preemptions |
+|---|--:|--:|--:|--:|--:|--:|--:|
+| No shared prefix | 18 | 139.3 / 36.6 / 431.0 | 88.3 / 124.6 | 11.3 | 166 | **94 %** | 0 |
+| 90 % shared prefix (135k tokens) | 18 | 28.2 / 4.9 / 81.5 | 44.6 / 54.2 | 22.4 | 322 | 20 % | 0 |
+| 90 % shared prefix (135k tokens) | 24 | 151.3 / 89.6 / 424.2 | 45.1 / 53.0 | 22.2 | 333 | 19 % | 0 |
+
+**800k-token inputs, one request at a time, 10k output**
+
+| Run | TTFT (s) | ITL (ms) | Per-request output (tok/s) | End-to-end (s) |
+|---|--:|--:|--:|--:|
+| No shared prefix | 292.5 | 29.2 | 34.2 | 584.6 |
+| 720k-token prefix cached by an earlier request | 45.8 | 34.6 | 28.9 | 391.3 |
+
+Per-request output is 1,000 / average ITL; output TPS is the run's total output divided by
+its duration.
+
+- **18 requests of 150k tokens fill KV to 94 % without preemption** — the case the gate of 18
+  is sized for. The first 18 requests arrive together and are prefilled one after another,
+  31–37 s each, so the 18th waits 589 s for its first token: that wave sets the TTFT P90 of
+  431 s. Requests sent later, as earlier ones finish, find a free slot; their median TTFT is
+  35 s, about their own prefill time.
+- **With a 90 % shared prefix KV is not the limit, the gate is.** The shared 135k tokens are
+  stored once, and KV peaked at 20 % (memory alone would hold about 104 such requests; not
+  measured). At concurrency 24 the six requests above the gate wait until a running one has
+  written its 10,000 tokens: in the first wave they got their first token after 421–467 s, and
+  average TTFT went from 28 s to 151 s while ITL stayed the same. 86.9 % of input tokens hit
+  the prefix cache, the most this run allows (the first request has to compute the prefix).
+- **An 800k-token prompt with nothing cached takes about 290 s to the first token** (about
+  2,700 tokens/s of prefill; four such measurements on this service and an earlier build were
+  292–299 s). With the first 720k tokens cached by an earlier request, the second request
+  computed 81k new tokens and got its first token in 46 s. ITL at 800k was 29–44 ms over
+  three requests, depending on how many drafted tokens MTP accepted per step (2.4–4.3).
+- One 800k + 10k request takes 792 KV blocks, 27 % of the pool; by memory three fit at once
+  (not measured).
+
 ## Caveats \{#caveats}
 
-- **These sessions are shorter than 128k-token agent sessions.** Inputs reached 86k tokens in
-  the measured windows (P99 48k–84k). Longer sessions make prefill and decode heavier and fill
-  KV sooner; do not carry the 16-session figure over to 128k-token sessions.
+- **The replayed sessions are shorter than 128k-token agent sessions.** Inputs reached 86k
+  tokens in the measured windows (P99 48k–84k). Longer sessions make prefill and decode heavier
+  and fill KV sooner; do not carry the 16-session figure over to 128k-token sessions. The
+  [long-context runs](#long-context-runs) show fixed 150k- and 800k-token requests, not a
+  session replay.
 - **Each rung was measured once.** How long the model reasons varies from run to run; the
   first-answer-token and end-to-end percentiles can move by about 30 % between repeats of the
   same configuration. At 8 sessions only 10–12 distinct sessions (finished ones are replaced)
-  fall in the window, so a few long reasoners dominate its percentiles (which is why its `max` first answer token P90 is above
-  the 16-session one).
+  fall in the window, so a few long reasoners dominate its percentiles (which is why its
+  `max` first answer token P90 is above the 16-session one).
 - **The effect of `low` on answer quality was not evaluated.** This page measures speed only.
   A short check outside the sweep (the same small coding prompt, twice each) produced 790–804
   output tokens at `max`, mostly reasoning, and 306–316 at `low` with no reasoning.
 - **Accuracy was not evaluated here.** The [vLLM-Ascend v0.30.0 guide](https://docs.vllm.ai/projects/ascend/en/v0.30.0/tutorials/models/GLM5.2.html)
   records GSM8K 96.97 % for a local GLM-5.3 W4A4C8/MXFP4 checkpoint on one 950DT node (not
   matched to a published revision), and states that the record verifies start-up and short
-  requests, not long inputs, tool use or performance. Evaluate accuracy for your own workload before production use.
+  requests, not long inputs, tool use or performance. Evaluate accuracy for your own workload
+  before production use.
 - **1M-token requests are slow without a cached prefix.** A single request of about 1M tokens
   sent through MaaS took 423 s to the first token and 445 s in total (measured once, before
   fastokens was enabled). Two concurrent 1M requests were not tested.
