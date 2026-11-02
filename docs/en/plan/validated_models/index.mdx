@@ -14,7 +14,7 @@ in this guide has been deployed end-to-end on a real cluster and benchmarked, so
 get a known-good deployment manifest, the runtime image that serves it, and the
 throughput you can expect.
 
-The models here were validated on **Huawei Ascend NPUs (910B4 and 910B3)** with the
+The models here were validated on **Huawei Ascend NPUs (910B4, 910B3 and 950DT)** with the
 community `vLLM-Ascend` engine, deployed through Alauda AI Platform's **InferNex** surface — a
 KServe `LLMInferenceService` reconciled by the InferNex-Bridge into a load-aware router
 (hermes-router / EPP) in front of the vLLM-Ascend instances. Most were run through the
@@ -41,6 +41,7 @@ on their own pages; they are not comparable with the Ascend scenarios below.
 | MiniMax-M2.5 (W8A8) | `minimax_m2` MoE (full-attn, 256-expert) | 230B-A10B | W8A8 (QuaRot) | Ascend 910B3 ×16 | vLLM-Ascend v0.23.0 | [MiniMax-M2.5 (W8A8)](./ascend/minimax-m2.5-w8a8.mdx) |
 | Gemma-4-31B-it | `gemma4` dense multimodal | 31B | BF16 | Ascend 910B3 ×8 | vLLM-Ascend nightly-main (0721) | [Gemma-4-31B-it](./ascend/gemma4-31b-it.mdx) |
 | GLM-5.2 (W4A8C8) | `glm_moe_dsa` MoE (MLA + DSA + MTP), 1M context | 753B (~40B activated) | W4A8C8 | Ascend 910B3 ×64 | vLLM-Ascend v0.23.0 | [GLM-5.2 (W4A8C8)](./ascend/glm-5.2-w4a8c8.mdx) |
+| GLM-5.3 (W4A4C8 MXFP4) | `glm_moe_dsa` MoE (MLA + DSA + MTP), 1M context, always reasons | 753B | W4A4C8 (MXFP4) | Ascend 950DT ×8 | vLLM-Ascend v0.30.0 | [GLM-5.3 (W4A4C8 MXFP4)](./ascend/glm-5.3-w4a4c8-mxfp4.mdx) |
 | Qwen3.8-27B (NVFP4) | `qwen3_5` hybrid (GDN + MTP) | 27B | NVFP4 | NVIDIA RTX PRO 6000 ×1 | vLLM v0.31.0 | [Qwen3.8-27B (NVFP4)](./nvidia/qwen3-8-27b.mdx) |
 | Gemma-4-31B-it (NVFP4) | `gemma4` dense multimodal, served text-only | 31B | NVFP4 | NVIDIA RTX PRO 6000 ×1 | vLLM v0.31.0 | [Gemma-4-31B-it (NVFP4)](./nvidia/gemma4-31b-it-nvfp4.mdx) |
 
@@ -85,6 +86,16 @@ mooncake KV pool. It is benchmarked by replaying real coding-agent sessions (Exg
 traces) swept over concurrent sessions, not with the two Ascend scenarios below: it served
 **64 concurrent sessions at TTFT P90 9.25 s** (line < 10 s); see its page.
 
+GLM-5.3 (W4A4C8 MXFP4) serves a **1M-token context** as **one aggregated engine on one Atlas
+850 node (8 × 950DT)**, TP8 with decode context parallel 8. It is measured with the same
+coding-agent replay as GLM-5.2, once at the default reasoning effort (`max`) and once with
+every request asking for `low`: both served **16 concurrent sessions** (TTFT P90 2.12 s and
+2.65 s; 32 sessions queued behind the engine's 18-request limit). `low` cut the first answer
+token P90 at 16 sessions from 31 s to 14 s but did not add sessions. Fixed-length runs with
+150k- and 800k-token inputs complete the picture: 18 concurrent 150k-token requests filled KV to
+94 % without preemption, and a cold 800k-token prompt took about 290 s to the first token; see
+its page.
+
 ## Runtime images
 
 | Engine | Device | Image (validated tag) | Used by | Notes |
@@ -94,6 +105,7 @@ traces) swept over concurrent sessions, not with the two Ascend scenarios below:
 | vLLM-Ascend nightly-main (dated snapshot) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-main-openeuler-0709` | DeepSeek-V4-Flash (W8A8) | A **later** `nightly-main` snapshot (vLLM 0.23.0) that carries the DP2 cross-node graph + DSA-CP prefix-cache fixes the W8A8 cross-node deployment needs. Pin a **dated** snapshot like this one, not the moving `nightly-main` tag. |
 | vLLM-Ascend v0.23.0 (release-pinned) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:v0.23.0-openeuler` | MiniMax-M2.5 (W8A8), GLM-5.2 (W4A8C8) | The **release-pinned** `nightly-releases-v0.23.0-openeuler` build (vLLM 0.23.0), carrying the `minimax_m2` MoE stack + tool-call/reasoning parsers **and** vLLM #11505 (streaming tool-call arguments held until the closing `</parameter>`). Prefer this dated **release** tag over the moving `nightly-main`. |
 | vLLM-Ascend nightly-main (dated snapshot) | Huawei Ascend NPU | `quay.io/ascend/vllm-ascend:nightly-main-openeuler-0721` | Gemma-4-31B-it | vLLM 0.25.1 / CANN 9.0.1 snapshot used by the validated P4+D4 service. Keep this exact image for the known-good Gemma baseline; it is not a current-version recommendation. |
+| vLLM-Ascend v0.30.0 | Huawei Ascend 950 NPU | `quay.io/ascend/vllm-ascend:v0.30.0-a5-openeuler` (arm64 `sha256:d95c8210…`) | GLM-5.3 (W4A4C8 MXFP4) | Release build for 950-series NPUs, CANN 9.2.1, ships fastokens 0.2.0. The platform's own A5 image (v0.23.0) cannot run GLM-5.3. |
 | vLLM v0.31.0 (community) | NVIDIA GPU | `docker.io/vllm/vllm-openai:v0.31.0` (`sha256:c1c9f6fd…`) | Qwen3.8-27B (NVFP4), Gemma-4-31B-it (NVFP4) | CUDA 13.0.2, amd64; needs a driver with CUDA 13 support (validated on 580.126.09). Brought in by an `LLMInferenceServiceConfig` that overrides only the image of the platform's default template. |
 
 :::tip
@@ -112,8 +124,8 @@ DeepSeek-V4-Flash (W8A8) and MiniMax-M2.5 (W8A8) are the exceptions — they wer
 Gemma-4-31B-it uses both scenarios and the same concurrency sweep, but is sent directly
 to its P4+D4 proxy because the MaaS backend was still attached to the older aggregate
 service at measurement time.
-GLM-5.2 (W4A8C8) does not use these scenarios: it is measured by replaying coding-agent
-sessions over a sweep of concurrent sessions — see its page.
+GLM-5.2 (W4A8C8) and GLM-5.3 (W4A4C8 MXFP4) do not use these scenarios: they are measured by
+replaying coding-agent sessions over a sweep of concurrent sessions — see their pages.
 
 | Scenario | What it models | Dataset | Request shape |
 |---|---|---|---|
