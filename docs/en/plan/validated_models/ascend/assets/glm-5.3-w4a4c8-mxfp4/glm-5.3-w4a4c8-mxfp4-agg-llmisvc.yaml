@@ -1,0 +1,178 @@
+# GLM-5.3 (W4A4C8 MXFP4) — one aggregated engine on 1 × Atlas 850 (8 × Ascend 950DT 96 GB),
+# 1M context, on Alauda AI's InferNex runtime template (`infernex-config-llm-template`) with only
+# the engine image replaced.
+#
+# This is the object that was benchmarked (created from the console form, plus the fields
+# marked "not in the form" added in the YAML view). Only the name, namespace and model URI
+# differ. Before applying:
+#   - replace every `demo` with your namespace;
+#   - point `spec.model.uri` at the PVC that holds the ModelScope checkpoint
+#     Eco-Tech/GLM-5.3-w4a4c8-mxfp4 (117 files, 390 GiB). The engine runs as uid 1000, so the
+#     files must be readable by that uid;
+#   - for air-gapped nodes, repoint the image;
+#   - on clusters with more than one kind of NPU node, uncomment the nodeSelector below;
+#   - free all 8 NPUs of the node: the service needs the whole node.
+# To change an engine flag, delete the service and create it again: a rolling update cannot
+# place a second 8-card pod on the node.
+---
+# The community vLLM-Ascend image has no passwd entry for uid 1000, and multi-NPU HCCL fails
+# without one (`hcclGetRootInfo ... error code is 19`). This adds the image's own entries plus
+# uid 1000; see "Multi-NPU Inference with UID 1000" in the custom inference runtime guide.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: glm53-runtime-identity
+  namespace: demo
+data:
+  passwd: |
+    root:x:0:0:Super User:/root:/bin/bash
+    bin:x:1:1:bin:/bin:/usr/sbin/nologin
+    daemon:x:2:2:daemon:/sbin:/usr/sbin/nologin
+    adm:x:3:4:adm:/var/adm:/usr/sbin/nologin
+    lp:x:4:7:lp:/var/spool/lpd:/usr/sbin/nologin
+    sync:x:5:0:sync:/sbin:/bin/sync
+    shutdown:x:6:0:shutdown:/sbin:/sbin/shutdown
+    halt:x:7:0:halt:/sbin:/sbin/halt
+    mail:x:8:12:mail:/var/spool/mail:/usr/sbin/nologin
+    operator:x:11:0:operator:/root:/usr/sbin/nologin
+    games:x:12:100:games:/usr/games:/usr/sbin/nologin
+    ftp:x:14:50:FTP User:/var/ftp:/usr/sbin/nologin
+    nobody:x:65534:65534:Kernel Overflow User:/:/usr/sbin/nologin
+    systemd-coredump:x:999:997:systemd Core Dumper:/:/sbin/nologin
+    dbus:x:81:81:D-Bus:/var/run/dbus:/sbin/nologin
+    sshd:x:74:74:Privilege-separated SSH:/var/empty/sshd:/sbin/nologin
+    HwHiAiUser:x:1000:1000:HwHiAiUser:/home:/sbin/nologin
+---
+apiVersion: serving.kserve.io/v1alpha1
+kind: LLMInferenceService
+metadata:
+  name: glm53-w4a4c8
+  namespace: demo
+  labels:
+    infernex.io/runtime: "true"
+    aml-model-repo: GLM-5.3-w4a4c8-mxfp4
+    aml.cpaas.io/runtime-type: infernex
+    service.subdomain: glm53-w4a4c8-demo
+  annotations:
+    aml-model-repo: GLM-5.3-w4a4c8-mxfp4
+    aml-model-repo-id: ""
+    aml-model-source-type: pvc
+    cpaas.io/description: ""
+    aml.dev/llm-runtime-profile: infernex
+    cpaas.io/accelerator: ascend-a5
+    aml-model-source-connection: ""
+    # Hardware profile chosen in the console form (8 NPUs, see the page)
+    cpaas.io/hardware-profile: ascend-a5-8npu
+    serving.kserve.io/llm-inference-service-config-prefix: infernex-
+    # Not in the form: one aggregated replica on the whole node. Without this the InferNex Bridge
+    # starts P/D orchestration and autoscaling; the engine uses neither mooncake nor the cache indexer.
+    infernex.io/disabled-components: pd-orchestrator,mooncake,cache-indexer
+spec:
+  model:
+    # PVC holding Eco-Tech/GLM-5.3-w4a4c8-mxfp4 (the benchmarked service used an NFS-backed PVC)
+    uri: pvc://glm53-weights/GLM-5.3-w4a4c8-mxfp4
+    name: GLM-5.3-w4a4c8-mxfp4
+  replicas: 1
+  parallelism:
+    tensor: 8
+    # Not in the form: the details page reads EP from this field. The template does not turn it
+    # into an engine flag, so --enable-expert-parallel stays in the args.
+    expert: true
+  router:
+    route: {}
+    gateway: {}
+  template:
+    # Not in the benchmarked object (single-node cluster). The hardware profile's node selector
+    # is not carried over to the pod; to pin a 950DT node use the label it carries:
+    # nodeSelector:
+    #   node.kubernetes.io/npu.chip.name: Ascend950DT
+    containers:
+      - args:
+          - --enable-expert-parallel
+          - --prefill-context-parallel-size=1
+          - --decode-context-parallel-size=8
+          - --cp-kv-cache-interleave-size=128
+          - --max-model-len=1048576
+          - --max-num-batched-tokens=16384
+          # Sized from KV: 3,023,872 tokens (2,953 blocks of 1,024). A 150k-input + 10k-output
+          # request with no shared prefix takes 157 blocks, so 18 fit. The engine does not reserve
+          # a request's full KV on admission; above what KV can hold, long requests are admitted,
+          # then preempted and recomputed when KV fills (at 20 one request stalled for 311 s).
+          - --max-num-seqs=18
+          - --gpu-memory-utilization=0.9
+          - --enable-prefix-caching
+          - --trust-remote-code
+          - --quantization=ascend
+          - --kv-cache-dtype=fp8
+          - --attention_config.indexer_kv_dtype=fp8
+          - --compilation-config={"cudagraph_mode":"FULL_DECODE_ONLY"}
+          - --speculative-config={"num_speculative_tokens":5,"method":"deepseek_mtp","enforce_eager":true}
+          - --async-scheduling
+          - --additional-config={"enable_cpu_binding":true}
+          - --enable-auto-tool-choice
+          - --tool-call-parser=glm47
+          - --reasoning-parser=glm47
+        env:
+          - name: HF_HUB_OFFLINE
+            value: "1"
+          - name: PYTORCH_NPU_ALLOC_CONF
+            value: expandable_segments:True
+          - name: TASK_QUEUE_ENABLE
+            value: "1"
+          - name: OMP_PROC_BIND
+            value: "false"
+          - name: OMP_NUM_THREADS
+            value: "10"
+          - name: HCCL_OP_EXPANSION_MODE
+            value: AIV
+          - name: HCCL_BUFFSIZE
+            value: "900"
+          - name: HCCL_EXEC_TIMEOUT
+            value: "1800"
+          - name: HCCL_CONNECT_TIMEOUT
+            value: "1800"
+          - name: VLLM_USE_V2_MODEL_RUNNER
+            value: "0"
+          - name: VLLM_RPC_TIMEOUT
+            value: "3600000"
+          - name: VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS
+            value: "30000"
+          - name: VLLM_ENGINE_READY_TIMEOUT_S
+            value: "3600"
+          # fastokens (0.2.0, shipped in the image) as the tokenizer: an 800k-token prompt
+          # tokenizes in 0.05 s instead of 2.2–2.7 s, with identical tokens
+          - name: VLLM_USE_FASTOKENS
+            value: "1"
+        name: main
+        resources:
+          requests:
+            cpu: "16"
+            memory: 128Gi
+            huawei.com/npu: "8"
+          limits:
+            cpu: "96"
+            memory: 512Gi
+            huawei.com/npu: "8"
+        # Not in the form: the platform's A5 image (vLLM-Ascend v0.23.0) cannot run GLM-5.3.
+        # Community vLLM-Ascend v0.30.0, v0.30.0-a5-openeuler (arm64), CANN 9.2.1.
+        image: quay.io/ascend/vllm-ascend@sha256:d95c8210df099be38ce5f6050bf1d83b725d069c79d07e9230c66fa2367a2fd1
+        # Not in the form: the template gives up after 10 minutes, too close to the ~7.5-minute
+        # start-up; 720 × the template's 10 s period = 2 hours
+        startupProbe:
+          failureThreshold: 720
+        # Not in the form: the template probes every second with a 1 s timeout
+        readinessProbe:
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        # Not in the form: the passwd above
+        volumeMounts:
+          - name: runtime-identity
+            mountPath: /etc/passwd
+            subPath: passwd
+            readOnly: true
+    volumes:
+      - name: runtime-identity
+        configMap:
+          name: glm53-runtime-identity
+          defaultMode: 292   # 0444
