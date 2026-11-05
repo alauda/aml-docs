@@ -111,6 +111,7 @@ spec:
   entrypoint: "/clusters/${cluster_name}/aml"
   logo: "${logo}"
   packType: "Integrated"
+  version: ""
 EOF
 }
 
