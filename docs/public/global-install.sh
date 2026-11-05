@@ -6,7 +6,7 @@ kubectl_bin="${KUBECTL:-kubectl}"
 
 client_id="${OIDC_CLIENT_ID:-aml}"
 oauth2client_name="${OAUTH2CLIENT_NAME:-mfwwzs7sttsiiirdeu}"
-client_name="${OIDC_CLIENT_NAME:-Alauda AI}"
+client_name="${OIDC_CLIENT_NAME:-Alauda AI Platform}"
 client_secret="${OIDC_CLIENT_SECRET:-TjA3xK9mP2vR8wL5nQ6sF1hG4dY7uB0c}"
 client_secret_name="${OIDC_CLIENT_SECRET_NAME:-aml-oidc-secret}"
 namespace="${OIDC_NAMESPACE:-cpaas-system}"
@@ -26,7 +26,7 @@ usage() {
 Usage:
   global-install.sh <cluster-name>
 
-Creates global resources for Alauda AI:
+Creates global resources for Alauda AI Platform:
   Secret, OAuth2Client, ProductEntry.
 
 Platform URLs are read from ProductBase/base spec.platformURL and spec.alternativeURLs.
@@ -96,21 +96,22 @@ metadata:
     cpaas.io/image-fields: "spec.logo"
   name: aml-${cluster_name}
   annotations:
-    original-name: '{"zh":"Alauda AI","en":"Alauda AI"}'
+    original-name: '{"zh":"Alauda AI Platform","en":"Alauda AI Platform"}'
 spec:
   catalog:
     en: "AI Big Data"
     zh: "AI 大数据"
   description:
-    en: "alauda ai"
-    zh: "alauda ai"
+    en: "alauda ai platform"
+    zh: "alauda ai platform"
   displayName:
-    en: "Alauda AI"
-    zh: "Alauda AI"
+    en: "Alauda AI Platform"
+    zh: "Alauda AI Platform"
   entryTarget: "blank"
   entrypoint: "/clusters/${cluster_name}/aml"
   logo: "${logo}"
   packType: "Integrated"
+  version: ""
 EOF
 }
 
