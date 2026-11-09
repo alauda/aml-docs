@@ -23,7 +23,7 @@ CASES=(
   # "C4:GPU:cases/c4_traininghub_osft.sh"
   "C5:GPU:cases/c5_trainer_v2_llamafactory.sh"
   "C6:GPU:cases/c6_volcanojob_llamafactory.sh"
-  "M1:NPU:cases/m1_llamafactory_lora_npu.sh"
+  "C19:NPU:cases/c19_llamafactory_lora_npu.sh"
   "C18:NPU:cases/c18_smoke_multi_npu_single_pod.sh"
   "C7:NPU:cases/c7_smoke_npu.sh"
   "C8:NPU:cases/c8_trainer_v2_mindspeed_npu.sh"

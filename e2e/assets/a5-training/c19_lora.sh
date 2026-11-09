@@ -110,5 +110,5 @@ losses = [x['loss'] for x in state['log_history'] if 'loss' in x]
 assert losses and all(math.isfinite(x) for x in losses), losses
 assert (out / 'adapter_config.json').is_file()
 assert any(p.stat().st_size > 0 for p in out.glob('adapter_model.*'))
-print('PASS: M1 completed 2 LoRA steps with finite loss and adapter weights', flush=True)
+print('PASS: C19 completed 2 LoRA steps with finite loss and adapter weights', flush=True)
 PYTHON

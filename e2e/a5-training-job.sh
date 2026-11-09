@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared Job lifecycle for the report's M1 and C18 workloads.
+# Shared Job lifecycle for the C19 and C18 A5 workloads.
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${HERE}/lib.sh"
@@ -44,8 +44,8 @@ from pathlib import Path
 e = os.environ
 case = e['A5_CASE']
 assets = Path(e['A5_ASSETS'])
-if case == 'M1':
-    payload = (assets / 'm1_lora.sh').read_text()
+if case == 'C19':
+    payload = (assets / 'c19_lora.sh').read_text()
     count = '1'
 else:
     payload = '''set -eo pipefail
@@ -97,8 +97,8 @@ while [ "${SECONDS}" -lt "${deadline}" ]; do
   case "${state}" in
     True:*)
       a5_kc -n "${NPU_NAMESPACE}" logs "job/${JOB}" --pod-running-timeout=10s --all-containers=true >"${EVIDENCE}/train.log"
-      if [ "${A5_CASE}" = M1 ]; then
-        grep -Fq 'PASS: M1 completed 2 LoRA steps with finite loss and adapter weights' "${EVIDENCE}/train.log"
+      if [ "${A5_CASE}" = C19 ]; then
+        grep -Fq 'PASS: C19 completed 2 LoRA steps with finite loss and adapter weights' "${EVIDENCE}/train.log"
       else
         grep -Fq 'PASS: 2 NPU ranks completed DDP optimizer step and HCCL all_reduce=3.0' "${EVIDENCE}/train.log"
       fi
