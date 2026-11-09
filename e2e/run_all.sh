@@ -12,6 +12,13 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "${HERE}/lib.sh"
 
+# The portable training cases follow the selected device for SKIP_GPU/SKIP_NPU.
+case "${TRAINING_DEVICE:-gpu}" in
+  npu) training_cluster=NPU ;;
+  cpu) training_cluster=CPU ;;
+  *) training_cluster=GPU ;;
+esac
+
 # CASE_ID:CLUSTER:script
 CASES=(
   "C1:GPU:cases/c1_smoke_gpu.sh"
@@ -23,6 +30,8 @@ CASES=(
   # "C4:GPU:cases/c4_traininghub_osft.sh"
   "C5:GPU:cases/c5_trainer_v2_llamafactory.sh"
   "C6:GPU:cases/c6_volcanojob_llamafactory.sh"
+  "C19:${training_cluster}:cases/c19_llamafactory_lora.sh"
+  "C18:${training_cluster}:cases/c18_distributed_single_pod.sh"
   "C7:NPU:cases/c7_smoke_npu.sh"
   "C8:NPU:cases/c8_trainer_v2_mindspeed_npu.sh"
   "C9:NPU:cases/c9_qwen3_finetune_verify.sh"
