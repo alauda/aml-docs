@@ -43,6 +43,22 @@ These values represent Alauda AI Platform component resources only and do not in
 
 Alauda AI Platform resources do not include business data storage capacity. Plan model weights, training data, model images, Workspace/PVCs, Pipeline artifacts, logs, and backups separately based on data volume, growth rate, retention period, IOPS, throughput, and recovery target.
 
+Choose the storage for each kind of data as follows. Inference and training use the same three kinds of storage; they differ only in whether a volume must be mounted by several nodes at the same time. **Recommended** is the default choice, and **Secondary** is the choice when the recommended storage is not available.
+
+| Usage | Recommended | Secondary | Rationale |
+| --- | --- | --- | --- |
+| **Data accessed through S3 URIs**: model repositories, base models, datasets, output models, and pipeline and MLflow artifacts | Enterprise object storage | Ceph Object Storage | Inference services download the model before they start, and jobs read inputs from and write outputs to S3 URIs.<br />No volume is shared between nodes. |
+| **Volumes used by one Pod at a time**: the default storage class, single-node training checkpoints including Training Hub, Workbench home volumes, and model volumes that are uploaded in a Workbench and then served | Enterprise NAS or SAN | Ceph RBD | The volume follows the Pod to another node.<br />A TopoLVM volume cannot. |
+| **Volumes mounted by several nodes at the same time**: multi-node training and fine-tuning volumes such as Trainer v2 and the fine-tuning pipeline, preemptible training with Kueue, KubeRay with multiple workers, Ray Data input, and model volumes shared by llm-d multi-node inference | Enterprise NAS | CephFS | Every Pod mounts the volume at the same time.<br />Ceph RBD and TopoLVM volumes cannot be mounted by several nodes. |
+
+Notes:
+
+- An enterprise NAS and enterprise object storage cover all three rows. Without enterprise storage, one Ceph cluster covers them. If no workload needs the last row, an enterprise SAN can replace the NAS.
+- To avoid the last row, KubeRay can use object storage, llm-d can use a ModelCar, and Kueue jobs on Ceph RBD can be pinned to one node.
+- ModelCar images, including those of Model Catalog, and S3 downloads are unpacked on the node. Size node-local disks for the largest model: the 200G per worker node in [Install](/installation/index.mdx) is not enough for GLM-5.2, which takes 377 GiB on disk.
+- Use TopoLVM for proof of concept only.
+- Size checkpoint volumes as described in [Checkpointing and Resuming TrainJobs](/train/guides/checkpointing-and-resuming.mdx).
+
 ## 2. MaaS SSE capacity reference
 
 The load-test data helps determine reasonable resource configurations for the MaaS components at each concurrency level. It is a reference for sizing MaaS capacity in addition to the base platform resources. The data comes from long-stream SSE tests: each stream returns 200 content chunks with an interval of about 100 ms, and each test lasts 600 seconds using close connection mode. The tests use the in-cluster `mock-llm` as the backend in place of a real model service, to reduce the influence of uncertainty in model response content and duration on the results.
