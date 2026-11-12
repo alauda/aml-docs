@@ -1,0 +1,36 @@
+---
+weight: 30
+---
+
+# Release Notes
+
+## Volcano v1.16.0
+
+Alauda support for Volcano v1.16.0 is based on community Volcano v1.16.0 and is delivered as the `volcano-operator` Operator. It provides batch scheduling and resource management for machine learning workloads.
+
+## Features
+
+- Updated to community Volcano v1.16.0.
+- Provides gang scheduling, queueing, and multi-role job scheduling through VolcanoJob, PodGroup, Queue, and JobFlow.
+
+## Bug Fixes
+
+- Fixed preemption so a job is not scheduled to a node that is no longer available.
+- Fixed JobFlow status when its jobs have already finished.
+- Fixed a closed queue so it remains in the closing state until its jobs finish.
+- Invalid queue and subgroup policy settings are now all reported, rather than only the first error.
+
+## Compatibility
+
+- Supported ACP versions: v4.1, v4.2, v4.3, and v4.4.
+- Supported architectures: AMD64 and ARM64.
+
+## Upgrade
+
+The Volcano v1.15.0 Cluster Plugin delivered with Alauda AI Platform v2.9 cannot be upgraded directly. Uninstall the plugin from Cluster Plugins, then install `volcano-operator` v1.16.0.
+
+See [Upgrade Volcano](./upgrade) for the procedure.
+
+## Known Issues
+
+No errata is currently published for this release. Removing either the Cluster Plugin or the Operator does not delete existing VolcanoJob, PodGroup, Queue, or JobFlow resources.

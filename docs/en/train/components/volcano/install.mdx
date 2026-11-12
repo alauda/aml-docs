@@ -4,37 +4,30 @@ weight: 20
 
 # Install Volcano
 
-## Downloading Cluster plugin
+## Download the Operator package
 
 :::info
 
-`Volcano` cluster plugin can be retrieved from Customer Portal.
+The `volcano-operator` package can be retrieved from Customer Portal.
 
 Please contact Consumer Support for more information.
 
 :::
 
-## Uploading the Cluster plugin
+## Upload the Operator package
 
-For more information on uploading the cluster plugin, please refer to <ExternalSiteLink name="acp" href="ui/cli_tools/index.html#uploading-cluster-plugins" children="Uploading Cluster Plugins" />
+Download the `volcano-operator` package, then upload it following [Upload Packages](../../../installation/package-upload.mdx).
 
-## Installing Volcano
+## Install Volcano
 
-1. Go to the `Administrator` -> `Marketplace` -> `Cluster Plugin` page, switch to the target cluster, and then deploy the `Volcano` Cluster plugin.
-    :::info
-    **Note: Deploy form parameters can be kept as default or modified after knowing how to use them.**
-    :::
+1. Go to `Administrator` -> `Marketplace` -> `OperatorHub`, switch to the target cluster, and install `volcano-operator`.
+   :::info
+   **Note:** Keep the default parameters unless you have a specific configuration requirement.
+   :::
+2. Confirm that the Operator status is `Installed` and the Volcano pods are running.
 
-2. Verify result. You can see the status of "Installed" in the UI or you can check the pod status:
-    ```bash
-    kubectl get pods -n kubeflow | grep volcano
-    ```
+For an existing installation, see [Upgrade Volcano](./upgrade).
 
-## Upgrading Volcano
+## Uninstall Volcano
 
-1. Upload the new version for package of **Volcano** plugin to ACP.
-2. Go to the `Administrator` -> `Clusters` -> `Target Cluster` -> `Functional Components` page, then click the `Upgrade` button, and you will see the `Volcano` can be upgraded.
-
-## Uninstalling Volcano
-
-Before removing the `Volcano` cluster plugin, manually delete any `VolcanoJob`, `PodGroup`, `Queue`, and `JobFlow` resources that were created while the plugin was installed. The plugin removal does not clean up these custom resources for you.
+Before removing `volcano-operator`, delete any `VolcanoJob`, `PodGroup`, `Queue`, and `JobFlow` resources that should not be retained. Uninstall does not remove these resources.
