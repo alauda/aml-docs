@@ -1,0 +1,19 @@
+---
+weight: 40
+---
+
+# Upgrade Volcano
+
+Volcano v1.16.0 is delivered as the `volcano-operator` Operator. Alauda AI Platform v2.9 delivers Volcano v1.15.0 as a Cluster Plugin. The Cluster Plugin cannot be upgraded directly to the Operator.
+
+For a new installation, see [Install Volcano](./install).
+
+## Replace the Volcano v1.15.0 Cluster Plugin
+
+1. Back up the workload configuration that you need to retain.
+2. Go to `Administrator` -> `Marketplace` -> `Cluster Plugins`, switch to the target cluster, and uninstall the Volcano v1.15.0 Cluster Plugin.
+3. Confirm that the plugin no longer appears as installed.
+4. Delete any remaining VolcanoJob, PodGroup, Queue, and JobFlow resources that you do not want to retain.
+5. Install `volcano-operator` v1.16.0 by following [Install Volcano](./install).
+
+Perform this change during a maintenance window. Uninstalling the Cluster Plugin does not delete workload resources.
