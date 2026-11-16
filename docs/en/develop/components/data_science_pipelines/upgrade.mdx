@@ -1,0 +1,134 @@
+---
+weight: 30
+---
+
+# Upgrade Data Science Pipelines Operator
+
+Data Science Pipelines Operator (DSPO) is an OLM operator. Upgrade it through
+its existing OLM `Subscription`; do not replace the operator deployment by
+hand. OLM installs the new ClusterServiceVersion (CSV), applies the operator
+image and bundle metadata, and keeps the subscription on its selected channel.
+
+For a new installation, see [Install Data Science Pipelines](./install). For
+DSPA configuration, see [Create a Data Science Pipelines Application](../../pipelines/create_dspa.mdx).
+
+## Before you upgrade
+
+- Confirm the target DSPO version is available in the `stable` channel for the
+  destination cluster.
+- Read the target release notes and check the supported ACP, Kubernetes, and
+  architecture matrix. DSPO v2.15.4 supports `amd64` and `arm64`; ACP 4.1 and
+  4.2 are declared support and ACP 4.3 was used for the release E2E tests.
+- Back up the external MySQL database and S3-compatible object-storage bucket
+  used by every production DSPA. A DSPO operator upgrade does not replace these
+  backends, but a backup is required before any component or schema migration.
+- Export the DSPA manifests and record the current operator and operand state:
+
+  ```bash
+  kubectl get subscription -A -l operators.coreos.com/data-science-pipelines-operator -o yaml
+  kubectl get csv -A | grep data-science-pipelines-operator
+  kubectl get dspa -A -o yaml > dspa-backup.yaml
+  kubectl get pods -A -l app.kubernetes.io/part-of=data-science-pipelines -o wide
+  ```
+
+- Ensure the shared Kubeflow Pipelines `kfp-operator` is not installed. DSPO
+  and the shared KFP installation are mutually exclusive and an upgrade does
+  not change that rule.
+
+Do not delete the DSPAs or their namespaces as part of a normal operator
+upgrade. OLM upgrades the controller while the DSPA resources and their
+component workloads remain in place.
+
+## Upgrade with the OperatorHub UI
+
+1. In **Administrator**, open **Marketplace** / **OperatorHub** and select the
+   destination cluster.
+2. Open **Data Science Pipelines Operator** and select **Upgrade** (or open the
+   installed operator and choose the available version).
+3. Keep the `stable` channel unless the release notes require another channel.
+4. Select the target version and review the displayed InstallPlan.
+5. For production, use **Manual** approval. Inspect the InstallPlan and approve
+   it only after the backup and release checks are complete. Automatic approval
+   proceeds as soon as OLM sees an upgrade in the selected channel.
+6. Wait for the new CSV to reach **Succeeded** and the controller deployment to
+   become Ready.
+
+## Upgrade with kubectl
+
+Find the subscription and current CSV first:
+
+```bash
+kubectl -n data-science-pipelines-operator get subscription data-science-pipelines-operator -o yaml
+kubectl -n data-science-pipelines-operator get csv
+```
+
+To hold the upgrade for review, set manual approval on the subscription:
+
+```bash
+kubectl -n data-science-pipelines-operator patch subscription \
+  data-science-pipelines-operator --type merge \
+  -p '{"spec":{"installPlanApproval":"Manual"}}'
+```
+
+Set `spec.channel` only when the target release is published on a different
+channel. Do not set `startingCSV` to an arbitrary CSV name; use the CSV offered
+by the selected channel and the target release notes. After the InstallPlan is
+created, inspect it:
+
+```bash
+kubectl -n data-science-pipelines-operator get installplan
+kubectl -n data-science-pipelines-operator describe installplan <installplan-name>
+```
+
+Approve the reviewed plan:
+
+```bash
+kubectl -n data-science-pipelines-operator patch installplan <installplan-name> \
+  --type merge -p '{"spec":{"approved":true}}'
+```
+
+If the subscription is already configured for automatic approval, OLM creates
+and approves the InstallPlan without this last command.
+
+## Verify the upgrade
+
+Wait for the subscription and CSV to report the target version:
+
+```bash
+kubectl -n data-science-pipelines-operator get subscription \
+  data-science-pipelines-operator \
+  -o jsonpath='{.status.currentCSV}{"\n"}'
+kubectl -n data-science-pipelines-operator get csv
+kubectl -n data-science-pipelines-operator get deployment,pods
+```
+
+The new CSV must show `Succeeded`, and the controller deployment must have all
+requested replicas Ready. Then verify every DSPA and its components:
+
+```bash
+kubectl get dspa -A
+kubectl get pods -A -l app.kubernetes.io/part-of=data-science-pipelines
+```
+
+For each DSPA, confirm `Ready=True`, `APIServerReady=True`,
+`PersistenceAgentReady=True`, `ScheduledWorkflowReady=True`, and
+`WorkflowControllerReady=True` (plus the MLMD condition when MLMD is enabled).
+Run a representative KFP SDK compile/upload/list or pipeline smoke test after
+the controller and operand pods are ready.
+
+## Upgrade boundaries and recovery
+
+- OLM upgrades between DSPO releases on the same OLM installation model. It
+  does not migrate a shared `kfp-operator` installation to DSPO, or DSPO to the
+  shared KFP installation. Choose one model and remove the other only through
+  its documented migration procedure.
+- Do not delete CRDs, DSPAs, namespaces, databases, or object-storage buckets
+  to force an upgrade. If an InstallPlan or CSV fails, inspect events and CSV
+  conditions, correct the reported prerequisite, and retry the plan.
+- If the new CSV is not healthy, stop creating new DSPAs and preserve the
+  failed CSV, InstallPlan, operator logs, and DSPA status for diagnosis. Follow
+  the target release's rollback guidance; rolling back an operator image by
+  editing its Deployment is unsupported.
+- Restoring the external database, object-storage data, or exported DSPA
+  manifests is a recovery operation and should follow the backup procedure for
+  the target environment.
