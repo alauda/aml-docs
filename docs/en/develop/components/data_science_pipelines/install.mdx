@@ -44,6 +44,8 @@ In the **Administrator** view:
 
 ### External endpoint provider (optional)
 
+For upgrade-specific actions, see [Upgrade Data Science Pipelines Operator](./upgrade).
+
 The operator exposes each DSPA's APIServer according to its `EXTERNAL_ROUTE_PROVIDER` setting, configured on the Subscription's `spec.config.env`:
 
 - `none` (default) — the operator creates no external endpoint. The APIServer is reachable only in-cluster (`ds-pipeline-<name>.<namespace>.svc:8888`). Use this when ingress is handled separately.
