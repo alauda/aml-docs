@@ -1,0 +1,59 @@
+---
+weight: 30
+---
+
+# Use Evidently
+
+Evidently provides data-quality checks, drift detection, model monitoring, and
+LLM evaluation reports. This guide connects the Python SDK to an installed
+Evidently UI.
+
+## Configure the client
+
+Set the UI address and, when authentication is enabled, the same secret used by
+the service:
+
+```bash
+export EVIDENTLY_URL=http://<evidently-service>:8000
+export EVIDENTLY_SECRET=<secret>
+```
+
+Keep the secret in a Kubernetes Secret or an approved secret manager. Do not
+commit it to a pipeline or notebook.
+
+## Run a drift check
+
+Install the SDK in a Python 3.10 environment and create reference and current
+datasets. A minimal report uses the `DataDriftPreset`:
+
+```python
+import pandas as pd
+from evidently import Report
+from evidently.presets import DataDriftPreset
+
+reference = pd.read_csv("reference.csv")
+current = pd.read_csv("current.csv")
+report = Report([DataDriftPreset()])
+result = report.run(current, reference)
+result.save_html("drift-report.html")
+```
+
+Use the Evidently SDK's project and workspace APIs to publish reports to the
+UI, then open the project in the browser to inspect metrics and visualizations.
+The exact API can change between Evidently releases; use the SDK version that
+matches the installed chart.
+
+## Configure common chart values
+
+Enable demo projects only for evaluation environments:
+
+```yaml
+demoProjects:
+  - bikes
+```
+
+Set `demoProjects: []` in production. To enable API authentication, configure a
+secret in the application values and send it as the `evidently-secret` request
+header. The self-hosted UI becomes read-only when authentication is enabled;
+use the API for write operations.
+

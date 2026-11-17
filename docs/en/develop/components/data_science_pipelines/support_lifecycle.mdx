@@ -1,0 +1,30 @@
+---
+weight: 50
+---
+
+# Data Science Pipelines Operator support lifecycle
+
+DSPO is supported as an OLM operator within the Alauda AI Platform releases
+that list it in the [supported-configuration matrix](../../../plan/supported_configurations.md).
+
+The matrix is the source of truth for supported DSPO versions, ACP versions, and
+CPU architectures. The upstream OpenDataHub DSPO project controls upstream
+maintenance; Alauda support applies to the tested Alauda bundle and its
+documented integration with Kubeflow Pipelines.
+
+## Support boundaries
+
+- Run only one pipeline operator model on a cluster. DSPO and the shared
+  `kfp-operator` installation are mutually exclusive.
+- Keep the DSPO operator and its DSPA workloads within the versions and
+  architectures listed in the matrix.
+- Upgrade through OLM and follow the [DSPO upgrade guide](./upgrade). Do not
+  replace the operator deployment manually.
+- Back up each DSPA's database, object storage, and manifests before an
+  upgrade.
+
+When a version is removed from the matrix or marked deprecated in platform
+release notes, plan an upgrade to a supported version. Retain the existing
+operator only while its platform release remains within the published support
+window.
+

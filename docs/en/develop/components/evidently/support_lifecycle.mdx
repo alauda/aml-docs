@@ -1,0 +1,31 @@
+---
+weight: 50
+---
+
+# Evidently support lifecycle
+
+Evidently follows the version and support policy of the Alauda AI Platform
+release in which its Helm Chart is published.
+
+## Support status
+
+- The supported chart version is the one listed for Evidently in the
+  [supported-configuration matrix](../../../plan/supported_configurations.md).
+- A chart is supported only on the architectures and platform releases listed
+  in that matrix.
+- Security fixes and operational fixes are delivered through a newer Alauda
+  chart release. The upstream Evidently project controls upstream maintenance
+  and end-of-life decisions.
+
+## Staying supported
+
+Keep the chart on the current version for the platform release. Before moving
+to a newer chart, follow the [upgrade procedure](./upgrade) and review the
+component release notes. Retain a backup of the persistent data before every
+upgrade.
+
+If a chart version is removed from the matrix or marked deprecated in platform
+release notes, plan migration to the replacement version. Contact the platform
+administrator for an exception or an older package that is still available in
+the catalog.
+
