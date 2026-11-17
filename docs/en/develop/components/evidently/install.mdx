@@ -1,0 +1,60 @@
+---
+weight: 20
+---
+
+# Install Evidently
+
+Evidently is delivered as an Alauda Helm Chart. It runs the Evidently UI and
+stores project data on persistent storage in the target namespace.
+
+## Prerequisites
+
+- A supported x86_64 or arm64 ACP cluster. Check the [supported
+  configurations](../../../plan/supported_configurations.md) before installing.
+- A namespace where you have permission to create applications and services.
+- A default CSI storage class, or the name of a storage class that can provision
+  the persistent volume used by Evidently.
+- The Evidently package uploaded to the platform catalog by an administrator.
+
+## Install from the platform UI
+
+1. Open the **Alauda Container Platform** view and select the target namespace.
+2. Open **Applications** and select **Create** > **Create from Catalog**.
+3. Search for `chart-evidently-ui` and select **Create**.
+4. Set the application name (for example, `evidently`) and review the custom
+   values. At minimum, set a suitable storage class when the cluster has no
+   default:
+
+   ```yaml
+   statefulset:
+     storage:
+       storageClass: <storage-class>
+   ```
+
+5. Select **Create** and wait for the StatefulSet and Service to become ready.
+
+## Verify the installation
+
+Replace `<namespace>` and `<name>` with the values used during installation:
+
+```bash
+kubectl -n <namespace> get statefulset <name>
+kubectl -n <namespace> get pods -l app.kubernetes.io/instance=<name>
+kubectl -n <namespace> get service <name>
+```
+
+The pod should be `Running` and the Service should expose port `8000`.
+
+## Access the UI
+
+Use the platform-provided external endpoint, or access the Service through its
+cluster address on port `8000`:
+
+```text
+http://<service-name>.<namespace>.svc:8000
+```
+
+For production deployments, configure an external route according to the
+cluster's networking policy and protect the service with the platform's access
+control.
+

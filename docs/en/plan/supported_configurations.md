@@ -29,13 +29,13 @@ This page lists the currently maintained Alauda AI Platform versions in the comp
 | Kubeflow Base Operator                       | Operator       | v26.3.5                            | v26.3.5                          |
 | Kubeflow Pipelines Operator                  | Operator       | v26.3.5                            | v26.3.5                          |
 | Kubeflow Trainer Operator                    | Operator       | v26.3.5                            | v26.3.5                          |
-| Data Science Pipeline Operator               | Operator       | v2.15.1                            | v2.15.1                          |
+| Data Science Pipelines Operator               | Operator       | v2.15.1                            | v2.15.1                          |
 | Alauda Build of Kubeflow Model Registry      | Operator       | v0.3.8-2                           | v0.3.8-2                         |
 | Alauda Build of Llama Stack (2)              | Operator       | v0.9.0                             | Deprecated                       |
 | Label Studio                                 | Helm Chart     | v1.21.0-2                          | v1.21.0-2                        |
 | Alauda AI Platform Gateway                   | Operator       | v0.6.0-2                           | v1.1.0-1                         |
 | Dify Operator                                | Operator       | v1.15.0                            | v1.15.0                          |
-| Evidently                                    | Helm Chart     | v0.7.14-1                          | v0.7.14-1                        |
+| Evidently                                    | Helm Chart     | v0.7.14-3                          | v0.7.14-3                        |
 | Alauda Build of Feast                        | Operator       | v0.61.1                            | v0.61.1                          |
 | Knative Operator                             | Operator       | v1.19.3-260213                     | v1.19.3-260213                   |
 | PostgreSQL                                   | Operator       | v4.2.0                             | v4.3.3                           |
@@ -74,13 +74,13 @@ This page lists the currently maintained Alauda AI Platform versions in the comp
 | Kubeflow Base Operator                       | Operator       | v26.3.5                            | v26.3.5                          |
 | Kubeflow Pipelines Operator                  | Operator       | v26.3.5                            | v26.3.5                          |
 | Kubeflow Trainer Operator                    | Operator       | v26.3.5                            | v26.3.5                          |
-| Data Science Pipeline Operator               | Operator       | v2.15.1                            | v2.15.1                          |
+| Data Science Pipelines Operator               | Operator       | v2.15.1                            | v2.15.1                          |
 | Alauda Build of Kubeflow Model Registry      | Operator       | v0.3.8-2                           | v0.3.8-2                         |
 | Alauda Build of Llama Stack (2)              | Operator       | v0.9.0                             | Deprecated                       |
 | Label Studio                                 | Helm Chart     | v1.21.0-2                          | v1.21.0-2                        |
 | Alauda AI Platform Gateway                   | Operator       | v0.6.0-2                           | v1.1.0-1                         |
 | Dify Operator                                | Operator       | v1.15.0                            | v1.15.0                          |
-| Evidently                                    | Helm Chart     | v0.7.14-1                          | v0.7.14-1                        |
+| Evidently                                    | Helm Chart     | v0.7.14-3                          | v0.7.14-3                        |
 | Alauda Build of Feast                        | Operator       | v0.61.1                            | v0.61.1                          |
 | Knative Operator                             | Operator       | v1.19.3-260213                     | v1.19.3-260213                   |
 | PostgreSQL                                   | Operator       | v4.2.0                             | v4.3.3                           |

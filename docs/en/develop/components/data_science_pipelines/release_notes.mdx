@@ -1,0 +1,26 @@
+---
+weight: 60
+---
+
+# Data Science Pipelines Operator release notes
+
+These notes summarize DSPO changes that affect the Alauda AI Platform
+integration. For upstream changes, see the [OpenDataHub DSPO project](https://github.com/opendatahub-io/data-science-pipelines-operator/releases).
+
+## Current documented release
+
+- DSPO is delivered and upgraded through OLM.
+- The operator supports per-namespace `DataSciencePipelinesApplication`
+  (DSPA) instances with managed or external database and object-storage
+  backends.
+- The supported architectures and platform versions are listed in the
+  [supported-configuration matrix](../../../plan/supported_configurations.md).
+- DSPO and the shared Kubeflow Pipelines `kfp-operator` remain mutually
+  exclusive on a cluster.
+
+## Upgrade notes
+
+Read [Upgrade Data Science Pipelines Operator](./upgrade) before changing the
+operator subscription. Back up DSPA data and approve the OLM InstallPlan only
+after reviewing the target release and compatibility requirements.
+

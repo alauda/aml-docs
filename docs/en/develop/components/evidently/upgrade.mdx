@@ -1,0 +1,44 @@
+---
+weight: 40
+---
+
+# Upgrade Evidently
+
+Evidently is upgraded by updating the Helm Chart application in its existing
+namespace. The chart upgrade replaces the UI workload while the persistent
+volume keeps project data.
+
+## Before you upgrade
+
+1. Record the current application values and chart version from the platform
+   UI, or export them with the platform tooling.
+2. Confirm that the target version is listed in the supported-configuration
+   matrix and that its image is available for the cluster architecture.
+3. Back up the persistent volume or the Evidently project data according to
+   your storage policy.
+4. Check the target release notes for configuration or data-format changes.
+
+Do not delete the application or its persistent volume as part of a normal
+upgrade.
+
+## Upgrade from the platform UI
+
+1. Open the namespace containing the Evidently application.
+2. Open the application's **Update** action.
+3. Select the target chart version and preserve the existing values. Update the
+   storage class or authentication values only when required by the release.
+4. Apply the update and wait for the StatefulSet rollout to complete.
+
+## Verify the upgrade
+
+```bash
+kubectl -n <namespace> rollout status statefulset/<name>
+kubectl -n <namespace> get pods -l app.kubernetes.io/instance=<name>
+kubectl -n <namespace> get pvc
+```
+
+Open the UI, confirm that existing projects and reports are visible, and run a
+small API or SDK check before returning the service to users. If the rollout
+fails, restore the previous chart version and values, then investigate pod and
+application logs before retrying.
+
