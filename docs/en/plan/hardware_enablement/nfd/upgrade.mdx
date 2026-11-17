@@ -1,0 +1,30 @@
+---
+weight: 30
+---
+
+# Upgrade Node Feature Discovery
+
+The supported upgrade path is from `nfd-operator.v0.20.1-alauda.2` to
+`nfd-operator.v0.20.1-1` through OperatorHub. The existing
+`NodeFeatureDiscovery` CR is preserved.
+
+1. Upload the `nfd-operator` package for `v0.20.1-1`.
+2. Upgrade the subscription and wait for CSV `nfd-operator.v0.20.1-1` to reach
+   **Succeeded**.
+3. Verify the CR reports `Deployed=True` and all NFD workloads are ready.
+4. Verify that `feature.node.kubernetes.io/*` labels remain present.
+
+If the CR contains an explicit `spec.image.tag`, that value is a Helm override.
+The Operator upgrade can complete while the operand remains on the pinned tag.
+Update the field to `v0.20.1-1` only when you want the operand image to move:
+
+```bash
+kubectl -n node-feature-discovery patch nodefeaturediscovery nfd \
+  --type merge -p '{"spec":{"image":{"tag":"v0.20.1-1"}}}'
+```
+
+Then verify the Helm release revision, operand image, CR condition, workloads,
+and NFD labels again.
+
+To move from the old Cluster Plugin delivery form, follow the migration steps
+in [Install](./install); it is not an in-place Operator upgrade.

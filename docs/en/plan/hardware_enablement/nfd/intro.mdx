@@ -1,0 +1,33 @@
+---
+weight: 10
+---
+
+# Introduction
+
+**Alauda Build of Node Feature Discovery (NFD)** discovers hardware features
+and system configuration on Kubernetes nodes and publishes them as node labels
+and `NodeFeature` resources. The `v0.20.1-1` release is delivered as the
+`nfd-operator` Operator Bundle.
+
+NFD provides labels that workloads and platform components can use to select
+nodes by operating system, architecture, kernel, CPU, PCI, and other hardware
+properties.
+
+## Scope
+
+NFD discovers and labels node capabilities. It does not install hardware
+drivers, expose GPU or NPU resources, or replace a vendor device plugin or
+accelerator operator. Install and manage those components separately.
+
+For installation and upgrade procedures, see [Install](./install) and
+[Upgrade](./upgrade).
+
+## Feature labels
+
+After a `NodeFeatureDiscovery` custom resource is created, NFD publishes labels
+with the `feature.node.kubernetes.io/` prefix. The exact labels depend on the
+features present on each node. GPU and NPU device plugins may consume these
+labels, but their resource and driver labels are outside NFD's scope.
+
+See the [upstream NFD documentation](https://kubernetes-sigs.github.io/node-feature-discovery/v0.20/)
+for the complete feature source reference.
