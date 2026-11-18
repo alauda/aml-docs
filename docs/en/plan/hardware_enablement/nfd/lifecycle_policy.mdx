@@ -1,0 +1,47 @@
+---
+weight: 60
+---
+
+# Lifecycle policy
+
+This policy applies to the Node Feature Discovery release line described on
+this website. The release owner publishes the current support status in the
+release notes and release announcements for each version.
+
+## Release policy
+
+- Patch releases may be issued to address bugs and security vulnerabilities.
+  Patch releases do not introduce new product features.
+- Minor and major releases are driven by upstream NFD changes, new product
+  capabilities, compatibility requirements, or significant security needs.
+- Release availability depends on the supported ACP versions and architectures
+  listed in the [supported versions](./validated_versions).
+
+## Support status
+
+Each release can move through the following support statuses:
+
+- **Active maintenance**: Bugs, security issues, documentation, and upgrade
+  guidance are evaluated for the supported release line.
+- **Security maintenance**: Security fixes are evaluated; ordinary feature
+  requests are directed to a newer supported release.
+
+The current support status is published in the release notes. This page and
+the release notes are updated when the support status changes.
+
+## Maintenance policy
+
+During the supported lifecycle, Alauda provides:
+
+- **Upstream updates**: tracking upstream NFD updates and incorporating relevant
+  bug fixes and security fixes into supported release lines.
+- **Security updates**: publishing updates when a security issue affects the
+  supported product release.
+- **Upgrade guidance**: documenting supported upgrade paths and migration steps
+  between the Cluster Plugin and Operator Bundle delivery forms.
+
+## Upgrade recommendation
+
+Customers should use a release with an active or security maintenance status
+and follow the documented upgrade path when moving to a newer supported
+release.
