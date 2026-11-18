@@ -8,9 +8,9 @@ Workbench-based recipes for running full-parameter SFT and pretraining on `arm64
 
 | Notebook                                                                | Workbench image  | Workload                                                                       |
 | ----------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------ |
-| [`qwen3_finetune_verify.ipynb`](/qwen3_finetune_verify.ipynb)           | `PyTorch CANN`   | Full-parameter SFT of `Qwen3-8B` (MindSpeed-LLM)                               |
-| [`qwen25_pretrain_verify.ipynb`](/qwen25_pretrain_verify.ipynb)         | `PyTorch CANN`   | Pretraining of `Qwen2.5-7B` (MindSpeed-LLM)                                    |
-| [`qwen3_0.6b_finetune_verify.ipynb`](/qwen3_0.6b_finetune_verify.ipynb) | `MindSpore CANN` | Full-parameter SFT of `Qwen3-0.6B` (bundled MindSpeed-Core-MS + MindSpeed-LLM) |
+| [`qwen3_finetune_verify.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/notebooks/qwen3_finetune_verify.ipynb)           | `PyTorch CANN`   | Full-parameter SFT of `Qwen3-8B` (MindSpeed-LLM)                               |
+| [`qwen25_pretrain_verify.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/notebooks/qwen25_pretrain_verify.ipynb)         | `PyTorch CANN`   | Pretraining of `Qwen2.5-7B` (MindSpeed-LLM)                                    |
+| [`qwen3_0.6b_finetune_verify.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/notebooks/qwen3_0.6b_finetune_verify.ipynb) | `MindSpore CANN` | Full-parameter SFT of `Qwen3-0.6B` (bundled MindSpeed-Core-MS + MindSpeed-LLM) |
 
 All three notebooks are **validation-first**: the defaults use short sequences and few iterations so you can confirm the runtime, model loading, preprocessing, and distributed launch path before scaling up. The `PyTorch CANN` image bundles Python 3.12, CANN 8.5.0, PyTorch 2.9.0, and `torch_npu 2.9.0`.
 

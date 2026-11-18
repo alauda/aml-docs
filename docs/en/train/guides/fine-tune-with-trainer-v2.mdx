@@ -27,9 +27,9 @@ Use `alaudadockerhub/fine_tune_with_llamafactory:v0.1.11`, or build your own fro
 
 ## Run the example notebook
 
-Download [`fine-tune-with-trainer-v2.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/fine-tune-with-trainer-v2.ipynb) into your workbench and follow the cells. The notebook creates a `TrainingRuntime`, then submits a `TrainJob` that mounts the shared PVC and uses the `aml-image-builder-secret`.
+Download [`fine-tune-with-trainer-v2.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/notebooks/fine-tune-with-trainer-v2.ipynb) into your workbench and follow the cells. The notebook creates a `TrainingRuntime`, then submits a `TrainJob` that mounts the shared PVC and uses the `aml-image-builder-secret`.
 
-For Huawei Ascend NPUs, use [`fine-tune-with-trainer-v2-mindspeed-npu.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/fine-tune-with-trainer-v2-mindspeed-npu.ipynb) instead — it runs the MindSpeed-LLM SFT pipeline (HF → MCore checkpoint, preprocess, train) on `huawei.com/Ascend910B4` resources with `runtimeClassName: ascend`.
+For Huawei Ascend NPUs, use [`fine-tune-with-trainer-v2-mindspeed-npu.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/notebooks/fine-tune-with-trainer-v2-mindspeed-npu.ipynb) instead — it runs the MindSpeed-LLM SFT pipeline (HF → MCore checkpoint, preprocess, train) on `huawei.com/Ascend910B4` resources with `runtimeClassName: ascend`.
 
 ## Scheduling with Kueue
 
