@@ -1,0 +1,53 @@
+---
+weight: 60
+---
+
+# Lifecycle policy
+
+This page describes the lifecycle policy for Alauda AI Infrastructure Node
+Feature Discovery.
+
+## Version lifecycle timeline
+
+The lifecycle dates for the current release are maintained by the release owner:
+
+| Version | Release date | Full support ends | Maintenance ends |
+| --- | --- | --- | --- |
+| v0.20.x | To be confirmed | To be confirmed | To be confirmed |
+
+The dates are confirmed as part of the product release process and published
+with the release materials.
+
+## Release policy
+
+- Patch releases may be issued to address bugs and security vulnerabilities.
+  Patch releases do not introduce new product features.
+- Minor and major releases are driven by upstream NFD changes, new product
+  capabilities, compatibility requirements, or significant security needs.
+- Release availability depends on the supported ACP versions and architectures
+  listed in the [supported versions](./validated_versions).
+
+## Support phases
+
+Each minor release has two support phases:
+
+- **Full support**: The period beginning with the release and continuing until
+  the full-support end date. Patch releases in the same minor release line may
+  include bug fixes, security updates, and compatibility fixes.
+- **Maintenance**: The period after full support ends and before the maintenance
+  end date. Releases are limited to critical bug fixes and security updates.
+  Non-critical fixes and new features are not backported by default.
+
+After the maintenance end date, the release is no longer supported. Customers
+should plan an upgrade to a supported release before that date.
+
+## Maintenance policy
+
+During the supported lifecycle, Alauda provides:
+
+- **Upstream updates**: tracking upstream NFD updates and incorporating relevant
+  bug fixes and security fixes into supported release lines.
+- **Security updates**: publishing updates when a security issue affects the
+  supported product release.
+- **Upgrade guidance**: documenting supported upgrade paths and migration steps
+  between the Cluster Plugin and Operator Bundle delivery forms.
