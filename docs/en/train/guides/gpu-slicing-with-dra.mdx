@@ -339,3 +339,8 @@ kubectl get resourceslices -o json \
 | Trainer container sees the full 24 GiB, not the slice | You applied the `shared-gpu-timeslice` (full-GPU) template, or MIG mode is off. Use the MIG template on a MIG-mode GPU for a true memory-isolated slice. |
 
 For repeatable coverage of this whole flow, the [`c15_dra_gpu_slice.sh`](https://github.com/alauda/aml-docs/tree/master/e2e/cases/c15_dra_gpu_slice.sh) case applies the template, runtime, and TrainJob, and asserts the fine-tune finishes inside the slice. It self-skips when no `gpu.nvidia.com` `ResourceSlice`s are present, so it stays green on device-plugin-only clusters.
+
+
+## Run on NVIDIA GPU or Ascend NPU
+
+The commands and manifests in this guide use the NVIDIA GPU defaults. For an Ascend run, use the matching CANN image, set `runtimeClassName: ascend`, and replace `nvidia.com/gpu` resource keys with `huawei.com/Ascend910B`. Training code must use `torch_npu`, LlamaFactory, or MindSpeed; pipeline, MLflow, and evaluation steps can use the same configuration on either accelerator.

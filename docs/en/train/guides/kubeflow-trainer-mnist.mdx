@@ -1,0 +1,15 @@
+---
+weight: 30
+---
+
+# Kubeflow Trainer MNIST
+
+This solution shows how to run a distributed MNIST training job from an Alauda AI Workbench. The runnable notebook is available at [`kubeflow-trainer-mnist.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/notebooks/kubeflow-trainer-mnist.ipynb).
+
+## Run on NVIDIA GPU
+
+Create a Workbench with a CUDA image, upload the notebook, set the namespace and storage parameters in the first cell, and run the cells in order.
+
+## Run on Ascend NPU
+
+Use a CANN Workbench and replace CUDA-specific images and resource keys with the matching Ascend runtime and `huawei.com/Ascend910B`. Pipeline, tracking, and evaluation steps can remain unchanged; training code must use `torch_npu`, LlamaFactory, or MindSpeed.
