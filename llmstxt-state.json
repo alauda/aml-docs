@@ -70,9 +70,9 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/administer/index.mdx": {
-      "sha256": "58f6473f5e155f1eb4fe3afa0f3862e7686f02207d59a49aee452a5265d35ab5",
-      "size": 638,
-      "description": "Chapter landing page for platform administrators, covering hardware configuration, namespace and multi-tenant management, and cross-component administration such as MLflow workspace permissions and the Kagenti secure profile. Points to MLflow under Develop and Kagenti under Build AI Applications, and to Train for training quota governance.",
+      "sha256": "53b3409abe35d1ff73c6f7fbe5ab9372a9ccb9a441ef989492001351ce19fb8b",
+      "size": 518,
+      "description": "Chapter landing page for platform administrators, covering hardware configuration, namespace and multi-tenant management, and cross-component administration such as MLflow workspace permissions. Points to MLflow under Develop and to Train for training quota governance.",
       "generation_method": "ai_agent_reading",
       "updated_at": "2026-08-04T00:00:00Z"
     },
@@ -96,167 +96,6 @@
       "description": "Procedure for onboarding a Kubernetes namespace as an Alauda AI Platform tenant: creating the namespace under a project in the Web Console with Pod Security Policies set to privileged (otherwise AI Inference workloads will refuse to run), assigning Alauda AI Platform Editor/Owner/Viewer roles to users through User Role Management, and finally registering it under Admin > Namespace Manage > Management Namespace.",
       "generation_method": "ai_agent_reading",
       "updated_at": "2026-05-16T10:39:46Z"
-    },
-    "docs/en/administer/secure_profile/enable_secure_profile.mdx": {
-      "sha256": "cb2000290fe798537ee75582250d0f54bde08dbe928d55b4a1fb0469da4434f5",
-      "size": 6386,
-      "description": "Procedure for turning on the Kagenti Operator secure profile, which adds SPIRE-based zero-trust workload identity, Keycloak OAuth2/JWT authentication, and an Istio ambient mesh enforced by an injected AuthBridge sidecar. Covers enabling it on the operand, opting namespaces in, deploying a secured agent, and verifying sidecar injection, SVID delivery, and Keycloak client registration.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/administer/secure_profile/index.mdx": {
-      "sha256": "19e3b3f29684b18dee498de1d86ed525cb2337d2a63dad654c5f4a48cbd6952b",
-      "size": 129,
-      "description": "Section index for the Kagenti secure profile, linking the dependency installation guide and the procedure that enables the profile on a cluster.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/administer/secure_profile/install_secure_dependencies.mdx": {
-      "sha256": "30e4c895c6de15f0259c0cdf8f4edd6651cb63ff827df9efbb001665d935f721",
-      "size": 8488,
-      "description": "Installs the cluster components the Kagenti secure profile depends on: cert-manager, SPIRE, Keycloak, and Istio in ambient mode. Describes the common platform package installation pattern, the SPIRE server, agent, CSI driver, and trust bundle, Keycloak operator and instance deployment with realm import, and Istio ambient setup.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/components/dify/features.mdx": {
-      "sha256": "bb29a775e0d64a1c4cb9f079891bead65e4c92a9f72db5cbba37c93f5a104c05",
-      "size": 2225,
-      "description": "Concise catalog of Dify capabilities organized into LLM application development (Assistant, Text Generator, Agent, Workflow/Chatflow; multi-provider LLM integration; visual prompt management), RAG (knowledge base ingestion, pgvector backing in the Helm chart, hybrid search and re-ranking, parent-child context, dataset versioning), Workflow & Agent (visual node-based editor, tool use, error handling, observability), and API & Integration (REST Service API, per-app API keys, Web App publish/embed, SDKs).",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
-    },
-    "docs/en/ai_applications/components/dify/index.mdx": {
-      "sha256": "c34545908dec7d7753f2ae71f69f58195ac5a795d2dd70091543feae81a3157f",
-      "size": 94,
-      "description": "Component landing page for Dify in the Build AI Applications chapter, linking its introduction, installation guide, and feature reference.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/components/dify/install.mdx": {
-      "sha256": "be9cc70f8758e82465b8c696533ca65b80d5c63ad483c7451404299879a1ce9f",
-      "size": 15125,
-      "description": "Step-by-step installation of Dify on Alauda Container Platform using the helm-based Dify OLM Operator. Covers publishing the operator package, installing the operator, preparing external PostgreSQL, Redis, optional pgvector, and RWX or S3 storage, choosing an access method and gateway, providing plugin-install proxies for restricted networks, and creating the Dify instance and connection secrets.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/components/dify/intro.mdx": {
-      "sha256": "002b67387d739a14bae320838e517737299dd208bc3a376c5b0448e44d9690d9",
-      "size": 2044,
-      "description": "Introduction to Dify, an open-source LLM application development platform offering a visual interface for AI workflows, RAG pipelines, agent capabilities, and model management. Describes core concepts and use cases from simple chatbots and text generators to multi-step agent workflows, and links the official documentation.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/components/index.mdx": {
-      "sha256": "a6a3b934882b35c61b1ee81054fd700fec3d2c2b7dea4c4b69029a7cf33f39d4",
-      "size": 196,
-      "description": "Section index for the components the Build AI Applications chapter relies on, gathering the introduction and installation guides for Dify, Llama Stack, Kagenti, and the MCP Lifecycle Operator.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/components/kagenti/index.mdx": {
-      "sha256": "7a4db3815e90b382f15766da3c5bfa3c653c8affea9b90d2ea369e36f3c1c7e6",
-      "size": 115,
-      "description": "Component landing page for the Kagenti Operator, linking its introduction, installation guide, and security architecture reference.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/components/kagenti/install.mdx": {
-      "sha256": "71a37fe8717dfc2b47142627297590eed51a4ebaece2997597b3b6eddd1f8937",
-      "size": 3974,
-      "description": "Installs the Kagenti Operator as an OLM operator from the platform OperatorHub. Lists prerequisites including ACP v4.0 or later, amd64 or arm64 clusters, OLM, and cert-manager for the admission webhook certificate; covers uploading and installing the operator, creating the Kagenti operand, verifying the CSV, controllers, and agent CRDs, and contrasts the core and secure profiles.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/components/kagenti/intro.mdx": {
-      "sha256": "20d24fe7e9c8058b3b6511d43d0a13a683d9391e3a518bdce8a2f9774eb8ac55",
-      "size": 3708,
-      "description": "Introduction to the Kagenti Operator, a Kubernetes-native operator that enrolls, discovers, and secures AI agents and MCP tools running as ordinary workloads. Describes the `agent.kagenti.dev` CRDs, key features, the default core profile with agent-to-agent discovery, and typical use cases for turning a plain Deployment into a managed agent.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/components/kagenti/security_architecture.mdx": {
-      "sha256": "a3458d96ca5602cac0bcb58308bb11eb3605870c8c96648c44914f1890cbb108",
-      "size": 11509,
-      "description": "Reference for the Kagenti Operator zero-trust security stack: SPIFFE/SPIRE workload identity, Istio ambient mesh transport security, and OPA plus AuthBridge plus Keycloak authorization with an example global Rego policy. Documents the AuthBridge sidecar, the AgentRuntime security fields, and how to enable the opt-in secure profile.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/components/llama_stack/index.mdx": {
-      "sha256": "7e65c38bf496656612ea1a729935713f5a5bbe9fa8dda56d8b4644ab6355603c",
-      "size": 138,
-      "description": "Retained navigation entry for deprecated Alauda Build of Llama Stack. Not recommended for use or managed by AmlCluster in 2.9; recommends Ogx as an alternative.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/components/llama_stack/intro.mdx": {
-      "sha256": "4104f72294878ca9dec9a990539dbb105eb30b89010b2001a00ea6908d3929cd",
-      "size": 1887,
-      "description": "Llama Stack deprecation notice. Deployment and usage guides have been removed; consider Ogx as an alternative, without implying automatic AmlCluster installation or management.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
-    },
-    "docs/en/ai_applications/components/mcp_lifecycle_operator/index.mdx": {
-      "sha256": "4fd2f00f4fc2ab0929888c1847b049301356fa18b502a7238c6a2763de4bf5dc",
-      "size": 182,
-      "description": "Component landing page for Alauda Build of MCP Lifecycle Operator, linking its introduction, installation guide, and quickstart.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/components/mcp_lifecycle_operator/install.mdx": {
-      "sha256": "78b9f44c59ec7f101b8a19364692d01a6f3bb45cb062c62368fe4b96023c665d",
-      "size": 2418,
-      "description": "Installs Alauda Build of MCP Lifecycle Operator as an OLM operator from the platform OperatorHub. Covers publishing the package with the violet command-line tool, installing the operator, verifying that the CSV reports Succeeded, the controller pod is Running, and the MCPServer CRD is registered, and upgrading the operator.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/components/mcp_lifecycle_operator/intro.mdx": {
-      "sha256": "b8bf53812b3514bbcba1083fa42c8172c5c407371af7d760ac99490d7175bfa3",
-      "size": 4359,
-      "description": "Introduction to Alauda Build of MCP Lifecycle Operator, based on the Kubernetes SIG Apps MCP Lifecycle Operator. Describes the `MCPServer` custom resource in `mcp.x-k8s.io/v1alpha1` that declares an MCP server image, port, endpoint path, environment, configuration mounts, resources, and security settings, plus key features, how it works, and use cases.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/components/mcp_lifecycle_operator/quickstart.mdx": {
-      "sha256": "77b16574a8cbaba66e66a999995326fbebaec4f36477d1299640934476d62548",
-      "size": 5232,
-      "description": "Quickstart that creates an `MCPServer` resource and verifies that the operator produces the backing Deployment and Service. Covers prerequisites, creating and verifying the resource, testing the MCP endpoint, updating the port or path, common configuration options, and cleanup.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/demo_advanced_secure_profile.mdx": {
-      "sha256": "aae8d35b5dbd456669a27263015d0d9235b451116f5c2fcbb7d851b053dc3025",
-      "size": 26724,
-      "description": "Advanced variant of the weather agent demo in which AuthBridge is injected on both the agent and the tool, and every agent-to-tool call performs an OAuth 2.0 RFC 8693 token exchange so the tool receives an audience-scoped token. Covers the ConfigMaps involved, the Keycloak client-id convention, deploying the tool with a sidecar, configuring token exchange, preparing outbound routes, and deploying the secured agent.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/demo_with_secure_profile.mdx": {
-      "sha256": "1353c2b88b835ee046c274cd6a226aaf88ee886fb39b2c12f150720457894982",
-      "size": 22012,
-      "description": "Runs the weather agent scenario under the Kagenti secure profile: the AuthBridge sidecar is injected into the agent, the operator registers a per-workload Keycloak client, SPIRE issues a workload SVID, and every request must carry a valid Bearer token. Covers deploying the MCP tool server, deploying the secured agent, and verifying sidecar injection, SVID delivery, and token enforcement.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/deploy_agent_with_agentruntime.mdx": {
-      "sha256": "4ca189aaab33ba2b0d98a2b9fa6d454bd96f41352f3f2de49794e43542e1c7d9",
-      "size": 14403,
-      "description": "Smallest end-to-end deployment on the Kagenti Operator core profile, with agent enrollment and dynamic discovery but no identity sidecars, Keycloak, or mesh mTLS. Builds a weather agent that calls a weather MCP tool, covering how to find the model endpoint and name, deploying the tool server and the agent, and checking `AgentRuntime` status.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/envoy_ai_gateway_mcp.mdx": {
-      "sha256": "2171fdeda903b92e873e471dd266572fa0ed3a30ddfd51fa648afa4eb67a5ec7",
-      "size": 6969,
-      "description": "Example that deploys the Rosso weather and restaurant-reservation MCP servers, aggregates them behind a single Envoy Gateway data plane, and connects a Kagenti generic agent to one unified `/mcp` endpoint. Covers validated versions, the topology and HTTPRoute count, source manifests and images, testing the unified endpoint, and cleanup.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
-    },
-    "docs/en/ai_applications/index.mdx": {
-      "sha256": "2b04e72fb31b0c694111ee3fbcf93c03da04221b64119e4c57369b13f865423b",
-      "size": 447,
-      "description": "Chapter landing page for building AI applications, covering agent runtimes, MCP servers, and RAG applications, with the components the chapter relies on listed under Components. Notes that enabling the secure profile and installing its dependencies are administrator tasks covered in the Administer chapter.",
-      "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
     },
     "docs/en/apis/index.mdx": {
       "sha256": "0833ba10bfa12ad3c7f7bbe4304db494a19773eb255b6d17454cab4cb0524abd",
@@ -1148,8 +987,8 @@
       "updated_at": "2026-08-04T00:00:00Z"
     },
     "docs/en/installation/ai-cluster.mdx": {
-      "sha256": "0526450b36b7cf7045fdc9b3781fd5fcbadd3cd0c9f40590643d7520feefb9bd",
-      "size": 29044,
+      "sha256": "b60bfbf124d55cd9a8ccf0e8d5a92851b454c4d8732ac06467613eb8bfe3b0d0",
+      "size": 30571,
       "description": "Installs Alauda AI Platform on a target cluster. Covers downloading the Alauda AI Platform Operator and optional Knative Operator packages, prerequisites including Authorino, PostgreSQL, and Redis, uploading packages with the violet tool through a scripted push, installing the Alauda AI Platform Operator from OperatorHub, enabling optional Knative functionality, configuring the AmlCluster instance, and importing models into a registry.",
       "generation_method": "ai_agent_reading",
       "updated_at": "2026-08-04T00:00:00Z"
