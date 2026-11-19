@@ -37,7 +37,6 @@ End-to-end recipes for training and fine-tuning models on Alauda AI Platform.
 | Use KFP caching, parallel loops, and persistent typed artifacts | KFP 2.16.1 execution mechanisms | [Kubeflow Pipelines Execution and Storage Behavior](../../develop/pipelines/kfp-execution-and-storage.mdx) |
 | Daily fine-tune → evaluate → compare loop with MLflow + TrustyAI | KFP Recurring Run + MLflow Model Registry + `LMEvalJob` | [Daily Fine-Tuning Pipeline with MLflow and TrustyAI](./fine-tuning-pipeline-with-mlflow-trustyai.mdx) |
 | Parse thousands of PDFs with Ray Data and optional Milvus ingest | KFP `parse_and_chunk` RayJob from `pipelines-components` | [Run Ray Data Pipelines from pipelines-components](./run-ray-data-pipelines.mdx) |
-| Search RAG chunking, embeddings, and retrieval settings for a document corpus | KFP AutoRAG pipelines + OGX (Llama Stack) | [Optimize a RAG Application with AutoRAG Pipelines](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/optimize-rag-with-autorag.ipynb) |
 
 :::note
 Several training notebooks load source code and manifests from their adjacent `assets/` directories. Clone each notebook and its assets together instead of downloading the `.ipynb` alone:

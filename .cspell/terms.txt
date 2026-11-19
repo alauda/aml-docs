@@ -22,8 +22,6 @@ cosign
 sigstore
 alaudadockerhub
 tlog
-autorag
-ai4rag
 docling
 Docling
 DoclingDocument
