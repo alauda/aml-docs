@@ -34,6 +34,25 @@ Choose **`roce_vf` for end users sharing a GPU/RDMA cluster**. Provision a pool 
 
 For **best performance and predictable latency**, use **dedicated training nodes with `roce_pf`**, reserving the GPUs and whole NIC function for the workload. This avoids contention from other users' jobs on those nodes. Configure the NCCL/PFC path correctly and validate performance on the target topology.
 
+### Determine the network annotation value
+
+`rdma-workloads/roce-pf-net` means the **NetworkAttachmentDefinition (NAD) named `roce-pf-net` in namespace `rdma-workloads`**. It is an example `<NAD-namespace>/<NAD-name>`, not a NIC interface name or a Kubernetes resource name. Find the attachment configured for your cluster:
+
+```bash
+kubectl get network-attachment-definitions.k8s.cni.cncf.io --all-namespaces
+kubectl -n rdma-workloads get network-attachment-definitions.k8s.cni.cncf.io roce-pf-net -o yaml
+```
+
+Use the selected object's `metadata.namespace` and `metadata.name` to form the annotation. Before selecting it, inspect:
+
+- `metadata.annotations["k8s.v1.cni.cncf.io/resourceName"]`: for the device-plugin PF/VF path, this must match the resource requested by the worker, such as `nvidia.com/roce_pf` or `nvidia.com/roce_vf`.
+- `spec.config`: confirm the CNI configuration, IPAM/subnet, and any VLAN settings match the intended RoCE network. PF attachments commonly use `host-device`; VF attachments commonly use `sriov`.
+- Worker-node availability: confirm the matching device-plugin resource is allocatable on every target node.
+
+For example, if the selected NAD has `metadata.namespace: rdma-workloads`, `metadata.name: roce-pf-net`, and resource annotation `nvidia.com/roce_pf`, use the pod annotation and resource request shown below. For a VF attachment, substitute that NAD's namespace/name and matching VF resource.
+
+An unqualified name such as `roce-pf-net` resolves in the pod's namespace. Cross-namespace references require the cluster's Multus namespace-isolation policy to permit them. If no suitable NAD exists, have the administrator provision the attachment first; requesting a RoCE resource does not create it. See the [Multus network annotation guide](https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/how-to-use.md#run-pod-with-network-annotation).
+
 ### Request the network resource
 
 For PF or VF mode, add the matching Multus attachment to each worker pod and request its network resource separately from the GPU. This pod fragment illustrates a PF allocation; replace the attachment and resource names with those configured on your cluster:
