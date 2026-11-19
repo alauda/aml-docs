@@ -1,12 +1,12 @@
-# AutoRAG on Alauda AI Platform
+# Preparing Fine-Tuning Data on Alauda AI Platform
 
-AutoRAG searches chunking, embedding, retrieval, and generation settings for a
-document corpus. It evaluates candidate RAG patterns with a benchmark and writes
-a deployable pattern.json.
+Docling converts source documents to Markdown for use in synthetic data
+generation. It can also write DoclingDocument JSON to preserve document
+structure, including tables and bounding boxes.
 
-The production workflow uses the selected pattern's indexing settings to build a
-vector collection. Docling extracts text from PDFs into DoclingDocument JSON
-before the search-space and optimization stages run.
+SDG Hub uses an OpenAI-compatible teacher model to generate question-and-answer
+pairs from the document text. The resulting pairs can be exported as JSONL for
+supervised fine-tuning.
 
 Alauda AI Workbench can run Docling and SDG Hub locally for small corpora. Use
 KubeRay or Kubeflow Pipelines when the corpus is large.
