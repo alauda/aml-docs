@@ -72,7 +72,7 @@ A subscription is the unit of model access and token quota. A user must be a sub
 Users can see a subscription in **My Subscriptions** only when they are included as subscribers. Add each user's username to **Subscribers** to grant access to that user. To make the subscription available to all authenticated users, add `*` as a subscriber. The `*` value is a wildcard, not a literal username; users still need a valid MaaS API key to call the models.
 :::
 
-For each model, the form accepts a limit in millions of tokens and a window such as **Minute**, **Hour**, or **Day**. For example, you can set `100M` tokens per hour and `1000M` tokens per day. All configured tiers are enforced.
+For each model, the form accepts a limit in millions of tokens and a window of **Hour**, **Day**, **Month**, or **Year**. For example, you can set `100M` tokens per hour and `1000M` tokens per day. All configured tiers are enforced.
 
 A subscription can contain several models, and each model can have different limits. This lets you provide different access tiers without creating a separate gateway for each model. If one published model has multiple upstreams, priority and weight are configured on the published model, not on the subscription.
 
