@@ -68,11 +68,11 @@ This inspection does not establish upgrade compatibility.
 The following entries match the current
 [deferred issues and release blockers](https://code.alauda.io/mlops/data/label-studio-chart/-/blob/release/label-studio-v1.21.0-3/release-materials/label-studio-v1.21.0-3/4-deferred-issues.md):
 
-- Re-run the Helm install after x86/arm API availability returns and collect pod readiness, database initialization, service reachability, and UI health evidence.
-- Repeat image vulnerability, secret, and virus scans with the Trivy database frozen at `2026-11-15`.
-- Complete the required upgrade round from formal `v1.21.0-2` before declaring release readiness.
-- Verify formal release artifacts and multi-arch manifests for `v1.21.0-3`.
-- Previous x86/arm pulls exposed mirror HTTP 500 and digest mismatch errors. Later local checks verified selected complete layer hashes; those errors alone do not prove image corruption or justify republishing it. Edge x86 initialization and HTTP smoke now pass using authenticated direct registry-dev pulls; repeat the remaining architecture and full release gates separately.
+- Required x86 and arm64 fresh-install and annotation-workflow rounds are incomplete. Edge x86 recovery and HTTP smoke passed with persistence disabled; this does not validate a clean customer installation or data durability.
+- Image audit, vulnerability, secret, virus, rendered-manifest, and live security evidence is incomplete. Completed release scans using the required Trivy database freeze date `2026-11-15` are not available.
+- In-place upgrade, migration, and data-preservation validation from the exact previous release `v1.21.0-2` to the candidate have not run.
+- Formal `v1.21.0-3` artifact pulls, multi-architecture verification, and AC publication are unverified. The candidate chart and running images do not establish formal release availability.
+- Compatible ACP and Alauda AI release ranges, optional authentication integrations, storage durability, performance, stability, and high availability have not been qualified for this release.
 
 These are unresolved release gates, not approved production deferrals.
 
