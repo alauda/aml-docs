@@ -6,6 +6,10 @@ weight: 20
 
 This document provides detailed instructions on how to deploy Label Studio to a Kubernetes cluster and common configuration parameters.
 
+Check the [support lifecycle](./support_lifecycle) and
+[component release notes](./release_notes) before selecting a chart version.
+For an existing installation, follow [Upgrade Label Studio](./upgrade).
+
 ## Downloading
 
 Download the Label Studio installation package, then upload the package following [Upload Packages](../../../installation/package-upload.mdx).
@@ -64,11 +68,20 @@ Users can modify the `Custom Values` of the `Application` to adjust configuratio
 The storage class can be specified by adding the following configuration:
 
 ```yaml
-label-studio:
+global:
   persistence:
-    storageClass: storage-class-name
-    size: 20Gi                               # Replace with the actual required space size
+    enabled: true
+    type: volume
+    config:
+      volume:
+        storageClass: storage-class-name
+        size: 20Gi                           # Replace with the actual required space size
 ```
+
+Use `global.persistence.enabled: false` only for disposable tests. The tested
+chart then uses temporary pod storage; uploaded media can be lost when a pod is
+replaced. See [Backups and recovery](./operations#backups-and-recovery) for
+production data protection.
 
 ### 2. Configure Database
 

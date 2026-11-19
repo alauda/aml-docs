@@ -1,0 +1,118 @@
+---
+weight: 80
+---
+
+# Label Studio operations and security
+
+This guide complements [installation](./install), the [quickstart](./quickstart),
+and the [upgrade procedure](./upgrade).
+
+## Health checks
+
+For a release named `label-studio`, inspect readiness and initialization:
+
+```bash
+kubectl -n <namespace> get pods -l app.kubernetes.io/instance=label-studio
+kubectl -n <namespace> rollout status deployment/label-studio-ls-app
+kubectl -n <namespace> logs deployment/label-studio-ls-app -c db-migrations
+```
+
+The web pod contains the application and nginx containers. Both must be ready
+before accepting traffic. Check `/health` for application health and
+`/nginx_health` for nginx health through the configured access address. Also
+verify login, task import, annotation, and export for a functional check.
+
+For a temporary local check of a ClusterIP service:
+
+```bash
+kubectl -n <namespace> port-forward service/label-studio-ls-app 8085:80
+```
+
+In another terminal:
+
+```bash
+curl --fail http://127.0.0.1:8085/health
+curl --fail http://127.0.0.1:8085/nginx_health
+```
+
+## Initialization troubleshooting
+
+| Symptom | Check | Action |
+| --- | --- | --- |
+| `ImagePullBackOff` | Pod events, final pod image reference, registry access, and pull-secret references | Configure credentials and the platform's approved ImageWhiteList rules. Do not assume a metadata-only package upload has mirrored image binaries. |
+| `Init:0/2` and an extra init container runs a web server | Init-container names, commands, and arguments | The chart's migration container is `db-migrations`, with `args: [label-studio-migrate]`. Remove any accidentally added container that runs a long-lived server; init containers must exit successfully. |
+| Migration container restarts with `OOMKilled` | Container's previous termination state and memory limit | Increase the migration memory limit and verify schedulable capacity before restarting. A reduced 256 MiB test limit failed during candidate validation. |
+| Database connection timeout | PostgreSQL Service endpoints, namespace, NetworkPolicy, and credentials | Restore database connectivity before retrying migration. |
+| Pod is Pending and PVC waits for a consumer | Pod scheduling events and storage class binding mode | Resolve CPU, memory, taints, and storage capacity. A PVC using `WaitForFirstConsumer` can remain pending until its pod can be scheduled. |
+| LoadBalancer address remains pending | Load balancer events and address pool | Allocate an address or choose an approved ingress or service access method. |
+
+An init container named `init` is not a default requirement of this chart.
+When patching the live Deployment, match the existing container name exactly:
+a strategic-merge patch with a different name adds a container. Setting
+`initContainers: []` in a strategic-merge patch does not remove existing entries.
+Use an explicit deletion or restore the intended chart values while preserving
+the required database migration.
+
+The chart default for
+`label-studio.app.initContainer.resources.limits.memory` is `512Mi`. During
+candidate recovery the live migration limit was raised to `1Gi`; the chart
+default was not changed. If migration is killed for lack of memory, set an
+appropriate value in the application's custom values, for example:
+
+```yaml
+label-studio:
+  app:
+    initContainer:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: "500m"
+          memory: 1Gi
+```
+
+Size the web application independently; lowering its memory limit to make a pod
+schedulable can cause another out-of-memory failure during startup.
+
+## Backups and recovery \{#backups-and-recovery}
+
+Back up these items together:
+
+- PostgreSQL data, including projects, users, tasks, and annotations.
+- Uploaded media in persistent volumes or object storage, including the storage
+  connection configuration.
+- Chart version and custom values, database and authentication secret references,
+  and the Django secret key. Store secret contents only in a protected backup.
+
+Pause writes while coordinating database and media backups. Restore into an
+isolated namespace with the matching chart version and secret key. Verify login,
+existing projects, media loading, and annotation export before returning traffic.
+Do not treat annotation exports alone as a full application backup.
+
+Production media requires persistent storage. Disabling
+`global.persistence.enabled` uses temporary pod storage in the tested chart
+configuration; media can be lost when a pod is replaced. The candidate's test
+PostgreSQL deployment and persistence-disabled smoke run do not validate
+production recovery or high availability.
+
+## Access and security
+
+- Use TLS for user access and restrict network access to the database and
+  application endpoints.
+- Restrict signup using the documented
+  [user-management configuration](./install#41-disable-user-registration).
+  The default allows registration; the documented edition allows users to access
+  all projects. Do not assume enterprise project isolation or role-based access
+  features are provided by this chart.
+- Store database and registry passwords in Kubernetes Secrets. Preserve the
+  `global.imagePullSecrets` references when updating application values.
+- Limit database permissions to those needed by the documented setup, including
+  database creation for the initialization hook when applicable.
+- Review the target release's security scan results before production use.
+  [Candidate release notes](./release_notes) identify outstanding scan gates;
+  successful readiness and HTTP checks do not constitute a security approval.
+
+For REST API and SDK integration, use the upstream
+[Label Studio API reference](https://api.labelstud.io/) for the matching
+application version and verify authentication against the installed instance.

@@ -1,0 +1,98 @@
+---
+weight: 70
+---
+
+# Label Studio release notes
+
+These notes describe the Alauda Helm Chart packaging of Label Studio. See the
+[support lifecycle](./support_lifecycle) and
+[supported-configuration matrix](../../../plan/supported_configurations.md) for
+published support status.
+
+## v1.21.0-3 — validation in progress
+
+This version is pending formal release approval. The tested candidate chart is
+`v1.21.0-beta.172.g5200d5e`; it is not the formal `v1.21.0-3` artifact. The current
+support matrix continues to list `v1.21.0-2`.
+
+### New Features / Improvements
+
+- Adds the Label Studio display name and component logo to chart catalog
+  metadata, together with the upstream trademark attribution.
+- Retains the Label Studio application version `1.21.0`. No new annotation
+  feature is claimed by this chart maintenance update.
+
+Changes are sourced from the
+[previous-release-to-candidate comparison](https://code.alauda.io/mlops/data/label-studio-chart/-/compare/v1.21.0-2...5200d5e36793f4185fdae311043cc1a46114fd5e)
+and the [release change list](https://code.alauda.io/mlops/data/label-studio-chart/-/blob/release/label-studio-v1.21.0-3/release-materials/label-studio-v1.21.0-3/1-change-list.md).
+
+### Bug Fixes
+
+The source comparison includes packaging corrections. No application bug fix
+has been established by the current functional evidence. The accidental init
+container removed during test recovery was a live troubleshooting change, not
+a shipped chart defect or a chart source fix.
+
+### Security Fixes
+
+No verified CVE fix is recorded for this candidate. Image vulnerability, secret,
+and virus scans using the required `2026-11-15` vulnerability database remain
+outstanding. See the
+[security entries](https://code.alauda.io/mlops/data/label-studio-chart/-/blob/release/label-studio-v1.21.0-3/release-materials/label-studio-v1.21.0-3/2-security-entries.md).
+
+### Breaking Change
+
+No application API or database breaking change is identified by the current
+chart source comparison. Image registry and repository defaults changed, so
+administrators must verify image availability, registry credentials, and image
+rewrite rules for the target package before deployment. Preserve existing
+database, storage, secret, and authentication values when qualifying an upgrade.
+This inspection does not establish upgrade compatibility.
+
+### Upgrade Notes
+
+- Tested upgrade: not tested from the exact previous release `v1.21.0-2`.
+- Supported upgrade paths to `v1.21.0-3`: none established by current evidence;
+  do not roll this candidate out to production.
+- Other source versions: not validated.
+- Migration: the chart runs database migrations before the application starts.
+  Migration on a temporary test database completed, but migration and data
+  preservation from `v1.21.0-2` remain untested. Follow the
+  [migration and upgrade procedure](./upgrade#database-migration) once that path
+  is validated.
+- Backup recommendation: take consistent database and media backups and preserve
+  values and secrets as described in [Backups and recovery](./operations#backups-and-recovery).
+
+### Known Issues
+
+The following entries match the current
+[deferred issues and release blockers](https://code.alauda.io/mlops/data/label-studio-chart/-/blob/release/label-studio-v1.21.0-3/release-materials/label-studio-v1.21.0-3/4-deferred-issues.md):
+
+- Re-run the Helm install after x86/arm API availability returns and collect pod readiness, database initialization, service reachability, and UI health evidence.
+- Repeat image vulnerability, secret, and virus scans with the Trivy database frozen at `2026-11-15`.
+- Complete the required upgrade round from formal `v1.21.0-2` before declaring release readiness.
+- Verify formal release artifacts and multi-arch manifests for `v1.21.0-3`.
+- Previous x86/arm pulls exposed mirror HTTP 500 and digest mismatch errors. Later local checks verified selected complete layer hashes; those errors alone do not prove image corruption or justify republishing it. Edge x86 initialization and HTTP smoke now pass using authenticated direct registry-dev pulls; repeat the remaining architecture and full release gates separately.
+
+These are unresolved release gates, not approved production deferrals.
+
+### Compatibility
+
+The [compatibility report](https://code.alauda.io/mlops/data/label-studio-chart/-/blob/release/label-studio-v1.21.0-3/release-materials/label-studio-v1.21.0-3/7-compatibility.md)
+remains incomplete. It identifies x86 and arm as validation targets and
+PostgreSQL 13+ as a documented requirement. It does not establish supported ACP
+or Kubernetes version ranges for `v1.21.0-3`.
+
+- Supported ACP versions for `v1.21.0-3`: not established.
+- Supported Kubernetes versions for `v1.21.0-3`: not established.
+- Dependency support range: PostgreSQL 13+ is documented; complete compatibility
+  validation remains pending.
+- Architecture coverage: x86 initialization and HTTP smoke passed during live
+  recovery; arm64 functional validation has not passed. Multi-arch image
+  metadata alone is not an architecture test result.
+
+The [x86 recovery record](https://code.alauda.io/mlops/data/label-studio-chart/-/blob/release/label-studio-v1.21.0-3/release-materials/label-studio-v1.21.0-3/evidence/edge-init-recovery-2026-11-19.md)
+reports successful database migration, a ready application and nginx pod, and
+HTTP 200 for health, nginx health, login, and signup. Persistence was disabled
+and the database was temporary. The run did not establish a clean catalog
+installation, a full annotation workflow, upgrade support, or data durability.
