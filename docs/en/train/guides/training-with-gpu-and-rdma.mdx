@@ -1,0 +1,129 @@
+---
+weight: 35
+---
+
+# Guide of training or fine-tuning with GPU and RDMA
+
+Use this guide to configure NCCL for distributed NVIDIA GPU training, choose a RoCE device allocation model, and align traffic marking with the network's Priority Flow Control (PFC) policy. The settings apply to DDP, FSDP, DeepSpeed, and tensor-parallel workloads that use NCCL.
+
+## Prerequisites
+
+- GPU Operator, NVIDIA Network Operator, and SR-IOV device plugin installed, with device drivers enabled.
+- An administrator-defined RoCE network with consistent addressing, MTU, traffic classification, and congestion-control/PFC settings along the path.
+- A distributed training launcher such as [Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx), with worker pods spread across nodes.
+
+GPU allocation and network allocation are separate. A full GPU, MIG slice, or HAMi allocation does not configure RoCE, VLANs, or PFC. Choose a model and optimizer configuration that fit both GPU and host memory; BF16 and sharding reduce memory needs, while CPU optimizer offload also consumes host RAM.
+
+## Choose PF, VF, or shared RDMA access
+
+`nvidia.com/roce_pf` and `nvidia.com/roce_vf` are example administrator-defined resource names. Inspect `NicClusterPolicy`, device-plugin selectors, node allocatable resources, and the matching network attachment before interpreting them.
+
+| Backing configuration | When to use it |
+|---|---|
+| PF advertised by the SR-IOV device plugin, attached with host-device CNI | Dedicate a physical function to one worker pod, for example one training pod per node. Treat the PF allocation as exclusive. |
+| RDMA-capable VFs advertised by the SR-IOV device plugin | Allocate separate interfaces to concurrent worker pods. Normally request one VF per pod; its local GPU ranks can share it. Requires provisioned VFs, `isRdma: true`, and a matching CNI attachment. |
+| HCA exposed through the RDMA shared-device plugin | Allow multiple pods to access one HCA through a shared resource pool configured with `rdmaHcaMax`. This provides shared access without separate VF allocation. |
+
+Separate VFs still share physical NIC bandwidth. A resource called `roce_pf` supports sharing only if its backing plugin implements sharing; its name alone does not establish this. See the [NVIDIA Network Operator deployment guide](https://docs.nvidia.com/networking/display/kubernetes2671/deployment-guide-kubernetes.html).
+
+The device plugin advertises resources; it does not itself provision VFs. On virtual machines, VFs may need to be created and assigned by the physical host/hypervisor. Installing the SR-IOV device plugin does not prove that VFs are available.
+
+### When to use `roce_vf` or dedicated `roce_pf` nodes
+
+Choose **`roce_vf` for end users sharing a GPU/RDMA cluster**. Provision a pool of RDMA-capable VFs and assign a dedicated VF to each worker pod. This lets multiple users and training jobs share the nodes while Kubernetes allocates their network devices independently. VFs still share physical NIC bandwidth; configure QoS or rate limits when users need bandwidth guarantees.
+
+For **best performance and predictable latency**, use **dedicated training nodes with `roce_pf`**, reserving the GPUs and whole NIC function for the workload. This avoids contention from other users' jobs on those nodes. Configure the NCCL/PFC path correctly and validate performance on the target topology.
+
+### Determine the network annotation value
+
+`rdma-workloads/roce-pf-net` means the **NetworkAttachmentDefinition (NAD) named `roce-pf-net` in namespace `rdma-workloads`**. It is an example `<NAD-namespace>/<NAD-name>`, not a NIC interface name or a Kubernetes resource name. Find the attachment configured for your cluster:
+
+```bash
+kubectl get network-attachment-definitions.k8s.cni.cncf.io --all-namespaces
+kubectl -n rdma-workloads get network-attachment-definitions.k8s.cni.cncf.io roce-pf-net -o yaml
+```
+
+Use the selected object's `metadata.namespace` and `metadata.name` to form the annotation. Before selecting it, inspect:
+
+- `metadata.annotations["k8s.v1.cni.cncf.io/resourceName"]`: for the device-plugin PF/VF path, this must match the resource requested by the worker, such as `nvidia.com/roce_pf` or `nvidia.com/roce_vf`.
+- `spec.config`: confirm the CNI configuration, IPAM/subnet, and any VLAN settings match the intended RoCE network. PF attachments commonly use `host-device`; VF attachments commonly use `sriov`.
+- Worker-node availability: confirm the matching device-plugin resource is allocatable on every target node.
+
+For example, if the selected NAD has `metadata.namespace: rdma-workloads`, `metadata.name: roce-pf-net`, and resource annotation `nvidia.com/roce_pf`, use the pod annotation and resource request shown below. For a VF attachment, substitute that NAD's namespace/name and matching VF resource.
+
+An unqualified name such as `roce-pf-net` resolves in the pod's namespace. Cross-namespace references require the cluster's Multus namespace-isolation policy to permit them. If no suitable NAD exists, have the administrator provision the attachment first; requesting a RoCE resource does not create it. See the [Multus network annotation guide](https://github.com/k8snetworkplumbingwg/multus-cni/blob/master/docs/how-to-use.md#run-pod-with-network-annotation).
+
+### Request the network resource
+
+For PF or VF mode, add the matching Multus attachment to each worker pod and request its network resource separately from the GPU. This pod fragment illustrates a PF allocation; replace the attachment and resource names with those configured on your cluster:
+
+```yaml
+metadata:
+  annotations:
+    k8s.v1.cni.cncf.io/networks: rdma-workloads/roce-pf-net
+spec:
+  containers:
+    - name: trainer
+      # Add the training image, command, and other resources.
+      resources:
+        requests:
+          nvidia.com/gpu: "1"
+          nvidia.com/roce_pf: "1"
+        limits:
+          nvidia.com/gpu: "1"
+          nvidia.com/roce_pf: "1"
+```
+
+For VF mode, select the VF network and replace `nvidia.com/roce_pf` with the configured VF resource in both requests and limits. Neither resource automatically supplies VLAN tagging or a PFC priority.
+
+## Match NCCL marking to the protected priority
+
+PFC pauses traffic for configured Ethernet priorities; **enabling PFC does not classify packets**. NICs and switches must map the workload's traffic into the protected priority.
+
+| Network setup | Required configuration |
+|---|---|
+| TCP baseline | Set `NCCL_IB_DISABLE=1` and select a reachable socket interface. Omit RoCE resources and attachments. |
+| RoCEv2 with DSCP classification | Set NIC trust to DSCP, mark NCCL traffic with the appropriate DSCP value, and align NIC/switch mappings with the PFC-protected priority. |
+| RoCE with PCP classification | Provide a VLAN-backed interface carrying the intended PCP value, with matching NIC/switch classification and PFC policy. |
+
+### RoCEv2 with DSCP trust
+
+For an example network where **DSCP 26 maps to priority 3** and **PFC protects priority 3**, configure every participating NIC in its privileged host/driver context:
+
+```bash
+mlnx_qos -i <roce-interface> --trust=dscp
+mlnx_qos -i <roce-interface>
+```
+
+Verify DSCP trust, the DSCP-to-priority mapping, and PFC enablement. Configure the switches consistently and persist node settings through the site's network management. When using VFs, configure trust on the owning PF and follow the driver's guidance for propagating it to VFs. See [NVIDIA MLNX_EN QoS configuration](https://docs.nvidia.com/networking/display/nvidia-mlnx-en-documentation-v24-10-2-1-8-0-lts.0%20LTS.pdf).
+
+Set these environment variables on **every worker**:
+
+```yaml
+env:
+  - {name: NCCL_IB_DISABLE, value: "0"}
+  - {name: NCCL_IB_HCA, value: "=mlx5_0:1"}
+  - {name: NCCL_SOCKET_IFNAME, value: "=eth0"}
+  - {name: NCCL_IB_TC, value: "106"}
+  - {name: NCCL_IB_SL, value: "3"}
+  - {name: NCCL_DEBUG, value: "INFO"}
+```
+
+- `NCCL_IB_TC=106` sets the traffic-class byte: `(26 << 2) | 2`, meaning DSCP 26 with ECN bits 2. The configured DSCP mapping selects priority 3. **106 is not a universal value for priority 3**, and ECN marking alone does not configure congestion control.
+- `NCCL_IB_SL=3` specifies service level; it does not create a VLAN or guarantee PCP 3. The example retains it alongside DSCP marking; the DSCP mapping selects the protected class in this setup.
+- `NCCL_IB_HCA` selects the RDMA device/port. Discover the actual pod-visible name, especially with VFs, rather than copying `mlx5_0:1` blindly.
+- `NCCL_SOCKET_IFNAME` selects the socket/bootstrap interface. `eth0` must be reachable between workers; its selection does not force RDMA payloads onto that interface.
+
+See [NCCL environment variables](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html) for version-specific behavior. For modern NCCL, leave `NCCL_IB_GID_INDEX` unset for automatic selection unless a specific validated GID is required.
+
+### RoCE with PCP trust
+
+A correctly configured VLAN/PCP path can keep PCP trust. With SR-IOV CNI, configure `vlan: <approved-nonzero-VLAN>` and `vlanQoS: 3` where the owning PF is managed, and align the switch configuration. A VF passed into a VM may require VLAN/PCP configuration on its hypervisor. See the [SR-IOV CNI configuration reference](https://github.com/k8snetworkplumbingwg/sriov-cni/blob/master/docs/configuration-reference.md).
+
+Setting NCCL `TC` or `SL` alone does not establish this VLAN/PCP path. If using DSCP marking to select the protected priority, the NIC must trust DSCP; leaving it in PCP trust can classify traffic into an unprotected priority.
+
+## Verify the training network
+
+Before a long training run, execute a short collective and training smoke test across nodes. Confirm `NET/IB` for RDMA or `NET/Socket` for the TCP baseline in NCCL logs. Record GPU Direct RDMA separately: `NET/IB` can use host staging, so check the GDR/topology messages too.
+
+On every participating node, inspect per-priority traffic, receive drops, sequence errors, and ACK timeouts. Verify that traffic reaches the intended priority and errors do not grow. GPU utilization and environment variables alone cannot establish a healthy RDMA path. Interface/HCA counters include other traffic and are not NCCL-only payload throughput.
