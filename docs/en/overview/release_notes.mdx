@@ -14,7 +14,7 @@ Alauda AI Platform 2.9.0 Fast does not support upgrades from previous releases, 
 
 ### **Changes from Alauda AI Platform 2.8**
 
-- **Alauda Build of Llama Stack:** Deprecated and not recommended for use. `AmlCluster` no longer manages this component. Consider [Ogx](https://github.com/ogx-ai/ogx) as an alternative; Llama Stack deployment and usage guides have been removed.
+- **Agent-related components moved to Alauda Agent Platform:** Dify, Alauda Build of MCP Lifecycle Operator, Kagenti, and Alauda Build of Llama Stack are no longer part of Alauda AI Platform starting from this release. These agent framework and runtime components are now delivered by the standalone Alauda Agent Platform product; they are no longer installed or managed by `AmlCluster`, and their deployment and usage guides have been removed from the Alauda AI Platform documentation.
 - **Platform Configuration:** The Admin view adds a Platform Configuration page for editing most supported `AmlCluster` settings through the UI, including component management states and component-specific configuration. Advanced or unsupported fields remain available through the YAML view.
 - **Inference service management:** LLM inference services and regular inference services are listed and managed separately, making their different configuration and lifecycle options explicit.
 - **LLM inference configuration:** LLM inference services support prefill/decode (P/D) disaggregation and configurable parallelism parameters, including tensor, pipeline, data, and expert parallelism when supported by the selected runtime.

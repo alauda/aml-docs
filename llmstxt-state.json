@@ -2,7 +2,7 @@
   "version": 1,
   "generator_version": 3,
   "project_name": "Alauda AI Platform / Machine Learning Documentation",
-  "summary": "Documentation for Alauda's AI and machine learning platform, including Kubeflow, KServe, KubeRay, LWS, Kueue, Agent Router, Dify, Feast, Llama Stack, Label Studio, TrustyAI, LLM Compressor, model inference, infrastructure management, and related installation, upgrade, monitoring, and learning guides.",
+  "summary": "Documentation for Alauda's AI and machine learning platform, including Kubeflow, KServe, KubeRay, LWS, Kueue, Agent Router, Feast, Label Studio, TrustyAI, LLM Compressor, model inference, infrastructure management, and related installation, upgrade, monitoring, and learning guides.",
   "generated_at": "2026-08-04T00:00:00Z",
   "include_patterns": [
     "docs/en/**/*.md",
@@ -485,7 +485,7 @@
     "docs/en/deploy/model_management/index.mdx": {
       "sha256": "2281881f66adace09c16f26bbab671882b93c199a6456c3138bbb7164db8ff2b",
       "size": 53,
-      "description": "Section landing page for the Dify overview, embedding the Overview component to list the Introduction and Main Features sub-pages.",
+      "description": "Section landing page for Model Management, embedding the Overview component to list the sub-pages.",
       "generation_method": "ai_agent_reading",
       "updated_at": "2026-05-16T10:39:46Z"
     },
@@ -1108,7 +1108,7 @@
     "docs/en/overview/architecture.mdx": {
       "sha256": "45a6541052a89bb5b28c1bc90cd0b3ea65e40adce81e8a9e20fedf406df83411",
       "size": 5125,
-      "description": "Architectural reference for the Alauda AI Platform, organized by layer with component-by-component licensing and provenance. Catalogs the ACP layer (Alauda Builds of NVIDIA Device Plugin, HAMi, DCGM-Exporter, NPU Operator, Node Feature Discovery, NVIDIA DRA Driver, Volcano, Kueue, Milvus, PGVector), the AI Platform layer (Model Catalog, Kubeflow Model Registry, Datasets, Label Studio, FeatureForm, Workbench, Kubeflow Trainer v2, Kubeflow Pipelines, Guardrails, Evidently, MLflow), and the GenAI layer (KServe, vLLM, llm-d, Alauda AI Platform Gateway as MaaS, fine-tuning with llama-factory, llm-compressor quantization, lm-evaluation-harness, Llama Stack, Langchain, Dify, MCP Servers, MLflow agent tracing, RAGAS).",
+      "description": "Architectural reference for the Alauda AI Platform, organized by layer with component-by-component licensing and provenance. Catalogs the ACP layer (Alauda Builds of NVIDIA Device Plugin, HAMi, DCGM-Exporter, NPU Operator, Node Feature Discovery, NVIDIA DRA Driver, Volcano, Kueue, Milvus, PGVector), the AI Platform layer (Model Catalog, Kubeflow Model Registry, Datasets, Label Studio, FeatureForm, Workbench, Kubeflow Trainer v2, Kubeflow Pipelines, Guardrails, Evidently, MLflow), and the GenAI layer (KServe, vLLM, llm-d, Alauda AI Platform Gateway as MaaS, fine-tuning with llama-factory, llm-compressor quantization, lm-evaluation-harness).",
       "generation_method": "ai_agent_reading",
       "updated_at": "2026-05-16T10:39:46Z"
     },
