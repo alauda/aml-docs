@@ -72,7 +72,7 @@ The following entries match the current
 - Image audit, vulnerability, secret, virus, rendered-manifest, and live security evidence is incomplete. Completed release scans using the required Trivy database freeze date `2026-11-15` are not available.
 - In-place upgrade, migration, and data-preservation validation from the exact previous release `v1.21.0-2` to the candidate have not run.
 - Formal `v1.21.0-3` artifact pulls, multi-architecture verification, and AC publication are unverified. The candidate chart and running images do not establish formal release availability.
-- Compatible ACP and Alauda AI release ranges, optional authentication integrations, storage durability, performance, stability, and high availability have not been qualified for this release.
+- The release owner declared ACP `>=4.0` and any Alauda AI version as compatibility targets, but those ranges, optional authentication integrations, storage durability, performance, stability, and high availability have not been qualified for this release.
 
 These are unresolved release gates, not approved production deferrals.
 
@@ -80,11 +80,12 @@ These are unresolved release gates, not approved production deferrals.
 
 The [compatibility report](https://code.alauda.io/mlops/data/label-studio-chart/-/blob/release/label-studio-v1.21.0-3/release-materials/label-studio-v1.21.0-3/7-compatibility.md)
 remains incomplete. It identifies x86 and arm as validation targets and
-PostgreSQL 13+ as a documented requirement. It does not establish supported ACP
-or Kubernetes version ranges for `v1.21.0-3`.
+PostgreSQL 13+ as a documented requirement. It records the declared ACP and
+Alauda AI targets separately from tested or published support.
 
-- Supported ACP versions for `v1.21.0-3`: not established.
-- Supported Kubernetes versions for `v1.21.0-3`: not established.
+- Declared ACP compatibility for `v1.21.0-3`: `>=4.0`; no ACP minor is tested or published as supported.
+- Declared Alauda AI compatibility for `v1.21.0-3`: any Alauda AI version; no Alauda AI release is tested or published as supported.
+- Supported Kubernetes versions for `v1.21.0-3`: not established. The R3 record observes v1.35.6-acp.1 only for recovery and HTTP smoke.
 - Dependency support range: PostgreSQL 13+ is documented; complete compatibility
   validation remains pending.
 - Architecture coverage: x86 initialization and HTTP smoke passed during live
