@@ -8,8 +8,7 @@ Use this guide to configure NCCL for distributed NVIDIA GPU training, choose a R
 
 ## Prerequisites
 
-- GPU drivers, a GPU allocator, and a compatible CUDA/PyTorch/NCCL training image.
-- RDMA-capable NICs with working drivers, device-plugin resources, and a network attachment on every worker node.
+- GPU Operator, NVIDIA Network Operator, and SR-IOV device plugin installed, with device drivers enabled.
 - An administrator-defined RoCE network with consistent addressing, MTU, traffic classification, and congestion-control/PFC settings along the path.
 - A distributed training launcher such as [Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx), with worker pods spread across nodes.
 
@@ -28,6 +27,14 @@ GPU allocation and network allocation are separate. A full GPU, MIG slice, or HA
 Separate VFs still share physical NIC bandwidth. A resource called `roce_pf` supports sharing only if its backing plugin implements sharing; its name alone does not establish this. See the [NVIDIA Network Operator deployment guide](https://docs.nvidia.com/networking/display/kubernetes2671/deployment-guide-kubernetes.html).
 
 The device plugin advertises resources; it does not itself provision VFs. On virtual machines, VFs may need to be created and assigned by the physical host/hypervisor. Installing the SR-IOV device plugin does not prove that VFs are available.
+
+### When to use `roce_vf` or dedicated `roce_pf` nodes
+
+Choose **`roce_vf` for end users sharing a GPU/RDMA cluster**. Provision a pool of RDMA-capable VFs and assign a dedicated VF to each worker pod. This lets multiple users and training jobs share the nodes while Kubernetes allocates their network devices independently. VFs still share physical NIC bandwidth; configure QoS or rate limits when users need bandwidth guarantees.
+
+For **best performance and predictable latency**, use **dedicated training nodes with `roce_pf`**, reserving the GPUs and whole NIC function for the workload. This avoids contention from other users' jobs on those nodes. Configure the NCCL/PFC path correctly and validate performance on the target topology.
+
+### Request the network resource
 
 For PF or VF mode, add the matching Multus attachment to each worker pod and request its network resource separately from the GPU. This pod fragment illustrates a PF allocation; replace the attachment and resource names with those configured on your cluster:
 
