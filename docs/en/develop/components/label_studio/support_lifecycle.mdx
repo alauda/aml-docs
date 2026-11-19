@@ -1,0 +1,48 @@
+---
+weight: 60
+---
+
+# Label Studio support lifecycle
+
+Label Studio is delivered as a Helm Chart application in Alauda AI Platform.
+Use the [supported-configuration matrix](../../../plan/supported_configurations.md)
+to select the chart version for your platform release and CPU architecture.
+
+## Supported releases
+
+- The matrix lists `v1.21.0-2` for both x86_64 and arm64 in Alauda AI Platform
+  v2.8 Stable and v2.9 Fast. These entries remain the published support baseline.
+- `v1.21.0-3` is undergoing release validation. Its
+  [release notes](./release_notes) describe the available evidence and remaining
+  gates; they do not add a supported version to the matrix.
+- A development chart, registry tag, or successful smoke check does not establish
+  support for another platform release, Kubernetes version, or architecture.
+
+## Maintenance and upgrade policy
+
+Use the chart version listed for your platform release. Review
+[platform release notes](../../../overview/release_notes) for changes to component
+availability or support, and follow the [upgrade guide](./upgrade) before changing
+an existing installation.
+
+Alauda chart releases can include packaging, operational, or security changes.
+Upstream Label Studio maintenance and end-of-life decisions are managed by the
+upstream project. This page does not assign a maintenance end date to a release
+that has not been published.
+
+Before a version is removed or replaced in the supported-configuration matrix,
+plan a transition with the platform administrator. Retain backups of the
+PostgreSQL database, media storage, chart values, and application secrets.
+
+## Support boundaries
+
+- Deploy Label Studio through the platform's Helm application catalog, as
+  described in [Install Label Studio](./install).
+- Use persistent storage for production media and a backed-up PostgreSQL
+  database. A test installation with persistence disabled does not validate
+  storage durability or disaster recovery.
+- Confirm that an upgrade path has been tested for the exact source and target
+  chart versions. A successful fresh-install or recovery check does not establish
+  an in-place upgrade path.
+- Refer to [Operations and security](./operations) for backups, access controls,
+  and initialization troubleshooting.

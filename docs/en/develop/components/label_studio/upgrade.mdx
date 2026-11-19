@@ -1,0 +1,96 @@
+---
+weight: 50
+---
+
+# Upgrade Label Studio
+
+Label Studio is a Helm Chart application. Update an existing application through
+the ACP application catalog; do not use an OLM Subscription or InstallPlan for
+this chart.
+
+## Upgrade status
+
+| Source chart | Target chart | Validation status | Guidance |
+| --- | --- | --- | --- |
+| `v1.21.0-2` | `v1.21.0-3` | Not tested | Do not perform a production upgrade until the exact version pair is validated and the target is published. |
+| Other versions | `v1.21.0-3` | Not tested | No supported path is established by the current release evidence. |
+
+The candidate's x86 recovery and HTTP smoke checks did not exercise an upgrade
+from `v1.21.0-2`. The procedure below describes the checks to perform after the
+release owner validates an upgrade path; it is not an approval of the pending
+`v1.21.0-3` release.
+
+## Before an approved upgrade
+
+1. Confirm the source and target chart versions, CPU architecture, and platform
+   release against the [supported-configuration matrix](../../../plan/supported_configurations.md)
+   and the target's [release notes](./release_notes).
+2. Export the existing application values and record the release name, namespace,
+   image references, ingress configuration, database connection, and PVC names.
+3. Stop annotation writes and pause external import/export clients. Take a
+   consistent PostgreSQL backup and a matching backup or snapshot of uploaded
+   media. Preserve the Django secret key and authentication configuration in a
+   protected backup. See [Backups and recovery](./operations#backups-and-recovery).
+4. Verify the restore procedure in an isolated environment before changing the
+   production application.
+5. Verify registry access and pull credentials from the workload cluster. Allow
+   enough CPU and memory for database migration and application startup, as well
+   as storage capacity for the existing data.
+
+## Update the application
+
+1. Select the cluster and namespace containing the Label Studio application in
+   ACP, then open **Applications** / **Applications**.
+2. Open the application's **Update** action and select the approved target chart
+   version.
+3. Preserve the existing database, storage, secret references, authentication,
+   and ingress values. Do not disable persistence or delete the application or
+   its PVCs as part of an upgrade.
+4. Apply the update. Inspect the `label-studio-db-init` hook when the release
+   name is `label-studio`, then wait for the `db-migrations` init container to
+   finish and the application Deployment to become available. For another
+   release name, replace the name prefix accordingly.
+
+## Database migration \{#database-migration}
+
+The chart runs the `db-migrations` init container with
+`args: [label-studio-migrate]`. This applies the application's database migrations
+before the web service starts. The candidate's successful migration on a test
+database does not demonstrate preservation of an existing released database.
+The `v1.21.0-2` to `v1.21.0-3` migration and data-preservation round is still
+required before that upgrade path can be supported.
+
+If migration fails, keep annotation writes disabled and inspect the init
+container logs. Do not skip migration or repeatedly delete application data to
+make the workload start.
+
+## Verify the upgrade
+
+For the release name `label-studio`, run:
+
+```bash
+kubectl -n <namespace> get pods -l app.kubernetes.io/instance=label-studio
+kubectl -n <namespace> logs deployment/label-studio-ls-app -c db-migrations
+kubectl -n <namespace> rollout status deployment/label-studio-ls-app
+kubectl -n <namespace> get pvc
+```
+
+Check the application through its configured access address:
+
+1. Verify `/health`, `/nginx_health`, and the login page.
+2. Sign in with an existing account and confirm that projects, task counts,
+   labels, annotations, and media are preserved.
+3. Import a small task, submit an annotation, and export its result. Verify any
+   configured object storage or machine learning backend integration.
+4. Resume annotation writes only after these checks pass.
+
+HTTP 200 responses alone do not establish successful data migration.
+
+## Recover from a failed upgrade
+
+Inspect the migration and application logs before retrying. A Helm rollback
+changes Kubernetes resources but does not reverse database schema changes.
+If the previous application version cannot use the migrated database, restore
+the previous chart and values together with the matching database, media, and
+secret backups. Confirm the recovery in an isolated namespace before returning
+the production service to users.
