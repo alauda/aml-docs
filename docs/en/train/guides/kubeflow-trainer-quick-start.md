@@ -90,6 +90,6 @@ spec:
 
 The notebook installs Python packages and downloads MNIST, so the workbench needs outbound network access.
 
-Download [`kubeflow-trainer-mnist.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/kubeflow-trainer-mnist.ipynb) and upload it to your workbench, then follow it to submit the `TrainJob`.
+Download [`kubeflow-trainer-mnist.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/notebooks/kubeflow-trainer-mnist.ipynb) and upload it to your workbench, then follow it to submit the `TrainJob`.
 
 For background on Trainer v2 features, see the [upstream Kubeflow Trainer docs](https://www.kubeflow.org/docs/components/trainer/).
