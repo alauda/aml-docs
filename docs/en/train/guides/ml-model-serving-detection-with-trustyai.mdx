@@ -53,7 +53,7 @@ done
 
 After the next computation and scrape, inspect `trustyai_spd` and `trustyai_dir` in `/q/metrics` or Prometheus. Filter on `model` and `requestName` so you do not read results for a different model or schedule. For example, for dataset `classifier-fixture-v1`:
 
-```promql
+```
 trustyai_spd{model="classifier-fixture-v1",requestName="classifier-fixture-v1-spd"}
 trustyai_dir{model="classifier-fixture-v1",requestName="classifier-fixture-v1-dir"}
 ```
