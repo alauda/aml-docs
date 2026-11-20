@@ -100,7 +100,7 @@ This page lists the currently maintained Alauda AI Platform versions in the comp
    - Alauda Build of KServe → **Alauda AI Platform Inference Management**
    - Alauda Build of Serving Runtime → **Alauda AI Platform Serving Runtime**
    - Alauda Build of AI Gateway → **Alauda AI Platform Gateway**
-2. **Deprecated components:** Alauda Build of Llama Stack, Dify Operator, Alauda Build of MCP Lifecycle Operator, Kagenti Operator, and Kagenti UI Operator are deprecated and no longer managed by `AmlCluster`. These agent framework and runtime components are moving to the standalone Alauda Agent Platform product; they are not recommended for new deployments.
+2. **Deprecated components:** Alauda Build of Llama Stack, Dify Operator, Alauda Build of MCP Lifecycle Operator, Kagenti Operator, and Kagenti UI Operator are removed from Alauda AI Platform and no longer managed by `AmlCluster`. Agent-related capabilities have moved to the separate Alauda Agent Platform product.
 3. **New component since v2.8 Stable:** Alauda AI Platform NPU Serving Runtime includes vLLM-Ascend `v0.23.0` for inference workloads on Ascend chips.
 
 Alauda AI Platform 2.8 does not support ACP 4.0.x. Alauda AI Platform 2.10.0 Fast supports new installations only; upgrades from previous releases are not supported.

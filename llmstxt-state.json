@@ -1141,9 +1141,9 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/overview/release_notes.mdx": {
-      "sha256": "2a96e22204822667bfa6541640bf90d57167d10e910ead3daf7e590084c3524b",
-      "size": 863,
-      "description": "Release notes for Alauda AI Platform, organized per release with sections for upgrade support, changes from the previous release, and known issues. The 2.10.0 Fast release records that agent-related components (Dify, Alauda Build of MCP Lifecycle Operator, Kagenti, Alauda Build of Llama Stack) have moved to the standalone Alauda Agent Platform product and are no longer part of Alauda AI Platform.",
+      "sha256": "fe21dbf9952f3636ec0fa8dd0facf99779f871a8d358aebe47d7d8fc1de73419",
+      "size": 831,
+      "description": "Release notes for Alauda AI Platform, organized per release with sections for upgrade support, changes from the previous release, and known issues. The 2.10.0 Fast release records that agent-related components (Dify, Alauda Build of MCP Lifecycle Operator, Kagenti, Alauda Build of Llama Stack) are removed from Alauda AI Platform, with agent-related capabilities moved to the separate Alauda Agent Platform product.",
       "generation_method": "ai_agent_reading",
       "updated_at": "2026-11-20T00:00:00Z"
     },
@@ -1176,8 +1176,8 @@
       "updated_at": "2026-08-04T00:00:00Z"
     },
     "docs/en/plan/supported_configurations.md": {
-      "sha256": "fb85b6711fa9c2e8fab7f1f9413c243e71b5d122187e3c4a5c93b8425357bd24",
-      "size": 12382,
+      "sha256": "54f63d5593716ac3fef9f0c9334b3058feeb8c0bd8fbf1bab2802f1e6167f4bf",
+      "size": 12337,
       "description": "Support matrix listing the currently maintained Alauda AI Platform versions, covering the current release and the most recent Stable release before it. Provides separate x86_64 and ARM architecture tables of supported Alauda Container Platform versions and component versions with their delivery type, plus notes on deprecated agent-related components moving to Alauda Agent Platform and on the new NPU Serving Runtime.",
       "generation_method": "ai_agent_reading",
       "updated_at": "2026-11-20T00:00:00Z"
