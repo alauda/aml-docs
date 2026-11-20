@@ -1,0 +1,38 @@
+---
+weight: 50
+---
+
+# Workbench support lifecycle
+
+Alauda AI Platform Workbench is delivered as the Workbench Operator and its
+`workspace-controller` operand. Support applies to the operator, the runtime
+images listed in the operator bundle, and the platform release and
+architectures recorded in the [supported-configuration matrix](../../../plan/supported_configurations.md).
+
+## Supported releases
+
+- Workbench Operator `v0.2.3` is the current documented release for the
+  Alauda AI Platform `v2.10` support line on x86_64 and arm64.
+- The operator bundle uses `workspace-controller:v0.2.3` and the CPU runtime
+  images at `v0.2.4`.
+- Workbench Operator `v0.2.0` remains recorded for the Alauda AI Platform
+  `v2.8` Stable baseline. That historical entry is retained for existing
+  installations and migration planning.
+- A development, pull-request, or test image tag does not establish a supported
+  release or a supported platform and architecture combination.
+
+The platform matrix is the source of truth for supported combinations. Use the
+release notes for changes in image contents, security remediation, and known
+limitations.
+
+## Maintenance and support boundaries
+
+Install and upgrade Workbench through the OLM operator surface. Keep the
+operator, controller, Workbench custom resource, and built-in runtime images on
+the versions listed for the target platform release. Upstream Kubeflow Notebook
+and IDE projects control their own upstream maintenance schedules.
+
+Back up Workbench custom resources, `WorkspaceKind` resources, PVCs, and
+operator configuration before an upgrade. When a release is removed from the
+matrix or marked deprecated, plan migration to a supported release and verify
+the exact source and target upgrade path in the [upgrade guide](./upgrade).

@@ -1,0 +1,28 @@
+---
+weight: 40
+---
+
+# Upgrade Workbench
+
+Workbench is upgraded through its OLM Helm operator. Read the detailed
+[Upgrade Workbench](../../../upgrade/workbench.mdx) procedure before changing
+an existing installation.
+
+## Version status
+
+| Source | Target | Validation status |
+| --- | --- | --- |
+| `v0.2.2` | `v0.2.3` | Use the release owner's tested evidence before production rollout |
+| Workbench Cluster Plugin | Workbench Operator `v0.2.3` | Migration procedure required. This is not an in-place OLM upgrade |
+
+The Cluster Plugin to OLM Operator transition requires a backup, removal of the
+old plugin installation, preservation of user PVCs and Workbench resources, and
+installation of the operator before creating or adopting a `Workbench` custom
+resource. The detailed procedure also covers legacy Workspace Services,
+`WorkspaceKind` option redirects, and older Jupyter route prefixes.
+
+Before every upgrade, record the operator and runtime image versions, back up
+the Workbench custom resources and PVCs, and confirm the target version in the
+[support lifecycle](./support_lifecycle). Verify that the Workbench resource
+reports `Deployed=True`, the controller deployment is ready, and existing
+Workspaces retain their PVCs after reconciliation.
