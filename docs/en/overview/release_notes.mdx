@@ -4,36 +4,18 @@ weight: 40
 
 # Release Notes
 
-## Alauda AI Platform 2.9.0 (Fast)
+## Alauda AI Platform 2.10.0 (Fast)
 
-Alauda AI Platform 2.9.0 is a Fast release. These notes summarize the major platform, model-serving, training, and MLOps changes introduced since Alauda AI Platform 2.8.
+Alauda AI Platform 2.10.0 is a Fast release. These notes summarize the major platform, model-serving, training, and MLOps changes introduced since Alauda AI Platform 2.9.
 
 ### **Upgrade Support**
 
-Alauda AI Platform 2.9.0 Fast does not support upgrades from previous releases, including 2.8. Deploy it as a new installation.
+To be documented.
 
-### **Changes from Alauda AI Platform 2.8**
+### **Changes from Alauda AI Platform 2.9**
 
-- **Alauda Build of Llama Stack:** Deprecated and not recommended for use. `AmlCluster` no longer manages this component. Consider [Ogx](https://github.com/ogx-ai/ogx) as an alternative; Llama Stack deployment and usage guides have been removed.
-- **Platform Configuration:** The Admin view adds a Platform Configuration page for editing most supported `AmlCluster` settings through the UI, including component management states and component-specific configuration. Advanced or unsupported fields remain available through the YAML view.
-- **Inference service management:** LLM inference services and regular inference services are listed and managed separately, making their different configuration and lifecycle options explicit.
-- **LLM inference configuration:** LLM inference services support prefill/decode (P/D) disaggregation and configurable parallelism parameters, including tensor, pipeline, data, and expert parallelism when supported by the selected runtime.
-- **Alauda Build of InferNex Bridge:** Added `infernexBridge` component management through the `default` `AmlCluster`.
-- **Alauda AI Platform NPU Serving Runtime:** New component at version `v1.0.0`, managed through `servingRuntimeNPUOperator` in the `default` `AmlCluster`, with the vLLM-Ascend `v0.23.0` image included.
-- **Alauda AI Platform Gateway:** Updated to product version `v1.1.0-1`. Its upstream project is now **Agent Router**, formerly Envoy AI Gateway.
-- **Alauda AI Platform Inference Management:** Updated to product version `v0.20.0-1`, based on KServe.
-- **Alauda AI Platform Serving Runtime:** The Serving Runtime is upgraded to version `v1.2.2`, and its vLLM image is upgraded to `v0.23.0`. The separate llm-d image is no longer used; llm-d reuses the vLLM image.
-
-#### **MaaS usage changes**
-
-- **Published models use `MaaSModelRef` v1alpha2:** one published client model can now have multiple upstreams. An upstream can be an `InferenceService`, `LLMInferenceService`, or external `AIServiceBackend`.
-- **Model publishing is centralized:** administrators create and edit models from **MaaS → Models → Published Models**. Importing an external model service only creates the external backend; it no longer directly publishes separate MaaS models from the service page.
-- **Inference services are upstream candidates:** model owners mark an `InferenceService` or `LLMInferenceService` with `maas.alauda.io/available: "true"` before it can be selected as an upstream.
-- **Client and provider model names are separate:** `clientModelName` is the name applications send in the request `model` field and the name used by subscriptions, authorization, quotas, and usage reporting. An upstream can specify a different `upstreamModelName` for the provider.
-- **Multi-upstream routing:** published models support upstream priority and weight configuration, allowing primary/backup and same-priority traffic distribution scenarios, plus request-level retry and failover settings.
-- **Subscriptions identify models by client model name:** the same client model name cannot be added more than once to a subscription, even when it is backed by different `MaaSModelRef` resources.
-- **Usage reports distinguish model names:** administrator reports and CSV exports can distinguish the client model from the upstream model.
+- **Agent-related components moved to Alauda Agent Platform:** Dify, Alauda Build of MCP Lifecycle Operator, Kagenti, and Alauda Build of Llama Stack are removed from Alauda AI Platform starting from this release; they are no longer installed or managed by `AmlCluster`, and their deployment and usage guides have been removed from the Alauda AI Platform documentation. Agent-related capabilities have moved to the separate Alauda Agent Platform product.
 
 ### **Known Issues**
 
-- When VictoriaMetrics is used to collect monitoring data for inference services running in Serverless mode, inference services may not scale down to zero.
+To be documented.
