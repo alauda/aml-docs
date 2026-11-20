@@ -1,0 +1,161 @@
+---
+weight: 81
+---
+
+# ML model serving detection with Trusty AI
+
+Use TrustyAI Service (TAS) to detect differences in favorable prediction rates across groups in a live KServe model. When an investigation confirms that retraining is appropriate, start a Kubeflow Pipelines (KFP) run that launches a training job, evaluates the new model on a separate endpoint, and updates the live `InferenceService` only if the candidate passes the release checks.
+
+This guide uses a binary classifier with an explicitly defined decision output. TAS measures the decisions made in serving traffic; it does not train models or launch pipelines. For evaluating LLM task quality with `LMEvalJob` instead, see [Daily Fine-Tuning Pipeline with MLflow Tracking and TrustyAI Evaluation](./fine-tuning-pipeline-with-mlflow-trustyai.mdx).
+
+## Prerequisites
+
+- A ready [KServe InferenceService](../../deploy/inference_service/guides/create_inference_service_cli.mdx) using `spec.predictor.model.storageUri`, and a [TrustyAI Service](../../evaluate_safety/components/trustyai/deploy_tas.mdx) in the same namespace. Check that its PVC is bound if using PVC storage.
+- Network access to the authenticated TAS endpoint, its trusted TLS CA, and a short-lived token for an authorized ServiceAccount. See the TAS API access instructions in [Bias and Drift Monitoring](../../monitor/bias_drift.mdx).
+- A working [Kubeflow Pipelines](../../develop/pipelines/kubeflow_pipelines.mdx) instance, an existing training job template, an approved versioned training dataset, a separate labeled holdout dataset, and versioned [model storage](../../deploy/model_management/model_storage.mdx) readable by KServe.
+- A pipeline runner image with the workload-specific scripts described below. Give the runner only the permissions it needs to create and inspect training jobs and candidate services, and to update the named live service. Keep credentials in Secrets or workload identities, not pipeline parameters.
+
+## 1. Collect model decisions
+
+Define the protected attribute, the two group values, and the favorable decision before collecting data. This guide uses a synthetic numeric `group` (privileged `1`, unprivileged `0`) and an `approved` decision (`1` is favorable). If the model returns a probability or text, record the decision produced by the actual application rule, not the raw score or text. Keep the encoding and decision rule stable within an evaluation window. Collect only fields you are authorized to retain; do not log raw prompts or personal records just to compute these metrics.
+
+1. Send paired model requests and responses to TAS. If your serving integration does not already capture them, use an adapter that posts both halves to `POST /consumer/kserve/v2` with the same correlation `id` and `modelid`. This endpoint expects base64-encoded KServe v2 protobuf messages, not the JSON payload of an OpenAI-compatible endpoint. Do not ingest the same events through both paths.
+2. If you also want a drift baseline, upload separately tagged reference data using `POST /data/upload` and `data_tag: TRAINING`. This is optional for the live fairness check; SPD and DIR compare groups within a window, not live data against training data. See the data ingestion examples in [Bias and Drift Monitoring](../../monitor/bias_drift.mdx) for both payload formats.
+3. Query `GET /info` to verify that TAS has recorded complete pairs under the expected model ID and that the stored input and output names and types match the metric request. If you use `/info/names`, use the mapped names when registering the metrics. Use separate dataset IDs for the live and candidate models and keep records from different model versions out of the same comparison window.
+
+## 2. Schedule and verify fairness metrics
+
+Set `TAS_URL`, `TAS_CA`, `TAS_TOKEN`, and `MODEL_ID` to the authenticated service URL, CA bundle path, token, and dataset ID from the previous step. This example assumes `/info` confirms the names `group` and `approved`. For the initial fixture, replay 20 synthetic pairs into a fresh dataset: six approvals and four denials for group `0`, and ten approvals for group `1`. In production, choose a window large enough to represent both groups.
+
+```bash
+tas() {
+  curl --fail-with-body --silent --show-error --cacert "$TAS_CA" \
+    -H "Authorization: Bearer $TAS_TOKEN" "$@"
+}
+
+tas "$TAS_URL/info" | jq .
+
+for metric in spd dir; do
+  jq -n --arg model "$MODEL_ID" --arg metric "$metric" '{
+    modelId: $model,
+    requestName: ($model + "-" + $metric),
+    metricName: $metric,
+    batchSize: 20,
+    protectedAttribute: "group",
+    privilegedAttribute: 1,
+    unprivilegedAttribute: 0,
+    outcomeName: "approved",
+    favorableOutcome: 1
+  }' | tas -X POST -H 'Content-Type: application/json' --data-binary @- \
+    "$TAS_URL/metrics/group/fairness/$metric/request"
+done
+```
+
+After the next computation and scrape, inspect `trustyai_spd` and `trustyai_dir` in `/q/metrics` or Prometheus. Filter on `model` and `requestName` so you do not read results for a different model or schedule. For example, for dataset `classifier-fixture-v1`:
+
+```promql
+trustyai_spd{model="classifier-fixture-v1",requestName="classifier-fixture-v1-spd"}
+trustyai_dir{model="classifier-fixture-v1",requestName="classifier-fixture-v1-dir"}
+```
+
+For each group, divide the favorable outcomes by the total decisions in that group. If the unprivileged group has 6/10 favorable outcomes and the privileged group has 10/10, then statistical parity difference (**SPD**) is `0.6 − 1.0 = −0.4`, and disparate impact ratio (**DIR**) is `0.6 / 1.0 = 0.6`. DIR is undefined when the privileged group's favorable rate is zero. Use the exact rows from the selected window when cross-checking TAS; a scrape timestamp alone does not prove new predictions were evaluated.
+
+**What the smoke test verified:** An Alauda Build of TrustyAI v3.4.2-2 test with a KServe-hosted Qwen3-0.6B endpoint ingested 20 reference rows and 20 live rows and ran both metric requests. The stored group counts implied SPD `−0.4` and DIR `0.6`, but TAS reported `0.0` and `NaN`. That run verified the ingestion and scheduling workflow, not metric correctness, retraining, or rollout. Before using TAS results as a trigger or release gate, reproduce the deterministic fixture and reconcile the reported scores with the stored outcomes. If they disagree, check the window, group counts, column mapping, and value types. Keep the gate closed while a discrepancy remains.
+
+## 3. Review the signal and trigger retraining
+
+Define acceptable SPD and DIR ranges and a minimum sample count per group for your application. Investigate a breach across multiple fresh windows rather than retraining on a single sample. Missing, stale, non-finite, or unreconciled results are monitoring failures to investigate, not permission to train or deploy. Group parity metrics alone do not establish that a model is fair. Review the data and decision rule first: an encoding error or a change in traffic can require a fix other than retraining.
+
+Start with a manual trigger: record the decision to retrain along with the model version, window IDs, TAS request names, group counts, and metrics. Pass that review record's ID to KFP. If you automate submission later, use a separate alert receiver or scheduled check to apply the same validation and approval policy before calling KFP. Deduplicate by model version and reviewed window and allow only one remediation run per live service at a time.
+
+### Assemble the pipeline
+
+The following KFP v2 wiring uses three scripts supplied by your runner image. Implement and test them for your model and serving runtime before compiling. Each script must exit nonzero on failure so KFP does not start the dependent stage.
+
+| Runner command | Required behavior |
+| --- | --- |
+| `/workflow/train` | Submit a uniquely named training job from your existing template (for example, a [Trainer v2 TrainJob](./fine-tune-with-trainer-v2.mdx)). Mount or read the approved training dataset. Wait for terminal success with a timeout, then verify that the serving-ready model was published to the requested immutable candidate URI. Fail on job failure, timeout, missing artifact, or an already-used output path. |
+| `/workflow/validate` | Deploy a temporary `InferenceService` from the candidate URI using the production runtime and decision rule, then wait for readiness and smoke-test the route. Replay the same held-out inputs against the candidate and the expected live version. Use a separate TAS dataset for the candidate; verify fresh TAS samples against the underlying group counts. Require both approved fairness bounds and task-quality thresholds on the labeled holdout. Fail closed if the live version changed, the samples are insufficient, or any check fails. |
+| `/workflow/promote` | Check that the live service still points to the expected URI. Update only the model URI, retain the previous URI, and verify the new predictor and route. If rollout or checks fail, revert to the previous URI only if this run's candidate is still deployed; report the failure and verify recovery. |
+
+Save as `fairness_pipeline.py`. Replace the runner image placeholder with your actual versioned image, then run `python fairness_pipeline.py` in the environment with the KFP SDK installed.
+
+```python
+from kfp import compiler, dsl
+
+
+@dsl.container_component
+def run_stage(command: str, evidence_id: str, namespace: str, service: str,
+              training_data_uri: str, holdout_data_uri: str,
+              expected_live_uri: str, candidate_uri: str):
+    return dsl.ContainerSpec(
+        image="registry.example.com/ml/fairness-runner:1.0.0",
+        command=[command],
+        args=[evidence_id, namespace, service, training_data_uri,
+              holdout_data_uri, expected_live_uri, candidate_uri],
+    )
+
+
+@dsl.pipeline(name="serving-fairness-remediation")
+def fairness_pipeline(evidence_id: str, namespace: str, service: str,
+                      training_data_uri: str, holdout_data_uri: str,
+                      expected_live_uri: str, candidate_uri: str):
+    stage_inputs = dict(
+        evidence_id=evidence_id, namespace=namespace, service=service,
+        training_data_uri=training_data_uri, holdout_data_uri=holdout_data_uri,
+        expected_live_uri=expected_live_uri, candidate_uri=candidate_uri,
+    )
+    train = run_stage(command="/workflow/train", **stage_inputs)
+    train.set_display_name("Train replacement").set_caching_options(False)
+    validate = run_stage(command="/workflow/validate", **stage_inputs).after(train)
+    validate.set_display_name("Validate candidate").set_caching_options(False)
+    promote = run_stage(command="/workflow/promote", **stage_inputs).after(validate)
+    promote.set_display_name("Update live service").set_caching_options(False)
+
+
+if __name__ == "__main__":
+    compiler.Compiler().compile(fairness_pipeline, "fairness-remediation.yaml")
+```
+
+Submit `fairness-remediation.yaml` in the KFP UI or use an authenticated [KFP SDK client](../../develop/pipelines/kubeflow_pipelines.mdx). The following assumes `client` is connected to KFP and the experiment and namespace already exist. Replace the example values with the approved inputs. Track `run.run_id` alongside the review record.
+
+```python
+run = client.create_run_from_pipeline_package(
+    "fairness-remediation.yaml",
+    namespace="model-project",
+    experiment_name="serving-fairness",
+    run_name="classifier-review-042",
+    arguments={
+        "evidence_id": "review-042",
+        "namespace": "model-project",
+        "service": "classifier",
+        "training_data_uri": "s3://datasets/classifier/train/v3/",
+        "holdout_data_uri": "s3://datasets/classifier/holdout/v1/",
+        "expected_live_uri": "s3://models/classifier/v1/",
+        "candidate_uri": "s3://models/classifier/review-042/",
+    },
+)
+print(run.run_id)
+```
+
+## 4. Verify the rollout and resume monitoring
+
+Use a conditional update in the promotion script, not an unconditional overwrite. For example, with `NAMESPACE`, `SERVICE`, `EXPECTED_LIVE_URI`, and `CANDIDATE_URI` set from the pipeline inputs, this JSON patch checks the original URI and resource version before replacing the URI. A failed patch must stop the promotion; recheck against the reviewed model before any retry. If a GitOps controller manages the service, submit the same change through the owning GitOps workflow instead of patching the cluster directly.
+
+```bash
+resource_version=$(kubectl -n "$NAMESPACE" get inferenceservice "$SERVICE" \
+  -o jsonpath='{.metadata.resourceVersion}')
+
+patch=$(jq -n --arg resourceVersion "$resource_version" \
+  --arg current "$EXPECTED_LIVE_URI" --arg candidate "$CANDIDATE_URI" '[
+  {op: "test", path: "/metadata/resourceVersion", value: $resourceVersion},
+  {op: "test", path: "/spec/predictor/model/storageUri", value: $current},
+  {op: "replace", path: "/spec/predictor/model/storageUri", value: $candidate}
+]')
+
+kubectl -n "$NAMESPACE" patch inferenceservice "$SERVICE" --type=json -p "$patch"
+```
+
+- Wait for the deployment or revision created by the update to become ready within a timeout. A `Ready` condition left over from the old predictor is not enough. Send a prediction through the live route and confirm it is served by the new model version before marking the run successful.
+- If validation fails after the update, use the same conditional update with the URIs reversed, then verify the restored predictor and route. Retain the prior artifact until the rollback window closes.
+- Start a fresh monitoring window attributed to the promoted version. Confirm new predictions arrive and the expected metric series update. Remove the temporary candidate service and its test metric requests when no longer needed; see the schedule deletion instructions in [Bias and Drift Monitoring](../../monitor/bias_drift.mdx).
