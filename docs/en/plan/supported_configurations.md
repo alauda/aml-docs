@@ -34,7 +34,7 @@ This page lists the currently maintained Alauda AI Platform versions in the comp
 | Alauda Build of Llama Stack (2)              | Operator       | v0.9.0                             | Deprecated                       |
 | Label Studio                                 | Helm Chart     | v1.21.0-2                          | v1.21.0-2                        |
 | Alauda AI Platform Gateway                   | Operator       | v0.6.0-2                           | v1.1.0-1                         |
-| Dify Operator                                | Operator       | v1.15.0                            | v1.15.0                          |
+| Dify Operator (2)                            | Operator       | v1.15.0                            | Deprecated                       |
 | Evidently                                    | Helm Chart     | v0.7.14-1                          | v0.7.14-3                        |
 | Alauda Build of Feast                        | Operator       | v0.61.1                            | v0.61.1                          |
 | Knative Operator                             | Operator       | v1.19.3-260213                     | v1.19.3-260213                   |
@@ -44,7 +44,7 @@ This page lists the currently maintained Alauda AI Platform versions in the comp
 | Milvus Operator                              | Helm Chart     | v1.3.5                             | v1.3.5                           |
 | Alauda Build of Harbor                       | Operator       | v2.4.14                            | v2.4.14                          |
 | Alauda Build of TrustyAI                     | Operator       | v3.4.1                             | v3.4.2-2                         |
-| Alauda Build of MCP Lifecycle Operator       | Operator       | v0.2.0-1                           | v0.2.0-1                         |
+| Alauda Build of MCP Lifecycle Operator (2)   | Operator       | v0.2.0-1                           | Deprecated                       |
 | Kagenti Operator (2)                         | Operator       | v0.3.0-rc.1                        | Deprecated                       |
 | Kagenti UI Operator (2)                      | Operator       | v0.6.1                             | Deprecated                       |
 
@@ -79,7 +79,7 @@ This page lists the currently maintained Alauda AI Platform versions in the comp
 | Alauda Build of Llama Stack (2)              | Operator       | v0.9.0                             | Deprecated                       |
 | Label Studio                                 | Helm Chart     | v1.21.0-2                          | v1.21.0-2                        |
 | Alauda AI Platform Gateway                   | Operator       | v0.6.0-2                           | v1.1.0-1                         |
-| Dify Operator                                | Operator       | v1.15.0                            | v1.15.0                          |
+| Dify Operator (2)                            | Operator       | v1.15.0                            | Deprecated                       |
 | Evidently                                    | Helm Chart     | v0.7.14-3                          | v0.7.14-3                        |
 | Alauda Build of Feast                        | Operator       | v0.61.1                            | v0.61.1                          |
 | Knative Operator                             | Operator       | v1.19.3-260213                     | v1.19.3-260213                   |
@@ -89,7 +89,7 @@ This page lists the currently maintained Alauda AI Platform versions in the comp
 | Milvus Operator                              | Helm Chart     | v1.3.5                             | v1.3.5                           |
 | Alauda Build of Harbor                       | Operator       | v2.4.14                            | v2.4.14                          |
 | Alauda Build of TrustyAI                     | Operator       | v3.4.1                             | v3.4.2-2                         |
-| Alauda Build of MCP Lifecycle Operator       | Operator       | v0.2.0-1                           | v0.2.0-1                         |
+| Alauda Build of MCP Lifecycle Operator (2)   | Operator       | v0.2.0-1                           | Deprecated                       |
 | Kagenti Operator (2)                         | Operator       | v0.3.0-rc.1                        | Deprecated                       |
 | Kagenti UI Operator (2)                      | Operator       | v0.6.1                             | Deprecated                       |
 
@@ -100,7 +100,7 @@ This page lists the currently maintained Alauda AI Platform versions in the comp
    - Alauda Build of KServe → **Alauda AI Platform Inference Management**
    - Alauda Build of Serving Runtime → **Alauda AI Platform Serving Runtime**
    - Alauda Build of AI Gateway → **Alauda AI Platform Gateway**
-2. **Deprecated in Alauda AI Platform v2.9 Fast:** Alauda Build of Llama Stack, Kagenti Operator, and Kagenti UI Operator are deprecated and are not recommended for new deployments. Llama Stack is no longer managed by `AmlCluster`; consider [Ogx](https://github.com/ogx-ai/ogx) as an alternative.
+2. **Deprecated in Alauda AI Platform v2.9 Fast:** Alauda Build of Llama Stack, Dify Operator, Alauda Build of MCP Lifecycle Operator, Kagenti Operator, and Kagenti UI Operator are deprecated in v2.9 and will no longer be part of Alauda AI Platform in future releases. These agent framework and runtime components are moving to the standalone Alauda Agent Platform product; they are not recommended for new deployments and are no longer managed by `AmlCluster`.
 3. **New component in Alauda AI Platform v2.9 Fast:** Alauda AI Platform NPU Serving Runtime includes vLLM-Ascend `v0.23.0` for inference workloads on Ascend chips.
 
 Alauda AI Platform 2.8 does not support ACP 4.0.x. Alauda AI Platform 2.9.0 Fast supports new installations only; upgrades from previous releases are not supported.
