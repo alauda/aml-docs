@@ -3,7 +3,7 @@
   "generator_version": 3,
   "project_name": "Alauda AI Platform / Machine Learning Documentation",
   "summary": "Documentation for Alauda's AI and machine learning platform, including Kubeflow, KServe, KubeRay, LWS, Kueue, Agent Router, Feast, Label Studio, TrustyAI, LLM Compressor, model inference, infrastructure management, and related installation, upgrade, monitoring, and learning guides.",
-  "generated_at": "2026-08-04T00:00:00Z",
+  "generated_at": "2026-11-20T00:00:00Z",
   "include_patterns": [
     "docs/en/**/*.md",
     "docs/en/**/*.mdx"
@@ -487,7 +487,7 @@
       "size": 53,
       "description": "Section landing page for Model Management, embedding the Overview component to list the sub-pages.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-20T00:00:00Z"
     },
     "docs/en/deploy/model_management/intro.mdx": {
       "sha256": "526e8b02bb4b2a43710c447b81f5b66127df2d8d6a7a6a8ee9414eafab4cebce",
@@ -987,11 +987,11 @@
       "updated_at": "2026-08-04T00:00:00Z"
     },
     "docs/en/installation/ai-cluster.mdx": {
-      "sha256": "b60bfbf124d55cd9a8ccf0e8d5a92851b454c4d8732ac06467613eb8bfe3b0d0",
-      "size": 30571,
+      "sha256": "734964fbbc0fa0cde00907c16d8aa1f8da122d6c3c47b01748a5d81bfb7a9c4e",
+      "size": 30381,
       "description": "Installs Alauda AI Platform on a target cluster. Covers downloading the Alauda AI Platform Operator and optional Knative Operator packages, prerequisites including Authorino, PostgreSQL, and Redis, uploading packages with the violet tool through a scripted push, installing the Alauda AI Platform Operator from OperatorHub, enabling optional Knative functionality, configuring the AmlCluster instance, and importing models into a registry.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
+      "updated_at": "2026-11-20T00:00:00Z"
     },
     "docs/en/installation/ai-essentials.mdx": {
       "sha256": "82361d31e6e503d7b6f47a03ff4b88c00acfd58466fc9c22fb9f0cf0c3266df8",
@@ -1106,11 +1106,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/overview/architecture.mdx": {
-      "sha256": "45a6541052a89bb5b28c1bc90cd0b3ea65e40adce81e8a9e20fedf406df83411",
-      "size": 5125,
+      "sha256": "5f10f3e0d9b4981e05431bb6a6619588b85693b35986e1ca2adc00d82253d5c4",
+      "size": 4483,
       "description": "Architectural reference for the Alauda AI Platform, organized by layer with component-by-component licensing and provenance. Catalogs the ACP layer (Alauda Builds of NVIDIA Device Plugin, HAMi, DCGM-Exporter, NPU Operator, Node Feature Discovery, NVIDIA DRA Driver, Volcano, Kueue, Milvus, PGVector), the AI Platform layer (Model Catalog, Kubeflow Model Registry, Datasets, Label Studio, FeatureForm, Workbench, Kubeflow Trainer v2, Kubeflow Pipelines, Guardrails, Evidently, MLflow), and the GenAI layer (KServe, vLLM, llm-d, Alauda AI Platform Gateway as MaaS, fine-tuning with llama-factory, llm-compressor quantization, lm-evaluation-harness).",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-20T00:00:00Z"
     },
     "docs/en/overview/glossary.mdx": {
       "sha256": "c7e76e3640d013df67ec2a1265b73138840e83775ee51b4e9674ecf602cb0019",
@@ -1127,11 +1127,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/overview/intro.mdx": {
-      "sha256": "8f419ab8557a0409ebc869a107d1ed43a957618b2ba4ed543008cd93788a1b6f",
-      "size": 1561,
-      "description": "Introduces the Alauda AI Platform as an MLOps and LLMOps best-practice toolkit for model storage and versioning, inference service release for large models, and codeless agent orchestration and AI application development. Frames the platform's audience (data scientists, ML engineers, application developers) and contrasts MLOps with LLMOps workflows.",
+      "sha256": "2a703150bfaee7f62bfc23ff3253408391d922e860abcf68878a9ca213931d77",
+      "size": 1601,
+      "description": "Introduces the Alauda AI Platform as an MLOps and LLMOps best-practice toolkit for model storage and versioning, inference service release and operation for large models, and serving as the model and MaaS backend for AI agents and applications. Frames the platform's audience (data scientists, ML engineers, application developers) and contrasts MLOps with LLMOps workflows.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-20T00:00:00Z"
     },
     "docs/en/overview/quick_start.mdx": {
       "sha256": "f720e521428cd15d57809588947b091891df85dd6b4713ce4e273e57cf9c635a",
@@ -1141,11 +1141,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/overview/release_notes.mdx": {
-      "sha256": "bf1cd35190e3e406538751cc61d0a0884699b250518708d5327efbef47be2eea",
-      "size": 2207,
-      "description": "Release notes for Alauda AI Platform, listing new and optimized features, breaking changes, fixed issues, and known issues per release. The 2.9.0 Fast release does not support upgrades and adds MaaS usage changes including MaaSModelRef v1alpha2 multi-upstream published models, centralized model publishing, InferenceService/LLMInferenceService upstream candidates, separate client/provider model names, priority/weight/retry routing, client-model-based subscription selection, and client/upstream model dimensions in usage reports.",
+      "sha256": "2a96e22204822667bfa6541640bf90d57167d10e910ead3daf7e590084c3524b",
+      "size": 863,
+      "description": "Release notes for Alauda AI Platform, organized per release with sections for upgrade support, changes from the previous release, and known issues. The 2.10.0 Fast release records that agent-related components (Dify, Alauda Build of MCP Lifecycle Operator, Kagenti, Alauda Build of Llama Stack) have moved to the standalone Alauda Agent Platform product and are no longer part of Alauda AI Platform.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
+      "updated_at": "2026-11-20T00:00:00Z"
     },
     "docs/en/plan/device_options/hami.mdx": {
       "sha256": "a13d7e7156cb4f16781458b8fae43e43a5809007d64b686cdad73324472fbabf",
@@ -1176,11 +1176,11 @@
       "updated_at": "2026-08-04T00:00:00Z"
     },
     "docs/en/plan/supported_configurations.md": {
-      "sha256": "00f46b2ba0efea77f05176f3fed12be66770e4e2eb5e1ea9aa3ccfa5c8139e47",
-      "size": 11437,
-      "description": "Support matrix listing the currently maintained Alauda AI Platform versions, covering the current release and the most recent Stable release before it. Provides separate x86_64 and ARM architecture tables of supported Alauda Container Platform versions and component versions with their delivery type, plus notes on retired and replaced components.",
+      "sha256": "fb85b6711fa9c2e8fab7f1f9413c243e71b5d122187e3c4a5c93b8425357bd24",
+      "size": 12382,
+      "description": "Support matrix listing the currently maintained Alauda AI Platform versions, covering the current release and the most recent Stable release before it. Provides separate x86_64 and ARM architecture tables of supported Alauda Container Platform versions and component versions with their delivery type, plus notes on deprecated agent-related components moving to Alauda Agent Platform and on the new NPU Serving Runtime.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
+      "updated_at": "2026-11-20T00:00:00Z"
     },
     "docs/en/plan/validated_models/deepseek-v4-flash-w4a8.mdx": {
       "sha256": "a3d9f5556c850b6fe55b777f117b549e9c2d63a8b4681f2860c9f5cd248fe561",
@@ -1449,11 +1449,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/upgrade/uninstall.mdx": {
-      "sha256": "6c8bc823d58e9b8058b888964d830bcff160daa8cdef92a1c735c29c67ef38fb",
-      "size": 5373,
+      "sha256": "c338d841c5ac576056701808160e1d1f36374dd1b4a72f878a66667ede051b7f",
+      "size": 5463,
       "description": "Step-by-step uninstall procedure for both Alauda AI Model Serving (Serverless) and the core Alauda AI Platform Operator/instance. Requires setting BuiltIn Knative Serving (1.4+) or Knative Serving Mode (1.3) to Unmanaged before deleting the default-knative-serving instance and the kserveless-operator, then deleting the default AmlCluster, the aml-operator, and the residual CRDs amls.components.aml.dev, kserves.components.aml.dev, amlclusters.amlclusters.aml.dev, and knativeservings.components.aml.dev. Warns about the amlnamespaces.manage.aml.dev finalizer.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-20T00:00:00Z"
     },
     "docs/en/upgrade/upgrade-from-previous-version.mdx": {
       "sha256": "e627316f74106e8ca7d1513993d4750a18f69b2a5ccda12809c7746055261c6a",

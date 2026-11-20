@@ -8,10 +8,10 @@ This page lists the currently maintained Alauda AI Platform versions in the comp
 
 ## x86_64 Architecture
 
-| Components                                   | Type           | Alauda AI Platform v2.8 Stable     | Alauda AI Platform v2.9 Fast      |
+| Components                                   | Type           | Alauda AI Platform v2.8 Stable     | Alauda AI Platform v2.10 Fast     |
 | -------------------------------------------- | -------------- | ---------------------------------- | -------------------------------- |
 | Alauda Container Platform Supported Versions |                | v4.1.x, v4.2.x, v4.3.x, v4.4.x     | v4.1.x, v4.2.x, v4.3.x, v4.4.x   |
-| Alauda AI Platform (1)                       | Operator       | v2.8.1                             | v2.9.0                           |
+| Alauda AI Platform (1)                       | Operator       | v2.8.1                             | v2.10.0                          |
 | Alauda AI Workbench Operator                 | Operator       | v0.2.0                             | v0.2.0                           |
 | Alauda AI Platform Inference Management (1)  | Operator       | v0.19.0-2                          | v0.20.0-1                        |
 | Alauda AI Platform Serving Runtime (1)       | Operator       | v1.1.1                             | v1.2.2                           |
@@ -51,10 +51,10 @@ This page lists the currently maintained Alauda AI Platform versions in the comp
 ## ARM Architecture
 
 
-| Components                                   | Type           | Alauda AI Platform v2.8 Stable     | Alauda AI Platform v2.9 Fast      |
+| Components                                   | Type           | Alauda AI Platform v2.8 Stable     | Alauda AI Platform v2.10 Fast     |
 | -------------------------------------------- | -------------- | ---------------------------------- | -------------------------------- |
 | Alauda Container Platform Supported Versions |                | v4.1.x, v4.2.x, v4.3.x, v4.4.x     | v4.1.x, v4.2.x, v4.3.x, v4.4.x   |
-| Alauda AI Platform (1)                       | Operator       | v2.8.1                             | v2.9.0                           |
+| Alauda AI Platform (1)                       | Operator       | v2.8.1                             | v2.10.0                          |
 | Alauda AI Workbench Operator                 | Operator       | v0.2.0                             | v0.2.0                           |
 | Alauda AI Platform Inference Management (1)  | Operator       | v0.19.0-2                          | v0.20.0-1                        |
 | Alauda AI Platform NPU Serving Runtime (3)   | Operator       | -                                  | v1.0.0                           |
@@ -100,7 +100,7 @@ This page lists the currently maintained Alauda AI Platform versions in the comp
    - Alauda Build of KServe → **Alauda AI Platform Inference Management**
    - Alauda Build of Serving Runtime → **Alauda AI Platform Serving Runtime**
    - Alauda Build of AI Gateway → **Alauda AI Platform Gateway**
-2. **Deprecated in Alauda AI Platform v2.9 Fast:** Alauda Build of Llama Stack, Dify Operator, Alauda Build of MCP Lifecycle Operator, Kagenti Operator, and Kagenti UI Operator are deprecated in v2.9 and will no longer be part of Alauda AI Platform in future releases. These agent framework and runtime components are moving to the standalone Alauda Agent Platform product; they are not recommended for new deployments and are no longer managed by `AmlCluster`.
-3. **New component in Alauda AI Platform v2.9 Fast:** Alauda AI Platform NPU Serving Runtime includes vLLM-Ascend `v0.23.0` for inference workloads on Ascend chips.
+2. **Deprecated components:** Alauda Build of Llama Stack, Dify Operator, Alauda Build of MCP Lifecycle Operator, Kagenti Operator, and Kagenti UI Operator are deprecated and no longer managed by `AmlCluster`. These agent framework and runtime components are moving to the standalone Alauda Agent Platform product; they are not recommended for new deployments.
+3. **New component since v2.8 Stable:** Alauda AI Platform NPU Serving Runtime includes vLLM-Ascend `v0.23.0` for inference workloads on Ascend chips.
 
-Alauda AI Platform 2.8 does not support ACP 4.0.x. Alauda AI Platform 2.9.0 Fast supports new installations only; upgrades from previous releases are not supported.
+Alauda AI Platform 2.8 does not support ACP 4.0.x. Alauda AI Platform 2.10.0 Fast supports new installations only; upgrades from previous releases are not supported.
