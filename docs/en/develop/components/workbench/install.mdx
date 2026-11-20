@@ -1,0 +1,30 @@
+---
+weight: 20
+---
+
+# Install Workbench
+
+Workbench is delivered as an OLM Helm operator. The operator creates the
+`workspace-controller` and the built-in JupyterLab and code-server
+`WorkspaceKind` templates for a `Workbench` custom resource.
+
+Check the [support lifecycle](./support_lifecycle) and [release notes](./release_notes)
+before selecting a version. For the complete operator installation, custom
+resource, verification, and image catalog procedure, see [Install Workbench](../../../installation/workbench.mdx)
+and [Create Workbench](../../workbench/create_workbench.mdx).
+
+## User documentation
+
+- [Workbench introduction](../../workbench/intro.mdx) explains the operator,
+  Workspaces, and cluster-admin-managed `WorkspaceKind` templates.
+- [Create Workbench](../../workbench/create_workbench.mdx) covers the console
+  workflow, PVC attachment, connecting to JupyterLab or code-server, and the
+  built-in image catalog.
+- [Bring Your Own Workbench Images](../../workbench/byo_workbench_images.mdx)
+  covers custom image construction, route prefixes, registry synchronization,
+  and registering a custom `WorkspaceKind`.
+
+The Workbench API is the `workbench.alauda.io/v1alpha1` `Workbench` resource.
+The installation guide includes a minimal manifest and the supported
+`spec.global.istio.enabled` configuration. Istio is optional and is required
+only for the Elyra Kubeflow Pipelines run-URL redirect.

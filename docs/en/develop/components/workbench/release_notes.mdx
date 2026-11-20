@@ -1,0 +1,47 @@
+---
+weight: 60
+---
+
+# Workbench release notes
+
+These notes describe the Alauda AI Platform Workbench Operator and its runtime
+image set. See the [support lifecycle](./support_lifecycle) and the
+[supported-configuration matrix](../../../plan/supported_configurations.md) for
+published support status.
+
+## v0.2.3
+
+### Improvements
+
+- Publishes the Workbench Operator and `workspace-controller` at `v0.2.3`.
+- Uses the remediated CPU runtime images at `v0.2.4` for Jupyter minimal,
+  Jupyter data science, and code-server data science Workspaces.
+- Keeps the existing Workbench custom resource, Workspace, WorkspaceKind, chart,
+  and image repository identifiers stable for upgrade compatibility.
+
+### Security fixes
+
+- Refreshes Python, Go, JAR, npm, and CUDA dependency inputs using the frozen
+  November 15, 2026 vulnerability databases.
+- Removes unused OpenShift `oc` tooling and optional NVIDIA profiler payloads
+  while retaining the CUDA runtime and compiler toolchain required by CUDA
+  Workbench images.
+- Retains raw Trivy output for code-server extension identity matches and
+  documents those scanner false-positive decisions in the source security
+  evidence. CI keeps raw findings visible and does not suppress scanner output.
+
+### Upgrade notes
+
+Back up Workbench custom resources, Workspace and WorkspaceKind resources, PVCs,
+and operator configuration before upgrading. Follow [Upgrade Workbench](./upgrade)
+for the `v0.2.2` to `v0.2.3` review and the separate Cluster Plugin migration
+procedure. Verify Workbench reconciliation and existing Workspace Services
+after the operator upgrade.
+
+### Known limitations
+
+GPU execution still depends on a compatible NVIDIA driver for the CUDA runtime
+used by the selected image. The CPU runtime images do not provide `torch` or
+`tensorflow` unless the selected image's package inventory lists them. Review
+the image table in [Create Workbench](../../workbench/create_workbench.mdx)
+before selecting a runtime.
