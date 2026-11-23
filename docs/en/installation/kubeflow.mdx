@@ -24,7 +24,7 @@ Deploy Kubeflow Cluster Plugins in Alauda AI >= 2.0. Including:
 
 In **Administrator** - **System Settings** - **Platform Parameters**, click the "Edit" button on the right of **Platform Access URLs**, and add the redirect URL, the format is `https://<your-kubeflow-domain>:<port>/`, for example, `https://192.168.139.133:30443/`.
 
-- `<your-kubeflow-domain>` can set to the master node IP where Kubeflow is deployed. It should be the same as the `oidcRedirectURL` configured in the kfbase Cluster Plugin deployment page.
+- `<your-kubeflow-domain>` can set to the control plane node IP where Kubeflow is deployed. It should be the same as the `oidcRedirectURL` configured in the kfbase Cluster Plugin deployment page.
 - `<port>` can be any available port `>= 30000`, it should be the same as `istioGatewayNodeportHTTPS` configured in the kfbase Cluster Plugin deployment page. Default is `30443`.
 
 ### Configure oauth2-proxy Plugin
