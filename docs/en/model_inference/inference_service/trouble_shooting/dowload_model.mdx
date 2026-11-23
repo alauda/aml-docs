@@ -15,7 +15,7 @@ Typical symptoms include errors similar to:
 
 ## Root Cause
 
-The `dex.tls` secret (on the **Global** cluster) contains `tls.crt`. HTTPS certificate verification errors can occur in either of the following cases:
+The `dex.tls` secret (on the `global` cluster) contains `tls.crt`. HTTPS certificate verification errors can occur in either of the following cases:
 
 - `tls.crt` does not include a **complete certificate chain**, so clients cannot build a trust chain from the server certificate to a trusted root CA.
 - The certificate is **expired** (the current time is outside `Not Before` / `Not After`).
@@ -24,7 +24,7 @@ The `dex.tls` secret (on the **Global** cluster) contains `tls.crt`. HTTPS certi
 
 ## Check the Current `dex.tls` Certificates
 
-The `dex.tls` secret should be checked in the `cpaas-system` namespace on the **Global** cluster.
+The `dex.tls` secret should be checked in the `cpaas-system` namespace on the `global` cluster.
 
 ### Export `tls.crt` locally
 
