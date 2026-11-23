@@ -19,7 +19,7 @@ The script creates the following resources on the `global` cluster:
 ## Prerequisites
 
 - `kubectl` is installed and configured to access the `global` cluster.
-- The `productbase.product.alauda.io/base` resource exists on the `global` cluster (the script reads the platform URL and version from it).
+- The `productbase.product.alauda.io/base` resource exists on the `global` cluster (the script reads the Platform Access Address and version from it).
 
 ## Procedure
 
@@ -45,7 +45,7 @@ bash global-install.sh \
 
 </Callouts>
 
-The script reads the platform URLs and version from `productbase.product.alauda.io/base` on the `global` cluster, then creates the required OIDC and product entry resources. If an `OAuth2Client` with the same name already exists, it is safely skipped.
+The script reads the Platform Access Addresses and version from `productbase.product.alauda.io/base` on the `global` cluster, then creates the required OIDC and product entry resources. If an `OAuth2Client` with the same name already exists, it is safely skipped.
 
 ### Important notes
 
