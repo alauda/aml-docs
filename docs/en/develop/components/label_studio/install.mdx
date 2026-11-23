@@ -160,7 +160,7 @@ If you want to configure `Alauda Container Platform` as OIDC Provider, configure
 - `oauth2_proxy.oidcClientID` is fixed as `label-studio`
 - `oauth2_proxy.oidcClientSecret` is fixed as `ZXhhbXBsZS1hcHAtc2VjcmV0`
 
-You also need to create an OAuth2Client resource in the global cluster to configure Label Studio's client information:
+You also need to create an OAuth2Client resource in the `global` cluster to configure Label Studio's client information:
 
 ```yaml
 apiVersion: dex.coreos.com/v1
