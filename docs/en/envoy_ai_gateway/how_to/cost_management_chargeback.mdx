@@ -85,7 +85,7 @@ Cost Management consumes the OpenTelemetry GenAI token metric collected by [Mete
 
   ### Add the display configuration
 
-  **Cluster:** the **Cost Management server cluster** — the cluster where `cost-server` is installed (typically the global control plane). The `cost-server` component is deployed as the `slark-server` workload, which the restart command below targets.
+  **Cluster:** the **Cost Management server cluster** — the cluster where `cost-server` is installed (typically the `global` cluster). The `cost-server` component is deployed as the `slark-server` workload, which the restart command below targets.
 
   Create a `ConfigMap` that registers the billing item and its billing methods in the platform console. The server discovers configurations carrying the `cpaas.io/slark.display.config: "true"` label in `kube-public`.
 
