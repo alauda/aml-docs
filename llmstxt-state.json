@@ -378,11 +378,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/installation/workbench.mdx": {
-      "sha256": "af238f0f5c926ff0ddc23546c7a3f5d736ebc5d0b4b114105807b6e195794fa3",
+      "sha256": "d2b1dfb9417724dec181a11717a49562fac2050927cf6f8debef6a9b2412931d",
       "size": 1165,
       "description": "Installs the **Workbench** Cluster Plugin in a workload cluster, noting that ASM (Istio) must be deployed beforehand because Workbench creates an Istio `EnvoyFilter` for Elyra and Kubeflow Pipelines run URL redirection. Also describes enabling the `ai-workbench` feature gate at `{platform-access-address}/console-platform/feature-gate` after the plugin reaches the `Installed` state.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-11-23T17:48:00Z"
+      "updated_at": "2026-11-23T20:20:46Z"
     },
     "docs/en/kserve/index.mdx": {
       "sha256": "fe427233dcedcb5e7000c0cdac2231e53368ca35b48fb014ac5d88f72053cb74",
