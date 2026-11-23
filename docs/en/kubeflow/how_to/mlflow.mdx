@@ -4,7 +4,7 @@ weight: 45
 
 # MLflow Tracking Server
 
-MLflow provides experiment tracking for training and fine-tuning workloads. In Alauda AI, MLflow is installed as a cluster plugin through the MLflow Operator. The operator deploys an MLflow Tracking Server, exposes it through the platform ingress, and adds an **MLFlow** entry in the **Tools** menu.
+MLflow provides experiment tracking for training and fine-tuning workloads. In Alauda AI, MLflow is installed as a Cluster Plugin through the MLflow Operator. The operator deploys an MLflow Tracking Server, exposes it through the platform ingress, and adds an **MLFlow** entry in the **Tools** menu.
 
 ## Prerequisites
 
@@ -15,9 +15,9 @@ MLflow provides experiment tracking for training and fine-tuning workloads. In A
 
 ## Install Or Upgrade
 
-1. Upload the MLflow cluster plugin package to the `global` cluster.
+1. Upload the MLflow Cluster Plugin package to the `global` cluster.
 2. In the Web Console, go to **Administrator > Marketplace > Upload Packages** and verify that the MLflow package version appears.
-3. Install or upgrade the **MLflow** cluster plugin for the target cluster.
+3. Install or upgrade the **MLflow** Cluster Plugin for the target cluster.
 4. Configure the PostgreSQL host, port, username, and password.
 5. Enable multi-tenancy when users should access MLflow workspaces backed by Kubernetes namespaces.
 6. Open **Alauda AI > Tools > MLFlow** after the plugin status is running.
