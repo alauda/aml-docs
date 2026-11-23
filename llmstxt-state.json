@@ -217,11 +217,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/feast/install.mdx": {
-      "sha256": "c896ec87bd887d56829633ba657f3e54fab71542831b80eb30b1a09c2362352b",
-      "size": 1453,
-      "description": "Walks through installing the Feast Operator on Alauda Container Platform: upload the feast-operator.ALL.xxxx.tgz package with violet push, install Alauda Build of Feast from Marketplace -> Operator Hub against the target cluster, then verify the controller pod in feast-operator-system and the featurestores.feast.dev CRD with kubectl. Notes that installation only provisions the controller and CRDs, and that Feast services come up after a FeatureStore custom resource is applied per the Quickstart.",
+      "sha256": "dd1a398223972a647fec591de683457df38248db9fce9089cd3330dc74b76c36",
+      "size": 1452,
+      "description": "Walks through installing the Feast Operator on Alauda Container Platform: upload the feast-operator.ALL.xxxx.tgz package with violet push, install Alauda Build of Feast from Marketplace -> OperatorHub against the target cluster, then verify the controller pod in feast-operator-system and the featurestores.feast.dev CRD with kubectl. Notes that installation only provisions the controller and CRDs, and that Feast services come up after a FeatureStore custom resource is applied per the Quickstart.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-23T17:48:00Z"
     },
     "docs/en/feast/intro.mdx": {
       "sha256": "b58d363f9b0b4bae46157d0c3d161bf4315804ef7800bc175ce06c3bee905450",
@@ -378,11 +378,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/installation/workbench.mdx": {
-      "sha256": "dbcee0fd2c99dbd4add26e5dbca020fb79f71cbf72bdfd1b2fcb0a656293b3ca",
+      "sha256": "af238f0f5c926ff0ddc23546c7a3f5d736ebc5d0b4b114105807b6e195794fa3",
       "size": 1165,
-      "description": "Installs the **Workbench** cluster plugin in a business cluster, noting that ASM (Istio) must be deployed beforehand because Workbench creates an Istio `EnvoyFilter` for Elyra and Kubeflow Pipelines run URL redirection. Also describes enabling the `ai-workbench` feature gate at `{platform-access-address}/console-platform/feature-gate` after the plugin reaches the `Installed` state.",
+      "description": "Installs the **Workbench** Cluster Plugin in a workload cluster, noting that ASM (Istio) must be deployed beforehand because Workbench creates an Istio `EnvoyFilter` for Elyra and Kubeflow Pipelines run URL redirection. Also describes enabling the `ai-workbench` feature gate at `{platform-access-address}/console-platform/feature-gate` after the plugin reaches the `Installed` state.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-23T17:48:00Z"
     },
     "docs/en/kserve/index.mdx": {
       "sha256": "fe427233dcedcb5e7000c0cdac2231e53368ca35b48fb014ac5d88f72053cb74",
@@ -483,11 +483,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/kuberay/how_to/codeflare-sdk-tutorial.mdx": {
-      "sha256": "faf7a2aa8fb45b07e832c3fd91c03469a570fff172ebfa9c7d9164f234f77cbf",
+      "sha256": "011e435252de0e40e569fdbaa91d5987effb80460f0e92375dfa48745fd43977",
       "size": 2760,
       "description": "End-to-end tutorial for using the CodeFlare SDK inside a Standard Data Science workbench in Alauda AI to spin up a RayCluster via ClusterConfiguration, verify it with cluster.status(), submit a RayJob with parameters such as job_name, cluster_name, and entrypoint, monitor it with rayjob.status(), and tear down with cluster.down(). References a downloadable demo Jupyter notebook and reminds users to update the image parameter for their hardware and registry.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-23T17:48:00Z"
     },
     "docs/en/kuberay/how_to/index.mdx": {
       "sha256": "5bbd653847d75f5e722f6bb12bbea4e4bbef672fa5fe11ccbd86706600d4045f",
@@ -504,11 +504,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/kuberay/install.mdx": {
-      "sha256": "9bd5a29202212d8674860b36793744dab8328b86d436860bb875b567f901e25b",
+      "sha256": "2c5bc89b87063c21e9c60ef9232a13a4037e679c117f08ccc67daba113c79ac5",
       "size": 835,
-      "description": "Installation guide for the Alauda Build of KubeRay Operator cluster plugin on ACP v4.0 or later, covering downloading the package from the Customer Portal, uploading it with the violet CLI tool, deploying it from Administrator > Marketplace > Cluster Plugin to the target cluster, and verifying with kubectl get pods -n cpaas-system | grep kuberay-operator.",
+      "description": "Installation guide for the Alauda Build of KubeRay Operator Cluster Plugin on ACP v4.0 or later, covering downloading the package from the Customer Portal, uploading it with the violet CLI tool, deploying it from Administrator > Marketplace > Cluster Plugin to the target cluster, and verifying with kubectl get pods -n cpaas-system | grep kuberay-operator.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-23T17:48:00Z"
     },
     "docs/en/kuberay/intro.mdx": {
       "sha256": "5927951be50f048a557602f0efb6b6a64a50ed252e00b7ced47ab388c188c635",
@@ -532,11 +532,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/kueue/how_to/gang_scheduling.mdx": {
-      "sha256": "ea88ed229ff12de4d585661c160e55517e5bcbf1af0f64a2137461beb82a507c",
+      "sha256": "aa018c7527c187f31c85b776ac641f0272c8783ef31228687710ff219c800d40",
       "size": 1033,
-      "description": "Describes Kueue's timeout-based gang (all-or-nothing) scheduling, which suspends groups of related jobs until the cluster can guarantee capacity for the whole gang, preventing GPU under-utilization, resource segmentation, and deadlocks. Notes that the feature is enabled by default and that administrators can adjust the timeout or disable it through the deployment form parameters of the Alauda Build of Kueue cluster plugin.",
+      "description": "Describes Kueue's timeout-based gang (all-or-nothing) scheduling, which suspends groups of related jobs until the cluster can guarantee capacity for the whole gang, preventing GPU under-utilization, resource segmentation, and deadlocks. Notes that the feature is enabled by default and that administrators can adjust the timeout or disable it through the deployment form parameters of the Alauda Build of Kueue Cluster Plugin.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-23T17:48:00Z"
     },
     "docs/en/kueue/how_to/index.mdx": {
       "sha256": "455761ff452d8ecd73f298a9bbef07e4a0065e1a570b3d633a73cc57b8bc0164",
@@ -588,11 +588,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/kueue/install.mdx": {
-      "sha256": "f7fbf5fbd5ce81593a7483bd394d9d4e88ffd02bfaadc7bb67e682c066b854f9",
-      "size": 1250,
-      "description": "Installation guide for the Alauda Build of Kueue cluster plugin: download the package from the Customer Portal, upload it to ACP using the cluster plugin upload procedure, then deploy from `Administrator > Marketplace > Cluster Plugin` against the target cluster and verify with `kubectl get pods -n cpaas-system | grep kueue`. Also describes upgrading by uploading a new package and clicking `Upgrade` under the cluster's `Functional Components` page.",
+      "sha256": "1776dda4a10eb45d1ce4ef3dd1280a39c4c4fb2a06cda6121d46a1e44ed39d67",
+      "size": 1258,
+      "description": "Installation guide for the Alauda Build of Kueue Cluster Plugin: download the package from the Customer Portal, upload it to ACP using the Cluster Plugin upload procedure, then deploy from `Administrator > Marketplace > Cluster Plugin` against the target cluster and verify with `kubectl get pods -n cpaas-system | grep kueue`. Also describes upgrading by uploading a new package and clicking `Upgrade` under the cluster's `Functional Components` page.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-23T17:48:00Z"
     },
     "docs/en/kueue/intro.mdx": {
       "sha256": "eb1e8fb0f71ec441f924bb6b87b757db1448f23ddbdb0af7949ebf2eba030b83",
@@ -609,11 +609,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/label_studio/install.mdx": {
-      "sha256": "f9540a0b9903dd1d7849b5bc35c1936add49d74b7f12769beaadea276fbc2b7e",
-      "size": 8925,
+      "sha256": "27526197446c30059aa7303cac25681af596d707fc0d5af3dc15aeaf03fa7c39",
+      "size": 8927,
       "description": "Step-by-step guide for deploying Label Studio to a Kubernetes cluster: push the `label-studio.ALL.xxxx.tgz` package with `violet push`, prepare a CSI/`PersistentVolume`-backed StorageClass and a PostgreSQL 13+ cluster (and optional standalone-mode Redis from Data Services), then install the `3rdparty/chart-label-studio` Catalog application. Covers custom values for persistence sizing, `pgConfig`/`redisConfig` with SSL secrets, Service type and Ingress with `LABEL_STUDIO_HOST`, OAuth2 Proxy with ACP Dex as OIDC provider (via an `OAuth2Client` CR), and disabling open registration with `LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK`.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-23T17:48:00Z"
     },
     "docs/en/label_studio/overview/features.mdx": {
       "sha256": "cde0af26c318227a9f6e26d07b3da2c45a9afb791064d9c5678b5c11ddfa57eb",
@@ -735,11 +735,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/lws/install.mdx": {
-      "sha256": "c83d92deb6331b3c6129a5b5ddddd8e36d508ad32c5f1c3ae9933d47aca86b12",
-      "size": 1318,
-      "description": "Installation procedure for the Alauda Build of LeaderWorkerSet cluster plugin obtained from the Customer Portal: upload through the ACP cluster plugin tooling, deploy from `Administrator > Marketplace > Cluster Plugin`, verify with `kubectl get pods -n cpaas-system | grep lws`, and upgrade via the cluster's Functional Components page.",
+      "sha256": "bdaa91a81682c42719c407fe26b1ce301714a882430e72bf262355123f461517",
+      "size": 1326,
+      "description": "Installation procedure for the Alauda Build of LeaderWorkerSet Cluster Plugin obtained from the Customer Portal: upload through the ACP Cluster Plugin tooling, deploy from `Administrator > Marketplace > Cluster Plugin`, verify with `kubectl get pods -n cpaas-system | grep lws`, and upgrade via the cluster's Functional Components page.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-23T17:48:00Z"
     },
     "docs/en/lws/intro.mdx": {
       "sha256": "56b3e38998218d635395fbec3089d3162ee728d66cdb24b059a0470b425e63dc",
@@ -812,11 +812,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/model_inference/inference_service/how_to/keda_autoscaling.mdx": {
-      "sha256": "a43029a036b8b4fa41a230531331a2a5da6ee57a6ae6c0b30cab438e15315c53",
-      "size": 8860,
+      "sha256": "142e5f415a3e09df5933fe52a1e15a8815caba54680e60753c08073b70a45fed",
+      "size": 8846,
       "description": "Replaces the default KServe HPA with KEDA-based autoscaling driven by vLLM-specific Prometheus metrics (`vllm:num_requests_running`, `vllm:num_requests_waiting`, `vllm:gpu_cache_usage_perc`, latency histograms). Procedure covers granting `kserve-controller-manager` access to KEDA CRDs (`ClusterRole`/`ClusterRoleBinding`), stopping the service with `serving.kserve.io/stop=true`, copying credentials from the `kube-prometheus-alertmanager-basic-auth` secret in `cpaas-system` into the workload namespace, creating a `TriggerAuthentication`, and adding `serving.kserve.io/autoscalerClass: keda` plus an `autoScaling.metrics` block with a PromQL query and per-replica target so KEDA computes `ceil(metricValue / value)` replicas.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-23T17:48:00Z"
     },
     "docs/en/model_inference/inference_service/how_to/using_modelcar.mdx": {
       "sha256": "c9cd6bc269edff5cc4bdda0d0d18c4eabea7e5b8558a6254deb5b51b1a301805",
@@ -1057,11 +1057,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/monitoring_ops/resource_monitoring/troubleshooting/monitor_dashboard_loading_stuck.mdx": {
-      "sha256": "ae1962b0ae5ef89a1d3e72b36d23a03e45d53ce150375bb8a58c97d0e75e842a",
+      "sha256": "bb2f8a1fe3255e1743a40f2b3206a958365168e471e3a7181c5fea014c9232c4",
       "size": 759,
       "description": "Workaround for inference service monitoring dashboards that hang on loading when AML is deployed on ACP 4.2.0 due to tightened default security policies. Instructs editing the `warlock` ClusterRole in `cpaas-system` to grant `update` on `components.aml.dev/amls/finalizers`, then restarting the warlock Deployment.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-23T17:48:00Z"
     },
     "docs/en/overview/architecture.mdx": {
       "sha256": "f7d45f224713f64870545f3702336ce24884fa1e87e3c6d917feef3be3fca15f",
@@ -1113,11 +1113,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/trustyai/install.mdx": {
-      "sha256": "0290dd97dc144e1f66fc4ced09b7430b87de336d6d7c752f899d89c05c0090d0",
-      "size": 1271,
+      "sha256": "e2ea9c72dd29dee133e1be8128fafe3c474a4c04c1dca6b791a9795ae1f6dc3b",
+      "size": 1270,
       "description": "Installs the TrustyAI operator by uploading the trustyai-service-operator tarball with the violet CLI and then selecting Alauda Build of TrustyAI from the OperatorHub Marketplace. Lists the CRDs (TrustyAIService, LMEvalJob, GuardrailsOrchestrator, NemoGuardrails) made available for inference monitoring, LLM evaluation, and AI guardrails orchestration.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-23T17:48:00Z"
     },
     "docs/en/trustyai/intro.mdx": {
       "sha256": "136b6df9cb2f0da7639654e77fd4972fac84b41c17685add1124624344922b77",
@@ -1176,11 +1176,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/upgrade/upgrade-from-previous-version.mdx": {
-      "sha256": "aac17c1aea1211c71b3663fe2b9cb48be9372d7694d21c3af053056e263b1c4d",
-      "size": 10943,
-      "description": "Upgrades Alauda AI from 1.5 to 2.3 covering operator-bundle uploads, the pre-upgrade requirement to annotate stopped InferenceServices with serving.kserve.io/stop=true for KServe community-native stop semantics, upgrading Alauda AI Essentials via Functional Components and the Alauda AI Operator via OperatorHub, installing the new standalone Alauda Build of KServe operator, and upgrading the Workbench, MLflow, Volcano, and kftraining cluster plugins (with an ACP 4.0.x ModuleInfo/ModulePlugin kubectl patch workaround). Post-upgrade requires editing every existing InferenceService to remove spec.predictor.model.name and verifying the AmlCluster and default-kserve KServe resources reach Ready/DEPLOYED.",
+      "sha256": "378259da2e6498ba68f1f73fb8a25bd8b27a52413d488ff4c3d000776350a35e",
+      "size": 10936,
+      "description": "Upgrades Alauda AI from 1.5 to 2.3 covering operator-bundle uploads, the pre-upgrade requirement to annotate stopped InferenceServices with serving.kserve.io/stop=true for KServe community-native stop semantics, upgrading Alauda AI Essentials via Functional Components and the Alauda AI Operator via OperatorHub, installing the new standalone Alauda Build of KServe operator, and upgrading the Workbench, MLflow, Volcano, and kftraining Cluster Plugins (with an ACP 4.0.x ModuleInfo/ModulePlugin kubectl patch workaround). Post-upgrade requires editing every existing InferenceService to remove spec.predictor.model.name and verifying the AmlCluster and default-kserve KServe resources reach Ready/DEPLOYED.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-23T17:48:00Z"
     },
     "docs/en/workbench/how_to/create_workbench.mdx": {
       "sha256": "65c87b6ae84d99cb674e41204d7f28d28e44fcda79329a136e083fef24c1cef2",
