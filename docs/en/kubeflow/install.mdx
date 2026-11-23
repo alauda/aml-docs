@@ -3,9 +3,9 @@ weight: 20
 ---
 # Install Kubeflow Plugins
 
-This page describes how to deploy Kubeflow-related plugins in Alauda AI 2.0 and later.
+This page describes how to deploy Kubeflow-related Cluster Plugins in Alauda AI 2.0 and later.
 
-Supported plugins:
+Supported Cluster Plugins:
 
 - `kfbase`: Kubeflow base components, including authentication and authorization, the central dashboard, Notebooks, PVC Viewer, TensorBoards, Volumes, Model Registry UI, KServe Endpoints UI, and the Model Catalog API service.
 - `model-registry-operator`: Kubeflow Model Registry Operator.
@@ -21,16 +21,16 @@ Before you begin, make sure the following prerequisites are met:
 2. Alauda AI is already deployed. Alauda AI 2.0 or later is required.
 3. Alauda Build of KServe is installed.
 4. ASM is deployed in the workload cluster where Kubeflow will run. If ASM is not already installed, deploy it before continuing. ASM v1 is deprecated. Use ASM v2 whenever possible.
-5. The LWS plugin, Alauda Build of LeaderWorkerSet, is installed if you plan to deploy `kubeflow-trainer`.
+5. The LWS Cluster Plugin, Alauda Build of LeaderWorkerSet, is installed if you plan to deploy `kubeflow-trainer`.
 6. The `oauth2-proxy` plugin is configured as described below.
 
 ### Configure Dex Redirection
 
-> **Note:** Configure the platform access URL for Dex redirection before installing the `kfbase` plugin. This step may update the platform CA certificate. If the certificate changes after you configure `oauth2-proxy`, the `oauth2-proxy` configuration may fail.
+> **Note:** Configure the platform access URL for Dex redirection before installing the `kfbase` Cluster Plugin. This step may update the platform CA certificate. If the certificate changes after you configure `oauth2-proxy`, the `oauth2-proxy` configuration may fail.
 
 In **Administrator** > **System Settings** > **Platform Parameters**, click **Edit** next to **Platform Access URLs** and add a redirect URL in the format `https://<your-kubeflow-domain>`, for example `https://kubeflow.example.com`.
 
-- `<your-kubeflow-domain>` must match the `kubeflowDomain` value configured for the `kfbase` plugin.
+- `<your-kubeflow-domain>` must match the `kubeflowDomain` value configured for the `kfbase` Cluster Plugin.
 
 ### Configure the `oauth2-proxy` Plugin
 
@@ -129,7 +129,7 @@ spec:
 
 ## Component Onboarding
 
-Download the installation packages for the following plugins and upload them with `violet`:
+Download the installation packages for the following Cluster Plugins and upload them with `violet`:
 
 ```bash
 # Replace the platform address, username, password, and plugin package path.
@@ -151,11 +151,11 @@ violet push --platform-address="https://192.168.171.123" \
 
 ### 1. Deploy `kfbase` (Kubeflow Base)
 
-In **Cluster Plugins**, find the `kfbase` plugin, complete the configuration on the page, and wait for the deployment to finish.
+In **Cluster Plugins**, find the `kfbase` Cluster Plugin, complete the configuration on the page, and wait for the deployment to finish.
 
 After deployment:
 
-- In **Administrator** > **System Settings** > **Platform Parameters**, verify that **Platform Access URLs** contains an address in the format `https://<your-kubeflow-domain>`, where `<your-kubeflow-domain>` is the `kubeflowDomain` configured for the `kfbase` plugin.
+- In **Administrator** > **System Settings** > **Platform Parameters**, verify that **Platform Access URLs** contains an address in the format `https://<your-kubeflow-domain>`, where `<your-kubeflow-domain>` is the `kubeflowDomain` configured for the `kfbase` Cluster Plugin.
 - Configure DNS resolution, or add a local hosts entry, so that `<your-kubeflow-domain>` resolves to the IP address assigned to `kubectl -n istio-system get gateway kubeflow-external-gateway`.
 
 After deployment, the Kubeflow entry appears under **Tools** in Alauda AI.
@@ -286,7 +286,7 @@ When creating the instance, configure the following fields as needed:
 
 > **Note:** If `kftraining` is already deployed, uninstall it before deploying `kubeflow-trainer`.
 >
-> **Note:** Install the LWS plugin before deploying `kubeflow-trainer`, because LWS is a dependency of `kubeflow-trainer`.
+> **Note:** Install the LWS Cluster Plugin before deploying `kubeflow-trainer`, because LWS is a dependency of `kubeflow-trainer`.
 >
 > **Note:** Kubeflow Trainer v2 requires Kubernetes `1.32.3` or later. Older Kubernetes versions may lead to unexpected behavior.
 
