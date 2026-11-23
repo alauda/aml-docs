@@ -71,13 +71,13 @@ Confirm that:
 2. The target cluster can pull images from the configured registry.
 3. The required storage classes and persistent volumes are available.
 4. The platform administrator credentials can upload packages and install Operators through OperatorHub.
-5. The global cluster can be accessed with `kubectl` for the global migration steps described below.
+5. The `global` cluster can be accessed with `kubectl` for the global migration steps described below.
 
 ## Remove Cluster Plugins
 
 Alauda AI 2.8.x changes several components from Cluster Plugins to Operators. These deployment forms do not support an in-place upgrade. Before upgrading **Alauda AI**, remove the old Cluster Plugin versions of the components that are installed in the existing environment:
 
-- **Alauda AI Essentials** from the **global** cluster.
+- **Alauda AI Essentials** from the `global` cluster.
 - **Alauda Build of LeaderWorkerSet** from the target cluster.
 - **Alauda AI Workbench** from the target cluster.
 - **MLflow** from the target cluster.
@@ -87,7 +87,7 @@ Use the following common procedure:
 1. Record the existing custom resources and configuration for the components that are installed.
 2. Preserve the related user data, including Workbench PVCs, MLflow databases and artifacts, and workloads managed by LeaderWorkerSet.
 3. In **Administrator** > **Marketplace** > **Cluster Plugins**, select the relevant cluster:
-   - Select the **global** cluster and uninstall **Alauda AI Essentials**, if it is installed.
+   - Select the `global` cluster and uninstall **Alauda AI Essentials**, if it is installed.
    - Select the target cluster and uninstall the installed **Alauda Build of LeaderWorkerSet**, **Alauda AI Workbench**, and **MLflow** Cluster Plugins.
 4. Do not delete the preserved PVCs, databases, object-storage artifacts, or custom resources unless the component-specific migration procedure explicitly requires it.
 5. After the old Cluster Plugins are removed, enable the replacement components through the Alauda AI 2.8.x deployment model. The upgraded `AmlCluster` installs and reconciles **Alauda Build of LeaderWorkerSet** when `lws.managementState` is `Managed`. Install the replacement Operators and create their custom resources for **Alauda AI Workbench** and **MLflow** as described in their component-specific documentation.
@@ -100,15 +100,15 @@ Before uninstalling a Cluster Plugin, verify whether its CRDs, custom resources,
 
 For Workbench-specific data-preservation requirements, see [Migrating from the Workbench Cluster Plugin](./workbench.mdx). For the replacement Operator custom resources, see [Install Workbench](../installation/workbench.mdx) and [Install MLflow](../develop/components/mlflow/install.mdx).
 
-## Prepare the Global Cluster
+## Prepare the `global` Cluster
 
 Alauda AI 2.8.x uses the single-cluster application architecture. Global resources are no longer supplied by the old **Alauda AI Essentials** (`aml-global`) Cluster Plugin.
 
-The following commands must run against the **global cluster**, not the cluster where the Alauda AI workloads run. Complete them after uninstalling the old **Alauda AI Essentials** Cluster Plugin.
+The following commands must run against the **`global` cluster**, not the cluster where the Alauda AI workloads run. Complete them after uninstalling the old **Alauda AI Essentials** Cluster Plugin.
 
 ### Run `global-install.sh`
 
-Download the [`global-install.sh`](/global-install.sh) script supplied with the Alauda AI 2.8.x documentation or release package. On the global cluster, run it with the name of the cluster where Alauda AI is installed:
+Download the [`global-install.sh`](/global-install.sh) script supplied with the Alauda AI 2.8.x documentation or release package. On the `global` cluster, run it with the name of the cluster where Alauda AI is installed:
 
 ```bash
 kubectl config use-context <global-cluster-context>
@@ -126,7 +126,7 @@ The **Alauda AI** entry should be available in the platform console after the pl
 
 ### Run `migrate-roles.sh`
 
-Run the `migrate-roles.sh` script supplied with the Alauda AI 2.8.x release on the global cluster after the old Alauda AI Essentials plugin has been removed.
+Run the `migrate-roles.sh` script supplied with the Alauda AI 2.8.x release on the `global` cluster after the old Alauda AI Essentials plugin has been removed.
 
 Use the command-line usage and arguments provided by the delivered script. The exact invocation is intentionally not included until the release script is added to the documentation package. Confirm that the script completes successfully and that the migrated namespace permissions are present before continuing.
 
@@ -197,7 +197,7 @@ Verify the OperatorHub and workload status for every installed dependency:
 - Confirm the MLflow tracking server is ready and can access existing metadata and artifacts.
 - Confirm the Workbench custom resource is ready, existing Workspaces and PVCs are present, and a test Workbench can be opened.
 - Confirm existing KServe inference services and representative model requests work as expected.
-- On the global cluster, confirm the `OAuth2Client` and `ProductEntry` resources created by `global-install.sh`, and verify that users can open Alauda AI through the platform entry.
+- On the `global` cluster, confirm the `OAuth2Client` and `ProductEntry` resources created by `global-install.sh`, and verify that users can open Alauda AI through the platform entry.
 
 ### Verify data preservation
 

@@ -92,7 +92,7 @@ In **Administrator** view, go to **Network Management** → **Domain Names** →
 
 ACP creates:
 
-- a `Domain` custom resource on the global cluster (`apiVersion: crd.alauda.io/v2`, cluster-scoped, with `cluster.cpaas.io/name` / `project.cpaas.io/name` labels);
+- a `Domain` custom resource on the `global` cluster (`apiVersion: crd.alauda.io/v2`, cluster-scoped, with `cluster.cpaas.io/name` / `project.cpaas.io/name` labels);
 - a `kubernetes.io/tls` Secret in the **`cpaas-system`** namespace named **`<domain>-<random>`** (e.g. `dify-console.example.com-xfd8x`); the Domain's `cpaas.io/secret-ref` annotation records this name.
 
 You can find the Secret name from the Domain detail page. Full UI reference: <ExternalSiteLink name="acp" href="/networking/functions/configure_domain.mdx" children="Configure Domain" />.
