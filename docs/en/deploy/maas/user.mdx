@@ -179,7 +179,7 @@ This is a personal view: it includes only requests made with API keys that belon
 | --- | --- | --- |
 | `401 Unauthorized` | The API key is missing, invalid, expired, or revoked. | Check the `Authorization` header and create a new key if necessary. |
 | `403 Forbidden` | The caller is authenticated but not permitted to use this endpoint (for example, the subscription behind the key is still being provisioned, or administrators have disabled inference on it). | Contact your MaaS administrator to confirm the subscription's status. |
-| `404 Not Found` | The requested model does not exist, is not published, or is not included in any subscription this key owns. | Confirm the model name and, if the model is correct, ask your MaaS administrator to add it to a subscription you own. |
+| `404 Not Found` | The requested model does not exist, is not published, is not included in any subscription this key owns, or administrators have restricted it to users or groups that do not include you. | Confirm the model name and, if the model is correct, ask your MaaS administrator to add it to a subscription you own or to grant your account access. |
 | `429 Too Many Requests` | The subscription quota for the user, model, or time window is exhausted. | Wait for the quota to reset or ask the administrator to review the limit. |
 | `5xx` | The gateway or model backend encountered an error. | Retry when appropriate and contact the platform administrator if the problem continues. |
 
