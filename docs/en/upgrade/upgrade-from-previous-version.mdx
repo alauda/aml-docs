@@ -92,19 +92,19 @@ Once the new version is uploaded and recognized by the platform, an upgrade prom
 
 ### Installing Alauda Build of KServe Operator
 
-Starting from version {curVer}, **Alauda Build of KServe** is provided as a separate operator plugin to offer more specialized and flexible model serving capabilities. After completing the core AI operator upgrades, you must install the KServe operator to enable model serving functionality.
+Starting from version {curVer}, **Alauda Build of KServe** is provided as a separate Operator to offer more specialized and flexible model serving capabilities. After completing the core AI operator upgrades, you must install the KServe operator to enable model serving functionality.
 
 For detailed installation and configuration steps, please refer to the [Alauda Build of KServe Installation Guide](../kserve/install.mdx).
 
 ### Upgrading Cluster Plugins
 
 :::info
-This step is **only required if you have deployed** any of the following cluster plugins: **Alauda AI Workbench**, **MLflow**, or **Volcano**. If you have not deployed any of these plugins, you can skip this step.
+This step is **only required if you have deployed** any of the following Cluster Plugins: **Alauda AI Workbench**, **MLflow**, or **Volcano**. If you have not deployed any of these plugins, you can skip this step.
 
-For more information about cluster plugins, refer to <ExternalSiteLink name="acp" href="extend/index.html" children="Alauda Container Platform - Extend" />.
+For more information about Cluster Plugins, refer to <ExternalSiteLink name="acp" href="extend/index.html" children="Alauda Container Platform - Extend" />.
 :::
 
-The procedure to upgrade cluster plugins involves uploading new version packages and then upgrading them from the Web Console. The following plugins require upgrading:
+The procedure to upgrade Cluster Plugins involves uploading new version packages and then upgrading them from the Web Console. The following plugins require upgrading:
 
 - Alauda AI Workbench
 - MLflow
@@ -112,7 +112,7 @@ The procedure to upgrade cluster plugins involves uploading new version packages
 
 #### Uploading Cluster Plugins
 
-Upload the new cluster plugin packages to the `global` cluster. For detailed instructions on how to upload cluster plugins, refer to <ExternalSiteLink name="acp" href="extend/upload_package.html#upload-a-cluster-plugin" children="Uploading Cluster Plugins" />.
+Upload the new Cluster Plugin packages to the `global` cluster. For detailed instructions on how to upload Cluster Plugins, refer to <ExternalSiteLink name="acp" href="extend/upload_package.html#upload-a-cluster-plugin" children="Uploading Cluster Plugins" />.
 
 Repeat the upload process for each plugin that you have deployed.
 
@@ -128,7 +128,7 @@ Navigate to **Administrator > Marketplace > Upload Packages** and switch to the 
 
 ##### New version not visible after upload (ACP 4.0.x)
 
-On **Alauda Container Platform (ACP) 4.0.x**, the Web Console may fail to show a newly uploaded cluster plugin version even though the upload succeeded. This behavior is a known **ACP** limitation; it has been addressed in newer **ACP** releases.
+On **Alauda Container Platform (ACP) 4.0.x**, the Web Console may fail to show a newly uploaded Cluster Plugin version even though the upload succeeded. This behavior is a known **ACP** limitation; it has been addressed in newer **ACP** releases.
 
 If the new version does not appear after waiting for synchronization, the following workaround can be used to set the target version on the corresponding `ModuleInfo` and trigger the plugin upgrade directly.
 
@@ -162,7 +162,7 @@ The following `kubectl` commands must run on the `global` cluster.
    ```
 
    :::warning
-   The patch takes effect immediately and **directly triggers the cluster plugin upgrade** to `<New Version>`, bypassing the Web Console upgrade action. Verify the version string before running the command.
+   The patch takes effect immediately and **directly triggers the Cluster Plugin upgrade** to `<New Version>`, bypassing the Web Console upgrade action. Verify the version string before running the command.
    :::
 
 #### Upgrading from Web Console
@@ -170,7 +170,7 @@ The following `kubectl` commands must run on the `global` cluster.
 1. Navigate to **Administrator > Clusters > Clusters**.
 2. Click on the cluster where the plugins are deployed.
 3. Switch to the **Functional Components** tab in the cluster details page.
-4. Locate the cluster plugins that have available upgrades—an upgrade icon will be displayed next to them.
+4. Locate the Cluster Plugins that have available upgrades—an upgrade icon will be displayed next to them.
 5. Click the **Upgrade** button for the plugin you want to upgrade.
 6. Review the upgrade information in the popup window, confirm the plugin version to be upgraded, and click the **Upgrade** button to start the upgrade process.
 
@@ -256,7 +256,7 @@ default-kserve   True       UpgradeSuccessful
 
 ### Other Cluster Plugins
 
-In the **Administrator** view, navigate to **Marketplace > Cluster Plugins** and confirm that the following cluster plugins show `Installed` status with the new version:
+In the **Administrator** view, navigate to **Marketplace > Cluster Plugins** and confirm that the following Cluster Plugins show `Installed` status with the new version:
 
 - Alauda AI Workbench (if deployed)
 - MLflow (if deployed)
