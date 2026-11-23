@@ -11,7 +11,7 @@ Supported operators:
 
 - `kfbase-operator`: Kubeflow base components, including authentication and authorization, the central dashboard, Notebooks, PVC Viewer, TensorBoards, Volumes, Model Registry UI, KServe Endpoints UI, and the Model Catalog API service. Owns the `KubeflowBase` CR. Architecture: `amd64`, `arm64`.
 - `kfp-operator`: Kubeflow Pipelines (KFP runtime 2.16.0). Owns the `KubeflowPipelines` CR. **Architecture: `amd64` only** (Kubeflow Pipelines is x86_64-only per Alauda AI v2.3 supported configurations).
-- `kubeflow-trainer-operator`: Kubeflow Trainer v2 (controller-manager 2.1.0 + JobSet 0.10.1). Owns the `KubeflowTrainer` CR. Architecture: `amd64`, `arm64`. Replaces the deprecated `kftraining` plugin.
+- `kubeflow-trainer-operator`: Kubeflow Trainer v2 (controller-manager 2.1.0 + JobSet 0.10.1). Owns the `KubeflowTrainer` CR. Architecture: `amd64`, `arm64`. Replaces the deprecated `kftraining` Cluster Plugin.
 - `model-registry-operator`: Kubeflow Model Registry Operator (unchanged form factor).
 
 > **Note:** The `kftraining` Cluster Plugin (Kubeflow Training Operator v1) was deprecated in earlier versions and has been retired in v26.3.0. Use `kubeflow-trainer-operator` (Trainer v2) instead.
@@ -24,7 +24,7 @@ Before you begin, make sure the following prerequisites are met:
 2. Alauda AI is already deployed. Alauda AI 2.3 or later is required for the v26.3.0 operator set.
 3. Alauda Build of KServe is installed.
 4. ASM is deployed in the workload cluster where Kubeflow will run. If ASM is not already installed, deploy it before continuing. ASM v1 is deprecated. Use ASM v2 whenever possible.
-5. The LWS plugin, Alauda Build of LeaderWorkerSet, is installed if you plan to deploy `kubeflow-trainer-operator`.
+5. The LWS Cluster Plugin, Alauda Build of LeaderWorkerSet, is installed if you plan to deploy `kubeflow-trainer-operator`.
 6. The `oauth2-proxy` plugin is configured as described below.
 
 ### Configure Dex Redirection
@@ -286,7 +286,7 @@ When creating the instance, configure the following fields as needed:
 
 > **Note:** If the deprecated `kftraining` Cluster Plugin is still installed (from a pre-v26.3.0 cluster), uninstall it before installing `kubeflow-trainer-operator`.
 >
-> **Note:** Install the LWS plugin before deploying `kubeflow-trainer-operator`, because LWS is a dependency of `kubeflow-trainer-operator`.
+> **Note:** Install the LWS Cluster Plugin before deploying `kubeflow-trainer-operator`, because LWS is a dependency of `kubeflow-trainer-operator`.
 >
 > **Note:** v26.3.0 of `kubeflow-trainer-operator` aligns with upstream `kubeflow/manifests` 26.03 and ships **Trainer v2.1.0 + JobSet v0.10.1**. For clusters where an OLM CatalogSource already advertises a higher trainer version (`>=2.2.0`), install with `installPlanApproval: Manual` and `startingCSV: kubeflow-trainer-operator.v2.1.0` to prevent OLM from auto-upgrading past the 26.03 pin.
 
