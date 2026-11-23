@@ -280,11 +280,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/deploy/gateway/cost_management_chargeback.mdx": {
-      "sha256": "97aae98a70685f195a15f50c9bcc2e9c65711603c29ca989945532969e6f137d",
-      "size": 12002,
+      "sha256": "9d30ee388d7f9579385377522f8ec4eab4d0bdc3a986003d8c6e29fe7da6b86d",
+      "size": 11998,
       "description": "How-to guide that defines a custom cost model for AI Gateway token usage and turns it into per-namespace bills through Alauda Cost Management. Adds a collection configuration on the agent cluster, a display and storage configuration on the server cluster, and a price in the cost model, consuming the OpenTelemetry GenAI token metric keyed on the `user_namespace` label.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
+      "updated_at": "2026-11-23T17:37:30Z"
     },
     "docs/en/deploy/gateway/external_provider_routing.mdx": {
       "sha256": "e2a13c2aa5307bce34a4c44f63287565c31fb4ddb49f74b35bfc6e366c73c18a",
@@ -602,11 +602,11 @@
       "updated_at": "2026-08-04T00:00:00Z"
     },
     "docs/en/develop/components/kubeflow/faq.mdx": {
-      "sha256": "5ee6c2a5aa2100f84c19d63fedd361e884ba5d162dd498c8fe905b6431970244",
-      "size": 7839,
+      "sha256": "8d0ad862d260cf9c4daecd971fa8e00b0a52d7f388b447d3a1f6c592bbc20bd2",
+      "size": 7848,
       "description": "Troubleshooting FAQ for Kubeflow on Alauda AI Platform covering four scenarios: relabeling namespaces from PSA `restricted` to `baseline` to unblock notebooks and pipeline runs; overriding the `oidcAuthURL` in the `kfbase` `ModuleInfo` resource and restarting `oauth2-proxy` when login must use an alternative platform address; creating a `kfp-launcher` ConfigMap to point Kubeflow Pipelines runs at external S3/MinIO instead of the in-cluster `minio-service.kubeflow:9000`; adding custom GPU vendors (e.g. `your-custom.com/gpu`, Ascend) to `jupyter-web-app-config`; and fixing `CrashLoopBackOff`/probe timeouts on kube-ovn CNI by adding an `allow-kubelet-probes` NetworkPolicy that permits ingress from the kube-ovn join subnet CIDR (typically `100.64.0.0/16`).",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-23T17:37:30Z"
     },
     "docs/en/develop/components/kubeflow/index.mdx": {
       "sha256": "e873a8ab1e9c470cebbbb8ae093d27c1ea3e2cebb57164d8c850908c44d92b01",
@@ -630,11 +630,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/develop/components/kubeflow/upgrade.mdx": {
-      "sha256": "3887681a1981ca1c257b6a26de5074e08776dc1cbaa0e7c700e3fdc4ca95f663",
-      "size": 4501,
-      "description": "Captures manual post-upgrade actions for the kfbase plugin, including the switch from NodePort to gateway-based dashboard access for upgrades from v1.10.13 or earlier (requiring DNS or hosts updates pointing kubeflowDomain to the kubeflow-external-gateway IP), instructions for re-enabling NodePort by editing the kubeflow-istio-ingressgateway service, and the v1.10.10 requirement to set a default StorageClass for the pgStorageClass parameter when upgrading from v1.10.9 or earlier.",
+      "sha256": "67ed0776d568e55e670860622765a0a6fd72904b976a5614f2d231083a6db736",
+      "size": 4517,
+      "description": "Captures manual post-upgrade actions for the kfbase Cluster Plugin, including the switch from NodePort to gateway-based dashboard access for upgrades from v1.10.13 or earlier (requiring DNS or hosts updates pointing kubeflowDomain to the kubeflow-external-gateway IP), instructions for re-enabling NodePort by editing the kubeflow-istio-ingressgateway service, and the v1.10.10 requirement to set a default StorageClass for the pgStorageClass parameter when upgrading from v1.10.9 or earlier.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-23T17:37:30Z"
     },
     "docs/en/develop/components/kuberay/index.mdx": {
       "sha256": "001545e34c0ea3f01479ef1f1b3c8fb466611e707c1c42b1a552f6068b2741f4",
@@ -1267,11 +1267,11 @@
       "updated_at": "2026-08-04T00:00:00Z"
     },
     "docs/en/train/components/kueue/install.mdx": {
-      "sha256": "f7fbf5fbd5ce81593a7483bd394d9d4e88ffd02bfaadc7bb67e682c066b854f9",
-      "size": 1250,
-      "description": "Installation guide for the Alauda Build of Kueue cluster plugin: download the package from the Customer Portal, upload it to ACP using the cluster plugin upload procedure, then deploy from `Administrator > Marketplace > Cluster Plugin` against the target cluster and verify with `kubectl get pods -n cpaas-system | grep kueue`. Also describes upgrading by uploading a new package and clicking `Upgrade` under the cluster's `Functional Components` page.",
+      "sha256": "1776dda4a10eb45d1ce4ef3dd1280a39c4c4fb2a06cda6121d46a1e44ed39d67",
+      "size": 1258,
+      "description": "Installation guide for the Alauda Build of Kueue Cluster Plugin: download the package from the Customer Portal, upload it to ACP using the Cluster Plugin upload procedure, then deploy from `Administrator > Marketplace > Cluster Plugin` against the target cluster and verify with `kubectl get pods -n cpaas-system | grep kueue`. Also describes upgrading by uploading a new package and clicking `Upgrade` under the cluster's `Functional Components` page.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-23T17:37:30Z"
     },
     "docs/en/train/components/kueue/intro.mdx": {
       "sha256": "efeafc77416629a00125b05ca489f716801ea13ad2ab6894499493140677c7ac",
@@ -1400,11 +1400,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/train/quota_scheduling/gang_scheduling.mdx": {
-      "sha256": "1ea0986a697b0a42e2d6b7b94f03a74616b9b3ba798af4b7840c75268e9532e3",
+      "sha256": "26a1806a0e3ee3bacb34f02ec4e4c782920b477f69f4b1c6c165cde3a174a278",
       "size": 1033,
-      "description": "Describes Kueue's timeout-based gang (all-or-nothing) scheduling, which suspends groups of related jobs until the cluster can guarantee capacity for the whole gang, preventing GPU under-utilization, resource segmentation, and deadlocks. Notes that the feature is enabled by default and that administrators can adjust the timeout or disable it through the deployment form parameters of the Alauda Build of Kueue cluster plugin.",
+      "description": "Describes Kueue's timeout-based gang (all-or-nothing) scheduling, which suspends groups of related jobs until the cluster can guarantee capacity for the whole gang, preventing GPU under-utilization, resource segmentation, and deadlocks. Notes that the feature is enabled by default and that administrators can adjust the timeout or disable it through the deployment form parameters of the Alauda Build of Kueue Cluster Plugin.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-23T17:37:30Z"
     },
     "docs/en/train/quota_scheduling/index.mdx": {
       "sha256": "65f01c7eea39769cf154325b5e688614c7478c9944bc96e0f7cd9dfd321d2f95",
@@ -1414,11 +1414,11 @@
       "updated_at": "2026-08-04T00:00:00Z"
     },
     "docs/en/train/quota_scheduling/npu_quota.mdx": {
-      "sha256": "75b9959a0710cdbefc04c65bef2be7e94cd74469824c74e7c9994ca9c01b3de4",
+      "sha256": "dd3032959d52dce9079bcbc5c8b5112bd8c0408acf804e84e38ef3b304a5ba56",
       "size": 7178,
       "description": "Guide to governing Ascend NPU quota with Alauda Build of Kueue. Kueue treats `huawei.com/Ascend910` and similar device-plugin resources as ordinary countable resources, so the same ClusterQueue, ResourceFlavor, and LocalQueue model used for CPU, memory, and NVIDIA GPUs applies unchanged. Covers identifying the NPU node label, creating the Kueue objects, submitting a job, and observing admission.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
+      "updated_at": "2026-11-23T17:37:30Z"
     },
     "docs/en/train/quota_scheduling/setup_rbac.mdx": {
       "sha256": "a6f85c24b8da39b8dd33f6b218604359f224998283af223c0387f554008ec0f6",
