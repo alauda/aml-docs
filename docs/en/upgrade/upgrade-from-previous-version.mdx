@@ -57,12 +57,12 @@ Once the new version is uploaded and recognized by the platform, an upgrade prom
 ### Upgrading Cluster Plugins
 
 :::info
-This step is **only required if you have deployed** any of the following cluster plugins: **Alauda AI Workbench**, **Alauda AI MLflow**, or **Alauda AI Volcano**. If you have not deployed any of these plugins, you can skip this step.
+This step is **only required if you have deployed** any of the following Cluster Plugins: **Alauda AI Workbench**, **Alauda AI MLflow**, or **Alauda AI Volcano**. If you have not deployed any of these plugins, you can skip this step.
 
-For more information about cluster plugins, refer to <ExternalSiteLink name="acp" href="extend/index.html" children="Alauda Container Platform - Extend" />.
+For more information about Cluster Plugins, refer to <ExternalSiteLink name="acp" href="extend/index.html" children="Alauda Container Platform - Extend" />.
 :::
 
-The procedure to upgrade cluster plugins involves uploading new version packages and then upgrading them from the Web Console. The following plugins require upgrading:
+The procedure to upgrade Cluster Plugins involves uploading new version packages and then upgrading them from the Web Console. The following plugins require upgrading:
 
 - Alauda AI Workbench
 - Alauda AI MLflow
@@ -70,7 +70,7 @@ The procedure to upgrade cluster plugins involves uploading new version packages
 
 #### Uploading Cluster Plugins
 
-Upload the new cluster plugin packages to the `global` cluster. For detailed instructions on how to upload cluster plugins, refer to <ExternalSiteLink name="acp" href="extend/upload_package.html#upload-a-cluster-plugin" children="Uploading Cluster Plugins" />.
+Upload the new Cluster Plugin packages to the `global` cluster. For detailed instructions on how to upload Cluster Plugins, refer to <ExternalSiteLink name="acp" href="extend/upload_package.html#upload-a-cluster-plugin" children="Uploading Cluster Plugins" />.
 
 Repeat the upload process for each plugin that you have deployed.
 
@@ -87,7 +87,7 @@ Navigate to **Administrator > Marketplace > Upload Packages** and switch to the 
 1. Navigate to **Administrator > Clusters > Clusters**.
 2. Click on the cluster where the plugins are deployed.
 3. Switch to the **Functional Components** tab in the cluster details page.
-4. Locate the cluster plugins that have available upgrades—an upgrade icon will be displayed next to them.
+4. Locate the Cluster Plugins that have available upgrades—an upgrade icon will be displayed next to them.
 5. Click the **Upgrade** button for the plugin you want to upgrade.
 6. Review the upgrade information in the popup window, confirm the plugin version to be upgraded, and click the **Upgrade** button to start the upgrade process.
 
@@ -131,10 +131,10 @@ To enable the fine-tuning and training features, you need to configure the `AmlC
 </Callouts>
 
 :::note
-After enabling these features, ensure that the required cluster plugins are installed:
+After enabling these features, ensure that the required Cluster Plugins are installed:
 
-- **Volcano** cluster plugin for training job scheduling
-- **MLflow** cluster plugin for training experiment monitoring (requires PostgreSQL)
+- **Volcano** Cluster Plugin for training job scheduling
+- **MLflow** Cluster Plugin for training experiment monitoring (requires PostgreSQL)
   :::
 
 ## Verification
@@ -171,7 +171,7 @@ default-knative-serving   True       UpgradeSuccessful
 
 ### Alauda AI Cluster Plugins
 
-In the **Administrator** view, navigate to **Marketplace > Cluster Plugins** and confirm that the following cluster plugins show `Installed` status with the new version:
+In the **Administrator** view, navigate to **Marketplace > Cluster Plugins** and confirm that the following Cluster Plugins show `Installed` status with the new version:
 
 - Alauda AI Workbench (if deployed)
 - Alauda AI MLflow (if deployed)
