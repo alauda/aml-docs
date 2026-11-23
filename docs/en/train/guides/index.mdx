@@ -44,8 +44,6 @@ Each solution has an introduction page (`.mdx`) and a runnable Workbench noteboo
 | Solution | Introduction | NVIDIA GPU notebook | Ascend NPU notebook |
 | --- | --- | --- | --- |
 | Evaluate a served LLM with LM-Eval | [TrustyAI LMEvalJob](../../evaluate_safety/lm_eval.mdx) | Submit the `LMEvalJob`; evaluation runs against the service endpoint | Submit the same job against an Ascend-backed `InferenceService`. |
-| Evaluate RAG quality with Ragas | [Ragas guide](../../evaluate_safety/ragas.mdx) | [Ragas notebook](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/notebooks/ragas-rag-eval.ipynb) | Run the same API-based evaluation notebook; the model endpoint may be Ascend-backed. |
-| Optimize RAG with AutoRAG | [AutoRAG pipeline](./optimize-rag-with-autorag.mdx) | [AutoRAG notebook](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/notebooks/optimize-rag-with-autorag.ipynb) | Use an Ascend-compatible embedding/LLM endpoint; pipeline orchestration is unchanged. |
 | Prepare fine-tuning data with Docling and SDG Hub | [Docling + SDG](./prepare-finetune-data-with-docling-and-sdg.mdx) | [Data preparation notebook](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/notebooks/prepare-finetune-data-with-docling-and-sdg.ipynb) | Data preparation is device independent; point the teacher endpoint at an Ascend service. |
 
 :::note
