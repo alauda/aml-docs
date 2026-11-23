@@ -4,10 +4,10 @@ weight: 50
 
 # Configure Alauda AI Platform Entry and Branding
 
-Starting from Alauda AI 2.6, Alauda AI Platform is deployed as a single-cluster application. The global resources (OIDC client and product entry) are no longer delivered as a cluster plugin. Instead, they are configured using the `global-install.sh` script.
+Starting from Alauda AI 2.6, Alauda AI Platform is deployed as a single-cluster application. The global resources (OIDC client and product entry) are no longer delivered as a Cluster Plugin. Instead, they are configured using the `global-install.sh` script.
 
 :::warning
-If the **Alauda AI Essentials** cluster plugin was installed in a previous version, it must be uninstalled after upgrading to Alauda AI 2.6 or later. In the **Administrator** view, navigate to **Marketplace / Cluster Plugin**, select the `global` cluster, locate **Alauda AI Essentials**, and click **Uninstall**.
+If the **Alauda AI Essentials** Cluster Plugin was installed in a previous version, it must be uninstalled after upgrading to Alauda AI 2.6 or later. In the **Administrator** view, navigate to **Marketplace / Cluster Plugin**, select the `global` cluster, locate **Alauda AI Essentials**, and click **Uninstall**.
 :::
 
 The script creates the following resources on the `global` cluster:

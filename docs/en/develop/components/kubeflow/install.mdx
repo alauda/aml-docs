@@ -11,7 +11,7 @@ Supported operators:
 
 - `kfbase-operator`: Kubeflow base components, including authentication and authorization, the central dashboard, Notebooks, PVC Viewer, TensorBoards, Volumes, Model Registry UI, KServe Endpoints UI, and the Model Catalog API service. Owns the `KubeflowBase` CR. Architecture: `amd64`, `arm64`.
 - `kfp-operator`: Kubeflow Pipelines (KFP runtime 2.16.0). Owns the `KubeflowPipelines` CR. **Architecture: `amd64` only** (Kubeflow Pipelines is x86_64-only per Alauda AI v2.3 supported configurations).
-- `kubeflow-trainer-operator`: Kubeflow Trainer v2 (controller-manager 2.1.0 + JobSet 0.10.1). Owns the `KubeflowTrainer` CR. Architecture: `amd64`, `arm64`. Replaces the deprecated `kftraining` plugin.
+- `kubeflow-trainer-operator`: Kubeflow Trainer v2 (controller-manager 2.1.0 + JobSet 0.10.1). Owns the `KubeflowTrainer` CR. Architecture: `amd64`, `arm64`. Replaces the deprecated `kftraining` Cluster Plugin.
 - `model-registry-operator`: Kubeflow Model Registry Operator (unchanged form factor).
 
 > **Note:** The `kftraining` Cluster Plugin (Kubeflow Training Operator v1) was deprecated in earlier versions and has been retired in v26.3.0. Use `kubeflow-trainer-operator` (Trainer v2) instead.

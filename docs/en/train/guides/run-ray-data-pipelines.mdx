@@ -44,7 +44,7 @@ For RAG *search* over chunking and retrieval settings, use
 | Requirement | Details |
 |---|---|
 | Kubeflow Pipelines 2.16.1 | Alauda `kfp-operator` v26.3.1 or DSPO v2.15.2. See [Use Reusable Kubeflow Pipeline Components](../../develop/pipelines/reusable-pipeline-components.mdx). |
-| KubeRay Operator | Cluster plugin. See [Install KubeRay Operator](../../develop/components/kuberay/install.mdx). The pipeline ServiceAccount must be able to create `rayjobs.ray.io` in the run namespace. |
+| KubeRay Operator | Cluster Plugin. See [Install KubeRay Operator](../../develop/components/kuberay/install.mdx). The pipeline ServiceAccount must be able to create `rayjobs.ray.io` in the run namespace. |
 | Workbench | **Standard Data Science** (`Python 3.12`) so you can compile with `kfp==2.16.1`. See [Create Workbench](../../develop/workbench/create_workbench.mdx). |
 | RWX PVC | Holds the input PDFs. `parse_and_chunk` mounts it read-only on the Ray head and every worker. |
 | S3-compatible bucket | Intermediate chunk JSONL. Create a Secret with keys `access_key` and `secret_key` (not `AWS_ACCESS_KEY_ID`). |

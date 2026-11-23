@@ -28,10 +28,10 @@ When you create a `DataSciencePipelinesApplication` in a namespace, the operator
 
 ## Mutual exclusion with the shared Kubeflow Pipelines install \{#mutual-exclusion}
 
-DSPO is **mutually exclusive** with the shared, global-scoped Kubeflow Pipelines install produced by the Kubeflow plugin (`kfp-operator`). The operator refuses to reconcile a DSPA on a cluster where that shared install is present (`KUBEFLOW_PIPELINES_GLOBAL_CHECK=enforce`). Choose **one** model per cluster:
+DSPO is **mutually exclusive** with the shared, global-scoped Kubeflow Pipelines install produced by the Kubeflow Operator (`kfp-operator`). The operator refuses to reconcile a DSPA on a cluster where that shared install is present (`KUBEFLOW_PIPELINES_GLOBAL_CHECK=enforce`). Choose **one** model per cluster:
 
 - **DSPO** — per-namespace, project-isolated pipeline stacks (this operator).
-- **Kubeflow plugin `kfp-operator`** — a single shared Kubeflow Pipelines instance for the whole cluster.
+- **Kubeflow Operator `kfp-operator`** — a single shared Kubeflow Pipelines instance for the whole cluster.
 
 ## When to use it
 
