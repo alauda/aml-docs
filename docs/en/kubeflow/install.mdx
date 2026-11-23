@@ -31,7 +31,7 @@ In **Administrator** > **System Settings** > **Platform Parameters**, click **Ed
 
 ### Configure the `oauth2-proxy` Plugin
 
-Get the platform Dex CA certificate for use later in the **Global** cluster:
+Get the platform Dex CA certificate for use later in the `global` cluster:
 
 ```bash
 crt=$(kubectl get secret -n cpaas-system dex.tls -o jsonpath='{.data.tls\.crt}')
@@ -40,7 +40,7 @@ echo -n $crt | base64 -d
 
 #### Configure ASM v1 (Deprecated)
 
-In the global cluster, or in ACP **Platform Management** > **Resource Management**, update the `ServiceMesh` resource and add the following content under `spec`.
+In the `global` cluster, or in ACP **Platform Management** > **Resource Management**, update the `ServiceMesh` resource and add the following content under `spec`.
 
 > **Note:** If `spec.values.pilot.jwksResolverExtraRootCA` is already configured, update only `spec.meshConfig.extensionProviders`. Add new entries without deleting the existing ones.
 
