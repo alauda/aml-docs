@@ -265,3 +265,8 @@ Preemption is **stateful** — it interacts with whatever the trainer was doing 
 :::
 
 See [Kueue docs](../components/kueue/intro) for the full Kueue setup and the [Preemption concepts page](https://kueue.sigs.k8s.io/docs/concepts/preemption/) for the underlying algorithm.
+
+
+## Run on NVIDIA GPU or Ascend NPU
+
+The commands and manifests in this guide use the NVIDIA GPU defaults. For an Ascend run, use the matching CANN image, set `runtimeClassName: ascend`, and replace `nvidia.com/gpu` resource keys with `huawei.com/Ascend910B`. Training code must use `torch_npu`, LlamaFactory, or MindSpeed; pipeline, MLflow, and evaluation steps can use the same configuration on either accelerator.

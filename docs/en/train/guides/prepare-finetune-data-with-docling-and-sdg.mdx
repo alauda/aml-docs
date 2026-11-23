@@ -35,14 +35,14 @@ Fine-tuned model
 
 A runnable notebook that follows the same steps lives next to this page:
 
-- [Prepare Fine-Tuning Data with Docling and SDG Hub](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/prepare-finetune-data-with-docling-and-sdg.ipynb)
+- [Prepare Fine-Tuning Data with Docling and SDG Hub](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/notebooks/prepare-finetune-data-with-docling-and-sdg.ipynb)
 
 Keep the notebook and `assets/docling-sdg/` together when you download them:
 
 ```bash
 git clone --depth 1 --filter=blob:none --sparse https://github.com/alauda/aml-docs.git
 git -C aml-docs sparse-checkout set --no-cone \
-  /docs/en/train/guides/prepare-finetune-data-with-docling-and-sdg.ipynb \
+  /docs/en/train/guides/notebooks/prepare-finetune-data-with-docling-and-sdg.ipynb \
   /docs/en/train/guides/assets/docling-sdg/
 cd aml-docs/docs/en/train/guides
 ```
@@ -281,7 +281,11 @@ the `pipelines-components` SDG Hub component (`components/data_processing/sdg`)
 - [Fine-tuning LLMs with Training Hub](./training-hub-fine-tuning.mdx) — `sft` / `osft` / `lora_sft` on the JSONL.
 - [Fine-tuning LLMs using Workbench](./fine-tuning-using-notebooks.mdx) — LLaMA-Factory VolcanoJob.
 - [Fine-Tuning with Kubeflow Trainer v2](./fine-tune-with-trainer-v2.mdx) — cluster `TrainJob` with a `dataset-initializer`.
-- [Optimize a RAG Application with AutoRAG Pipelines](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/optimize-rag-with-autorag.ipynb) — Docling as a pipeline stage rather than a workbench library.
 - Upstream: [Docling](https://github.com/docling-project/docling) (MIT),
   [SDG Hub](https://github.com/Red-Hat-AI-Innovation-Team/sdg_hub) (Apache-2.0),
   [Open Data Hub data-processing](https://github.com/opendatahub-io/data-processing) (Apache-2.0).
+
+
+## Run on NVIDIA GPU or Ascend NPU
+
+The commands and manifests in this guide use the NVIDIA GPU defaults. For an Ascend run, use the matching CANN image, set `runtimeClassName: ascend`, and replace `nvidia.com/gpu` resource keys with `huawei.com/Ascend910B`. Training code must use `torch_npu`, LlamaFactory, or MindSpeed; pipeline, MLflow, and evaluation steps can use the same configuration on either accelerator.

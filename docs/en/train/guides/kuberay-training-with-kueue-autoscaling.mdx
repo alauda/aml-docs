@@ -1,0 +1,15 @@
+---
+weight: 30
+---
+
+# KubeRay Training with Kueue and Autoscaling
+
+This solution shows how to submit Ray training through Kueue and scale workers from an Alauda AI Workbench. The runnable notebook is available at [`kuberay-training-with-kueue-autoscaling.ipynb`](https://github.com/alauda/aml-docs/tree/master/docs/en/train/guides/notebooks/kuberay-training-with-kueue-autoscaling.ipynb).
+
+## Run on NVIDIA GPU
+
+Create a Workbench with a CUDA image, upload the notebook, set the namespace and storage parameters in the first cell, and run the cells in order.
+
+## Run on Ascend NPU
+
+Use a CANN Workbench and replace CUDA-specific images and resource keys with the matching Ascend runtime and `huawei.com/Ascend910B`. Pipeline, tracking, and evaluation steps can remain unchanged; training code must use `torch_npu`, LlamaFactory, or MindSpeed.

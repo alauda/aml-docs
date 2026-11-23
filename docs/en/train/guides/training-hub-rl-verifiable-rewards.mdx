@@ -161,3 +161,8 @@ otherwise a binary pass/fail reward is easier to interpret.
 
 See [Fine-tuning LLMs with Training Hub](./training-hub-fine-tuning.mdx) for SFT, OSFT,
 QLoRA, and continued pre-training workflows.
+
+
+## Run on NVIDIA GPU or Ascend NPU
+
+The commands and manifests in this guide use the NVIDIA GPU defaults. For an Ascend run, use the matching CANN image, set `runtimeClassName: ascend`, and replace `nvidia.com/gpu` resource keys with `huawei.com/Ascend910B`. Training code must use `torch_npu`, LlamaFactory, or MindSpeed; pipeline, MLflow, and evaluation steps can use the same configuration on either accelerator.
