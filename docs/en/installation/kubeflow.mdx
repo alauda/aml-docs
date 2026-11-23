@@ -1,12 +1,12 @@
 # Kubeflow Chart Plugins
 
-Deploy Kubeflow plugins in Alauda AI >= 2.0. Including:
+Deploy Kubeflow Cluster Plugins in Alauda AI >= 2.0. Including:
 
 - kfbase: Kubeflow Base components, including authentication and authorization, central dashboard, notebook, pvc-viewer, tensorboards, volumes, model registry ui, kserve endpoints ui, model catalog API service, etc.
 - chart-kubeflow-model-registry: Kubeflow Model Registry instance (Helm Chart)
 - kfp: Kubeflow Pipeline
 - kftraining: Kubeflow Training Operator (deprecated)
-- kubeflow-trainer: Kubeflow Training job management plugin, aka. Kubeflow Trainer v2 (replaces kftraining)
+- kubeflow-trainer: Kubeflow Training job management Cluster Plugin, aka. Kubeflow Trainer v2 (replaces kftraining)
 
 
 ## Environment Preparation
@@ -14,7 +14,7 @@ Deploy Kubeflow plugins in Alauda AI >= 2.0. Including:
 1. A running ACP environment
 2. Ensure Alauda AI has been deployed (requires Alauda AI version >= 2.0)
 3. Deploy ASM in the workload cluster where Kubeflow is to be deployed (if ASM was not deployed in the previous step) (Supports ASM v1 for now. ASM v2 support is expected in the future)
-4. Deploy LWS (Alauda Build of LeaderWorkerSet) plugin, which is a dependency of Kubeflow Trainer v2.
+4. Deploy LWS (Alauda Build of LeaderWorkerSet) Cluster Plugin, which is a dependency of Kubeflow Trainer v2.
 5. Configure the oauth2-proxy plugin as described below
 
 ### Configure oauth2-proxy Plugin
@@ -68,7 +68,7 @@ spec:
 
 ## Component Onboarding
 
-Obtain the installation packages for the following plugins and use the `violet` tool to complete onboarding.
+Obtain the installation packages for the following Cluster Plugins and use the `violet` tool to complete onboarding.
 
 ```bash
 # Note: replace your platform addr, username, password and cluster name.
@@ -82,19 +82,19 @@ violet push --platform-address="https://192.168.171.123" \
 - chart-kubeflow-model-registry: Kubeflow Model Registry
 - kfp: Kubeflow Pipeline functionality
 - kftraining: Kubeflow Training Operator (deprecated)
-- kubeflow-trainer: Kubeflow Training job management plugin (replaces kftraining)
+- kubeflow-trainer: Kubeflow Training job management Cluster Plugin (replaces kftraining)
 
-***Note: For the kftraining plugin, if you want to enable volcano scheduler support, you need to deploy volcano first then deploy kftraining.***
+***Note: For the kftraining Cluster Plugin, if you want to enable volcano scheduler support, you need to deploy volcano first then deploy kftraining.***
 
 ## Deployment Steps
 
 ### 1. Deploy kfbase (Kubeflow Base)
 
-In *Cluster Plugins*, find the kfbase (Kubeflow Base) plugin, fill in the configuration according to the page prompts, and wait for the component deployment to complete. 
+In *Cluster Plugins*, find the kfbase (Kubeflow Base) Cluster Plugin, fill in the configuration according to the page prompts, and wait for the component deployment to complete. 
 
 After deployment, you need to perform the following operations to configure dex redirection:
 
-In **Administrator** - **System Settings** - **Platform Parameters**, click the "Edit" button on the right of **Platform Access URLs**, and add the redirect URL, the format is `https://<your-kubeflow-domain>:<port>/`, for example, `https://192.168.139.133:30443/`. Note the host is same as the `oidcRedirectURL` configured in the kfbase plugin deployment page, and the port is the same as `istioGatewayNodeportHTTPS`.
+In **Administrator** - **System Settings** - **Platform Parameters**, click the "Edit" button on the right of **Platform Access URLs**, and add the redirect URL, the format is `https://<your-kubeflow-domain>:<port>/`, for example, `https://192.168.139.133:30443/`. Note the host is same as the `oidcRedirectURL` configured in the kfbase Cluster Plugin deployment page, and the port is the same as `istioGatewayNodeportHTTPS`.
 
 After deployment, you can find the Kubeflow menu item under the *Tools* navigation in Alauda AI. Click to enter the Kubeflow interface.
 
@@ -220,7 +220,7 @@ In **Catalog** or **Administrator** - **Marketplace** - **Chart Repositories**, 
 > Note: You need to uninstall kftraining (Kubeflow Training Operator)
 before deploying kubeflow-trainer, if you have already deployed kftraining.
 
-> Note: make sure to install LWS (Alauda Build of LeaderWorkerSet) plugin before deploying
+> Note: make sure to install LWS (Alauda Build of LeaderWorkerSet) Cluster Plugin before deploying
 kubeflow-trainer, as LWS is a dependency of kubeflow-trainer.
 
 In **Cluster Plugins**, find kubeflow-trainer (Kubeflow Trainer v2), 
