@@ -27,12 +27,12 @@ Plan the deployment with the following factors:
 
 ### 1.1 Scenario definitions \{#scenario_definitions}
 
-| Deployment scenario | Control plane nodes | GPU or NPU nodes | `AmlCluster` deploy flavor | Use cases |
+| Deployment scenario | CPU servers | GPU or NPU nodes | `AmlCluster` deploy flavor | Use cases |
 |---|---|---|---|---|
-| [**Proof of Concept**](#scenario_poc) | 0 or 1 CPU server (with 0, a GPU or NPU server acts as the control plane node) | 1 to 8 | `single-node` | Feature demos, compatibility validation, model validation, and short-term trials |
-| [**Production**](#scenario_production) | 3 CPU servers | 1 or more | `ha-cluster` | Production environments, multi-user shared environments, and scenarios that require control plane high availability |
+| [**Proof of Concept**](#scenario_poc) | 0 or 1, used as the control plane node (with 0, a GPU or NPU server acts as the control plane node) | 1 to 8 | `single-node` | Feature demos, compatibility validation, model validation, and short-term trials |
+| [**Production**](#scenario_production) | 3 + N: 3 control plane nodes, plus N infra or CPU worker nodes (N = 0, or N ≥ 2) | 1 or more | `ha-cluster` | Production environments, multi-user shared environments, and scenarios that require control plane high availability |
 
-For the CPU and memory that each scenario reserves for Alauda AI Platform, see [Resource recommendations](#resource_recommendations).
+When the cluster has CPU servers, the ACP platform components and the Alauda AI Platform control plane components run on the CPU nodes, and the GPU or NPU nodes run AI workloads only. See [Node placement](#node_placement). For the CPU and memory that each scenario reserves for Alauda AI Platform, see [Resource recommendations](#resource_recommendations).
 
 The ranges of GPU or NPU nodes overlap between the two scenarios. Choose the scenario by the requirement for high availability and the expected lifetime of the environment, not by the number of GPU or NPU nodes. For example, a **Proof of Concept** for a large model can use up to 8 GPU or NPU servers for inference.
 
@@ -49,18 +49,23 @@ This scenario is not highly available. Do not use it for production.
 :::
 
 - **Cluster**: an ACP cluster with 1 control plane node and optional worker nodes. With a single server, this is the ACP Single Node architecture. Set the `AmlCluster` deploy flavor to `single-node`.
-- **Control plane node**: either 1 CPU server that allows application workloads, or, without a CPU server, one of the GPU or NPU servers. Reserve the **Proof of Concept** resources in [Resource recommendations](#resource_recommendations) on this node, in addition to the ACP baseline.
+- **Control plane node**: either 1 CPU server that allows application workloads, or, without a CPU server, one of the GPU or NPU servers. With a CPU server, the CPU server runs the ACP platform components and the Alauda AI Platform components, and the GPU or NPU servers run AI workloads only. Reserve the **Proof of Concept** resources in [Resource recommendations](#resource_recommendations) on the control plane node, in addition to the ACP baseline.
 - **GPU or NPU nodes**: 1 to 8 servers. Except for a GPU or NPU server that acts as the control plane node, they join the cluster as worker nodes.
 - **Features**: all features, with single-replica platform components. Multi-node inference and training follow the requirements in [Node placement](#node_placement).
 
 ### 1.3 Production \{#scenario_production}
 
 - **Cluster**: an ACP cluster with 3 control plane nodes. In a single-cluster layout, this is the ACP Single Cluster architecture. Set the `AmlCluster` deploy flavor to `ha-cluster`.
-- **Control plane nodes**: 3 CPU servers with **Platform Exclusive** disabled and **Deployable Applications** enabled, so that they run both the ACP components and the Alauda AI Platform components. Reserve the **Production** resources in [Resource recommendations](#resource_recommendations) on top of the ACP baseline.
-- **GPU or NPU nodes**: 1 or more worker nodes that run inference services, training jobs, and GPU or NPU Workbench instances.
+- **CPU nodes**: 3 + N CPU servers. All ACP platform components and Alauda AI Platform components run on these nodes.
+  - **N = 0**: the 3 control plane nodes run both the ACP components and the Alauda AI Platform components. Disable **Platform Exclusive** and enable **Deployable Applications** on them.
+  - **N ≥ 2**: add N infra nodes or CPU worker nodes to the 3 control plane nodes. Infra nodes run platform components, and CPU worker nodes run the Alauda AI Platform components and CPU workloads, such as Workbench instances and pipeline runs. Use at least 2 such nodes so that the components on them stay available when one node fails. To plan infra nodes, see <ExternalSiteLink name="acp" href="configure/clusters/acp-node-planning.html" children="Cluster Node Planning" />.
+  - Reserve the **Production** resources in [Resource recommendations](#resource_recommendations) on the CPU nodes that run the Alauda AI Platform components, on top of the ACP baseline.
+- **GPU or NPU nodes**: 1 or more worker nodes that run inference services, training jobs, and GPU or NPU Workbench instances only.
 - **Features**: all features, with highly available platform components.
 
-To run platform components on dedicated infra nodes instead of the control plane nodes, see <ExternalSiteLink name="acp" href="configure/clusters/acp-node-planning.html" children="Cluster Node Planning" />. Whether components installed through Operators, including the Alauda AI Platform components, can be moved to infra nodes depends on the scheduling settings of each component. Verify this before you adopt the layout.
+:::note
+Whether components installed through Operators, including the Alauda AI Platform components, can be moved from the control plane nodes to infra or CPU worker nodes depends on the scheduling settings of each component. Verify this before you plan N ≥ 2.
+:::
 
 ### 1.4 Multi-cluster layout \{#multi_cluster_layout}
 
@@ -78,6 +83,7 @@ In this layout:
 
 ### 1.5 Node placement \{#node_placement}
 
+- **CPU nodes**: when the cluster has CPU servers, run the ACP platform components and the Alauda AI Platform control plane components on the CPU nodes only. GPU and NPU resources are reserved for AI workloads, and driver maintenance on GPU or NPU nodes does not interrupt the platform.
 - **GPU or NPU worker nodes**: label them by accelerator model and add a taint, for example `nvidia.com/gpu:NoSchedule`, so that platform components and CPU workloads are not scheduled on them. In **Proof of Concept**, do not taint a GPU or NPU server that acts as the control plane node.
 - **AI workload placement**: AI workloads select GPU or NPU nodes through node selectors, and tolerate the taint through tolerations:
   - Inference services use a Hardware Profile. See [Schedule Workloads to Specific GPU Nodes](../administer/hardware_profile/schedule_to_specific_gpu_nodes.mdx).
@@ -95,6 +101,7 @@ After the GPU or NPU nodes are tainted, confirm that node-level components, such
 |---|---|---|
 | 2 control plane nodes for high availability | ACP does not support 2 control plane nodes | Use 3 control plane nodes for **Production**, or 1 for **Proof of Concept** |
 | GPU or NPU servers as control plane nodes in **Production** | The control plane and AI workloads compete for CPU and memory, and driver maintenance on GPU or NPU nodes can restart the control plane node | Add 3 CPU servers as control plane nodes |
+| ACP or Alauda AI Platform components on GPU or NPU nodes when the cluster has CPU servers | The components take CPU and memory from AI workloads, and driver maintenance on GPU or NPU nodes restarts them | Taint the GPU or NPU nodes as described in [Node placement](#node_placement) |
 | Alauda AI Platform or GPU or NPU nodes in the `global` cluster of a multi-cluster layout | Non-platform workloads on the `global` cluster may degrade platform stability | Install Alauda AI Platform in a workload cluster |
 | A new `global` cluster that manages only one AI cluster | The extra cluster adds servers and operations | Use a single cluster, unless ACP platform components must be isolated from AI workloads |
 | Multi-node inference or training with 1 GPU or NPU node | Multi-node features need at least 2 GPU or NPU nodes | Add GPU or NPU nodes, or use single-node features |
@@ -119,7 +126,7 @@ The table shows reference values for the Alauda AI Platform components only, not
 | Deployment scenario | Alauda AI Platform component resources | Notes |
 |---|---:|---|
 | **Proof of Concept** | **24 cores CPU / 36 GiB memory** | Reserve on the single control plane node; when a GPU or NPU server is the control plane node, reserve it on that server in addition to its AI workloads |
-| **Production** | **48 cores CPU / 72 GiB memory** | Plan about 16 cores CPU / 24 GiB memory on each of the 3 control plane nodes |
+| **Production** | **48 cores CPU / 72 GiB memory** | Spread across the CPU nodes that run the Alauda AI Platform components; with N = 0, plan about 16 cores CPU / 24 GiB memory on each of the 3 control plane nodes |
 
 The Proof of Concept profile is a single-replica deployment profile that includes the Alauda AI Platform base platform components and the training, fine-tuning, and Agent control plane. It reserves room for demo data and demo workloads, and it is not highly available.
 
