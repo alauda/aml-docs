@@ -2,16 +2,104 @@
 weight: 15
 i18n:
   title:
-    en: Deployment Capacity Planning
-    zh: 部署容量规划
-title: Deployment Capacity Planning
+    en: Deployment Planning
+    zh: 部署规划
+title: Deployment Planning
 ---
 
-# Deployment Capacity Planning
+# Deployment Planning
 
-This page helps estimate the component resources required to deploy Alauda AI Platform base features, and the additional resources needed for MaaS long-stream SSE scenarios.
+Use this page before installing Alauda AI Platform to plan the deployment in the following order:
 
-## 1. Alauda AI Platform resources
+1. [Deployment scenarios](#deployment_scenarios): choose Proof of Concept or Production, the cluster layout, and the placement of GPU or NPU nodes.
+2. [Alauda AI Platform resources](#platform_resources): reserve CPU and memory for the platform components, and choose storage for models, datasets, and volumes.
+3. [MaaS SSE capacity reference](#maas_sse_capacity): size the MaaS gateway components for long-stream SSE traffic.
+
+## 1. Deployment scenarios \{#deployment_scenarios}
+
+Alauda AI Platform is installed in one cluster, and that cluster also runs the AI workloads. In a single-cluster layout, this is the Alauda Container Platform (ACP) `global` cluster itself. In a [multi-cluster layout](#multi_cluster_layout), this is a workload cluster, and the `global` cluster only stores the OIDC client, its Secret, and the product entry that [Configure Alauda AI Platform Entry and Branding](../installation/ai-essentials.mdx) creates.
+
+Plan the deployment with the following factors:
+
+- The deployment scenario, **Proof of Concept** or **Production**, which decides the number of control plane nodes, high availability, and the `AmlCluster` deploy flavor.
+- The cluster layout, a single cluster or multiple clusters, which follows the ACP deployment architectures in <ExternalSiteLink name="acp" href="install/prepare/prerequisites.html" children="Prerequisites" />.
+- The number of GPU or NPU servers and the AI features in use, such as multi-node inference and multi-node training.
+
+### 1.1 Scenario definitions \{#scenario_definitions}
+
+| Deployment scenario | Control plane nodes | GPU or NPU nodes | `AmlCluster` deploy flavor | Use cases |
+|---|---|---|---|---|
+| [**Proof of Concept**](#scenario_poc) | 0 or 1 CPU server (with 0, a GPU or NPU server acts as the control plane node) | 1 to 8 | `single-node` | Feature demos, compatibility validation, model validation, and short-term trials |
+| [**Production**](#scenario_production) | 3 CPU servers | 1 or more | `ha-cluster` | Production environments, multi-user shared environments, and scenarios that require control plane high availability |
+
+For the CPU and memory that each scenario reserves for Alauda AI Platform, see [Resource recommendations](#resource_recommendations).
+
+The ranges of GPU or NPU nodes overlap between the two scenarios. Choose the scenario by the requirement for high availability and the expected lifetime of the environment, not by the number of GPU or NPU nodes. For example, a **Proof of Concept** for a large model can use up to 8 GPU or NPU servers for inference.
+
+To choose a scenario and a layout:
+
+- Use **Proof of Concept** for a short-term environment that does not need high availability.
+- Use **Production** for production environments and for any environment that is kept long term.
+- Use the [multi-cluster layout](#multi_cluster_layout) if any of its conditions applies. Otherwise, use a single cluster.
+
+### 1.2 Proof of Concept \{#scenario_poc}
+
+:::warning
+This scenario is not highly available. Do not use it for production.
+:::
+
+- **Cluster**: an ACP cluster with 1 control plane node and optional worker nodes. With a single server, this is the ACP Single Node architecture. Set the `AmlCluster` deploy flavor to `single-node`.
+- **Control plane node**: either 1 CPU server that allows application workloads, or, without a CPU server, one of the GPU or NPU servers. Reserve the **Proof of Concept** resources in [Resource recommendations](#resource_recommendations) on this node, in addition to the ACP baseline.
+- **GPU or NPU nodes**: 1 to 8 servers. Except for a GPU or NPU server that acts as the control plane node, they join the cluster as worker nodes.
+- **Features**: all features, with single-replica platform components. Multi-node inference and training follow the requirements in [Node placement](#node_placement).
+
+### 1.3 Production \{#scenario_production}
+
+- **Cluster**: an ACP cluster with 3 control plane nodes. In a single-cluster layout, this is the ACP Single Cluster architecture. Set the `AmlCluster` deploy flavor to `ha-cluster`.
+- **Control plane nodes**: 3 CPU servers with **Platform Exclusive** disabled and **Deployable Applications** enabled, so that they run both the ACP components and the Alauda AI Platform components. Reserve the **Production** resources in [Resource recommendations](#resource_recommendations) on top of the ACP baseline.
+- **GPU or NPU nodes**: 1 or more worker nodes that run inference services, training jobs, and GPU or NPU Workbench instances.
+- **Features**: all features, with highly available platform components.
+
+To run platform components on dedicated infra nodes instead of the control plane nodes, see <ExternalSiteLink name="acp" href="configure/clusters/acp-node-planning.html" children="Cluster Node Planning" />. Whether components installed through Operators, including the Alauda AI Platform components, can be moved to infra nodes depends on the scheduling settings of each component. Verify this before you adopt the layout.
+
+### 1.4 Multi-cluster layout \{#multi_cluster_layout}
+
+Use multiple clusters only when one of the following applies:
+
+- An ACP `global` cluster already exists and manages other clusters.
+- More than one AI cluster is required, for example separate production and test clusters, clusters in different sites, or separate clusters for different accelerator types.
+- AI clusters and other business clusters must be managed from the same `global` cluster.
+
+In this layout:
+
+- The `global` cluster runs ACP platform components only. Do not install Alauda AI Platform or add GPU or NPU nodes to the `global` cluster.
+- Install Alauda AI Platform in each AI workload cluster. Build each workload cluster as **Production**, or as **Proof of Concept** for a short-term test cluster.
+- Run `global-install.sh` once for each AI workload cluster. To tell the product entries apart in the console navigation menu, change their display names as described in [Configure Alauda AI Platform Entry and Branding](../installation/ai-essentials.mdx).
+
+### 1.5 Node placement \{#node_placement}
+
+- **GPU or NPU worker nodes**: label them by accelerator model and add a taint, for example `nvidia.com/gpu:NoSchedule`, so that platform components and CPU workloads are not scheduled on them. In **Proof of Concept**, do not taint a GPU or NPU server that acts as the control plane node.
+- **AI workload placement**: AI workloads select GPU or NPU nodes through node selectors, and tolerate the taint through tolerations:
+  - Inference services use a Hardware Profile. See [Schedule Workloads to Specific GPU Nodes](../administer/hardware_profile/schedule_to_specific_gpu_nodes.mdx).
+  - Kueue-managed training jobs use a `ResourceFlavor` with `nodeLabels` and `tolerations`. See [Configure Quotas](../train/quota_scheduling/config_quotas.mdx).
+  - Workbench instances use the `nodeSelector` and `tolerations` in the `podConfig` options of a `WorkspaceKind`. See [Bring Your Own Workbench Images](../develop/workbench/byo_workbench_images.mdx).
+- **Multi-node features**: multi-node inference (for example, llm-d multi-node deployments) and multi-node training require at least 2 GPU or NPU nodes, a high-speed interconnect between them, and storage that several nodes can mount at the same time. See [Storage planning](#storage_planning).
+
+:::note
+After the GPU or NPU nodes are tainted, confirm that node-level components, such as the device plugin, the GPU or NPU exporter, and Node Feature Discovery, still run on those nodes.
+:::
+
+### 1.6 Topologies to avoid \{#topologies_to_avoid}
+
+| Topology | Reason | Alternative |
+|---|---|---|
+| 2 control plane nodes for high availability | ACP does not support 2 control plane nodes | Use 3 control plane nodes for **Production**, or 1 for **Proof of Concept** |
+| GPU or NPU servers as control plane nodes in **Production** | The control plane and AI workloads compete for CPU and memory, and driver maintenance on GPU or NPU nodes can restart the control plane node | Add 3 CPU servers as control plane nodes |
+| Alauda AI Platform or GPU or NPU nodes in the `global` cluster of a multi-cluster layout | Non-platform workloads on the `global` cluster may degrade platform stability | Install Alauda AI Platform in a workload cluster |
+| A new `global` cluster that manages only one AI cluster | The extra cluster adds servers and operations | Use a single cluster, unless ACP platform components must be isolated from AI workloads |
+| Multi-node inference or training with 1 GPU or NPU node | Multi-node features need at least 2 GPU or NPU nodes | Add GPU or NPU nodes, or use single-node features |
+
+## 2. Alauda AI Platform resources \{#platform_resources}
 
 The resources below cover Alauda AI Platform base features and fixed platform components. ACP and Kubernetes resources are not included. Different ACP and Kubernetes versions, cluster sizes, and enabled features have different baseline resource requirements, so plan those separately in addition to the Alauda AI Platform resources.
 
@@ -24,22 +112,22 @@ Alauda AI Platform resources also exclude the following workloads:
 
 Training jobs, inference services, and other AI workloads require additional resources for the task type, model size, concurrency, and performance target, such as GPU/NPU cards, CPU, memory, nodes, and business storage.
 
-### 1.1 Resource recommendations
+### 2.1 Resource recommendations \{#resource_recommendations}
 
-The table shows reference values for the Alauda AI Platform components only, not the final number or specification of physical servers. When preparing servers, add the resources required by ACP, Kubernetes, the operating system, the container runtime, storage, monitoring and logging, and other platform features on top of these values.
+The table shows reference values for the Alauda AI Platform components only, not the final number or specification of physical servers. When preparing servers, add the resources required by ACP, Kubernetes, the operating system, the container runtime, storage, monitoring and logging, and other platform features on top of these values. The deployment scenarios are defined in [Scenario definitions](#scenario_definitions).
 
-| Deployment scenario | Alauda AI Platform component resources | Use cases | Notes |
-|---|---:|---|---|
-| **High availability deployment** | **48 cores CPU / 72 GiB memory** | Production environments, multi-user shared environments, and scenarios that require control-plane high availability | Recommended deployment on 3 servers, with about 16 cores CPU / 24 GiB memory reserved for Alauda AI Platform on each; does not include ACP and Kubernetes baseline resources |
-| **Demo / trial minimum** | **24 cores CPU / 36 GiB memory** | Feature demos, compatibility validation, and short-term trials | Single-replica deployment profile that includes the Alauda AI Platform base platform components and the training/fine-tuning/Agent control plane, with room for demo data and demo workloads; not high availability |
+| Deployment scenario | Alauda AI Platform component resources | Notes |
+|---|---:|---|
+| **Proof of Concept** | **24 cores CPU / 36 GiB memory** | Reserve on the single control plane node; when a GPU or NPU server is the control plane node, reserve it on that server in addition to its AI workloads |
+| **Production** | **48 cores CPU / 72 GiB memory** | Plan about 16 cores CPU / 24 GiB memory on each of the 3 control plane nodes |
 
-The high availability profile includes the Alauda AI Platform base platform components and the training, fine-tuning, and Agent control plane, and reserves about 50% additional headroom on top of the component resources to cover rescheduling after a node failure, rolling upgrades, monitoring and logging fluctuation, and business growth. Alauda AI Platform is recommended to run on 3 servers, with about 16 cores CPU / 24 GiB memory reserved for Alauda AI Platform on each; ACP and Kubernetes baseline resources are added on top according to the actual environment.
+The Proof of Concept profile is a single-replica deployment profile that includes the Alauda AI Platform base platform components and the training, fine-tuning, and Agent control plane. It reserves room for demo data and demo workloads, and it is not highly available.
 
-The Demo / trial profile uses a single-replica deployment profile that includes the Alauda AI Platform base platform components and the training, fine-tuning, and Agent control plane, and reserves room for demo data and demo workloads; it is not high availability. If the Demo or the high availability deployment also runs real training jobs, inference services, MaaS concurrency, user Notebook/Workspace/PipelineRun, Agent instances, or large business datasets, add resources according to the actual workload.
+The Production profile includes the same components and reserves about 50% additional headroom on top of the component resources. The headroom covers rescheduling after a node failure, rolling upgrades, monitoring and logging fluctuation, and business growth.
 
-These values represent Alauda AI Platform component resources only and do not include the baseline resources of ACP and Kubernetes.
+If a Proof of Concept or Production deployment also runs real training jobs, inference services, MaaS concurrency, user Notebook/Workspace/PipelineRun, Agent instances, or large business datasets, add resources according to the actual workload.
 
-### 1.2 Storage planning
+### 2.2 Storage planning \{#storage_planning}
 
 Alauda AI Platform resources do not include business data storage capacity. Plan model weights, training data, model images, Workspace/PVCs, Pipeline artifacts, logs, and backups separately based on data volume, growth rate, retention period, IOPS, throughput, and recovery target.
 
@@ -56,14 +144,14 @@ Notes:
 - An enterprise NAS and enterprise object storage cover all three rows. Without enterprise storage, one Ceph cluster covers them. If no workload needs the last row, an enterprise SAN can replace the NAS.
 - To avoid the last row, KubeRay can use object storage, llm-d can use a ModelCar, and Kueue jobs on Ceph RBD can be pinned to one node.
 - ModelCar images, including those of Model Catalog, and S3 downloads are unpacked on the node. Size node-local disks for the largest model: the 200G per worker node in [Install](/installation/index.mdx) is not enough for GLM-5.2, which takes 377 GiB on disk.
-- Use TopoLVM for proof of concept only.
+- Use TopoLVM only for a **Proof of Concept** that does not need volumes mounted by several nodes at the same time.
 - Size checkpoint volumes as described in [Checkpointing and Resuming TrainJobs](/train/guides/checkpointing-and-resuming.mdx).
 
-## 2. MaaS SSE capacity reference
+## 3. MaaS SSE capacity reference \{#maas_sse_capacity}
 
 The load-test data helps determine reasonable resource configurations for the MaaS components at each concurrency level. It is a reference for sizing MaaS capacity in addition to the base platform resources. The data comes from long-stream SSE tests: each stream returns 200 content chunks with an interval of about 100 ms, and each test lasts 600 seconds using close connection mode. The tests use the in-cluster `mock-llm` as the backend in place of a real model service, to reduce the influence of uncertainty in model response content and duration on the results.
 
-### 2.1 Without Guardrail
+### 3.1 Without Guardrail
 
 The tables show the load-test results for each concurrency level; every test completed all requests within 600 seconds with no interruptions or errors. Latency is in milliseconds. `TTFT` is the time to first token and stream duration is the duration of a single SSE stream from start to finish; each is given as avg / p95.
 
@@ -73,7 +161,7 @@ The tables show the load-test results for each concurrency level; every test com
 | 1,000 | 2 replicas; 2 CPU / 512 MiB each | 2 replicas; 1.5 CPU / 256 MiB each | 2 replicas; 0.25 CPU / 256 MiB each | avg 179 / p95 470 | avg 20,397 / p95 20,788 |
 | 2,000 | 4 replicas; 2 CPU / 512 MiB each | 3 replicas; 2 CPU / 256 MiB each | 2 replicas; 0.25 CPU / 256 MiB each | avg 159 / p95 506 | avg 20,293 / p95 21,614 |
 
-### 2.2 With Guardrail
+### 3.2 With Guardrail
 
 Gateway, Authorino, and Ratelimit use the same configuration as the tests without Guardrail:
 
@@ -89,7 +177,7 @@ The Guardrail test adds the NeMo engine and the Guardrail `ext_proc` shim. Every
 | 200 | 6 replicas; 1 CPU / 1 GiB each | 2 replicas; 0.5 CPU / 256 MiB each | avg 343 / p95 793 | avg 20,392 / p95 20,848 |
 | 500 | 15 replicas; 1 CPU / 1 GiB each | 2 replicas; 0.5 CPU / 256 MiB each | avg 383 / p95 985 | avg 20,432 / p95 21,034 |
 
-### 2.3 Interpreting the load-test data
+### 3.3 Interpreting the load-test data
 
 CPU is a flexible resource. The actual processing capacity of a single CPU can differ significantly between CPU models, microarchitectures, clock speeds, NUMA topologies, virtualization modes, and runtime environments. Therefore:
 
@@ -101,7 +189,7 @@ CPU is a flexible resource. The actual processing capacity of a single CPU can d
 
 The MaaS load tests do not include real model inference services, model weights, or GPU/NPU resources. When deploying real inference services, add GPU/NPU, CPU, memory, and storage resources based on model size, quantization, context length, concurrency, and target latency.
 
-### 2.4 MaaS scaling reference
+### 3.4 MaaS scaling reference
 
 For the scaling approach and the resource configuration entry point of each MaaS component, see [MaaS Component Scaling](../deploy/maas/scale.mdx).
 
