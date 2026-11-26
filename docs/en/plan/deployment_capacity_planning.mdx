@@ -22,7 +22,7 @@ Alauda AI Platform resources also exclude the following workloads:
 - Notebook, Workspace, PipelineRun, and Agent instances;
 - Storage for model weights, training data, images, logs, and backups.
 
-Training jobs, inference services, and other AI workloads require additional resources for the task type, model size, concurrency, and performance target, such as GPU/NPU cards, CPU, memory, nodes, and business storage.
+Training jobs, inference services, and other AI workloads require additional resources for the task type, model size, concurrency, and performance target, such as GPU/NPU cards, CPU, memory, nodes, and data storage.
 
 ### 1.1 Resource recommendations
 
@@ -33,15 +33,15 @@ The table shows reference values for the Alauda AI Platform components only, not
 | **High availability deployment** | **48 cores CPU / 72 GiB memory** | Production environments, multi-user shared environments, and scenarios that require control-plane high availability | Recommended deployment on 3 servers, with about 16 cores CPU / 24 GiB memory reserved for Alauda AI Platform on each; does not include ACP and Kubernetes baseline resources |
 | **Demo / trial minimum** | **24 cores CPU / 36 GiB memory** | Feature demos, compatibility validation, and short-term trials | Single-replica deployment profile that includes the Alauda AI Platform base platform components and the training/fine-tuning/Agent control plane, with room for demo data and demo workloads; not high availability |
 
-The high availability profile includes the Alauda AI Platform base platform components and the training, fine-tuning, and Agent control plane, and reserves about 50% additional headroom on top of the component resources to cover rescheduling after a node failure, rolling upgrades, monitoring and logging fluctuation, and business growth. Alauda AI Platform is recommended to run on 3 servers, with about 16 cores CPU / 24 GiB memory reserved for Alauda AI Platform on each; ACP and Kubernetes baseline resources are added on top according to the actual environment.
+The high availability profile includes the Alauda AI Platform base platform components and the training, fine-tuning, and Agent control plane, and reserves about 50% additional headroom on top of the component resources to cover rescheduling after a node failure, rolling upgrades, monitoring and logging fluctuation, and workload growth. Alauda AI Platform is recommended to run on 3 servers, with about 16 cores CPU / 24 GiB memory reserved for Alauda AI Platform on each; ACP and Kubernetes baseline resources are added on top according to the actual environment.
 
-The Demo / trial profile uses a single-replica deployment profile that includes the Alauda AI Platform base platform components and the training, fine-tuning, and Agent control plane, and reserves room for demo data and demo workloads; it is not high availability. If the Demo or the high availability deployment also runs real training jobs, inference services, MaaS concurrency, user Notebook/Workspace/PipelineRun, Agent instances, or large business datasets, add resources according to the actual workload.
+The Demo / trial profile uses a single-replica deployment profile that includes the Alauda AI Platform base platform components and the training, fine-tuning, and Agent control plane, and reserves room for demo data and demo workloads; it is not high availability. If the Demo or the high availability deployment also runs real training jobs, inference services, MaaS concurrency, user Notebook/Workspace/PipelineRun, Agent instances, or large datasets, add resources according to the actual workload.
 
 These values represent Alauda AI Platform component resources only and do not include the baseline resources of ACP and Kubernetes.
 
 ### 1.2 Storage planning
 
-Alauda AI Platform resources do not include business data storage capacity. Plan model weights, training data, model images, Workspace/PVCs, Pipeline artifacts, logs, and backups separately based on data volume, growth rate, retention period, IOPS, throughput, and recovery target.
+Alauda AI Platform resources do not include application data storage capacity. Plan model weights, training data, model images, Workspace/PVCs, Pipeline artifacts, logs, and backups separately based on data volume, growth rate, retention period, IOPS, throughput, and recovery target.
 
 Choose the storage for each kind of data as follows. Inference and training use the same three kinds of storage; they differ only in whether a volume must be mounted by several nodes at the same time. **Recommended** is the default choice, and **Secondary** is the choice when the recommended storage is not available.
 
@@ -96,8 +96,8 @@ CPU is a flexible resource. The actual processing capacity of a single CPU can d
 - The load-test data is a reference for capacity planning, not a general configuration commitment;
 - `1 CPU` on different CPU models does not necessarily deliver the same throughput and latency;
 - Adjust the CPU configuration to the target CPU model, model size, request length, output speed, connection mode, Guardrail policy, and concurrency target;
-- On ARM64, Kunpeng, or other target hardware, run business load tests on the target hardware;
-- When test results differ from this page, follow the actual business test results.
+- On ARM64, Kunpeng, or other target hardware, run application load tests on the target hardware;
+- When test results differ from this page, follow the actual test results.
 
 The MaaS load tests do not include real model inference services, model weights, or GPU/NPU resources. When deploying real inference services, add GPU/NPU, CPU, memory, and storage resources based on model size, quantization, context length, concurrency, and target latency.
 
