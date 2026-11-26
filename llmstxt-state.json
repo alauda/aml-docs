@@ -1442,11 +1442,11 @@
       "updated_at": "2026-08-04T00:00:00Z"
     },
     "docs/en/upgrade/migrating-to-knative-operator.mdx": {
-      "sha256": "6a38d6868c23ad2045320d2c13c88f7ab0ce1594261e45f48c434bfb328bda30",
+      "sha256": "0fa1fdb9da493a8748d077e392513b3c06113d00bcccafecb2ca84398b4d4eab",
       "size": 1836,
       "description": "Migration path from the legacy Alauda AI Model Serving operator (1.x series) to the upstream Knative Operator (2.x series) for inference-service serverless capability. Instructs operators to set spec.knativeServing.managementState to Removed on the default Alauda AI Platform instance, then install Knative Operator and create a KnativeServing instance via the Marketplace per the Enabling Knative Functionality guide. Notes that AI 1.x deployments must also upgrade Alauda AI Platform to 2.x.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-26T16:59:49Z"
     },
     "docs/en/upgrade/uninstall.mdx": {
       "sha256": "6c8bc823d58e9b8058b888964d830bcff160daa8cdef92a1c735c29c67ef38fb",
