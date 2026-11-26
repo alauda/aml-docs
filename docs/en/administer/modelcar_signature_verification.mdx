@@ -1,0 +1,189 @@
+---
+weight: 30
+i18n:
+  title:
+    en: Verify ModelCar Signatures at Deployment
+    zh: 部署时校验 ModelCar 签名
+---
+
+# Verify ModelCar Signatures at Deployment
+
+ModelCar images released by Alauda are signed with [cosign](https://docs.sigstore.dev/cosign/). This page shows how to make the inference cluster refuse to start a model whose ModelCar image is not signed by a trusted key. The check runs when a Pod is created, through Alauda Container Platform Policy Management (Kyverno), so it covers every way a model is deployed: Model Catalog, Model Registry, connections, and plain YAML.
+
+## How It Works
+
+- When a Pod is created, Kyverno looks at every image whose name starts with `modelcar-`, in any registry and any project. This includes containers, init containers, and image volumes. Other images, such as the vLLM runtime, are not checked.
+- Kyverno reads the signature from the same repository as the image (the `sha256-<digest>.sig` tag) and verifies it with the public keys in the policy. One matching key is enough.
+- If the signature is valid, Kyverno replaces the tag in the Pod with the verified digest, so the node pulls exactly the image that was verified. You can keep using tags in `LLMInferenceService` and Model Catalog.
+- If the image is not signed, is signed with an unknown key, or the tag now points to different content, the Pod is rejected. The `LLMInferenceService` stays not ready.
+
+The policy applies to all namespaces except `kube-system` and `kyverno`. No namespace label is needed.
+
+## Prerequisites
+
+- Alauda Container Platform Policy Management is installed on the inference cluster. See <ExternalSiteLink name="acp" href="/security/security_and_compliance/compliance/install.html" children="Install Alauda Container Platform Policy Management" />. This procedure was validated with plugin version v4.3.3 (Kyverno 1.15).
+- The ModelCar images **and their signatures** are in your registry. A signature is stored as a separate tag named `sha256-<digest>.sig` in the same repository. Copying only the image tag, for example by importing an image tarball and pushing it, does not copy the signature, and verification will fail. Check with:
+
+  ```bash
+  cosign verify --key cosign.pub --insecure-ignore-tlog=true <registry>/<project>/modelcar-<name>:<tag>
+  ```
+
+- The Alauda ModelCar release public key, saved as `cosign.pub`.
+- A read-only account on your registry that can pull from every project that stores ModelCar images. For Harbor, use a robot account with only the pull permission. Kyverno uses this account to read signatures. It does not use the `imagePullSecret` of the workload or of the connection.
+- `kubectl` access to the inference cluster with permission to create Secrets in the `kyverno` namespace and to create ClusterPolicies.
+
+## Procedure
+
+### 1. Store the Public Key
+
+Create a Secret in the `kyverno` namespace. The key name must be `cosign.pub`:
+
+```bash
+kubectl -n kyverno create secret generic modelcar-cosign-pub \
+  --from-file=cosign.pub=./cosign.pub
+```
+
+### 2. Store the Registry Credential
+
+Create a registry Secret in the `kyverno` namespace with the read-only account:
+
+```bash
+kubectl -n kyverno create secret docker-registry modelcar-registry-read \
+  --docker-server=<registry> \
+  --docker-username=<robot-account> \
+  --docker-password=<token>
+```
+
+The Secret must be in the `kyverno` namespace. If ModelCar images are in more than one registry, add each registry to the Secret, or create one Secret per registry and list all of them in the policy.
+
+### 3. Apply the Policy
+
+Save the following as `verify-modelcar-signature.yaml` and apply it with `kubectl apply -f verify-modelcar-signature.yaml`:
+
+```yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-modelcar-signature
+  annotations:
+    # Check Pods only; do not change Deployments or other workload templates.
+    pod-policies.kyverno.io/autogen-controllers: none
+spec:
+  background: false
+  webhookConfiguration:
+    failurePolicy: Fail
+    timeoutSeconds: 30
+  rules:
+    - name: modelcar-signed
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      # Setting imageExtractors replaces the default list, so the three
+      # container types are listed again. The last entry covers image volumes.
+      imageExtractors:
+        Pod:
+          - {name: containers, path: /spec/containers/*, value: image, key: name}
+          - {name: initContainers, path: /spec/initContainers/*, value: image, key: name}
+          - {name: ephemeralContainers, path: /spec/ephemeralContainers/*, value: image, key: name}
+          - {name: imageVolumes, path: /spec/volumes/*/image, value: reference}
+      verifyImages:
+        - imageReferences:
+            - "*/modelcar-*"
+          failureAction: Enforce
+          mutateDigest: true
+          imageRegistryCredentials:
+            secrets: ["modelcar-registry-read"]
+          attestors:
+            - count: 1
+              entries:
+                - keys:
+                    secret:
+                      name: modelcar-cosign-pub
+                      namespace: kyverno
+                    # ModelCar signatures are not uploaded to a transparency log.
+                    rekor:
+                      ignoreTlog: true
+                    ctlog:
+                      ignoreSCT: true
+```
+
+Check that the policy is ready:
+
+```bash
+kubectl get clusterpolicy verify-modelcar-signature
+```
+
+The `READY` column must be `True`.
+
+### 4. Verify
+
+1. Deploy a model from Model Catalog. When the predictor Pod is created, its `modelcar` and `modelcar-init` containers use the image with the digest appended, for example `<registry>/mlops/modelcar-<name>:<tag>@sha256:<digest>`:
+
+   ```bash
+   kubectl -n <namespace> get pod <pod-name> \
+     -o jsonpath='{.spec.initContainers[*].image}{"\n"}{.spec.containers[*].image}{"\n"}'
+   ```
+
+2. Deploy a model whose ModelCar image is not signed. The `LLMInferenceService` does not become ready, and the ReplicaSet reports `FailedCreate` (see [Troubleshooting](#troubleshooting)).
+
+## Trust Your Own Signing Key
+
+If you build ModelCar images yourself, for example with Model Registry, and sign them with your own cosign key, add your public key as a second entry in the same attestor. With `count: 1`, an image signed by either key is accepted:
+
+```yaml
+          attestors:
+            - count: 1
+              entries:
+                - keys:
+                    secret:
+                      name: modelcar-cosign-pub
+                      namespace: kyverno
+                    rekor:
+                      ignoreTlog: true
+                    ctlog:
+                      ignoreSCT: true
+                - keys:
+                    publicKeys: |
+                      -----BEGIN PUBLIC KEY-----
+                      <your public key>
+                      -----END PUBLIC KEY-----
+                    rekor:
+                      ignoreTlog: true
+                    ctlog:
+                      ignoreSCT: true
+```
+
+Do not add a second attestor for your key. Each attestor must be satisfied, so a second attestor would require every image to be signed by both keys.
+
+The same approach works when you rotate a signing key: keep the old and new keys as two entries until all images signed with the old key are retired.
+
+## Troubleshooting \{#troubleshooting}
+
+A rejected Pod is never created, so the reason is only in the events of the ReplicaSet that tried to create it. The `LLMInferenceService` status only shows `MinimumReplicasUnavailable`.
+
+```bash
+kubectl -n <namespace> get events --field-selector reason=FailedCreate
+```
+
+| Message contains | Cause | What to do |
+| --- | --- | --- |
+| `no signatures found` | The image is not signed, or its signature tag was not copied to your registry | Sign the image, or copy the `sha256-<digest>.sig` tag together with the image |
+| `invalid signature when validating ASN.1 encoded signature` | The image is signed with a key that is not in the policy | Add the key to the policy, or use an image signed with a trusted key |
+| `UNAUTHORIZED` | Kyverno cannot read the repository | Check that the Secret in step 2 exists in the `kyverno` namespace, is listed in the policy, and can pull from that project |
+| `missing digest` | The Pod was created before the policy was applied and is being updated | Delete the Pod and let its controller recreate it |
+
+## Operational Notes
+
+- **Kyverno must be available.** The policy uses `failurePolicy: Fail`, and Kyverno receives every Pod creation in the cluster except in the `kube-system` and `kyverno` namespaces. If Kyverno is unavailable, no Pods can be created. Keep the admission controller at three replicas. In an emergency, an administrator can restore Pod creation by deleting the two webhook configurations below. Kyverno recreates them from the existing policies when it recovers.
+
+  ```bash
+  kubectl delete validatingwebhookconfiguration kyverno-resource-validating-webhook-cfg
+  kubectl delete mutatingwebhookconfiguration kyverno-resource-mutating-webhook-cfg
+  ```
+
+- **Do not add `webhookConfiguration.matchConditions` to this policy.** With this Kyverno version, a ClusterPolicy with `matchConditions` stops verifying signatures and rejects every ModelCar Pod with `missing digest`.
+- **Do not use ImageValidatingPolicy for this check with this Kyverno version.** It cannot read registry credentials, and it can crash the admission controller when a Pod contains two images to verify, which every KServe predictor Pod does.
+- **Existing Pods.** ModelCar Pods that were running before the policy was applied keep running, but any update to them is rejected with `missing digest`. Delete them so that they are recreated through the policy.
+- **Rollback is not blocked.** An older ModelCar image signed with a trusted key still passes verification.
+- **HTTP and self-signed registries.** The plugin starts Kyverno with `--allowInsecureRegistry=true`, which allows HTTP registries and skips TLS certificate verification for the registry.
