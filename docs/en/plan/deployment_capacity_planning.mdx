@@ -73,7 +73,7 @@ Use multiple clusters only when one of the following applies:
 
 - An ACP `global` cluster already exists and manages other clusters.
 - More than one AI cluster is required, for example separate production and test clusters, clusters in different sites, or separate clusters for different accelerator types.
-- AI clusters and other business clusters must be managed from the same `global` cluster.
+- AI clusters and other workload clusters must be managed from the same `global` cluster.
 
 In this layout:
 
@@ -117,7 +117,7 @@ Alauda AI Platform resources also exclude the following workloads:
 - Notebook, Workspace, PipelineRun, and Agent instances;
 - Storage for model weights, training data, images, logs, and backups.
 
-Training jobs, inference services, and other AI workloads require additional resources for the task type, model size, concurrency, and performance target, such as GPU/NPU cards, CPU, memory, nodes, and business storage.
+Training jobs, inference services, and other AI workloads require additional resources for the task type, model size, concurrency, and performance target, such as GPU/NPU cards, CPU, memory, nodes, and data storage.
 
 ### 2.1 Resource recommendations \{#resource_recommendations}
 
@@ -130,13 +130,13 @@ The table shows reference values for the Alauda AI Platform components only, not
 
 The Proof of Concept profile is a single-replica deployment profile that includes the Alauda AI Platform base platform components and the training, fine-tuning, and Agent control plane. It reserves room for demo data and demo workloads, and it is not highly available.
 
-The Production profile includes the same components and reserves about 50% additional headroom on top of the component resources. The headroom covers rescheduling after a node failure, rolling upgrades, monitoring and logging fluctuation, and business growth.
+The Production profile includes the same components and reserves about 50% additional headroom on top of the component resources. The headroom covers rescheduling after a node failure, rolling upgrades, monitoring and logging fluctuation, and workload growth.
 
-If a Proof of Concept or Production deployment also runs real training jobs, inference services, MaaS concurrency, user Notebook/Workspace/PipelineRun, Agent instances, or large business datasets, add resources according to the actual workload.
+If a Proof of Concept or Production deployment also runs real training jobs, inference services, MaaS concurrency, user Notebook/Workspace/PipelineRun, Agent instances, or large datasets, add resources according to the actual workload.
 
 ### 2.2 Storage planning \{#storage_planning}
 
-Alauda AI Platform resources do not include business data storage capacity. Plan model weights, training data, model images, Workspace/PVCs, Pipeline artifacts, logs, and backups separately based on data volume, growth rate, retention period, IOPS, throughput, and recovery target.
+Alauda AI Platform resources do not include application data storage capacity. Plan model weights, training data, model images, Workspace/PVCs, Pipeline artifacts, logs, and backups separately based on data volume, growth rate, retention period, IOPS, throughput, and recovery target.
 
 Choose the storage for each kind of data as follows. Inference and training use the same three kinds of storage; they differ only in whether a volume must be mounted by several nodes at the same time. **Recommended** is the default choice, and **Secondary** is the choice when the recommended storage is not available.
 
@@ -191,8 +191,8 @@ CPU is a flexible resource. The actual processing capacity of a single CPU can d
 - The load-test data is a reference for capacity planning, not a general configuration commitment;
 - `1 CPU` on different CPU models does not necessarily deliver the same throughput and latency;
 - Adjust the CPU configuration to the target CPU model, model size, request length, output speed, connection mode, Guardrail policy, and concurrency target;
-- On ARM64, Kunpeng, or other target hardware, run business load tests on the target hardware;
-- When test results differ from this page, follow the actual business test results.
+- On ARM64, Kunpeng, or other target hardware, run application load tests on the target hardware;
+- When test results differ from this page, follow the actual test results.
 
 The MaaS load tests do not include real model inference services, model weights, or GPU/NPU resources. When deploying real inference services, add GPU/NPU, CPU, memory, and storage resources based on model size, quantization, context length, concurrency, and target latency.
 
