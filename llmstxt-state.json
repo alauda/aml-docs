@@ -532,11 +532,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/deploy/inference_service/guides/custom_inference_runtime.mdx": {
-      "sha256": "5961ed2cb58fd198ed1fafa8f23fca4643cfd6be35e628bbaf479967da43a20d",
-      "size": 45890,
+      "sha256": "91db225fe98d8fc5c601a99d93bad53b7f5c8bd238694a2787deae127886eb55",
+      "size": 45888,
       "description": "Guide to adding custom inference runtimes for serving LLMs and other models beyond the built-in vLLM engine. Walks the standard workflow using Xinference to create runtime resources and select them when publishing an inference service, then gives specific examples for MLServer, Triton Inference Server, vLLM-ascend, and MindIE on Ascend NPU, with a comparison of runtime configurations.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
+      "updated_at": "2026-11-26T17:01:02Z"
     },
     "docs/en/deploy/inference_service/guides/external_access_inference_service.mdx": {
       "sha256": "86c3e5c8a5a8a7534c6237f80df7c9b2798a5a3d7672795228d29cbbfd20e083",
@@ -1190,11 +1190,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/installation/index.mdx": {
-      "sha256": "a91d1707878c30e659e56a07d0c15ebab02ef62a1457b4d1416ae63ec1234532",
+      "sha256": "e2524face570d980ffa73a1a762e13c41819ddfd3ac124b9eb6d27f1d149cc80",
       "size": 1623,
       "description": "Chapter landing page for installation, listing the hardware requirements of at least two nodes with 16 cores and 32 GB memory plus GPU and disk capacity for serving, the software requirements, and the ordered installation steps for the platform.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-08-04T00:00:00Z"
+      "updated_at": "2026-11-26T17:01:02Z"
     },
     "docs/en/installation/pre-configuration.mdx": {
       "sha256": "2d45aedcad79d1cd478c2ba11949417060d2027ad5e9fefafd5b5d213deb50af",
@@ -1274,11 +1274,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/monitor/resource_monitoring/monitor_dashboard_loading_stuck.mdx": {
-      "sha256": "68844c2e9e74345a51029987cf46a24f8107e0bd112917d61a1082e4a27aa10f",
+      "sha256": "2639c7d88dcdf00e6f6bd9ecea82b44f0210a9543fbc08a1f3bd92b91b8e9b8d",
       "size": 759,
       "description": "Workaround for inference service monitoring dashboards that hang on loading when AML is deployed on ACP 4.2.0 due to tightened default security policies. Instructs editing the `warlock` ClusterRole in `cpaas-system` to grant `update` on `components.aml.dev/amls/finalizers`, then restarting the warlock Deployment.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-26T17:01:02Z"
     },
     "docs/en/monitor/resource_monitoring/monitor_pending_workload.mdx": {
       "sha256": "469b4b6c686ab5624b80bdf40ff26488606b8a800a066a7d8aea99a7d302a058",
@@ -1631,11 +1631,11 @@
       "updated_at": "2026-08-04T00:00:00Z"
     },
     "docs/en/upgrade/migrating-to-knative-operator.mdx": {
-      "sha256": "6a38d6868c23ad2045320d2c13c88f7ab0ce1594261e45f48c434bfb328bda30",
+      "sha256": "0fa1fdb9da493a8748d077e392513b3c06113d00bcccafecb2ca84398b4d4eab",
       "size": 1836,
       "description": "Migration path from the legacy Alauda AI Model Serving operator (1.x series) to the upstream Knative Operator (2.x series) for inference-service serverless capability. Instructs operators to set spec.knativeServing.managementState to Removed on the default Alauda AI instance, then install Knative Operator and create a KnativeServing instance via the Marketplace per the Enabling Knative Functionality guide. Notes that AI 1.x deployments must also upgrade Alauda AI to 2.x.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-26T17:01:02Z"
     },
     "docs/en/upgrade/uninstall.mdx": {
       "sha256": "6c8bc823d58e9b8058b888964d830bcff160daa8cdef92a1c735c29c67ef38fb",
