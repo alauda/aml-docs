@@ -378,11 +378,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/installation/workbench.mdx": {
-      "sha256": "dbcee0fd2c99dbd4add26e5dbca020fb79f71cbf72bdfd1b2fcb0a656293b3ca",
+      "sha256": "efd5434099ad5952945c1a69206899e659bfea110de7b7a33a73aedcc43e4163",
       "size": 1165,
-      "description": "Installs the **Workbench** cluster plugin in a business cluster, noting that ASM (Istio) must be deployed beforehand because Workbench creates an Istio `EnvoyFilter` for Elyra and Kubeflow Pipelines run URL redirection. Also describes enabling the `ai-workbench` feature gate at `{platform-access-address}/console-platform/feature-gate` after the plugin reaches the `Installed` state.",
+      "description": "Installs the **Workbench** cluster plugin in a workload cluster, noting that ASM (Istio) must be deployed beforehand because Workbench creates an Istio `EnvoyFilter` for Elyra and Kubeflow Pipelines run URL redirection. Also describes enabling the `ai-workbench` feature gate at `{platform-access-address}/console-platform/feature-gate` after the plugin reaches the `Installed` state.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-26T17:05:28Z"
     },
     "docs/en/kserve/index.mdx": {
       "sha256": "fe427233dcedcb5e7000c0cdac2231e53368ca35b48fb014ac5d88f72053cb74",
@@ -1057,11 +1057,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/monitoring_ops/resource_monitoring/troubleshooting/monitor_dashboard_loading_stuck.mdx": {
-      "sha256": "ae1962b0ae5ef89a1d3e72b36d23a03e45d53ce150375bb8a58c97d0e75e842a",
+      "sha256": "bb2f8a1fe3255e1743a40f2b3206a958365168e471e3a7181c5fea014c9232c4",
       "size": 759,
       "description": "Workaround for inference service monitoring dashboards that hang on loading when AML is deployed on ACP 4.2.0 due to tightened default security policies. Instructs editing the `warlock` ClusterRole in `cpaas-system` to grant `update` on `components.aml.dev/amls/finalizers`, then restarting the warlock Deployment.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-26T17:05:28Z"
     },
     "docs/en/overview/architecture.mdx": {
       "sha256": "f7d45f224713f64870545f3702336ce24884fa1e87e3c6d917feef3be3fca15f",
@@ -1169,11 +1169,11 @@
       "updated_at": "2026-05-16T10:39:46Z"
     },
     "docs/en/upgrade/migrating-to-knative-operator.mdx": {
-      "sha256": "0bf92791bbe767343accfaab81c8a5f399d69bba32f21d4a78d8b35105188226",
+      "sha256": "8d84fa93745dd442f5f8d815cd463bd1d0bbb260e69c4e094395e5aa5444f949",
       "size": 1804,
       "description": "Migration path from the legacy Alauda AI Model Serving operator (1.x series) to the upstream Knative Operator (2.x series) for inference-service serverless capability. Instructs operators to set spec.knativeServing.managementState to Removed on the default Alauda AI instance, then install Knative Operator and create a KnativeServing instance via the Marketplace per the Enabling Knative Functionality guide. Notes that AI 1.x deployments must also upgrade Alauda AI to 2.x.",
       "generation_method": "ai_agent_reading",
-      "updated_at": "2026-05-16T10:39:46Z"
+      "updated_at": "2026-11-26T17:05:28Z"
     },
     "docs/en/upgrade/upgrade-from-previous-version.mdx": {
       "sha256": "aac17c1aea1211c71b3663fe2b9cb48be9372d7694d21c3af053056e263b1c4d",
